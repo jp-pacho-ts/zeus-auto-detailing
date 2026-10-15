@@ -1,0 +1,257 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum ServiceKind {
+  CERAMIC_COATING
+  PAINT_CORRECTION
+  INTERIOR_DETAILING
+  EXTERIOR_WASH_SEAL
+  WINDOW_TINT_PPF
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum StaffRole {
+  ADMIN
+  MANAGER
+  DETAILER
+}
+
+enum InventoryTransactionType {
+  CONSUMPTION
+  RESTOCK
+  ADJUSTMENT
+}
+
+// -----------------------------------------------------------------------------
+// Core Booking & Capacity Models
+// -----------------------------------------------------------------------------
+
+model VehicleCategory {
+  id             String    @id @default(uuid())
+  name           String
+  slug           String    @unique
+  description    String?
+  sizeMultiplier Decimal   @db.Decimal(5, 2)
+  sortOrder      Int
+  createdAt      DateTime  @default(now())
+  bookings       Booking[]
+
+  @@map("vehicle_categories")
+}
+
+model Service {
+  id                  String          @id @default(uuid())
+  name                String
+  slug                String          @unique
+  description         String?
+  category            ServiceKind
+  durationMinutes     Int
+  price               Decimal         @db.Decimal(10, 2)
+  bayCapacityRequired Int             @default(1)
+  isActive            Boolean         @default(true)
+  bookings            Booking[]
+  recipes             ServiceRecipe[]
+
+  @@map("services")
+}
+
+model TimeSlot {
+  id                 String                 @id @default(uuid())
+  dayOfWeek          Int
+  startTime          String
+  endTime            String
+  maxVehicleCapacity Int                    @default(2)
+  isActive           Boolean                @default(true)
+  overrides          SlotCapacityOverride[]
+
+  @@unique([dayOfWeek, startTime])
+  @@map("time_slots")
+}
+
+model ScheduleConfig {
+  id                         String   @id @default(uuid())
+  defaultSlotIntervalMinutes Int      @default(30)
+  defaultBayCapacity         Int      @default(2)
+  openTime                   String   @default("08:00")
+  closeTime                  String   @default("17:00")
+  effectiveDate              DateTime @unique @db.Date
+
+  @@map("schedule_configs")
+}
+
+model SlotCapacityOverride {
+  id                 String   @id @default(uuid())
+  date               DateTime @db.Date
+  timeSlotId         String
+  timeSlot           TimeSlot @relation(fields: [timeSlotId], references: [id])
+  maxVehicleCapacity Int
+  version            Int      @default(1)
+
+  @@unique([date, timeSlotId])
+  @@index([timeSlotId])
+  @@map("slot_capacity_overrides")
+}
+
+model BlockedDate {
+  id        String   @id @default(uuid())
+  date      DateTime @db.Date
+  reason    String
+  isFullDay Boolean  @default(true)
+  startTime String?
+  endTime   String?
+
+  @@index([date])
+  @@map("blocked_dates")
+}
+
+model Booking {
+  id                          String                 @id @default(uuid())
+  referenceCode               String                 @unique
+  customerName                String
+  customerPhone               String
+  customerEmail               String?
+  vehiclePlate                String?
+  vehicleModel                String
+  vehicleCategoryId           String
+  vehicleCategory             VehicleCategory        @relation(fields: [vehicleCategoryId], references: [id])
+  serviceId                   String
+  service                     Service                @relation(fields: [serviceId], references: [id])
+  bookingDate                 DateTime               @db.Date
+  startTime                   String
+  endTime                     String
+  status                      BookingStatus          @default(PENDING)
+  notes                       String?
+  startsAt                    DateTime
+  endsAt                      DateTime
+  durationMinutes             Int
+  priceSnapshot               Decimal                @db.Decimal(10, 2)
+  serviceNameSnapshot         String
+  vehicleCategoryNameSnapshot String
+  idempotencyKey              String                 @unique
+  requestHash                 String
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @updatedAt
+  assignments                 BookingAssignment[]
+  commissionPayouts           CommissionPayout[]
+  inventoryTransactions       InventoryTransaction[]
+
+  @@index([bookingDate, status, startTime, endTime])
+  @@index([serviceId])
+  @@index([vehicleCategoryId])
+  @@map("bookings")
+}
+
+// -----------------------------------------------------------------------------
+// Detailer Staff & Commission Models
+// -----------------------------------------------------------------------------
+
+model Staff {
+  id                    String              @id @default(uuid())
+  name                  String
+  phone                 String
+  email                 String              @unique
+  role                  StaffRole
+  defaultCommissionRate Decimal             @default(0.10) @db.Decimal(5, 2)
+  isActive              Boolean             @default(true)
+  createdAt             DateTime            @default(now())
+  assignments           BookingAssignment[]
+  commissionPayouts     CommissionPayout[]
+
+  @@map("staff")
+}
+
+model BookingAssignment {
+  id         String   @id @default(uuid())
+  bookingId  String
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+  staffId    String
+  staff      Staff    @relation(fields: [staffId], references: [id])
+  roleInJob  String   @default("Primary Detailer")
+  assignedAt DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([staffId])
+  @@map("booking_assignments")
+}
+
+model CommissionPayout {
+  id           String    @id @default(uuid())
+  bookingId    String
+  booking      Booking   @relation(fields: [bookingId], references: [id])
+  staffId      String
+  staff        Staff     @relation(fields: [staffId], references: [id])
+  earnedAmount Decimal   @db.Decimal(10, 2)
+  isPaid       Boolean   @default(false)
+  paidAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([bookingId])
+  @@index([staffId])
+  @@map("commission_payouts")
+}
+
+// -----------------------------------------------------------------------------
+// Inventory & Bill of Materials (BOM) Models
+// -----------------------------------------------------------------------------
+
+model InventoryItem {
+  id           String                 @id @default(uuid())
+  name         String
+  sku          String                 @unique
+  category     String
+  unit         String
+  currentStock Decimal                @db.Decimal(10, 2)
+  reorderLevel Decimal                @db.Decimal(10, 2)
+  costPerUnit  Decimal                @db.Decimal(10, 2)
+  createdAt    DateTime               @default(now())
+  recipes      ServiceRecipe[]
+  transactions InventoryTransaction[]
+
+  @@map("inventory_items")
+}
+
+model ServiceRecipe {
+  id               String        @id @default(uuid())
+  serviceId        String
+  service          Service       @relation(fields: [serviceId], references: [id])
+  inventoryItemId  String
+  inventoryItem    InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  quantityRequired Decimal       @db.Decimal(8, 2)
+
+  @@unique([serviceId, inventoryItemId])
+  @@index([inventoryItemId])
+  @@map("service_recipes")
+}
+
+model InventoryTransaction {
+  id              String                   @id @default(uuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem            @relation(fields: [inventoryItemId], references: [id])
+  bookingId       String?
+  booking         Booking?                 @relation(fields: [bookingId], references: [id])
+  type            InventoryTransactionType
+  quantity        Decimal                  @db.Decimal(8, 2)
+  notes           String?
+  createdAt       DateTime                 @default(now())
+
+  @@index([inventoryItemId])
+  @@index([bookingId])
+  @@map("inventory_transactions")
+}
