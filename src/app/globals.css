@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Brand tokens derived from src/config/brand.ts via RootLayout style injection */
+  :root {
+    --background: var(--brand-background);
+    --foreground: var(--brand-foreground);
+    --card: var(--brand-card);
+    --card-foreground: var(--brand-card-foreground);
+    --popover: var(--brand-popover);
+    --popover-foreground: var(--brand-popover-foreground);
+    --muted: var(--brand-muted);
+    --muted-foreground: var(--brand-muted-foreground);
+    --secondary: var(--brand-secondary);
+    --secondary-foreground: var(--brand-secondary-foreground);
+    --border: var(--brand-border);
+    --input: var(--brand-input);
+    --primary: var(--brand-primary);
+    --primary-foreground: var(--brand-primary-foreground);
+    --accent: var(--brand-accent);
+    --accent-foreground: var(--brand-accent-foreground);
+    --primary-hover: var(--brand-primary-hover);
+    --ring: var(--brand-ring);
+    --success: var(--brand-success);
+    --warning: var(--brand-warning);
+    --destructive: var(--brand-destructive);
+    --destructive-foreground: var(--brand-destructive-foreground);
+    --radius: var(--brand-radius);
+    --font-sans: var(--brand-font-sans);
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--ring));
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background: rgb(var(--primary));
+    color: rgb(var(--primary-foreground));
+  }
+}
