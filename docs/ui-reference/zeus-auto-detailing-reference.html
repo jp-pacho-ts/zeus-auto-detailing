@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zeus Auto Detailing — Product Reference</title>
+  <style>
+    :root { color-scheme: dark; --bg:#09090b; --surface:#18181b; --border:#27272a; --gold:#f59e0b; --gold-light:#fbbf24; --muted:#a1a1aa; --text:#fafafa; --green:#10b981; --red:#ef4444; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.65 Inter, Geist, Arial, sans-serif; }
+    main { width:min(1100px, calc(100% - 40px)); margin:0 auto; padding:64px 0 80px; }
+    header { border-bottom:1px solid var(--border); padding-bottom:32px; margin-bottom:40px; }
+    .eyebrow { color:var(--gold); font-size:.78rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+    h1 { margin:10px 0 12px; font-size:clamp(2rem,5vw,4rem); line-height:1.05; letter-spacing:-.04em; }
+    h2 { margin:44px 0 18px; color:var(--gold-light); font-size:1.55rem; border-bottom:1px solid var(--border); padding-bottom:10px; }
+    h3 { margin:24px 0 8px; font-size:1.05rem; }
+    p { color:#d4d4d8; }
+    section, .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:24px; }
+    section { margin:18px 0; }
+    ul, ol { padding-left:24px; color:#d4d4d8; }
+    li { margin:8px 0; }
+    code { color:var(--gold-light); background:#27272a; border-radius:5px; padding:2px 6px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; }
+    .card { padding:18px; }
+    .card h3 { color:var(--gold-light); margin-top:0; }
+    .price { font-weight:800; font-variant-numeric:tabular-nums; }
+    .tag { display:inline-block; border:1px solid #854d0e; color:var(--gold-light); border-radius:999px; padding:3px 9px; font-size:.78rem; margin:3px 4px 3px 0; }
+    .status { font-weight:700; }
+    .available { color:var(--green); } .limited { color:var(--gold); } .sold { color:var(--red); }
+    footer { color:var(--muted); border-top:1px solid var(--border); margin-top:48px; padding-top:20px; font-size:.9rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">Product Reference · Automotive Studio Management</div>
+      <h1>Zeus Auto Detailing</h1>
+      <p>Reference specification for a high-fidelity interactive Next.js, React, and Tailwind CSS web application.</p>
+    </header>
+
+    <section>
+      <h2>1. Brand and Visual Specification</h2>
+      <ul>
+        <li><strong>Aesthetic:</strong> Dark Luxury / Performance Automotive Studio</li>
+        <li><strong>Palette:</strong> Background <code>#09090b</code>, card surfaces <code>#18181b</code>, borders <code>#27272a</code>, Zeus Gold <code>#f59e0b</code> / <code>#fbbf24</code></li>
+        <li><strong>Status colors:</strong> <span class="available">Emerald for Available</span>, <span class="limited">Amber for 1 Bay Left</span>, <span class="sold">Crimson for Sold Out</span></li>
+        <li><strong>Typography:</strong> Clean sans-serif such as Inter or Geist, with tabular numbers for PHP pricing and timestamps.</li>
+        <li><strong>Central configuration:</strong> Use a <code>brandConfig</code> object containing shop name, location, currency, and default bay capacity.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>2. Public Studio Home Page — <code>/</code></h2>
+      <ul>
+        <li>Header navigation: logo, Services, Packages, Location, Contact, and primary Book an Appointment button.</li>
+        <li>Do not include an Admin Portal button in the public customer navigation.</li>
+        <li>Hero headline: “Tacloban's Premier Automotive Detailing &amp; Vehicle Protection Studio.”</li>
+        <li>Value propositions: Certified Technicians, Multi-Stage Paint Correction, and Graphene Ceramic Coatings.</li>
+        <li>Primary CTA links to <code>/book</code>.</li>
+      </ul>
+      <h3>Service Packages</h3>
+      <div class="grid">
+        <article class="card"><h3>Signature 9H Graphene Ceramic Coating</h3><p class="price">₱18,500 · ~360 mins</p></article>
+        <article class="card"><h3>Multi-Stage Paint Correction &amp; Polish</h3><p class="price">₱8,500 · ~240 mins</p></article>
+        <article class="card"><h3>Full Interior Deep Clean &amp; Sanitize</h3><p class="price">₱4,500 · ~180 mins</p></article>
+        <article class="card"><h3>Premium Exterior Wash &amp; Seal</h3><p class="price">₱1,800 · ~90 mins</p></article>
+      </div>
+      <ul>
+        <li>Show service descriptions, feature lists, duration badges, and PHP pricing.</li>
+        <li>Include vehicle categories: Sedan, SUV/Crossover, Pickup/Van, and Motorcycle.</li>
+        <li>Include location and operating hours: Monday–Saturday, 8:00 AM–5:00 PM, Tacloban City.</li>
+        <li>Footer includes shop information, social links, and a discreet Staff Access link to <code>/admin/login</code>.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Customer Booking Page — <code>/book</code></h2>
+      <p>Build an interactive five-step guided wizard with visible progress.</p>
+      <ol>
+        <li><strong>Vehicle Category:</strong> Selection cards for Sedan, SUV/Crossover, Pickup/Van, and Motorcycle.</li>
+        <li><strong>Service Package:</strong> Service cards with duration pills and PHP prices.</li>
+        <li><strong>Date and Bay Slots:</strong> Calendar picker and 30-minute time slots using two-bay capacity chips: <span class="status available">2 Bays Open</span>, <span class="status limited">1 Bay Left — Filling Fast</span>, and <span class="status sold">Sold Out</span>.</li>
+        <li><strong>Customer and Vehicle Information:</strong> Customer name, mobile number with +63 prefix, email, vehicle make and model, plate or conduction number, and special notes.</li>
+        <li><strong>Booking Receipt:</strong> Reference code such as ZEUS-849201, appointment summary, vehicle details, estimated finish time, and shop address.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>4. Staff Admin Login — <code>/admin/login</code></h2>
+      <p>Create a centered login card with dark styling, Email / Staff ID and Password fields, a submit button, and error-state handling.</p>
+    </section>
+
+    <section>
+      <h2>5. Studio Admin Portal — <code>/admin/*</code></h2>
+      <p>Use a protected layout with persistent dark sidebar navigation and mock data for testing.</p>
+      <div class="grid">
+        <article class="card"><h3>Bookings</h3><p><code>/admin/bookings</code> — Appointment table with status filters: PENDING, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED.</p></article>
+        <article class="card"><h3>Bay Calendar</h3><p><code>/admin/calendar</code> — Two-bay daily and monthly calendar with capacity override controls.</p></article>
+        <article class="card"><h3>Detailers &amp; Commissions</h3><p><code>/admin/detailers</code> — Technician roster, job assignments, and earned commission tracking.</p></article>
+        <article class="card"><h3>Inventory &amp; Consumables</h3><p><code>/admin/inventory</code> — Stock list for ceramic coatings, compound bottles, and pads with low-stock alerts.</p></article>
+        <article class="card"><h3>Sales Analytics</h3><p><code>/admin/analytics</code> — Gross Revenue, Bay Utilization %, and Popular Services metrics.</p></article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Interaction Requirements</h2>
+      <ul>
+        <li>Include working tab switching, wizard step transitions, form states, status filters, and mock data so every interaction can be tested.</li>
+        <li>Use responsive, accessible HTML semantics and preserve the dark luxury automotive visual direction.</li>
+      </ul>
+    </section>
+
+    <footer>Zeus Auto Detailing · Tacloban City, Leyte · Reference document for implementation agents</footer>
+  </main>
+</body>
+</html>
