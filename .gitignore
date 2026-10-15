@@ -1,0 +1,31 @@
+# Dependencies and build output
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local secrets; the example is safe to track
+.env*
+!.env.example
+*.pem
+*.key
+.aws/
+
+# Local tools and logs
+.npm-cache/
+*.log
+.vercel/
+.DS_Store
+Thumbs.db
+
+# AI Agents, plans, and workflows
+.agents/
+AGENTS.md
+PLAN.md
+*plan*.md
+.team/
+prompts/
+config/ai-team.json
+skills-lock.json
