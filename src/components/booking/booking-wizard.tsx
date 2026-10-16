@@ -3,13 +3,19 @@
 import * as React from "react";
 import Link from "next/link";
 import {
+  AlertCircle,
   ArrowRight,
   Bike,
+  CalendarDays,
   Car,
   CarFront,
   Check,
   ChevronLeft,
+  Copy,
   Droplets,
+  MessageSquare,
+  Phone,
+  Printer,
   ShieldCheck,
   Sparkles,
   Sun,
@@ -106,6 +112,8 @@ export function BookingWizard({
   const [catalogVersion, setCatalogVersion] = React.useState(0);
   const [vehicleId, setVehicleId] = React.useState("");
   const [serviceId, setServiceId] = React.useState("");
+  const [linkWarning, setLinkWarning] = React.useState("");
+  const [copied, setCopied] = React.useState(false);
   const [date, setDate] = React.useState(todayInManila);
   const [selection, setSelection] = React.useState<{ key: string; time: string } | null>(null);
   const [availability, setAvailability] = React.useState<{
@@ -132,6 +140,14 @@ export function BookingWizard({
   const attempt = React.useRef<CreateBookingRequest | null>(null);
   const errorSummary = React.useRef<HTMLDivElement>(null);
   const deepLinkHandled = React.useRef(false);
+
+  const copyReference = () => {
+    if (booking?.referenceCode && typeof navigator !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(booking.referenceCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const key = date + "|" + vehicleId + "|" + serviceId;
   const vehicle = catalog?.vehicleCategories.find((v) => v.id === vehicleId);
@@ -169,39 +185,58 @@ export function BookingWizard({
         setCatalog(data);
         setCatalogError("");
 
-        const vQuery = initialVehicleName?.toLowerCase() ?? "";
-        const matchedVehicle =
-          data.vehicleCategories.find(
-            (v) =>
-              v.id === initialVehicleName ||
-              v.code.toLowerCase() === vQuery ||
-              v.code === vehicleCodes[vQuery] ||
-              v.name.toLowerCase() === vQuery ||
-              v.name.toLowerCase().includes(vQuery) ||
-              vQuery.includes(v.name.toLowerCase()),
-          ) ?? data.vehicleCategories[0];
+        const hasVehicleParam = Boolean(initialVehicleName?.trim());
+        const hasServiceParam = Boolean(initialServiceId?.trim());
 
-        const sQuery = initialServiceId?.toLowerCase() ?? "";
-        const matchedService =
-          data.services.find(
-            (s) =>
-              s.id === initialServiceId ||
-              s.slug.toLowerCase() === sQuery ||
-              s.slug === (serviceAliases[sQuery] ?? sQuery) ||
-              s.id.toLowerCase() === sQuery,
-          ) ?? data.services[0];
+        const vQuery = initialVehicleName?.toLowerCase().trim() ?? "";
+        const matchedVehicle = vQuery
+          ? data.vehicleCategories.find(
+              (v) =>
+                v.id.toLowerCase() === vQuery ||
+                v.code.toLowerCase() === vQuery ||
+                v.code === vehicleCodes[vQuery] ||
+                v.name.toLowerCase() === vQuery ||
+                v.name.toLowerCase().split("/")[0].trim() === vQuery,
+            )
+          : undefined;
 
-        setVehicleId((previous) =>
-          data.vehicleCategories.some((v) => v.id === previous) ? previous : matchedVehicle.id,
-        );
-        setServiceId((previous) =>
-          data.services.some((s) => s.id === previous) ? previous : matchedService.id,
-        );
+        const sQuery = initialServiceId?.toLowerCase().trim() ?? "";
+        const matchedService = sQuery
+          ? data.services.find(
+              (s) =>
+                s.id.toLowerCase() === sQuery ||
+                s.slug.toLowerCase() === sQuery ||
+                s.slug === (serviceAliases[sQuery] ?? sQuery) ||
+                s.name.toLowerCase() === sQuery,
+            )
+          : undefined;
 
-        // Auto-advance directly to Step 3 when initialServiceId and initialVehicleName are both provided
-        if (!deepLinkHandled.current && initialServiceId && initialVehicleName) {
-          deepLinkHandled.current = true;
-          setStep(3);
+        if (hasVehicleParam || hasServiceParam) {
+          if (matchedVehicle && matchedService) {
+            setVehicleId(matchedVehicle.id);
+            setServiceId(matchedService.id);
+            setLinkWarning("");
+            if (!deepLinkHandled.current) {
+              deepLinkHandled.current = true;
+              setStep(3);
+            }
+          } else {
+            // Invalid or incomplete parameters: stay on Step 1, do NOT assign fallback index
+            setVehicleId("");
+            setServiceId("");
+            setStep(1);
+            setLinkWarning(
+              "The linked service or vehicle could not be found. Please choose from our available detailing services.",
+            );
+          }
+        } else {
+          // No parameters provided
+          setVehicleId((previous) =>
+            data.vehicleCategories.some((v) => v.id === previous) ? previous : "",
+          );
+          setServiceId((previous) =>
+            data.services.some((s) => s.id === previous) ? previous : "",
+          );
         }
       })
       .catch((error) => {
@@ -332,6 +367,9 @@ export function BookingWizard({
         if (result.error.code === "SLOT_UNAVAILABLE" || result.error.code === "SCHEDULE_CONFLICT") {
           setSelection(null);
           setStep(3);
+          setMessage(
+            "The selected arrival slot is no longer available. Please select another time session. Your customer and vehicle details have been saved.",
+          );
           setAvailabilityVersion((v) => v + 1);
         }
         if (result.error.code === "NOT_FOUND") {
@@ -360,14 +398,14 @@ export function BookingWizard({
     "Vehicle",
     "Service",
     "Date & Time",
-    "Your Details",
+    "Details & Review",
     "Booking Received",
   ];
   const headings = [
     "Choose Vehicle Classification",
     "Select Detailing Service",
     "Select Appointment Date & Time",
-    "Customer & Vehicle Information",
+    "Details & Review",
     "Booking Received",
   ];
 
@@ -563,7 +601,33 @@ export function BookingWizard({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card">
+      <style>{`
+        @media print {
+          header,
+          .no-print,
+          .wizard-footer {
+            display: none !important;
+          }
+          body, main {
+            background: #ffffff !important;
+            color: #000000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .print-receipt-card {
+            border: 1px solid #000000 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            box-shadow: none !important;
+            padding: 16px !important;
+          }
+          .print-receipt-card * {
+            color: #000000 !important;
+            border-color: #cccccc !important;
+          }
+        }
+      `}</style>
+      <header className="border-b border-border bg-card no-print">
         <div className="mx-auto flex h-20 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
           <Link
             href="/"
@@ -641,6 +705,25 @@ export function BookingWizard({
         {/* Step 1: Vehicle Selection (Full Width) */}
         {catalog && step === 1 && (
           <div className="max-w-3xl">
+            {linkWarning && (
+              <div
+                role="alert"
+                className="mb-6 flex items-start justify-between gap-3 rounded border border-warning/50 bg-warning/10 p-4 text-sm text-warning"
+              >
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <p>{linkWarning}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLinkWarning("")}
+                  aria-label="Dismiss warning"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center -mr-2 -mt-2 text-warning hover:opacity-80"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            )}
             <fieldset className="space-y-3">
               <legend className="mb-3 text-sm text-muted-foreground">
                 Choose one vehicle category to calibrate service duration and pricing.
@@ -676,6 +759,7 @@ export function BookingWizard({
                       onChange={() => {
                         setVehicleId(v.id);
                         setSelection(null);
+                        setLinkWarning("");
                       }}
                       className="h-5 w-5 accent-primary shrink-0"
                     />
@@ -822,6 +906,30 @@ export function BookingWizard({
                               : "No arrival sessions remain for this service on this date.")}
                         </p>
 
+                        {!live.data.slots.some((s) => s.selectable) && (
+                          <div className="my-4 rounded border border-border/80 bg-[#121214] p-4 text-sm">
+                            <p className="text-zinc-400">
+                              All arrival sessions are booked or unavailable for {date ? dateLabel(date) : "this date"}.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextDay = new Date(new Date(date + "T00:00:00+08:00").getTime() + 86400000)
+                                  .toISOString()
+                                  .slice(0, 10);
+                                if (nextDay <= maxDate) {
+                                  setDate(nextDay);
+                                  setSelection(null);
+                                }
+                              }}
+                              className="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20"
+                            >
+                              <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                              Check Next Available Date
+                            </button>
+                          </div>
+                        )}
+
                         {/* Morning Sessions (08:00 - 12:00) */}
                         {morningSlots.length > 0 && (
                           <div className="mt-4">
@@ -858,6 +966,13 @@ export function BookingWizard({
                           </div>
                         )}
 
+                        <div className="mt-4 flex items-start gap-2.5 rounded border border-border/60 bg-[#121214] p-3 text-xs text-zinc-400">
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                          <p>
+                            <strong className="text-foreground">Bay Reservation Notice:</strong> Selecting an arrival time does not hold the slot. Bay availability is secured when your booking request is submitted.
+                          </p>
+                        </div>
+
                         <p className="mt-4 text-xs text-zinc-400">
                           {formatDuration(live.data.durationMinutes)} full bay allocation · Estimated quote{" "}
                           <span className="font-semibold text-foreground">
@@ -881,13 +996,108 @@ export function BookingWizard({
                   }}
                   className={panel}
                 >
-                  <div className="mb-6 border-b border-border pb-4">
-                    <p className="text-sm font-semibold text-foreground">
-                      Confirming reservation for {service?.name}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-400">
-                      {dateLabel(date)} · {slot ? `${timeLabel(slot.startTime)} arrival` : "Arrival time needs review"}
-                    </p>
+                  {/* Explicit Pre-Submission Review Panel */}
+                  <div className="mb-6 rounded border border-border bg-[#121214] p-5">
+                    <div className="flex items-center justify-between border-b border-border pb-3">
+                      <h2 className="text-sm font-bold uppercase tracking-wider text-primary">
+                        Pre-Submission Review
+                      </h2>
+                      <span className="rounded bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                        Step 4 of 5
+                      </span>
+                    </div>
+
+                    <div className="mt-3 divide-y divide-border/60 text-sm">
+                      {/* Vehicle */}
+                      <div className="flex items-start justify-between py-3">
+                        <div>
+                          <span className="block text-xs font-medium text-muted-foreground">Vehicle Classification</span>
+                          <span className="font-bold text-foreground">{vehicle?.name ?? "—"}</span>
+                          <p className="text-xs text-zinc-400">
+                            {vehicle?.sizeMultiplier ?? 1.0}× vehicle size adjustment
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStep(1);
+                            setMessage("");
+                          }}
+                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline"
+                          aria-label="Edit vehicle classification"
+                        >
+                          Edit
+                        </button>
+                      </div>
+
+                      {/* Service */}
+                      <div className="flex items-start justify-between py-3">
+                        <div>
+                          <span className="block text-xs font-medium text-muted-foreground">Detailing Service</span>
+                          <span className="font-bold text-foreground">{service?.name ?? "—"}</span>
+                          <p className="text-xs text-zinc-400">
+                            {service?.category ? service.category.replace(/_/g, " ") : "Specialized Detailing"}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStep(2);
+                            setMessage("");
+                          }}
+                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline"
+                          aria-label="Edit detailing service"
+                        >
+                          Edit
+                        </button>
+                      </div>
+
+                      {/* Schedule */}
+                      <div className="flex items-start justify-between py-3">
+                        <div>
+                          <span className="block text-xs font-medium text-muted-foreground">Appointment Schedule</span>
+                          <span className="font-bold text-foreground">
+                            {dateLabel(date)} · {slot ? `${timeLabel(slot.startTime)} – ${timeLabel(slot.endTime)}` : "Select arrival slot"}
+                          </span>
+                          <p className="text-xs text-zinc-400">Timezone: Asia/Manila (UTC+8)</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStep(3);
+                            setMessage("");
+                          }}
+                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline"
+                          aria-label="Edit appointment schedule"
+                        >
+                          Edit
+                        </button>
+                      </div>
+
+                      {/* Duration */}
+                      <div className="flex items-start justify-between py-3">
+                        <div>
+                          <span className="block text-xs font-medium text-muted-foreground">Estimated Service Duration</span>
+                          <span className="font-bold text-foreground">{formatDuration(currentDuration)}</span>
+                          <p className="text-xs text-zinc-400">
+                            Estimated shop allocation (intake walkaround to release)
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Estimated Investment */}
+                      <div className="pt-3">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-xs font-medium text-muted-foreground">Estimated Investment</span>
+                          <span className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground">
+                            {money(currentTotal)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          Taxes, professional consumables & shop service included.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {uncertain && (
@@ -969,7 +1179,7 @@ export function BookingWizard({
                         className={`${control} ${errorFor("customerPhone") ? "border-destructive ring-1 ring-destructive" : ""}`}
                       />
                       <p id="customerPhone-help" className="mt-1.5 text-xs text-zinc-400">
-                        Format: 09XX XXX XXXX or +63 9XX XXX XXXX for SMS appointment updates.
+                        Format: 09XX XXX XXXX or +63 9XX XXX XXXX for shop contact and appointment updates.
                       </p>
                       {errorFor("customerPhone") && (
                         <p id="customerPhone-error" className="mt-1 text-xs text-destructive">
@@ -1108,64 +1318,123 @@ export function BookingWizard({
 
         {/* Step 5: Booking Confirmation Voucher */}
         {step === 5 && booking && (
-          <div className="max-w-3xl">
-            <section aria-labelledby="reference-title" className={panel}>
-              <ShieldCheck aria-hidden="true" className="mb-4 h-10 w-10 text-primary" />
-              <p className="text-sm font-semibold text-primary">
-                {booking.status === "CONFIRMED" ? "Booking Confirmed" : "Booking Received"}
-              </p>
-              <h2 id="reference-title" className="mt-2 text-2xl font-bold tabular-nums text-foreground">
-                {booking.referenceCode}
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
+          <div className="max-w-3xl space-y-6">
+            <section
+              aria-labelledby="reference-title"
+              className={`${panel} print-receipt-card`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck aria-hidden="true" className="h-8 w-8 text-primary shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                      {booking.status === "CONFIRMED" ? "Booking Confirmed" : "Booking Received"}
+                    </p>
+                    <h2
+                      id="reference-title"
+                      className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground sm:text-3xl"
+                    >
+                      {booking.referenceCode}
+                    </h2>
+                  </div>
+                </div>
+
+                {/* Actions: Copy Reference & Print Receipt */}
+                <div className="flex items-center gap-2 no-print">
+                  <button
+                    type="button"
+                    onClick={copyReference}
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground transition-colors hover:border-zinc-500 hover:text-primary"
+                    aria-label="Copy booking reference code"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+                        <span className="text-emerald-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" aria-hidden="true" />
+                        <span>Copy Reference</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== "undefined") window.print();
+                    }}
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground transition-colors hover:border-zinc-500 hover:text-primary"
+                    aria-label="Print booking receipt"
+                  >
+                    <Printer className="h-4 w-4" aria-hidden="true" />
+                    <span>Print Receipt</span>
+                  </button>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm text-muted-foreground">
                 {booking.status === "CONFIRMED"
                   ? "Your appointment is confirmed. Please arrive on time for your scheduled intake walkaround."
-                  : "We have received your appointment request. Our shop will review and confirm your slot."}
+                  : "We have received your appointment request. Our shop team will review your booking request and contact you to confirm your slot."}
               </p>
 
-              <dl className="mt-6 space-y-4 text-sm">
-                <div>
-                  <dt className="text-muted-foreground">Appointment</dt>
-                  <dd className="font-semibold text-foreground">
+              <dl className="mt-6 divide-y divide-border/60 text-sm">
+                <div className="py-3">
+                  <dt className="text-xs text-muted-foreground">Appointment Date & Arrival Time</dt>
+                  <dd className="mt-0.5 font-bold text-foreground">
                     {dateLabel(booking.bookingDate)} · {timeLabel(booking.startTime)}–{timeLabel(booking.endTime)} · {booking.timezone}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground">Detailing Service</dt>
-                  <dd className="text-foreground">
-                    {booking.serviceName} · {formatDuration(booking.durationMinutes)}
+                <div className="py-3">
+                  <dt className="text-xs text-muted-foreground">Detailing Service</dt>
+                  <dd className="mt-0.5 text-foreground">
+                    <span className="font-semibold">{booking.serviceName}</span>
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground">Vehicle</dt>
-                  <dd className="text-foreground">
+                <div className="py-3">
+                  <dt className="text-xs text-muted-foreground">Estimated Service Duration</dt>
+                  <dd className="mt-0.5 text-foreground">
+                    {formatDuration(booking.durationMinutes)}{" "}
+                    <span className="text-xs text-zinc-400">
+                      (Estimated duration only — not a guaranteed vehicle release time. Final inspection depends on surface condition.)
+                    </span>
+                  </dd>
+                </div>
+                <div className="py-3">
+                  <dt className="text-xs text-muted-foreground">Vehicle</dt>
+                  <dd className="mt-0.5 text-foreground">
                     {booking.vehicleCategoryName} · {booking.vehicleModel}
-                    {booking.vehiclePlate ? " · " + booking.vehiclePlate : ""}
+                    {booking.vehiclePlate ? ` (${booking.vehiclePlate})` : ""}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground">Customer</dt>
-                  <dd className="text-foreground">
+                <div className="py-3">
+                  <dt className="text-xs text-muted-foreground">Customer Contact</dt>
+                  <dd className="mt-0.5 text-foreground">
                     {booking.customerName} · {booking.customerPhone}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground">Committed quote</dt>
-                  <dd className="text-xl font-bold text-foreground">
+                <div className="py-3">
+                  <dt className="text-xs text-muted-foreground">Estimated Investment</dt>
+                  <dd className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">
                     {money(booking.totalPriceCentavos)}
                   </dd>
+                  <p className="mt-0.5 text-xs text-zinc-400">
+                    Includes labor, professional coatings/compounds, and shop supplies.
+                  </p>
                 </div>
-                <div className="border-t border-border pt-4">
-                  <dt className="text-muted-foreground">Shop Location</dt>
-                  <dd className="font-medium text-foreground">{brandConfig.address}</dd>
+                <div className="py-3">
+                  <dt className="text-xs text-muted-foreground">Shop Location</dt>
+                  <dd className="mt-0.5 font-medium text-foreground">{brandConfig.address}</dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground">Operating Schedule</dt>
-                  <dd className="font-medium text-foreground">{brandConfig.operatingHours}</dd>
+                <div className="py-3">
+                  <dt className="text-xs text-muted-foreground">Operating Schedule</dt>
+                  <dd className="mt-0.5 font-medium text-foreground">{brandConfig.operatingHours}</dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground">Shop Hotline</dt>
-                  <dd>
+                <div className="py-3">
+                  <dt className="text-xs text-muted-foreground">Shop Hotline</dt>
+                  <dd className="mt-0.5">
                     <a
                       href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`}
                       className="inline-flex min-h-[44px] items-center font-semibold text-primary hover:underline"
@@ -1176,63 +1445,108 @@ export function BookingWizard({
                   </dd>
                 </div>
               </dl>
-              <p className="mt-6 text-xs text-muted-foreground">
-                Keep this reference code for arrival. Your reservation is securely logged; our shop will review and confirm your scheduled slot.
-              </p>
+
+              <div className="mt-6 rounded border border-border/80 bg-[#121214] p-4 text-xs text-zinc-400">
+                <p>
+                  <strong className="text-foreground">Next Steps:</strong> Your booking is currently <span className="font-semibold text-primary">PENDING</span> shop confirmation. Our shop team will review your booking request and contact you to confirm your slot. Please save or print this voucher for your arrival walkaround.
+                </p>
+              </div>
             </section>
+
+            {/* Post-Booking Assistance: Contact Shop Card */}
+            <div className={`${panel} no-print`}>
+              <h3 className="text-base font-bold text-foreground">
+                Contact Shop About This Booking
+              </h3>
+              <p className="mt-1 text-xs text-zinc-400">
+                Have questions or need to modify your arrival time? Reach out directly to Zeus Auto Detailing with reference code <span className="font-mono font-semibold text-primary">{booking.referenceCode}</span>.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <a
+                  href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+                >
+                  <Phone className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Call Shop Hotline ({brandConfig.displayPhone})
+                </a>
+                <a
+                  href={`https://m.me/zeusautodetailingtacloban?text=${encodeURIComponent(`Hi, I have a booking inquiry for reference code ${booking.referenceCode}.`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+                >
+                  <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Message on Facebook Messenger
+                </a>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Wizard Footer Controls */}
-        <div className="mt-8 flex max-w-5xl items-center justify-between gap-4">
-          {step > 1 && step < 5 ? (
-            <button
-              type="button"
-              disabled={locked}
-              onClick={() => {
-                setStep((s) => s - 1);
-                setMessage("");
-                setFieldErrors({});
-              }}
-              className="inline-flex min-h-[44px] items-center gap-2 px-4 font-semibold text-foreground transition-colors hover:text-primary disabled:opacity-50"
-            >
-              <ChevronLeft aria-hidden="true" className="h-4 w-4" />
-              Back
-            </button>
-          ) : (
-            <span />
-          )}
+        <div className="mt-8 no-print wizard-footer">
+          <div className="flex max-w-5xl items-center justify-between gap-4">
+            {step > 1 && step < 5 ? (
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => {
+                  setStep((s) => s - 1);
+                  setMessage("");
+                  setFieldErrors({});
+                }}
+                className="inline-flex min-h-[44px] items-center gap-2 px-4 font-semibold text-foreground transition-colors hover:text-primary disabled:opacity-50"
+              >
+                <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+                Back
+              </button>
+            ) : (
+              <span />
+            )}
 
-          {step < 5 ? (
-            <button
-              type={step === 4 ? "submit" : "button"}
-              form={step === 4 ? "booking-details" : undefined}
-              onClick={(event) => {
-                if (step !== 4) {
-                  event.preventDefault();
-                  void next();
+            {step < 5 ? (
+              <button
+                type={step === 4 ? "submit" : "button"}
+                form={step === 4 ? "booking-details" : undefined}
+                onClick={(event) => {
+                  if (step !== 4) {
+                    event.preventDefault();
+                    void next();
+                  }
+                }}
+                disabled={
+                  pending ||
+                  !catalog ||
+                  Boolean(catalogError) ||
+                  (step === 1 && !vehicleId) ||
+                  (step === 2 && !serviceId) ||
+                  (step === 3 && !slot)
                 }
-              }}
-              disabled={pending || !catalog || Boolean(catalogError) || (step === 3 && !slot)}
-              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-6 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {pending
-                ? "Saving reservation…"
-                : step === 4
-                ? uncertain
-                  ? "Retry same submission"
-                  : "Submit reservation"
-                : "Continue"}
-              <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </button>
-          ) : (
-            <Link
-              href="/"
-              className="inline-flex min-h-[48px] items-center gap-2 rounded bg-primary px-6 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
-            >
-              Return to Home
-              <Check aria-hidden="true" className="h-4 w-4" />
-            </Link>
+                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-6 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {pending
+                  ? "Saving reservation…"
+                  : step === 4
+                  ? uncertain
+                    ? "Retry same submission"
+                    : "Submit booking request"
+                  : "Continue"}
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </button>
+            ) : (
+              <Link
+                href="/"
+                className="inline-flex min-h-[48px] items-center gap-2 rounded bg-primary px-6 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
+              >
+                Return to Home
+                <Check aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            )}
+          </div>
+          {step === 4 && (
+            <p className="mt-3 text-right text-xs text-zinc-400">
+              Submitting creates a PENDING booking request. Our shop will review bay capacity and contact you to confirm your appointment.
+            </p>
           )}
         </div>
       </main>
