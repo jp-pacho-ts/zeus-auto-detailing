@@ -23,6 +23,7 @@ Thumbs.db
 # AI Agents, plans, and workflows
 .agents/
 AGENTS.md
+CLAUDE.md
 PLAN.md
 *plan*.md
 .team/
