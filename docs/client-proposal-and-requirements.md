@@ -2,9 +2,10 @@
 ## Studio Operating System, Online Booking Platform and Tablet Kiosk System
 ### Business Proposal and Functional Requirements Specification
 
-- **Document Version:** 2.2.0
+- **Document Version:** 2.3.0
 - **Document Status:** Formal Proposal and Specification Baseline
 - **Date Prepared:** 14 October 2026
+- **Last Revised:** 16 October 2026
 - **Target Organization:** Zeus Auto Detailing Tacloban
 - **Location:** Real Street, Tacloban City, Leyte, Philippines (PHT / UTC+8)
 - **Currency:** Philippine Peso (PHP / ₱)
@@ -426,18 +427,16 @@ The client maintains direct ownership of all cloud hosting accounts. Recurring c
 
 | Service Component | Provider | Configuration / Tier | Estimated Monthly (USD) | Estimated Monthly (PHP) | Billing Cycle |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| Application Container | Railway.app (Singapore) | 1 vCPU / 1GB RAM Dedicated Container | $5.00 – $7.00 | ₱290 – ₱410 | Monthly |
-| Managed Database | Railway.app (Singapore) | PostgreSQL, Daily Automated Backups | $5.00 | ₱290 | Monthly |
+| Application & Database Hosting | Railway Pro (Singapore) | $20 minimum monthly usage commitment; application and PostgreSQL resource usage counted together | ~$20.00 minimum | ~₱1,160 minimum | Monthly |
 | Custom `.com` Domain | Cloudflare Registrar | Wholesale Domain with Free SSL & DDoS | ~$0.83 ($10/yr) | ~₱48 (₱580/yr) | Annual |
 | Philippine SMS Gateway | Semaphore.co | 200 Transactional SMS Credits (`+63`) | ~$1.70 | ~₱100 | As Consumed |
-| **Total Cloud Hosting** | — | **Complete Studio Infrastructure** | **~$12.50 – $14.50** | **~₱728 – ₱848** | **Monthly** |
+| **Base Hosting & Domain Budget** | — | **Railway Pro + annual domain averaged monthly; excludes SMS and usage overages** | **~$20.83 minimum** | **~₱1,208 minimum** | **Monthly equivalent** |
 
-*Note: Indicative currency exchange rate calculated at $1.00 USD = ₱58.00 PHP.*
+*Budget conversion only: $1.00 USD = ₱58.00 PHP; this is not a live exchange-rate quote. The custom domain is budgeted at approximately $10 per year (₱580), paid annually, not monthly. Actual domain registration and renewal prices depend on the selected domain. Railway Pro includes $20 of resource usage each month; usage above that amount increases the bill. SMS credits are paid separately as consumed. See [Railway billing documentation](https://docs.railway.com/pricing/understanding-your-bill).*
 
-### 10.3 Monthly System Maintenance Retainer
-To ensure system security, automated backup verification, and technical assistance during business hours, the developer provides an ongoing maintenance retainer:
-- **Proposed Retainer Fee:** **₱2,500 – ₱3,500 PHP / month**
-- **Retainer Inclusions:**
+### 10.3 Post-Handover System Maintenance
+Any post-handover maintenance retainer, including its fee, start date, and support scope, requires a separate written agreement. No additional maintenance fee is established by this proposal. The ₱5,000 monthly project payment is documented in Section 11.2.
+- **Maintenance services available for separate agreement:**
   - **Uptime Monitoring:** Surveillance of application and database health on Railway.app.
   - **Daily Backup Auditing:** Periodic testing of automated PostgreSQL database backups to ensure zero data loss.
   - **Security Updates:** Regular patching of software libraries, Node.js security updates, and SSL certificate maintenance.
@@ -460,10 +459,19 @@ To ensure system security, automated backup verification, and technical assistan
 | **Milestone 6: Tablet Kiosk Application** | Progressive Web App tablet build, full-screen PIN kiosk mode for lobby, 2D vehicle damage walkaround inspection, digital customer signature. | Verification on iPad/Android tablet in lobby self-service and bay inspection workflows. |
 
 ### 11.2 Commercial Payment Schedule
-- **30% Initial Mobilization Deposit** upon contract agreement.
-- **30% Milestone 2 Progress Payment** upon validation of Database and Booking Concurrency.
-- **20% Milestone 4 Progress Payment** upon validation of Operations, Commissions, and Inventory BOM.
-- **20% Final Handover Payment** upon live production deployment approval (Milestone 5).
+
+All amounts below are in Philippine pesos (PHP).
+
+| Payment Item | Amount | Billing Schedule | Purpose |
+| :--- | :--- | :--- | :--- |
+| Project down payment | **₱15,000** | One-time, upon project agreement | Initial project mobilization and development. |
+| Monthly project payment | **₱5,000 / month** | Monthly; first due date and payment duration to be agreed in writing | Continued project development against the delivery milestones. |
+| Claude Code development tooling budget | **₱1,200 / month** | Monthly during development only | AI-assisted development to help speed up implementation, especially the tablet kiosk Progressive Web App (PWA). |
+
+- **Monthly total during development:** **₱6,200** (₱5,000 project payment + ₱1,200 Claude Code budget), excluding the one-time down payment and direct hosting, domain, and SMS costs in Section 10.2.
+- **Claude Code budget:** Separate from the project payment and cloud operating costs. This is the agreed project tooling budget, not a guarantee of a provider subscription price or delivery timeline. It ends when development is complete unless extended by written agreement.
+- **Payment duration and total project price:** The number of monthly project payments, billing due dates, total project price, and treatment of the down payment toward that total must be agreed in writing before signing. No fixed term or final balance is established here.
+- **Milestone acceptance:** The milestones in Section 11.1 track delivery and acceptance; the former percentage-based milestone payment schedule is replaced by the amounts above.
 - *Milestone 6 (Tablet Kiosk Application) may be delivered as part of the core project scope or as a secondary release following operational baseline acceptance.*
 - **Ownership:** Complete source code repository access, database credentials, and cloud account ownership are transferred to the client upon settlement of final invoices.
 
