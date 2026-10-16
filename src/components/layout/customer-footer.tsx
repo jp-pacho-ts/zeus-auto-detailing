@@ -22,7 +22,7 @@ export function CustomerFooter() {
           </div>
 
           <div className="flex flex-wrap items-center gap-6 text-xs text-muted-foreground">
-            <span className="hidden sm:inline">Shop: {brandConfig.defaultBays} Dedicated Bays</span>
+            <span className="hidden sm:inline">Shop: {brandConfig.defaultBays} Detailing Bays</span>
             <a
               href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`}
               className="inline-flex min-h-[44px] items-center gap-1.5 transition-colors hover:text-foreground"

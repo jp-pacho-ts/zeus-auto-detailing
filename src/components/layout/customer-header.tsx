@@ -30,7 +30,7 @@ export function CustomerHeader() {
             href="#estimator"
             className="inline-flex min-h-[44px] items-center px-2 py-2.5 transition-colors hover:text-foreground"
           >
-            Bay Estimator
+            Service Estimator
           </a>
           <a
             href="#location"
@@ -78,7 +78,7 @@ export function CustomerHeader() {
               onClick={() => setMobileMenuOpen(false)}
               className="flex min-h-[44px] items-center py-3 hover:text-foreground"
             >
-              Bay Estimator
+              Service Estimator
             </a>
             <a
               href="#location"

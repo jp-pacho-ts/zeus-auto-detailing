@@ -84,7 +84,7 @@ export function CalendarTab() {
               <div>
                 <p className="text-xs font-bold text-foreground">Capacity Override</p>
                 <p className="text-xs text-muted-foreground">
-                  Block bay for maintenance or private VIP reservations.
+                  Block a bay for maintenance or special arrangements.
                 </p>
               </div>
             </div>

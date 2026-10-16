@@ -53,7 +53,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         </Link>
 
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Workspace
+          Shop Management
         </p>
 
         <nav aria-label="Shop Operations Navigation" className="space-y-1">

@@ -114,6 +114,7 @@ export function BookingWizard({
   const [serviceId, setServiceId] = React.useState("");
   const [linkWarning, setLinkWarning] = React.useState("");
   const [copied, setCopied] = React.useState(false);
+  const [scanning, setScanning] = React.useState(false);
   const [date, setDate] = React.useState(todayInManila);
   const [selection, setSelection] = React.useState<{ key: string; time: string } | null>(null);
   const [availability, setAvailability] = React.useState<{
@@ -142,10 +143,52 @@ export function BookingWizard({
   const deepLinkHandled = React.useRef(false);
 
   const copyReference = () => {
-    if (booking?.referenceCode && typeof navigator !== "undefined" && navigator.clipboard) {
-      void navigator.clipboard.writeText(booking.referenceCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    if (!booking?.referenceCode || typeof navigator === "undefined" || !navigator.clipboard) return;
+    navigator.clipboard.writeText(booking.referenceCode).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => setCopied(false),
+    );
+  };
+
+  // Scan forward (in small batches to respect the availability rate limit) for the
+  // nearest date with at least one open arrival session.
+  const findNextAvailableDate = async () => {
+    setScanning(true);
+    setMessage("");
+    try {
+      let cursor = date;
+      for (let scanned = 0; scanned < 30; scanned += 5) {
+        const batch: string[] = [];
+        for (let i = 0; i < 5; i++) {
+          cursor = new Date(new Date(cursor + "T00:00:00Z").getTime() + 86400000).toISOString().slice(0, 10);
+          if (cursor <= maxDate) batch.push(cursor);
+        }
+        if (!batch.length) break;
+        const results = await Promise.all(
+          batch.map(async (day) => {
+            const query = new URLSearchParams({ date: day, vehicleCategoryId: vehicleId, serviceId });
+            const response = await fetch("/api/availability?" + query, { cache: "no-store" });
+            const result: AvailableSlotResponse = await response.json();
+            return result.ok && result.data.slots.some((s) => s.selectable) ? day : null;
+          }),
+        );
+        const found = results.find(Boolean);
+        if (found) {
+          setDate(found);
+          setSelection(null);
+          return;
+        }
+      }
+      setMessage(
+        `No open arrival sessions were found in the next 30 days. Please contact the shop at ${brandConfig.displayPhone}.`,
+      );
+    } catch {
+      setMessage("Could not check upcoming dates. Check your connection and retry.");
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -211,15 +254,15 @@ export function BookingWizard({
             )
           : undefined;
 
-        if (hasVehicleParam || hasServiceParam) {
+        // Apply the booking link only on the first catalog load so later catalog refreshes
+        // never override choices the customer has made since.
+        if ((hasVehicleParam || hasServiceParam) && !deepLinkHandled.current) {
+          deepLinkHandled.current = true;
           if (matchedVehicle && matchedService) {
             setVehicleId(matchedVehicle.id);
             setServiceId(matchedService.id);
             setLinkWarning("");
-            if (!deepLinkHandled.current) {
-              deepLinkHandled.current = true;
-              setStep(3);
-            }
+            setStep(3);
           } else {
             // Invalid or incomplete parameters: stay on Step 1, do NOT assign fallback index
             setVehicleId("");
@@ -230,7 +273,7 @@ export function BookingWizard({
             );
           }
         } else {
-          // No parameters provided
+          // No parameters, or a refresh after the link was handled: keep still-valid choices
           setVehicleId((previous) =>
             data.vehicleCategories.some((v) => v.id === previous) ? previous : "",
           );
@@ -451,17 +494,14 @@ export function BookingWizard({
     );
   };
 
-  // Persistent Reservation Summary Sidebar (Recognition over Recall)
+  // Persistent Booking Summary Sidebar (Recognition over Recall)
   const renderSummarySidebar = () => (
-    <aside aria-label="Reservation Summary" className="hidden lg:col-span-4 lg:block">
+    <aside aria-label="Booking Summary" className="hidden lg:col-span-4 lg:block">
       <div className="sticky top-6 rounded border border-border bg-[#121214] p-6 shadow-sm">
-        <div className="flex items-center justify-between border-b border-border pb-4">
+        <div className="border-b border-border pb-4">
           <h2 className="text-xs font-bold uppercase tracking-wider text-primary">
-            Reservation Summary
+            Booking Summary
           </h2>
-          <span className="rounded bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-            Dedicated Bay
-          </span>
         </div>
 
         <dl className="mt-4 space-y-4 text-sm">
@@ -474,13 +514,14 @@ export function BookingWizard({
                   setStep(1);
                   setMessage("");
                 }}
-                className="inline-flex min-h-[44px] items-center text-xs font-semibold text-primary hover:underline"
+                disabled={locked}
+                          className="inline-flex min-h-[44px] items-center text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Change
               </button>
             </div>
             <dd className="font-bold text-foreground">{vehicle?.name ?? "—"}</dd>
-            <p className="text-xs text-zinc-400">{vehicle?.sizeMultiplier ?? 1.0}× surface scale</p>
+            <p className="text-xs text-zinc-400">{vehicle?.sizeMultiplier ?? 1.0}× vehicle size adjustment</p>
           </div>
 
           <div className="border-t border-border/60 pt-3">
@@ -493,7 +534,8 @@ export function BookingWizard({
                     setStep(2);
                     setMessage("");
                   }}
-                  className="inline-flex min-h-[44px] items-center text-xs font-semibold text-primary hover:underline"
+                  disabled={locked}
+                          className="inline-flex min-h-[44px] items-center text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Change
                 </button>
@@ -518,7 +560,8 @@ export function BookingWizard({
                       setStep(3);
                       setMessage("");
                     }}
-                    className="inline-flex min-h-[44px] items-center text-xs font-semibold text-primary hover:underline"
+                    disabled={locked}
+                          className="inline-flex min-h-[44px] items-center text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Change
                   </button>
@@ -555,7 +598,7 @@ export function BookingWizard({
       <div className="flex items-start justify-between gap-3 border-b border-border/60 pb-3">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-            Current Reservation
+            Your Booking
           </span>
           <p className="font-bold text-foreground">
             {service?.name || "Selecting service…"}
@@ -591,7 +634,8 @@ export function BookingWizard({
             setStep(1);
             setMessage("");
           }}
-          className="inline-flex min-h-[44px] items-center px-1 font-semibold text-primary hover:underline"
+          disabled={locked}
+                          className="inline-flex min-h-[44px] items-center px-1 font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
         >
           Change setup
         </button>
@@ -659,7 +703,7 @@ export function BookingWizard({
         <div className="mb-8 max-w-3xl">
           <h1 className="text-2xl font-bold sm:text-3xl">{headings[step - 1]}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Appointment times are shown in Asia/Manila (UTC+8). Dedicated service time is allocated for your vehicle.
+            Appointment times are shown in Asia/Manila (UTC+8). Service durations are estimates.
           </p>
         </div>
 
@@ -913,19 +957,12 @@ export function BookingWizard({
                             </p>
                             <button
                               type="button"
-                              onClick={() => {
-                                const nextDay = new Date(new Date(date + "T00:00:00+08:00").getTime() + 86400000)
-                                  .toISOString()
-                                  .slice(0, 10);
-                                if (nextDay <= maxDate) {
-                                  setDate(nextDay);
-                                  setSelection(null);
-                                }
-                              }}
-                              className="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20"
+                              onClick={() => void findNextAvailableDate()}
+                              disabled={scanning}
+                              className="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 disabled:cursor-wait disabled:opacity-60"
                             >
                               <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                              Check Next Available Date
+                              {scanning ? "Checking upcoming dates…" : "Check Next Available Date"}
                             </button>
                           </div>
                         )}
@@ -969,12 +1006,12 @@ export function BookingWizard({
                         <div className="mt-4 flex items-start gap-2.5 rounded border border-border/60 bg-[#121214] p-3 text-xs text-zinc-400">
                           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                           <p>
-                            <strong className="text-foreground">Bay Reservation Notice:</strong> Selecting an arrival time does not hold the slot. Bay availability is secured when your booking request is submitted.
+                            <strong className="text-foreground">Availability Notice:</strong> Selecting an arrival time does not hold the slot. Bay availability is secured when your booking request is submitted.
                           </p>
                         </div>
 
                         <p className="mt-4 text-xs text-zinc-400">
-                          {formatDuration(live.data.durationMinutes)} full bay allocation · Estimated quote{" "}
+                          {formatDuration(live.data.durationMinutes)} estimated service duration · Estimated quote{" "}
                           <span className="font-semibold text-foreground">
                             {money(live.data.totalPriceCentavos)}
                           </span>
@@ -1023,7 +1060,8 @@ export function BookingWizard({
                             setStep(1);
                             setMessage("");
                           }}
-                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline"
+                          disabled={locked}
+                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           aria-label="Edit vehicle classification"
                         >
                           Edit
@@ -1045,7 +1083,8 @@ export function BookingWizard({
                             setStep(2);
                             setMessage("");
                           }}
-                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline"
+                          disabled={locked}
+                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           aria-label="Edit detailing service"
                         >
                           Edit
@@ -1067,7 +1106,8 @@ export function BookingWizard({
                             setStep(3);
                             setMessage("");
                           }}
-                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline"
+                          disabled={locked}
+                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           aria-label="Edit appointment schedule"
                         >
                           Edit
@@ -1102,7 +1142,7 @@ export function BookingWizard({
 
                   {uncertain && (
                     <p className="mb-6 rounded border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
-                      Your submitted details are held unchanged while the confirmation is uncertain. Retry to safely recover your reservation.
+                      Your submitted details are held unchanged while the confirmation is uncertain. Retry to safely recover your booking request.
                     </p>
                   )}
 
@@ -1448,7 +1488,12 @@ export function BookingWizard({
 
               <div className="mt-6 rounded border border-border/80 bg-[#121214] p-4 text-xs text-zinc-400">
                 <p>
-                  <strong className="text-foreground">Next Steps:</strong> Your booking is currently <span className="font-semibold text-primary">PENDING</span> shop confirmation. Our shop team will review your booking request and contact you to confirm your slot. Please save or print this voucher for your arrival walkaround.
+                  <strong className="text-foreground">Next Steps:</strong>{" "}
+                  {booking.status === "CONFIRMED" ? (
+                    <>Your booking is <span className="font-semibold text-primary">CONFIRMED</span>. Please save or print this receipt for your arrival walkaround.</>
+                  ) : (
+                    <>Your booking is currently <span className="font-semibold text-primary">PENDING</span> shop confirmation. Our shop team will review your booking request and contact you to confirm your slot. Please save or print this receipt for your arrival walkaround.</>
+                  )}
                 </p>
               </div>
             </section>
@@ -1470,7 +1515,7 @@ export function BookingWizard({
                   Call Shop Hotline ({brandConfig.displayPhone})
                 </a>
                 <a
-                  href={`https://m.me/zeusautodetailingtacloban?text=${encodeURIComponent(`Hi, I have a booking inquiry for reference code ${booking.referenceCode}.`)}`}
+                  href={`${brandConfig.facebookMessengerUrl}?text=${encodeURIComponent(`Hi, I have a booking inquiry for reference code ${booking.referenceCode}.`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
@@ -1525,7 +1570,7 @@ export function BookingWizard({
                 className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-6 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {pending
-                  ? "Saving reservation…"
+                  ? "Submitting request…"
                   : step === 4
                   ? uncertain
                     ? "Retry same submission"

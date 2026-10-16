@@ -72,10 +72,10 @@ export default function HomePage() {
                 <Wrench className="h-3.5 w-3.5" aria-hidden="true" /> Detailing Bays
               </p>
               <p className="mt-1 text-base font-bold text-foreground">
-                {brandConfig.defaultBays} Dedicated Bays
+                {brandConfig.defaultBays} Detailing Bays
               </p>
               <p className="text-xs text-muted-foreground">
-                Dedicated indoor bays
+                By appointment only
               </p>
             </div>
 
@@ -249,7 +249,7 @@ export default function HomePage() {
                   Located along Maharlika Highway, Caibaan.
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-                  Zeus Auto Detailing operates along Maharlika Highway corner Villa Mayor in Brgy 95 Caibaan, Tacloban City. Due to our commitment to allocating dedicated bay time per vehicle, all multi-stage corrections and ceramic coating applications require advance appointment scheduling.
+                  Zeus Auto Detailing operates along Maharlika Highway corner Villa Mayor in Brgy 95 Caibaan, Tacloban City. Because each vehicle is scheduled for its full estimated service duration, all multi-stage corrections and ceramic coating applications require advance appointment scheduling.
                 </p>
 
                 <div className="mt-8 space-y-5">
