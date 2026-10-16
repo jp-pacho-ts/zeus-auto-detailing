@@ -41,7 +41,7 @@ export default function HomePage() {
             </h1>
 
             <p className="mt-6 text-lg leading-relaxed text-muted-foreground sm:text-xl">
-              Tacloban&apos;s dedicated automotive studio delivering multi-stage paint
+              Tacloban&apos;s dedicated auto detailing shop delivering multi-stage paint
               correction, certified 9H graphene coatings, and restorative cabin detailing
               by appointment.
             </p>
@@ -51,37 +51,37 @@ export default function HomePage() {
                 href="/book"
                 className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-6 py-3 text-base font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
-                Reserve Detailing Bay <ArrowRight className="h-4 w-4" />
+                Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
               <a
                 href="#services"
                 className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded border border-border bg-[#18181b] px-6 py-3 text-base font-medium text-foreground transition-colors hover:border-zinc-700"
               >
-                View Treatment Menu
+                View Detailing Services
               </a>
             </div>
           </div>
 
-          {/* Authentic Studio Facts (Grounded in Reality) */}
+          {/* Authentic Shop Facts (Grounded in Reality) */}
           <div
-            aria-label="Studio Capabilities"
+            aria-label="Shop Capabilities"
             className="mt-16 grid grid-cols-2 gap-4 border-t border-border pt-8 sm:grid-cols-4"
           >
             <div>
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
-                <Wrench className="h-3.5 w-3.5" /> Studio Bays
+                <Wrench className="h-3.5 w-3.5" aria-hidden="true" /> Detailing Bays
               </p>
               <p className="mt-1 text-base font-bold text-foreground">
                 {brandConfig.defaultBays} Dedicated Bays
               </p>
               <p className="text-xs text-muted-foreground">
-                Private, climate-controlled
+                Dedicated indoor bays
               </p>
             </div>
 
             <div>
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
-                <Shield className="h-3.5 w-3.5" /> Surface Chemistry
+                <Shield className="h-3.5 w-3.5" aria-hidden="true" /> Surface Chemistry
               </p>
               <p className="mt-1 text-base font-bold text-foreground">
                 9H Graphene & Ceramic
@@ -93,19 +93,19 @@ export default function HomePage() {
 
             <div>
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
-                <Clock className="h-3.5 w-3.5" /> Operating Hours
+                <Clock className="h-3.5 w-3.5" aria-hidden="true" /> Operating Hours
               </p>
               <p className="mt-1 text-base font-bold text-foreground">
                 Mon — Sun 8AM–6PM
               </p>
               <p className="text-xs text-muted-foreground">
-                Daily studio hours
+                Daily shop hours
               </p>
             </div>
 
             <div>
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
-                <MapPin className="h-3.5 w-3.5" /> Location
+                <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Location
               </p>
               <p className="mt-1 text-base font-bold text-foreground">
                 {brandConfig.location}
@@ -130,7 +130,7 @@ export default function HomePage() {
         >
           <div className="max-w-2xl">
             <p className="text-sm font-semibold tracking-wide text-primary">
-              The Treatment Menu
+              Detailing Services
             </p>
             <h2
               id="services-title"
@@ -192,8 +192,8 @@ export default function HomePage() {
                           </p>
 
                           <div className="mt-4 flex items-center gap-2 text-xs font-medium text-foreground">
-                            <Clock className="h-3.5 w-3.5 text-primary" />
-                            Allocated Bay Duration: {service.durationLabel}
+                            <Clock className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                            Estimated Service Duration: {service.durationLabel}
                           </div>
 
                           <ul
@@ -215,10 +215,10 @@ export default function HomePage() {
 
                         <div className="mt-6 pt-4 border-t border-border">
                           <Link
-                            href={`/book?service=${encodeURIComponent(service.id)}`}
+                            href={`/book?service=${encodeURIComponent(service.id)}&vehicle=sedan`}
                             className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded bg-[#18181b] border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:text-primary"
                           >
-                            Reserve Bay for This Package <ArrowRight className="h-4 w-4" />
+                            Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
                           </Link>
                         </div>
                       </div>
@@ -230,7 +230,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 4. Studio Location, Operating Schedule & Contact */}
+        {/* 4. Shop Location, Operating Schedule & Contact */}
         <section
           id="location"
           aria-labelledby="location-title"
@@ -240,7 +240,7 @@ export default function HomePage() {
             <div className="grid grid-cols-1 gap-12 lg:grid-cols-12">
               <div className="lg:col-span-7">
                 <p className="text-sm font-semibold tracking-wide text-primary">
-                  Studio Visit & Drop-Off
+                  Shop Location & Schedule
                 </p>
                 <h2
                   id="location-title"
@@ -249,45 +249,45 @@ export default function HomePage() {
                   Located along Maharlika Highway, Caibaan.
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-                  Our private studio operates along Maharlika Highway corner Villa Mayor in Brgy 95 Caibaan, Tacloban City. Due to our strict commitment to allocating full dedicated bay time per vehicle, all multi-stage corrections and ceramic coating applications require advance reservation.
+                  Zeus Auto Detailing operates along Maharlika Highway corner Villa Mayor in Brgy 95 Caibaan, Tacloban City. Due to our commitment to allocating dedicated bay time per vehicle, all multi-stage corrections and ceramic coating applications require advance appointment scheduling.
                 </p>
 
                 <div className="mt-8 space-y-5">
                   <div className="flex items-start gap-3">
-                    <MapPin className="mt-1 h-5 w-5 shrink-0 text-primary" />
+                    <MapPin className="mt-1 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                     <div>
-                      <p className="text-sm font-bold text-foreground">Studio Address</p>
+                      <p className="text-sm font-bold text-foreground">Shop Address</p>
                       <p className="text-sm text-muted-foreground">{brandConfig.shopAddress}</p>
-                      <p className="text-xs text-zinc-500">{brandConfig.landmark}</p>
+                      <p className="text-xs text-zinc-400">{brandConfig.landmark}</p>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <Clock className="mt-1 h-5 w-5 shrink-0 text-primary" />
+                    <Clock className="mt-1 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                     <div>
                       <p className="text-sm font-bold text-foreground">Operating Schedule</p>
                       <p className="text-sm text-muted-foreground">{brandConfig.operatingHours}</p>
-                      <p className="text-xs text-zinc-500">{brandConfig.operatingSchedule}</p>
+                      <p className="text-xs text-zinc-400">{brandConfig.operatingSchedule}</p>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <Phone className="mt-1 h-5 w-5 shrink-0 text-primary" />
+                    <Phone className="mt-1 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                     <div>
                       <p className="text-sm font-bold text-foreground">Telephone & Mobile</p>
                       <a
                         href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`}
                         className="inline-flex min-h-[44px] items-center text-sm font-semibold text-primary transition-colors hover:text-primary-hover"
-                        aria-label={`Call studio hotline at ${brandConfig.displayPhone}`}
+                        aria-label={`Call shop hotline at ${brandConfig.displayPhone}`}
                       >
                         {brandConfig.displayPhone} ({brandConfig.contactPhone})
                       </a>
-                      <p className="text-xs text-zinc-500">Direct studio line for vehicle inquiries & bookings</p>
+                      <p className="text-xs text-zinc-400">Shop hotline for vehicle inquiries & appointment booking</p>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <MessageSquare className="mt-1 h-5 w-5 shrink-0 text-primary" />
+                    <MessageSquare className="mt-1 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                     <div>
                       <p className="text-sm font-bold text-foreground">Social & Inquiries</p>
                       <div className="mt-1 flex flex-wrap items-center gap-3 text-sm">
@@ -300,7 +300,7 @@ export default function HomePage() {
                         >
                           Messenger: {brandConfig.facebook}
                         </a>
-                        <span className="text-zinc-600">·</span>
+                        <span className="text-zinc-400">·</span>
                         <a
                           href={brandConfig.instagram}
                           target="_blank"
@@ -316,29 +316,45 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Booking advisory card */}
+              {/* Before Your Appointment Card */}
               <div className="lg:col-span-5">
                 <div className="rounded border border-border bg-[#18181b] p-8">
                   <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                    Bay Availability Notice
+                    Before Your Appointment
                   </p>
                   <h3 className="mt-2 text-xl font-bold text-foreground">
-                    2 Dedicated Detailing Bays
+                    Appointment Guidelines
                   </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                    We do not run high-volume assembly lines. Each vehicle receives the
-                    dedicated attention of certified technicians with measured cure times.
-                  </p>
+                  <ul className="mt-4 space-y-3 text-sm text-zinc-400">
+                    <li className="flex items-start gap-2.5">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      <span>
+                        <strong className="text-foreground">Advance Booking Recommended:</strong> Advance appointment scheduling is recommended for multi-stage paint correction and ceramic coatings.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      <span>
+                        <strong className="text-foreground">Intake Walkaround:</strong> An intake condition walkaround is conducted on arrival together with you before work begins.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      <span>
+                        <strong className="text-foreground">Convenient Location:</strong> Located along Maharlika Highway Corner Villa Mayor, Brgy 95 Caibaan, Tacloban City with customer parking.
+                      </span>
+                    </li>
+                  </ul>
 
                   <div className="mt-6 border-t border-border pt-6">
                     <Link
-                      href="/book"
+                      href="/book?vehicle=sedan"
                       className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     >
-                      Book Online Appointment <ArrowRight className="h-4 w-4" />
+                      Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
-                    <p className="mt-3 text-center text-xs text-muted-foreground">
-                      Same-day maintenance washes subject to bay clearance.
+                    <p className="mt-3 text-center text-xs text-zinc-400">
+                      Need same-day guidance? Call hotline at {brandConfig.displayPhone}.
                     </p>
                   </div>
                 </div>

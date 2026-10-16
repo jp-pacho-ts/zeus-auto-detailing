@@ -5,7 +5,7 @@ export const brandConfig = {
   shopName: "Zeus Auto Detailing",
   tagline: "Precision paint restoration and ceramic protection.",
   description:
-    "Tacloban's dedicated automotive detailing studio specializing in multi-stage paint correction and graphene ceramic coatings.",
+    "Tacloban's dedicated auto detailing shop specializing in multi-stage paint correction and graphene ceramic coatings.",
   location: "Brgy 95 Caibaan, Tacloban City",
   locationFull:
     "Maharlika Highway Corner Villa Mayor, Brgy 95 Caibaan, Tacloban City, Philippines, 6500",
@@ -46,7 +46,7 @@ export const brandConfig = {
       secondary: "#18181b",
       "secondary-foreground": "#a1a1aa",
       border: "#27272a",
-      input: "#27272a",
+      input: "#a1a1aa",
       primary: "#c08818",
       "primary-foreground": "#09090b",
       accent: "#d49b28",

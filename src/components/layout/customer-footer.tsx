@@ -16,13 +16,13 @@ export function CustomerFooter() {
             <p className="text-xs text-muted-foreground">
               {brandConfig.shopAddress}
             </p>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-zinc-400">
               Hotline: {brandConfig.displayPhone} · {brandConfig.operatingHours}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-6 text-xs text-muted-foreground">
-            <span className="hidden sm:inline">Studio: {brandConfig.defaultBays} Dedicated Bays</span>
+            <span className="hidden sm:inline">Shop: {brandConfig.defaultBays} Dedicated Bays</span>
             <a
               href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`}
               className="inline-flex min-h-[44px] items-center gap-1.5 transition-colors hover:text-foreground"
@@ -50,14 +50,14 @@ export function CustomerFooter() {
             </a>
             <Link
               href="/admin/login"
-              className="inline-flex min-h-[44px] items-center text-zinc-500 transition-colors hover:text-foreground"
+              className="inline-flex min-h-[44px] items-center text-zinc-400 transition-colors hover:text-foreground"
             >
               Staff Access
             </Link>
           </div>
         </div>
 
-        <div className="mt-8 border-t border-border pt-6 text-xs text-zinc-600">
+        <div className="mt-8 border-t border-border pt-6 text-xs text-zinc-400">
           © {currentYear} {brandConfig.businessName}. All rights reserved.
         </div>
       </div>

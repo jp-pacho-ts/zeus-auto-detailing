@@ -15,7 +15,7 @@ export function Logo({
   const width = Math.round(height * (715 / 275));
 
   return (
-    <div className={`inline-flex items-center select-none ${className}`}>
+    <div className={`inline-flex min-h-[44px] items-center select-none ${className}`}>
       <Image
         src="/images/logo.png"
         alt={brandConfig.businessName}

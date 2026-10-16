@@ -127,7 +127,7 @@ export const vehicles: VehicleItem[] = [
   {
     id: "sedan",
     name: "Sedan / Hatchback",
-    icon: "▱",
+    icon: "car",
     category: "Standard Compact & Mid-size",
     multiplier: 1.0,
     typicalBayTimeAddMinutes: 0,
@@ -135,34 +135,34 @@ export const vehicles: VehicleItem[] = [
   {
     id: "suv",
     name: "SUV / Crossover",
-    icon: "▰",
+    icon: "car-front",
     category: "Compact & Mid-size SUV",
-    multiplier: 1.15,
-    typicalBayTimeAddMinutes: 30,
+    multiplier: 1.2,
+    typicalBayTimeAddMinutes: 0,
   },
   {
     id: "pickup",
     name: "Pickup / Van / Full SUV",
-    icon: "▰",
+    icon: "truck",
     category: "Trucks, Large Vans & 7-Seaters",
-    multiplier: 1.25,
-    typicalBayTimeAddMinutes: 60,
+    multiplier: 1.35,
+    typicalBayTimeAddMinutes: 0,
   },
   {
     id: "motorcycle",
     name: "Motorcycle / Specialty",
-    icon: "◒",
+    icon: "bike",
     category: "Big Bikes & Specialty Units",
-    multiplier: 0.7,
-    typicalBayTimeAddMinutes: -30,
+    multiplier: 0.75,
+    typicalBayTimeAddMinutes: 0,
   },
 ];
 
 export function calculateEstimatedPrice(basePrice: number, multiplier: number): number {
-  return Math.round((basePrice * multiplier) / 100) * 100;
+  return Math.round(basePrice * multiplier);
 }
 
-export function calculateEstimatedMinutes(baseMinutes: number, addMinutes: number): number {
+export function calculateEstimatedMinutes(baseMinutes: number, addMinutes: number = 0): number {
   return Math.max(45, baseMinutes + addMinutes);
 }
 

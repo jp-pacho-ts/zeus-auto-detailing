@@ -4,8 +4,8 @@ import { brandConfig } from "@/config/brand";
 import { AdminPortal, type AdminTab } from "@/components/admin/admin-portal";
 
 export const metadata: Metadata = {
-  title: `Studio Operations Portal | ${brandConfig.businessName}`,
-  description: `Manage appointments, bay calendar, technician roster, and studio analytics for ${brandConfig.businessName}.`,
+  title: `Shop Management | ${brandConfig.businessName}`,
+  description: `Manage appointments, bay calendar, team roster, and sales analytics for ${brandConfig.businessName}.`,
 };
 
 interface AdminPageProps {

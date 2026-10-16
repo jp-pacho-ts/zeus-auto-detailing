@@ -2,7 +2,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, X } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  Boxes,
+  CalendarDays,
+  ClipboardList,
+  Users,
+  X,
+} from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { BookingsTab } from "./bookings-tab";
 import { CalendarTab } from "./calendar-tab";
@@ -13,16 +21,21 @@ import { AnalyticsTab } from "./analytics-tab";
 export type AdminTab =
   | "Bookings"
   | "Bay Calendar"
-  | "Detailers & Commissions"
-  | "Inventory & Consumables"
+  | "Team & Commissions"
+  | "Supplies & Inventory"
   | "Sales Analytics";
 
-const NAV_ITEMS: [AdminTab, string][] = [
-  ["Bookings", "▤"],
-  ["Bay Calendar", "▦"],
-  ["Detailers & Commissions", "♙"],
-  ["Inventory & Consumables", "◈"],
-  ["Sales Analytics", "◒"],
+interface NavItem {
+  name: AdminTab;
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { name: "Bookings", icon: ClipboardList },
+  { name: "Bay Calendar", icon: CalendarDays },
+  { name: "Team & Commissions", icon: Users },
+  { name: "Supplies & Inventory", icon: Boxes },
+  { name: "Sales Analytics", icon: BarChart3 },
 ];
 
 export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
@@ -32,10 +45,10 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
     <div className="flex min-h-screen bg-[#09090b] text-[#f5f5f4]">
       {/* Sidebar Navigation */}
       <aside
-        aria-label="Studio Admin Sidebar"
+        aria-label="Shop Management Sidebar"
         className="flex w-64 shrink-0 flex-col border-r border-border bg-[#121214] p-6"
       >
-        <Link href="/" aria-label="Return to public studio site" className="mb-8">
+        <Link href="/" aria-label="Return to public shop site" className="mb-8">
           <Logo small />
         </Link>
 
@@ -43,8 +56,8 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
           Workspace
         </p>
 
-        <nav aria-label="Studio Operations Navigation" className="space-y-1">
-          {NAV_ITEMS.map(([name, icon]) => {
+        <nav aria-label="Shop Operations Navigation" className="space-y-1">
+          {NAV_ITEMS.map(({ name, icon: Icon }) => {
             const isActive = tab === name;
             return (
               <button
@@ -58,9 +71,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                     : "text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
                 }`}
               >
-                <span className="text-base" aria-hidden="true">
-                  {icon}
-                </span>
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{name}</span>
               </button>
             );
@@ -76,7 +87,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               </div>
               <div>
                 <p className="text-xs font-bold text-foreground">Juan Dela Cruz</p>
-                <p className="text-[10px] text-muted-foreground">Studio Manager</p>
+                <p className="text-[10px] text-muted-foreground">Shop Manager</p>
               </div>
             </div>
             <Link
@@ -84,7 +95,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               aria-label="Exit admin portal"
               className="text-muted-foreground hover:text-foreground"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
         </div>
@@ -106,13 +117,13 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                Studio Live
+                Shop Live
               </span>
               <Link
                 href="/book"
                 className="inline-flex min-h-[40px] items-center gap-2 rounded bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary-hover"
               >
-                New Booking <ArrowRight className="h-3.5 w-3.5" />
+                New Booking <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             </div>
           </header>
@@ -120,8 +131,8 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
           {/* Active Tab View */}
           {tab === "Bookings" && <BookingsTab />}
           {tab === "Bay Calendar" && <CalendarTab />}
-          {tab === "Detailers & Commissions" && <DetailersTab />}
-          {tab === "Inventory & Consumables" && <InventoryTab />}
+          {tab === "Team & Commissions" && <DetailersTab />}
+          {tab === "Supplies & Inventory" && <InventoryTab />}
           {tab === "Sales Analytics" && <AnalyticsTab />}
         </div>
       </main>

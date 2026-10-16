@@ -4,8 +4,8 @@ import { brandConfig } from "@/config/brand";
 import { BookingWizard } from "@/components/booking/booking-wizard";
 
 export const metadata: Metadata = {
-  title: `Reserve Detailing Bay | ${brandConfig.businessName}`,
-  description: `Reserve your detailing bay at ${brandConfig.businessName} in ${brandConfig.location}.`,
+  title: `Book an Appointment | ${brandConfig.businessName}`,
+  description: `Book your detailing appointment at ${brandConfig.businessName} in ${brandConfig.location}.`,
 };
 
 interface BookPageProps {

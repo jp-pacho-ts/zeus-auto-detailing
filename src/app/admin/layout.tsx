@@ -38,7 +38,7 @@ export default function AdminLayout({
       <div className="flex min-h-screen items-center justify-center bg-[#09090b] text-[#f59e0b]">
         <div className="flex items-center gap-3 text-sm tracking-wider uppercase font-semibold">
           <span className="inline-block h-3 w-3 animate-ping rounded-full bg-[#f59e0b]" />
-          Verifying studio staff session...
+          Verifying shop staff session...
         </div>
       </div>
     );

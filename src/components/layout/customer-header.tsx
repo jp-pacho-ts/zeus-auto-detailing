@@ -11,32 +11,32 @@ export function CustomerHeader() {
   return (
     <header className="relative border-b border-border bg-[#09090b]">
       <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" aria-label="Zeus Auto Detailing Home">
+        <Link href="/" aria-label="Zeus Auto Detailing Home" className="inline-flex min-h-[44px] items-center">
           <Logo />
         </Link>
 
         {/* Desktop Navigation */}
         <nav
-          aria-label="Studio Navigation"
-          className="hidden items-center gap-8 md:flex text-sm font-medium text-muted-foreground"
+          aria-label="Shop Navigation"
+          className="hidden items-center gap-6 md:flex text-sm font-medium text-muted-foreground"
         >
           <a
             href="#services"
-            className="transition-colors hover:text-foreground"
+            className="inline-flex min-h-[44px] items-center px-2 py-2.5 transition-colors hover:text-foreground"
           >
-            Treatments
+            Detailing Services
           </a>
           <a
             href="#estimator"
-            className="transition-colors hover:text-foreground"
+            className="inline-flex min-h-[44px] items-center px-2 py-2.5 transition-colors hover:text-foreground"
           >
             Bay Estimator
           </a>
           <a
             href="#location"
-            className="transition-colors hover:text-foreground"
+            className="inline-flex min-h-[44px] items-center px-2 py-2.5 transition-colors hover:text-foreground"
           >
-            Studio & Hours
+            Shop & Hours
           </a>
         </nav>
 
@@ -46,7 +46,7 @@ export function CustomerHeader() {
             href="/book"
             className="inline-flex min-h-[44px] items-center gap-2 rounded bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
-            Reserve Detailing Bay <ArrowRight className="h-4 w-4" />
+            Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
 
@@ -69,23 +69,23 @@ export function CustomerHeader() {
             <a
               href="#services"
               onClick={() => setMobileMenuOpen(false)}
-              className="hover:text-foreground"
+              className="flex min-h-[44px] items-center py-3 hover:text-foreground"
             >
-              Treatments
+              Detailing Services
             </a>
             <a
               href="#estimator"
               onClick={() => setMobileMenuOpen(false)}
-              className="hover:text-foreground"
+              className="flex min-h-[44px] items-center py-3 hover:text-foreground"
             >
               Bay Estimator
             </a>
             <a
               href="#location"
               onClick={() => setMobileMenuOpen(false)}
-              className="hover:text-foreground"
+              className="flex min-h-[44px] items-center py-3 hover:text-foreground"
             >
-              Studio & Hours
+              Shop & Hours
             </a>
             <div className="pt-2">
               <Link
@@ -93,7 +93,7 @@ export function CustomerHeader() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary-hover"
               >
-                Reserve Detailing Bay <ArrowRight className="h-4 w-4" />
+                Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
           </nav>

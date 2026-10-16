@@ -133,24 +133,24 @@ async function main() {
       defaultSlotIntervalMinutes: 30,
       defaultBayCapacity: 2,
       openTime: "08:00",
-      closeTime: "17:00",
+      closeTime: "18:00",
     },
     create: {
       effectiveDate,
       defaultSlotIntervalMinutes: 30,
       defaultBayCapacity: 2,
       openTime: "08:00",
-      closeTime: "17:00",
+      closeTime: "18:00",
     },
   });
 
-  console.log("Seeding weekly recurring time slots (Mon–Sat, 08:00–17:00, 30m intervals)...");
-  // Days: 1 (Monday) to 6 (Saturday). Sunday (0) is closed.
+  console.log("Seeding weekly recurring time slots (Mon–Sun, 08:00–18:00, 30m intervals)...");
+  // Days: 0 (Sunday) to 6 (Saturday). 7 days a week open.
   const timeIntervals: { start: string; end: string }[] = [];
   let currentHour = 8;
   let currentMinute = 0;
 
-  while (currentHour < 17) {
+  while (currentHour < 18) {
     const startH = String(currentHour).padStart(2, "0");
     const startM = String(currentMinute).padStart(2, "0");
 
@@ -173,7 +173,7 @@ async function main() {
     currentMinute = nextMinute;
   }
 
-  for (let day = 1; day <= 6; day++) {
+  for (let day = 0; day <= 6; day++) {
     for (const interval of timeIntervals) {
       await prisma.timeSlot.upsert({
         where: {

@@ -43,7 +43,7 @@ export function AnalyticsTab() {
                 Revenue Overview
               </h2>
               <p className="text-xs text-muted-foreground">
-                Daily studio revenue trend across 2 bays
+                Daily shop revenue trend across 2 bays
               </p>
             </div>
             <span className="text-xs text-muted-foreground">Last 30 Days</span>

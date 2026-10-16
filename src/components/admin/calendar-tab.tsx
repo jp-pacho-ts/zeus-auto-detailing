@@ -100,7 +100,7 @@ export function CalendarTab() {
           {overrides.length > 0 && (
             <div className="mt-4 border-t border-border pt-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                Active Studio Overrides
+                Active Shop Overrides
               </p>
               <div className="mt-1 space-y-1 text-xs text-muted-foreground">
                 {overrides.map((ov, idx) => (
@@ -146,7 +146,7 @@ export function CalendarTab() {
       {/* Override Modal */}
       <Dialog open={overrideModalOpen} onOpenChange={setOverrideModalOpen}>
         <DialogHeader>
-          <DialogTitle>Add Studio Capacity Override</DialogTitle>
+          <DialogTitle>Add Shop Capacity Override</DialogTitle>
           <DialogDescription>
             Temporarily adjust bay schedule for October {selectedDay}, 2026.
           </DialogDescription>

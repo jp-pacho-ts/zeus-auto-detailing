@@ -37,7 +37,7 @@ export default function AdminLoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[#09090b] px-4 py-12 text-[#f5f5f4]">
       <div className="mb-8">
-        <Link href="/" aria-label="Return to public site">
+        <Link href="/" aria-label="Return to public site" className="inline-flex min-h-[44px] items-center">
           <Logo />
         </Link>
       </div>
@@ -47,14 +47,21 @@ export default function AdminLoginPage() {
           <Gauge className="h-6 w-6" />
         </div>
 
+        <div className="mb-6 rounded border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200">
+          <p className="font-semibold">Demo Access — Authentication is in demonstration mode for evaluation.</p>
+          <p className="mt-1 text-amber-300/90 leading-relaxed">
+            Enter any email and password to access the administrative portal. Production credentials and role-based guards will be connected in Phase 5.
+          </p>
+        </div>
+
         <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-          {brandConfig.businessName} · Studio Staff
+          {brandConfig.businessName} · Shop Staff
         </p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground">
-          Studio Operations Portal
+          Shop Management
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Sign in to manage bay scheduling, technician commissions, and inventory.
+          Sign in to manage bay scheduling, team commissions, and supplies inventory.
         </p>
 
         <form onSubmit={handleLogin} className="mt-6 space-y-4">
@@ -95,17 +102,17 @@ export default function AdminLoginPage() {
             disabled={loading}
             className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            {loading ? "Signing in..." : "Sign In to Studio Portal"}
-            <ArrowRight className="h-4 w-4" />
+            {loading ? "Signing in..." : "Sign In to Shop Management"}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </button>
         </form>
 
         <div className="mt-6 border-t border-border pt-4 text-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex min-h-[44px] items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
-            <ChevronLeft className="h-3.5 w-3.5" /> Back to public studio site
+            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to public shop site
           </Link>
         </div>
       </div>

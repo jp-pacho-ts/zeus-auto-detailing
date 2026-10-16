@@ -4,9 +4,9 @@ import { brandConfig } from "@/config/brand";
 import { AdminPortal } from "@/components/admin/admin-portal";
 
 export const metadata: Metadata = {
-  title: `Consumables Inventory | ${brandConfig.businessName}`,
+  title: `Supplies & Inventory | ${brandConfig.businessName}`,
 };
 
 export default function InventoryPage() {
-  return <AdminPortal initialTab="Inventory & Consumables" />;
+  return <AdminPortal initialTab="Supplies & Inventory" />;
 }
