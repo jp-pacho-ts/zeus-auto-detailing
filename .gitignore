@@ -22,6 +22,7 @@ Thumbs.db
 
 # Local-only agent workflow files (AGENTS.md and CLAUDE.md are tracked)
 !/AGENTS.md
+.claude/settings.local.json
 .agents/
 PLAN.md
 *plan*.md
