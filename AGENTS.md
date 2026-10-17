@@ -20,7 +20,7 @@ Current scope is Phase 1 (`.team/PHASES.md`). Phase 2 has not started.
 
 ## Commands
 
-The block below was verified 2026-10-17. The DB and catalog suites were not re-run then (they need PostgreSQL); their steps come from the linked READMEs. Record exact commands and exit codes in handoffs, and never claim an unrun check passed.
+The block below was verified 2026-10-17 in Git Bash. The DB and catalog suites were not re-run then (they need PostgreSQL); their steps come from the linked READMEs. Record exact commands and exit codes in handoffs, and never claim an unrun check passed.
 
 ```powershell
 npm ci                 # install; package.json/lockfile have one writer at a time
@@ -32,7 +32,8 @@ npm run build          # next build: task worktree or git-archive export only
 ```
 
 - **Never run `npm run build` or `npm run dev` in the canonical root**: Next loads its `.env` there. Task worktrees have no `.env`; set `DATABASE_URL` to a loopback test database in the process environment.
-- **DB integration tests:** create a new empty loopback database named `zeus_t007_*` and apply the schema with `npx prisma migrate deploy` (no seed). Set both `T007_TEST_DATABASE_URL` and `DATABASE_URL` to it, then run `npm test`. See `src/server/__tests__/README.md`.
+- In PowerShell, `npm` and `npx` resolve to `.ps1` shims that a restricted execution policy blocks. Use `npm.cmd` and `npx.cmd` with the same arguments.
+- **DB integration tests** (task worktree or export with no `.env`): create a new empty loopback database named `zeus_t007_*`. **First** set both `DATABASE_URL` and `T007_TEST_DATABASE_URL` to it in the process environment, then run `npx prisma migrate deploy` (no seed) and `npm test`. See `src/server/__tests__/README.md`.
 - **Catalog verifier:** set `PG_BIN` (PostgreSQL 18 binaries), `CATALOG_TEST_DATABASE_URL` (loopback admin URL on a fresh `initdb` cluster) and `CATALOG_SOURCE_PATH` (canonical `docs/client/service-catalog.md`), then run `node prisma/catalog/verify.mjs`. See `prisma/catalog/README.md`.
 - There is no CI. Check `package.json` before naming a script; never invent one.
 
