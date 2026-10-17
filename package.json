@@ -12,9 +12,11 @@
     "lint": "eslint src tailwind.config.ts next.config.mjs postcss.config.mjs --config src/lib/eslint.config.mjs --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "node --require ./src/server/__tests__/register.cjs --test \"src/**/*.test.ts\"",
+    "staff:credential": "tsx --require ./src/server/auth/cli-preload.cjs src/server/auth/staff-credential.ts",
     "docs:docx": "node scripts/generate-proposal-docx.mjs"
   },
   "dependencies": {
+    "@node-rs/argon2": "2.2.1",
     "@prisma/client": "6.4.1",
     "clsx": "2.1.1",
     "lucide-react": "1.50.0",
