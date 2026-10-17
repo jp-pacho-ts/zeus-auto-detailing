@@ -36,19 +36,36 @@ test("the loaded corpus rejects common passwords through the screening forms", (
   assert.equal(screenStaffPassword("plum orbit lantern seventy", ctx, isCommon), null);
 });
 
-test("a missing, empty or altered corpus fails closed", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeus-blocklist-"));
-  assert.throws(() => loadPasswordBlocklist(path.join(dir, "missing.txt"), BLOCKLIST_SHA256), BlocklistUnavailableError);
-  const empty = path.join(dir, "empty.txt");
-  fs.writeFileSync(empty, "");
-  assert.throws(() => loadPasswordBlocklist(empty, sha256("")), BlocklistUnavailableError);
-  const altered = path.join(dir, "altered.txt");
-  fs.writeFileSync(altered, fs.readFileSync(BLOCKLIST_PATH, "utf8").replace("password\n", ""));
-  assert.throws(() => loadPasswordBlocklist(altered, BLOCKLIST_SHA256), BlocklistUnavailableError);
-  // A CRLF checkout (core.autocrlf) is the same corpus.
-  const crlf = path.join(dir, "crlf.txt");
-  fs.writeFileSync(crlf, fs.readFileSync(BLOCKLIST_PATH, "utf8").replace(/\r?\n/g, "\r\n"));
-  assert.equal(loadPasswordBlocklist(crlf, BLOCKLIST_SHA256)("password"), true);
+// Both checkout forms (core.autocrlf gives CRLF on Windows), whatever form this checkout has.
+const corpusForms = () => {
+  const lf = fs.readFileSync(BLOCKLIST_PATH, "utf8").replace(/\r\n/g, "\n");
+  return { LF: lf, CRLF: lf.replace(/\n/g, "\r\n") };
+};
+
+test("a missing, empty or altered corpus fails closed in LF and CRLF form", () => {
+  for (const [form, text] of Object.entries(corpusForms())) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), `zeus-blocklist-${form}-`));
+    const eol = form === "CRLF" ? "\r\n" : "\n";
+    // The unaltered form loads: the checksum covers the corpus, not the line endings.
+    const intact = path.join(dir, "intact.txt");
+    fs.writeFileSync(intact, text);
+    assert.equal(loadPasswordBlocklist(intact, BLOCKLIST_SHA256)("password"), true, form);
+    assert.throws(() => loadPasswordBlocklist(path.join(dir, "missing.txt"), BLOCKLIST_SHA256), BlocklistUnavailableError, form);
+    const empty = path.join(dir, "empty.txt");
+    fs.writeFileSync(empty, "");
+    assert.throws(() => loadPasswordBlocklist(empty, sha256("")), BlocklistUnavailableError, form);
+    // Removing an entry, appending one and changing one character each alter the corpus.
+    const removed = text.split(eol).filter((line) => line !== "password").join(eol);
+    const appended = text + "zeusbypass123" + eol;
+    const changed = text.replace(`${eol}password${eol}`, `${eol}passwore${eol}`);
+    for (const [label, altered] of Object.entries({ removed, appended, changed })) {
+      // The fixture must really differ from the corpus, before and after EOL normalization.
+      assert.notEqual(altered.replace(/\r\n/g, "\n"), text.replace(/\r\n/g, "\n"), `${form} ${label} fixture is unchanged`);
+      const file = path.join(dir, `${label}.txt`);
+      fs.writeFileSync(file, altered);
+      assert.throws(() => loadPasswordBlocklist(file, BLOCKLIST_SHA256), BlocklistUnavailableError, `${form} ${label}`);
+    }
+  }
 });
 
 test("the generator normalizes, filters, dedupes and sorts a pinned source", () => {

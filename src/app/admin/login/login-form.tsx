@@ -43,6 +43,8 @@ export function LoginForm({ next }: { next: string }) {
         cache: "no-store",
       });
       if (response.ok) {
+        // Read the body so the request completes; the session view itself is not needed here.
+        await response.json().catch(() => null);
         setPassword("");
         router.replace(next);
         return;

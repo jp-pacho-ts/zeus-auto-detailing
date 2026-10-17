@@ -24,9 +24,9 @@ export const getStaffSession = cache(async (): Promise<StaffSession | null> => {
   return resolveStaffSession(store.get(staffSessionCookieName())?.value, requestClientKey(requestHeaders));
 });
 
-// Route Handlers: the same lookup from the request itself.
+// Route Handlers: the same lookup from the request itself. A client abort cancels the lookup.
 export function getStaffSessionFromRequest(request: Request & { cookies: { get(name: string): { value: string } | undefined } }): Promise<StaffSession | null> {
-  return resolveStaffSession(request.cookies.get(staffSessionCookieName())?.value, requestClientKey(request.headers));
+  return resolveStaffSession(request.cookies.get(staffSessionCookieName())?.value, requestClientKey(request.headers), { signal: request.signal });
 }
 
 export function assertStaff(session: StaffSession | null): StaffSession {

@@ -51,6 +51,8 @@ test("the login form posts JSON to the auth route and leaves paste and autofill 
   assert.match(form, /autoComplete="username"/);
   assert.match(form, /autoComplete="current-password"/);
   assert.doesNotMatch(form, /onPaste|onCopy|password\.trim/);
+  // The success body is read before navigating, so the login request completes (browser smoke).
+  assert.match(form, /if \(response\.ok\) \{[^}]*await response\.json\(\)[^}]*router\.replace\(next\)/);
 });
 
 test("?next= accepts admin paths only (no open redirects)", () => {

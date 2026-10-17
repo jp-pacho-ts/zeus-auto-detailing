@@ -69,12 +69,13 @@ export function createStaffLogin(deps: LoginDeps = {}) {
       const { email, password } = parsed.data;
 
       // Step 4: lockless snapshot under a STAFF_LOGIN_DB permit, released before hashing.
+      // A read: a client abort cancels it, and nothing has been verified yet.
       const rows = await withStaffDb("STAFF_LOGIN_DB", (tx) => tx.$queryRaw<Snapshot[]>`
         SELECT s."id" AS "staffId", s."isActive", c."generation", c."passwordHash",
           (c."lockedUntil" IS NOT NULL AND c."lockedUntil" > statement_timestamp()) AS "locked"
         FROM "staff" s LEFT JOIN "staff_credentials" c ON c."staffId" = s."id"
         WHERE lower(s."email") = ${email}
-        LIMIT 2`, { signal: ctx.signal });
+        LIMIT 2`, { signal: ctx.signal, access: "read" });
       const snap = rows.length === 1 ? rows[0] : null;
       const credential = snap && snap.passwordHash !== null && snap.generation !== null
         ? { staffId: snap.staffId, generation: snap.generation, hash: snap.passwordHash } : null;
@@ -100,7 +101,8 @@ export function createStaffLogin(deps: LoginDeps = {}) {
         : !snap.isActive ? "INACTIVE" : snap.locked ? "LOCKED" : !verified ? "WRONG_PASSWORD" : "STALE_GENERATION";
       const candidate = rows.length === 1 && credential && snap!.isActive && !snap!.locked && verified;
 
-      // Step 7: activation under the credential-row lock.
+      // Step 7: activation under the credential-row lock. The signal only bounds its queue
+      // wait: an abort before it starts mints nothing; once started, it commits.
       if (candidate) {
         const token = generateSessionToken();
         const activated = await withStaffDb("STAFF_LOGIN_DB", (tx) => activate(tx, credential, rehash, token, ctx.carriedToken), { signal: ctx.signal });
@@ -112,29 +114,38 @@ export function createStaffLogin(deps: LoginDeps = {}) {
       }
 
       // Step 8: failure accounting, or the same-shaped no-op for accounts with nothing to count.
+      // No signal: a verified guess is always counted, so disconnecting cannot bypass lockout.
       const countable = rows.length === 1 && credential && snap!.isActive;
       const lockedNow = await withStaffDb("STAFF_LOGIN_DB", async (tx) => {
         if (!countable) { await tx.$queryRaw`SELECT statement_timestamp()`; return false; }
         await tx.$queryRaw`SELECT "staffId" FROM "staff_credentials" WHERE "staffId" = ${credential.staffId} FOR UPDATE`;
+        // Staff state is re-read after the credential lock (S-01 order), so a deactivation that
+        // committed since the snapshot is seen and nothing is counted while inactive (F5).
         const [row] = await tx.$queryRaw<{ lockedUntil: Date | null }[]>`
-          UPDATE "staff_credentials" SET
-            "failedLoginCount" = CASE WHEN "failedLoginCount" + 1 >= ${P.maxConsecutiveFailures}::int THEN 0 ELSE "failedLoginCount" + 1 END,
-            "lockedUntil" = CASE WHEN "failedLoginCount" + 1 >= ${P.maxConsecutiveFailures}::int
+          UPDATE "staff_credentials" c SET
+            "failedLoginCount" = CASE WHEN c."failedLoginCount" + 1 >= ${P.maxConsecutiveFailures}::int THEN 0 ELSE c."failedLoginCount" + 1 END,
+            "lockedUntil" = CASE WHEN c."failedLoginCount" + 1 >= ${P.maxConsecutiveFailures}::int
               THEN statement_timestamp() + make_interval(mins => ${P.lockMinutes}::int) ELSE NULL END,
             "updatedAt" = statement_timestamp()
-          WHERE "staffId" = ${credential.staffId}
-            AND ("lockedUntil" IS NULL OR "lockedUntil" <= statement_timestamp())
-          RETURNING "lockedUntil"`;
+          FROM "staff" s
+          WHERE c."staffId" = ${credential.staffId} AND s."id" = c."staffId" AND s."isActive"
+            AND (c."lockedUntil" IS NULL OR c."lockedUntil" <= statement_timestamp())
+          RETURNING c."lockedUntil"`;
         return Boolean(row?.lockedUntil);
-      }, { signal: ctx.signal });
+      });
       authEvent("auth.login_failed", { reason, clientKeyDigest: digest });
       if (lockedNow) authEvent("auth.locked", { staffId: credential!.staffId });
 
       // Step 9: uniform response no earlier than the floor; nothing is held while waiting.
       trace("floor:wait");
-      const remaining = ctx.startedAt + failureFloorMs - performance.now();
-      if (remaining > 0) await sleep(remaining);
-      else if (failureFloorMs > 0) authEvent("auth.failure_floor_exceeded");
+      const floorAt = ctx.startedAt + failureFloorMs;
+      let remaining = floorAt - performance.now();
+      if (remaining <= 0 && failureFloorMs > 0) authEvent("auth.failure_floor_exceeded");
+      // Timers run on a millisecond loop clock and can fire slightly early: wait until the floor has passed.
+      while (remaining > 0) {
+        await sleep(remaining);
+        remaining = floorAt - performance.now();
+      }
       return { ok: false, error: new StaffAuthError("UNAUTHENTICATED", STAFF_LOGIN_FAILURE_MESSAGE, null) };
     } catch (error) {
       // A database error in steps 4-8 is 503, never a session.

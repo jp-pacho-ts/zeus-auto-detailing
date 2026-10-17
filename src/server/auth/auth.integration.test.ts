@@ -19,7 +19,7 @@ if (url) {
 const skip = !enabled;
 const db = new PrismaClient({ datasources: { db: { url: url || "postgresql://unused@localhost/zeus_t007_unused" } } });
 process.env.APP_ORIGIN = "http://localhost:3000";
-process.env.TRUSTED_CLIENT_IP_MODE = "PROXY_HOPS";
+process.env.CLIENT_IP_SOURCE = "PROXY_HOPS";
 process.env.TRUSTED_PROXY_HOPS = "1";
 const ORIGIN = "http://localhost:3000";
 const COOKIE = "zeus-staff-session"; // loopback development name
@@ -85,6 +85,29 @@ async function credential(staffId: string) {
 async function resolve(token: string | null) {
   return m.session.resolveStaffSession(token, `resolve-${randomUUID()}`);
 }
+const is503 = (e: unknown) => (e as { status?: number }).status === 503;
+async function waitFor(predicate: () => boolean | Promise<boolean>, what: string, ms = 5000) {
+  const deadline = Date.now() + ms;
+  while (!(await predicate())) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+// Another session's row lock, held until release(): makes a write wait inside its transaction.
+async function holdLock(lock: (tx: Parameters<Parameters<typeof db.$transaction>[0]>[0]) => Promise<unknown>) {
+  let release!: () => void; const released = new Promise<void>((r) => { release = r; });
+  let locked!: () => void; const held = new Promise<void>((r) => { locked = r; });
+  const done = db.$transaction(async (tx) => { await lock(tx); locked(); await released; }, { timeout: 20_000 });
+  await held;
+  return async () => { release(); await done; };
+}
+// Other test files share this database, so match the waiting statement too.
+const lockWaiters = async (fragment: string) => (await db.$queryRaw<{ n: number }[]>`
+  SELECT count(*)::int AS n FROM pg_stat_activity
+  WHERE datname = current_database() AND wait_event_type = 'Lock' AND position(${fragment} in query) > 0`)[0].n;
+const activeStatements = async (fragment: string) => (await db.$queryRaw<{ n: number }[]>`
+  SELECT count(*)::int AS n FROM pg_stat_activity
+  WHERE datname = current_database() AND state = 'active' AND pid <> pg_backend_pid() AND position(${fragment} in query) > 0`)[0].n;
 
 test("login succeeds, sets the session cookie and the session resolves with the live role", { skip }, async () => {
   const staff = await createStaff({ role: "MANAGER" });
@@ -136,7 +159,7 @@ test("every failure class gets the same 401 body and headers, no cookie, no earl
     const elapsed = performance.now() - started;
     assert.equal(response.status, 401, label);
     assert.equal(response.headers.get("set-cookie"), null, label);
-    assert.ok(elapsed >= 399, `${label} answered after ${elapsed} ms`);
+    assert.ok(elapsed >= 400, `${label} answered after ${elapsed} ms, before the 400 ms floor`);
     const headers = [...response.headers.entries()].filter(([k]) => k !== "date").sort();
     seen.push(JSON.stringify({ headers, body: await response.text() }));
   }
@@ -167,32 +190,45 @@ test("timing distributions of the failure classes are comparable (S-02)", { skip
     LOCKED: () => ({ email: locked.email, password: PASSWORD }),
     WRONG_PASSWORD: () => ({ email: active.email, password: "wrong " + PASSWORD }),
   };
-  // The mechanism under test is "every failure answers at the floor". Local Windows +
-  // Prisma transaction latency sometimes exceeds 400 ms of pre-floor work, so this run uses
-  // a 1 s floor; the 400 ms policy value is calibrated on the Railway instance (P1-10).
-  const FLOOR = 1000;
+  // One attempt of a class: its pre-floor work and its total time to answer.
+  async function attempt(login: ReturnType<typeof serviceLogin>, name: string, body: () => unknown) {
+    if (name === "WRONG_PASSWORD") await db.staffCredential.update({ where: { staffId: active.id }, data: { failedLoginCount: 0 } });
+    let floorAt = 0;
+    const started = performance.now();
+    m.trace.setTraceRecorder((e) => { if (e === "floor:wait") floorAt = performance.now(); });
+    const outcome = await login(body(), { ...ctx(), startedAt: started });
+    m.trace.setTraceRecorder(null);
+    assert.equal(outcome.ok, false);
+    assert.equal(!outcome.ok && outcome.error.code, "UNAUTHENTICATED", name);
+    return { work: floorAt - started, total: performance.now() - started };
+  }
+  // The mechanism under test is "every failure answers at the floor, whatever its class". The
+  // floor must exceed the pre-floor work, which on this host depends on load (npm test runs
+  // files in parallel, and other processes may be running), so the test calibrates it: three
+  // times the slowest work of two unfloored warm-up rounds, and never under 1 s. The 400 ms
+  // policy value is calibrated on the Railway instance class (P1-10). The assertions below are
+  // unchanged: never before the floor, every median under it, and class medians within 100 ms.
+  const unfloored = serviceLogin({ failureFloorMs: 0 });
+  let slowest = 0;
+  for (let round = 0; round < 2; round++) {
+    for (const [name, body] of Object.entries(classes)) slowest = Math.max(slowest, (await attempt(unfloored, name, body)).work);
+  }
+  const FLOOR = Math.max(1000, Math.min(4000, Math.ceil(slowest * 3)));
   const login = serviceLogin({ failureFloorMs: FLOOR });
   const work: Record<string, number[]> = {};
   const total: Record<string, number[]> = {};
   for (let round = 0; round < 5; round++) {
     for (const [name, body] of Object.entries(classes)) {
-      if (name === "WRONG_PASSWORD") await db.staffCredential.update({ where: { staffId: active.id }, data: { failedLoginCount: 0 } });
-      let floorAt = 0;
-      const started = performance.now();
-      m.trace.setTraceRecorder((e) => { if (e === "floor:wait") floorAt = performance.now(); });
-      const outcome = await login(body(), { ...ctx(), startedAt: started });
-      m.trace.setTraceRecorder(null);
-      assert.equal(outcome.ok, false);
-      assert.equal(!outcome.ok && outcome.error.code, "UNAUTHENTICATED", name);
-      (work[name] ??= []).push(floorAt - started);
-      (total[name] ??= []).push(performance.now() - started);
+      const sample = await attempt(login, name, body);
+      (work[name] ??= []).push(sample.work);
+      (total[name] ??= []).push(sample.total);
     }
   }
-  // Calibration evidence for the handoff: the slowest pre-floor work must stay under 50 % of the floor.
+  // Calibration evidence for the handoff.
   const rounded = (r: Record<string, number[]>) => JSON.stringify(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.map(Math.round)])));
-  console.log(`[calibration] pre-floor work ms by class: ${rounded(work)}; total ms: ${rounded(total)}`);
+  console.log(`[calibration] warm-up slowest ${Math.round(slowest)} ms, floor ${FLOOR} ms; pre-floor work ms by class: ${rounded(work)}; total ms: ${rounded(total)}`);
   // No failure ever answers before the floor.
-  for (const t of Object.values(total).flat()) assert.ok(t >= FLOOR - 1, `answered after ${t} ms`);
+  for (const t of Object.values(total).flat()) assert.ok(t >= FLOOR, `answered after ${t} ms, before the ${FLOOR} ms floor`);
   // Medians, because npm test runs files in parallel: a loaded host adds outliers of
   // ~150 ms of timer jitter to any class. A class-dependent difference would move its median.
   const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
@@ -327,15 +363,15 @@ test("four failures do not lock; staff:credential unlock clears a lock", { skip 
 test("per-client throttle: 10 a minute per trusted key, and a spoofed X-Forwarded-For does not escape it", { skip }, async () => {
   const limiter = m.rateLimit.createLoginLimiter({ perKeyPerMinute: 10, perKeyPerDay: 100, maxConcurrentPerKey: 1 });
   const login = serviceLogin({ limiter, failureFloorMs: 0 });
-  const none = m.identity.clientIdentityConfig({});
+  const local = m.identity.clientIdentityConfig({}); // LOCAL_DEVELOPMENT: forwarding headers are ignored
   const statuses: number[] = [];
   for (let i = 0; i < 11; i++) {
     const headers = new Headers({ "x-forwarded-for": `203.0.113.${i + 1}` }); // a new spoofed address each time
-    const outcome = await login({ email: email(), password: PASSWORD }, { ...ctx(), clientKey: m.identity.trustedClientKey(headers, none) });
+    const outcome = await login({ email: email(), password: PASSWORD }, { ...ctx(), clientKey: m.identity.trustedClientKey(headers, local) });
     statuses.push(outcome.ok ? 200 : outcome.error.status);
   }
   assert.deepEqual(statuses, [...Array(10).fill(401), 429]);
-  const refused = await login({ email: email(), password: PASSWORD }, { ...ctx(), clientKey: "untrusted" });
+  const refused = await login({ email: email(), password: PASSWORD }, { ...ctx(), clientKey: m.identity.LOCAL_CLIENT_KEY });
   assert.ok(!refused.ok && refused.error.retryAfterSeconds! > 0);
   assert.ok(events.some((e) => e.event === "auth.login_refused" && e.fields.status === 429));
 });
@@ -622,4 +658,184 @@ test("competing bootstraps create one credential; deactivate and reactivate work
   assert.equal((await db.staff.findUniqueOrThrow({ where: { id: staff.id } })).isActive, true);
   assert.notEqual(await m.cli.runStaffCredentialCli(["unlock", "--email", email()], fakeIo({}), db), 0);
   assert.ok(events.some((e) => e.event === "auth.credential_changed" && e.fields.operation === "DEACTIVATE"));
+});
+
+// --- Review fixes (Codex review of eea7879) ---
+
+test("F2: an aborted or queued session lookup dispatches no query, through the service and the HTTP route", { skip }, async () => {
+  const staff = await createStaff();
+  const o = await serviceLogin()({ email: staff.email, password: PASSWORD }, ctx());
+  assert.ok(o.ok);
+  const log: string[] = [];
+  m.trace.setTraceRecorder((e) => log.push(e));
+  try {
+    await assert.rejects(m.session.resolveStaffSession(o.token, `k-${randomUUID()}`, { signal: AbortSignal.abort() }), is503);
+    // The route passes request.signal through to the lookup.
+    const aborted = new NextRequest("http://localhost:3000/api/admin/auth/session", { headers: { cookie: `${COOKIE}=${o.token}` }, signal: AbortSignal.abort() });
+    assert.equal((await m.sessionRoute.GET(aborted)).status, 503);
+    assert.deepEqual(log, []);
+    // Queued behind both STAFF_SESSION permits, then aborted: it leaves the queue without a query.
+    const blockers = [1, 2].map(() => m.admission.withStaffDb("STAFF_SESSION", (tx) => tx.$queryRaw`SELECT 1 AS slept FROM pg_sleep(0.4)`));
+    await waitFor(() => m.admission.staffDbStats().STAFF_SESSION.active === 2, "two session permits");
+    const controller = new AbortController();
+    const queued = m.session.resolveStaffSession(o.token, `k-${randomUUID()}`, { signal: controller.signal });
+    await waitFor(() => m.admission.staffDbStats().STAFF_SESSION.queued === 1, "a queued lookup");
+    controller.abort();
+    await assert.rejects(queued, is503);
+    assert.deepEqual(m.admission.staffDbStats().STAFF_SESSION, { active: 2, queued: 0 });
+    await Promise.all(blockers);
+    assert.equal(log.filter((e) => e === "db:STAFF_SESSION:acquire").length, 2, log.join(" "));
+  } finally { m.trace.setTraceRecorder(null); }
+  assert.deepEqual(m.admission.staffDbStats().STAFF_SESSION, { active: 0, queued: 0 });
+});
+
+test("F2: an abort cancels an active read in the database, and its permit is held until the read settles", { skip }, async () => {
+  const controller = new AbortController();
+  const read = m.admission.withStaffDb("STAFF_READ", (tx) => tx.$queryRaw`SELECT pg_sleep(3) AS slept`, { signal: controller.signal, access: "read" });
+  const outcome = read.then(() => "completed", (e) => (is503(e) ? "refused" : String(e)));
+  await waitFor(async () => (await activeStatements("pg_sleep(3)")) === 1, "the read to start");
+  const before = events.length;
+  controller.abort();
+  const abortedAt = performance.now();
+  // The next STAFF_READ phase cannot start until the cancelled read has settled in the database.
+  const next = m.admission.withStaffDb("STAFF_READ", async () => activeStatements("pg_sleep(3)"));
+  assert.equal(m.admission.staffDbStats().STAFF_READ.active, 1);
+  assert.equal(await outcome, "refused");
+  const settledMs = performance.now() - abortedAt;
+  assert.ok(settledMs < 1500, `cancelled read settled ${Math.round(settledMs)} ms after abort (pg_sleep(3) was not cancelled)`);
+  assert.equal(await activeStatements("pg_sleep(3)"), 0);
+  assert.equal(await next, 0);
+  assert.ok(events.slice(before).some((e) => e.event === "staff.db_refused" && e.fields.scope === "STAFF_READ" && e.fields.reason === "ABORTED"),
+    JSON.stringify(events.slice(before)));
+  for (const stats of Object.values(m.admission.staffDbStats())) assert.deepEqual(stats, { active: 0, queued: 0 });
+});
+
+test("F2: an abort never cancels a started write; logout, refresh, activation and failure accounting commit holding their permit", { skip }, async () => {
+  const staff = await createStaff();
+  const sessionOf = async () => { const o = await serviceLogin()({ email: staff.email, password: PASSWORD }, ctx()); assert.ok(o.ok); return o.token; };
+  // Abort a write while it waits on a row lock, check its permit is still held, then let it finish.
+  async function abortWhileWaiting<T>(scope: "STAFF_SESSION" | "STAFF_LOGIN_DB", table: string, lock: Parameters<typeof holdLock>[0], start: (signal: AbortSignal) => Promise<T>) {
+    const release = await holdLock(lock);
+    const controller = new AbortController();
+    const pending = start(controller.signal);
+    await waitFor(async () => (await lockWaiters(table)) >= 1, `${scope} write to wait on the lock`);
+    controller.abort();
+    await new Promise((r) => setTimeout(r, 150));
+    assert.equal(m.admission.staffDbStats()[scope].active, 1, `${scope} permit released while its write was live`);
+    await release();
+    const result = await pending;
+    assert.deepEqual(m.admission.staffDbStats()[scope], { active: 0, queued: 0 });
+    return result;
+  }
+
+  // Logout.
+  const t1 = await sessionOf();
+  const h1 = m.session.hashSessionToken(t1);
+  await abortWhileWaiting("STAFF_SESSION", "staff_sessions", (tx) => tx.$queryRaw`SELECT 1 FROM staff_sessions WHERE "tokenHash" = ${h1} FOR UPDATE`,
+    (signal) => m.session.revokeStaffSession(t1, { signal }));
+  assert.equal((await db.staffSession.findUniqueOrThrow({ where: { tokenHash: h1 } })).revokedReason, "LOGOUT");
+
+  // Idle refresh.
+  const t2 = await sessionOf();
+  const h2 = m.session.hashSessionToken(t2);
+  await db.$executeRaw`UPDATE staff_sessions SET "lastSeenAt" = statement_timestamp() - interval '6 minutes' WHERE "tokenHash" = ${h2}`;
+  await abortWhileWaiting("STAFF_SESSION", "staff_sessions", (tx) => tx.$queryRaw`SELECT 1 FROM staff_sessions WHERE "tokenHash" = ${h2} FOR UPDATE`,
+    (signal) => m.session.resolveStaffSession(t2, `k-${randomUUID()}`, { signal }).catch(() => null));
+  const refreshed = await db.staffSession.findUniqueOrThrow({ where: { tokenHash: h2 } });
+  assert.ok(Date.now() - refreshed.lastSeenAt.getTime() < 5000, "the started refresh did not commit");
+
+  // Activation: the session is created even though the client went away.
+  const sessionsBefore = await db.staffSession.count({ where: { staffId: staff.id } });
+  const activated = await abortWhileWaiting("STAFF_LOGIN_DB", "staff_credentials", (tx) => tx.$queryRaw`SELECT 1 FROM staff_credentials WHERE "staffId" = ${staff.id} FOR UPDATE`,
+    (signal) => serviceLogin()({ email: staff.email, password: PASSWORD }, { ...ctx(), signal }));
+  assert.equal(activated.ok, true);
+  assert.equal(await db.staffSession.count({ where: { staffId: staff.id } }), sessionsBefore + 1);
+
+  // Failure accounting.
+  const failed = await abortWhileWaiting("STAFF_LOGIN_DB", "staff_credentials", (tx) => tx.$queryRaw`SELECT 1 FROM staff_credentials WHERE "staffId" = ${staff.id} FOR UPDATE`,
+    (signal) => serviceLogin({ failureFloorMs: 0 })({ email: staff.email, password: "wrong " + PASSWORD }, { ...ctx(), signal }));
+  assert.equal(failed.ok, false);
+  assert.equal((await credential(staff.id)).failedLoginCount, 1);
+});
+
+test("a client abort after verification still counts the failure (no lockout bypass by disconnecting)", { skip }, async () => {
+  const staff = await createStaff();
+  for (let i = 0; i < 5; i++) {
+    const controller = new AbortController();
+    const login = serviceLogin({ failureFloorMs: 0, hooks: { afterVerify: async () => { controller.abort(); } } });
+    assert.equal((await login({ email: staff.email, password: "wrong " + PASSWORD }, { ...ctx(), signal: controller.signal })).ok, false);
+  }
+  assert.ok((await credential(staff.id)).lockedUntil, "five aborted wrong passwords must lock the account");
+  assert.equal((await serviceLogin()({ email: staff.email, password: PASSWORD }, ctx())).ok, false);
+});
+
+// Pauses each session lookup after its read and counts the rows its refresh UPDATE writes.
+function instrumentedDb(afterSessionRead: () => Promise<void>, written: { rows: number }): PrismaClient {
+  return new Proxy(db, {
+    get(target, prop, receiver) {
+      if (prop !== "$transaction") return Reflect.get(target, prop, receiver);
+      return (fn: (tx: unknown) => Promise<unknown>, options: unknown) => target.$transaction((tx) => fn(new Proxy(tx, {
+        get(t, p, r) {
+          if (p !== "$queryRaw") return Reflect.get(t, p, r);
+          return async (strings: TemplateStringsArray, ...values: unknown[]) => {
+            const result = await t.$queryRaw(strings, ...values);
+            const sql = strings.join("?").trim();
+            if (sql.startsWith('SELECT s."id"')) await afterSessionRead();
+            if (sql.startsWith('UPDATE "staff_sessions" SET "lastSeenAt"')) written.rows += (result as unknown[]).length;
+            return result;
+          };
+        },
+      })), options as never);
+    },
+  }) as PrismaClient;
+}
+
+test("F4: concurrent due lookups write one refresh and both succeed", { skip }, async () => {
+  const staff = await createStaff();
+  const o = await serviceLogin()({ email: staff.email, password: PASSWORD }, ctx());
+  assert.ok(o.ok);
+  const hash = m.session.hashSessionToken(o.token);
+  await db.$executeRaw`UPDATE staff_sessions SET "lastSeenAt" = statement_timestamp() - interval '6 minutes', "idleExpiresAt" = statement_timestamp() + interval '10 minutes' WHERE "tokenHash" = ${hash}`;
+  let arrived = 0;
+  let open!: () => void; const gate = new Promise<void>((r) => { open = r; });
+  const written = { rows: 0 };
+  const instrumented = instrumentedDb(async () => { arrived++; await gate; }, written);
+  // Both lookups read the same due row before either refreshes it.
+  const lookups = [1, 2].map(() => m.session.resolveStaffSession(o.token, `k-${randomUUID()}`, { db: instrumented }));
+  await waitFor(() => arrived === 2, "both lookups to read the due row");
+  open();
+  const [a, b] = await Promise.all(lookups);
+  assert.ok(a && b, "a lookup that lost the refresh race was rejected");
+  assert.equal(written.rows, 1, "the five-minute write throttle was bypassed");
+  assert.equal(a.idleExpiresAt, b.idleExpiresAt);
+  const row = await db.staffSession.findUniqueOrThrow({ where: { tokenHash: hash } });
+  assert.equal(row.idleExpiresAt.toISOString(), a.idleExpiresAt);
+  assert.ok(row.idleExpiresAt <= row.expiresAt);
+  // Revocation and expiry still apply to a due lookup.
+  await db.$executeRaw`UPDATE staff_sessions SET "lastSeenAt" = statement_timestamp() - interval '6 minutes' WHERE "tokenHash" = ${hash}`;
+  await db.staffSession.update({ where: { tokenHash: hash }, data: { revokedAt: new Date(), revokedReason: "ADMIN_REVOKED" } });
+  assert.equal(await resolve(o.token), null);
+});
+
+test("F5: failure accounting re-reads Staff under the credential lock; nothing is counted while inactive", { skip }, async () => {
+  const staff = await createStaff();
+  let paused = 0;
+  let resume!: () => void; const resumed = new Promise<void>((r) => { resume = r; });
+  const login = serviceLogin({ failureFloorMs: 0, hooks: { afterVerify: async () => { paused++; await resumed; } } });
+  // Six outstanding attempts, enough to lock: five wrong passwords and one correct one.
+  const attempts = [
+    ...Array.from({ length: 5 }, () => login({ email: staff.email, password: "wrong " + PASSWORD }, ctx())),
+    login({ email: staff.email, password: PASSWORD }, ctx()),
+  ];
+  await waitFor(() => paused === 6, "six verified attempts");
+  assert.ok((await m.credentials.deactivateStaff(db, staff.email)).ok);
+  resume();
+  assert.ok((await Promise.all(attempts)).every((o) => !o.ok));
+  const after = await credential(staff.id);
+  assert.equal(after.failedLoginCount, 0);
+  assert.equal(after.lockedUntil, null);
+  assert.equal(await db.staffSession.count({ where: { staffId: staff.id } }), 0);
+  // Reactivated staff are not left locked by attempts made while inactive.
+  assert.ok((await m.credentials.reactivateStaff(db, staff.email)).ok);
+  assert.equal((await serviceLogin()({ email: staff.email, password: PASSWORD }, ctx())).ok, true);
 });

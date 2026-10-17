@@ -2,7 +2,7 @@
 // session token/cookie rules and production pool configuration (no database needed).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkStaffDbConfiguration, StaffDbConfigError } from "./db-admission";
+import { checkStaffDbConfiguration, StaffDbConfigError } from "./startup";
 import { StaffAuthError } from "./errors";
 import { checkSameOrigin, readAdminJson } from "./http";
 import { generateSessionToken, hashSessionToken, isWellFormedSessionToken, sessionCookieAttributes, staffSessionCookieName } from "./session";

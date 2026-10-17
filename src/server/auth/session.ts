@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { clientKeyDigest } from "./client-identity";
-import { withStaffDb } from "./db-admission";
+import { withStaffDb, withStaffPermit } from "./db-admission";
 import { appOrigin } from "./http";
 import { authEvent } from "./log";
 import { STAFF_DB_POLICY, STAFF_LOGIN_POLICY, STAFF_ROLE_TO_USER_ROLE, type StaffRole } from "./policy";
@@ -47,9 +47,10 @@ interface SessionRow {
 }
 export interface SessionOptions { db?: PrismaClient; signal?: AbortSignal }
 
-// One indexed query on the database clock, plus the conditional idle refresh, under one
-// STAFF_SESSION permit. Null for missing, malformed, unknown, expired, revoked, inactive or
-// stale sessions; a database failure or permit refusal throws RETRYABLE_ERROR (503).
+// One indexed read on the database clock, then (at most every 5 minutes) the idle-refresh
+// write, under one STAFF_SESSION permit. An abort cancels the read; a started refresh commits.
+// Null for missing, malformed, unknown, expired, revoked, inactive or stale sessions; a
+// database failure, abort or permit refusal throws RETRYABLE_ERROR (503).
 export async function resolveStaffSession(token: string | null | undefined, clientKey: string, options: SessionOptions = {}): Promise<StaffSession | null> {
   if (!isWellFormedSessionToken(token)) return null;
   if (invalidLookups.blocked(clientKey)) {
@@ -57,8 +58,8 @@ export async function resolveStaffSession(token: string | null | undefined, clie
     return null;
   }
   const tokenHash = hashSessionToken(token);
-  const result = await withStaffDb("STAFF_SESSION", async (tx) => {
-    const [row] = await tx.$queryRaw<SessionRow[]>`
+  const result = await withStaffPermit("STAFF_SESSION", async (permit) => {
+    const [row] = await permit.read((tx) => tx.$queryRaw<SessionRow[]>`
       SELECT s."id", s."staffId", st."name", st."role"::text AS "role", s."expiresAt", s."idleExpiresAt",
         s."revokedAt" IS NOT NULL AS "revoked",
         (s."expiresAt" <= statement_timestamp() OR s."idleExpiresAt" <= statement_timestamp()) AS "expired",
@@ -69,22 +70,32 @@ export async function resolveStaffSession(token: string | null | undefined, clie
       FROM "staff_sessions" s
       JOIN "staff" st ON st."id" = s."staffId"
       LEFT JOIN "staff_credentials" c ON c."staffId" = s."staffId"
-      WHERE s."tokenHash" = ${tokenHash}`;
+      WHERE s."tokenHash" = ${tokenHash}`);
     if (!row) return { reason: "UNKNOWN" as const };
     const reason = row.revoked ? "REVOKED" : row.expired ? "EXPIRED" : !row.active ? "INACTIVE"
       : !row.hasCredential ? "NO_CREDENTIAL" : !row.currentGeneration ? "STALE_GENERATION" : null;
     if (reason) return { reason, staffId: row.staffId };
-    if (row.refreshDue) {
-      // Conditional: cannot resurrect a session or extend its absolute expiry.
+    if (!row.refreshDue) return { row };
+    const refreshed = await permit.write(async (tx) => {
+      // Conditional: cannot resurrect a session or extend its absolute expiry. The throttle is
+      // re-checked here, so of several concurrent due lookups only the first writes (F4).
       const [updated] = await tx.$queryRaw<{ idleExpiresAt: Date }[]>`
         UPDATE "staff_sessions" SET "lastSeenAt" = statement_timestamp(),
           "idleExpiresAt" = LEAST(statement_timestamp() + make_interval(mins => ${STAFF_LOGIN_POLICY.idleSessionMinutes}::int), "expiresAt")
         WHERE "id" = ${row.id} AND "revokedAt" IS NULL
           AND "idleExpiresAt" > statement_timestamp() AND "expiresAt" > statement_timestamp()
+          AND "lastSeenAt" <= statement_timestamp() - make_interval(mins => ${STAFF_LOGIN_POLICY.idleWriteIntervalMinutes}::int)
         RETURNING "idleExpiresAt"`;
-      if (!updated) return { reason: "EXPIRED" as const, staffId: row.staffId };
-      row.idleExpiresAt = updated.idleExpiresAt;
-    }
+      if (updated) return updated;
+      // Another lookup refreshed it first (still valid), or it was revoked or expired meanwhile.
+      const [current] = await tx.$queryRaw<{ idleExpiresAt: Date; valid: boolean }[]>`
+        SELECT "idleExpiresAt",
+          ("revokedAt" IS NULL AND "idleExpiresAt" > statement_timestamp() AND "expiresAt" > statement_timestamp()) AS "valid"
+        FROM "staff_sessions" WHERE "id" = ${row.id}`;
+      return current?.valid ? current : null;
+    });
+    if (!refreshed) return { reason: "EXPIRED" as const, staffId: row.staffId };
+    row.idleExpiresAt = refreshed.idleExpiresAt;
     return { row };
   }, options);
 
@@ -102,7 +113,8 @@ export async function resolveStaffSession(token: string | null | undefined, clie
   };
 }
 
-// Logout: idempotent. A missing or unknown token revokes nothing.
+// Logout: idempotent. A missing or unknown token revokes nothing. A signal only bounds the
+// queue wait; once started, the revocation commits even if the caller has gone.
 export async function revokeStaffSession(token: string | null | undefined, options: SessionOptions = {}): Promise<void> {
   if (!isWellFormedSessionToken(token)) return;
   const tokenHash = hashSessionToken(token);

@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
     checkSameOrigin(request);
     await readAdminJson(request, { allowEmpty: true });
     const cookieName = staffSessionCookieName();
-    await revokeStaffSession(request.cookies.get(cookieName)?.value, { signal: request.signal });
+    // No request signal: a client that disconnects mid-logout still has its session revoked.
+    await revokeStaffSession(request.cookies.get(cookieName)?.value);
     const response = new NextResponse(null, { status: 204, headers: ADMIN_RESPONSE_HEADERS });
     response.cookies.set(cookieName, "", sessionCookieAttributes(0));
     return response;

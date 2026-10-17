@@ -2,37 +2,45 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { isIPv4, isIPv6 } from "node:net";
 
-// Trusted client identity for login and session admission (T-027 F-02 rule).
-// NONE (default): forwarding headers are ignored and every client shares one key, so
-// spoofing can never earn independent limits. PROXY_HOPS: the address the Nth trusted
-// proxy from the right appended to X-Forwarded-For. P1-10 verifies the production
-// topology before it is enabled; CLOUDFLARE mode is not implemented yet.
-export type ClientIdentityMode = "NONE" | "PROXY_HOPS";
-export interface ClientIdentityConfig { mode: ClientIdentityMode; hops: number }
+// Trusted client identity for login and session admission (ARCHITECTURE "Admission
+// control (T-027, F-02)", N-02), selected by CLIENT_IP_SOURCE:
+// - PROXY_HOPS: the rightmost TRUSTED_PROXY_HOPS (1-3) X-Forwarded-For entries were written
+//   by trusted proxies. If any one is missing or invalid, the shared `untrusted` key is used.
+// - LOCAL_DEVELOPMENT: every client shares the `local` key. Refused in production, and the
+//   default outside production only.
+// CLOUDFLARE (origin-authenticated) is not implemented yet and is refused. P1-10 verifies the
+// production topology. Startup (src/instrumentation.ts) and every first use apply these rules.
+export type ClientIpSource = "PROXY_HOPS" | "LOCAL_DEVELOPMENT";
+export interface ClientIdentityConfig { source: ClientIpSource; hops: number }
 export const UNTRUSTED_CLIENT_KEY = "untrusted";
-const MAX_PROXY_HOPS = 5;
+export const LOCAL_CLIENT_KEY = "local";
 
 export class ClientIdentityConfigError extends Error {}
 
 export function clientIdentityConfig(env: Record<string, string | undefined> = process.env): ClientIdentityConfig {
-  const mode = env.TRUSTED_CLIENT_IP_MODE ?? "NONE";
+  const production = env.NODE_ENV === "production";
+  if (env.TRUSTED_CLIENT_IP_MODE !== undefined) throw new ClientIdentityConfigError("TRUSTED_CLIENT_IP_MODE is replaced by CLIENT_IP_SOURCE");
+  const source = env.CLIENT_IP_SOURCE ?? (production ? undefined : "LOCAL_DEVELOPMENT");
   const hops = env.TRUSTED_PROXY_HOPS;
-  if (mode === "NONE") {
-    if (hops !== undefined) throw new ClientIdentityConfigError("TRUSTED_PROXY_HOPS needs TRUSTED_CLIENT_IP_MODE=PROXY_HOPS");
-    return { mode, hops: 0 };
+  if (source === undefined) throw new ClientIdentityConfigError("CLIENT_IP_SOURCE is required in production");
+  if (source === "LOCAL_DEVELOPMENT") {
+    if (production) throw new ClientIdentityConfigError("CLIENT_IP_SOURCE=LOCAL_DEVELOPMENT is refused in production");
+    if (hops !== undefined) throw new ClientIdentityConfigError("TRUSTED_PROXY_HOPS needs CLIENT_IP_SOURCE=PROXY_HOPS");
+    return { source, hops: 0 };
   }
-  if (mode !== "PROXY_HOPS") throw new ClientIdentityConfigError("TRUSTED_CLIENT_IP_MODE must be NONE or PROXY_HOPS");
-  if (!hops || !/^[1-9]$/.test(hops) || Number(hops) > MAX_PROXY_HOPS) {
-    throw new ClientIdentityConfigError(`TRUSTED_PROXY_HOPS must be an integer from 1 to ${MAX_PROXY_HOPS}`);
-  }
-  return { mode, hops: Number(hops) };
+  if (source === "CLOUDFLARE") throw new ClientIdentityConfigError("CLIENT_IP_SOURCE=CLOUDFLARE is not implemented yet");
+  if (source !== "PROXY_HOPS") throw new ClientIdentityConfigError("CLIENT_IP_SOURCE must be PROXY_HOPS or LOCAL_DEVELOPMENT");
+  if (!hops || !/^[1-3]$/.test(hops)) throw new ClientIdentityConfigError("TRUSTED_PROXY_HOPS must be 1, 2 or 3");
+  return { source, hops: Number(hops) };
 }
 
 export function trustedClientKey(headers: Headers, config: ClientIdentityConfig): string {
-  if (config.mode === "NONE") return UNTRUSTED_CLIENT_KEY;
+  if (config.source === "LOCAL_DEVELOPMENT") return LOCAL_CLIENT_KEY;
   const entries = (headers.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim());
   if (entries.length < config.hops) return UNTRUSTED_CLIENT_KEY;
-  return normalizeClientAddress(entries[entries.length - config.hops]) ?? UNTRUSTED_CLIENT_KEY;
+  // Everything left of the trusted suffix is client-controlled and ignored.
+  const keys = entries.slice(entries.length - config.hops).map(normalizeClientAddress);
+  return keys.some((key) => key === null) ? UNTRUSTED_CLIENT_KEY : keys[0]!;
 }
 
 // Logs carry only a digest of the client key, never the raw address.
