@@ -1,22 +1,49 @@
 import "server-only";
-import { Prisma } from "@prisma/client";
-import { VehicleCategoryCodeSchema } from "@/lib/validation";
-import type { BookingCatalogResponse } from "@/types/contracts";
-import { prisma } from "./db";
-import { contractError } from "./errors";
+import type { BookingCatalog, BookingCatalogResponse, PublicDuration, ServiceSizeOffer } from "@/types/catalog-contracts";
+import { catalogUnavailable } from "./catalog-errors";
+import type { ReleaseOffer, ReleaseSnapshot } from "./catalog-pricing";
+import { readPublicCatalog, type CatalogReadOptions } from "./catalog-read";
 
-export async function getBookingCatalog(): Promise<BookingCatalogResponse> {
+// The customer catalog DTO (ADR-004; T-040 P-02, T-043 C-02): the current published release,
+// projected field by field. Never spread a model: anything not named here (bay capacity, hold
+// plans, source annotations, comparison prices, ratings) cannot reach a customer.
+export async function getBookingCatalog(options: CatalogReadOptions = {}): Promise<BookingCatalogResponse> {
   try {
-    const data = await prisma.$transaction(async tx => {
-      const [categories, services] = await Promise.all([
-        tx.vehicleCategory.findMany({ orderBy: { sortOrder: "asc" } }),
-        tx.service.findMany({ where: { isActive: true, bayCapacityRequired: 1, durationMinutes: { gt: 0, lte: 540 } }, orderBy: { name: "asc" } }),
-      ]);
-      return {
-        vehicleCategories: categories.flatMap(c => !VehicleCategoryCodeSchema.safeParse(c.slug).success || !c.sizeMultiplier || !c.sizeMultiplier.gt(0) ? [] : [({ id: c.id, code: VehicleCategoryCodeSchema.parse(c.slug), name: c.name, description: c.description, sizeMultiplier: c.sizeMultiplier.toNumber(), sortOrder: c.sortOrder })]),
-        services: services.flatMap(s => s.price === null || s.durationMinutes === null ? [] : [({ id: s.id, slug: s.slug, name: s.name, description: s.description, category: s.category, durationMinutes: s.durationMinutes, basePriceCentavos: s.price.mul(100).toNumber(), bayCapacityRequired: 1 as const, isActive: s.isActive })]),
-      };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
-    return { ok: true, data };
-  } catch (error) { return { ok: false, error: contractError(error) }; }
+    const release = await readPublicCatalog((current) => current, options);
+    return release ? { ok: true, data: projectPublicCatalog(release) } : { ok: false, error: catalogUnavailable() };
+  } catch {
+    return { ok: false, error: catalogUnavailable() };
+  }
+}
+
+function publicDuration(offer: ReleaseOffer): PublicDuration {
+  if (offer.state === "NOT_OFFERED" || offer.durationKind === "UNKNOWN" || (offer.durationKind === "TIMED" && offer.durationMinutes === null)) return { kind: "UNKNOWN" };
+  if (offer.durationKind === "MULTI_DAY") return { kind: "MULTI_DAY", elapsedDays: offer.elapsedDays };
+  return { kind: "TIMED", minutes: offer.durationMinutes! };
+}
+
+function publicOffer(offer: ReleaseOffer): ServiceSizeOffer {
+  const common = { id: offer.id, vehicleCategoryId: offer.vehicleCategoryId, duration: publicDuration(offer) };
+  // Comparison prices stay null until a reviewed release and contract enable their display.
+  if (offer.state === "OFFERED" && offer.unitPriceCentavos !== null) {
+    const fixed = offer.bookingMode === "FIXED_ONLINE" && common.duration.kind === "TIMED";
+    return { ...common, state: "OFFERED", bookingMode: fixed ? "FIXED_ONLINE" : "QUOTE_REQUIRED", unitPriceCentavos: offer.unitPriceCentavos, compareAtCentavos: null };
+  }
+  if (offer.state === "NOT_OFFERED") return { ...common, state: "NOT_OFFERED", bookingMode: "QUOTE_REQUIRED", unitPriceCentavos: null, compareAtCentavos: null };
+  return { ...common, state: "UNCONFIRMED", bookingMode: "QUOTE_REQUIRED", unitPriceCentavos: offer.unitPriceCentavos, compareAtCentavos: null };
+}
+
+export function projectPublicCatalog(release: ReleaseSnapshot): BookingCatalog {
+  return {
+    catalogReleaseId: release.releaseId,
+    catalogVersion: release.version,
+    vehicleCategories: release.sizes.map((s) => ({ id: s.id, code: s.code, name: s.name, description: s.description, sortOrder: s.sortOrder })),
+    services: release.services.map((s) => ({
+      id: s.id, slug: s.slug, name: s.name, description: s.description, category: s.group, type: s.type, unit: s.unit,
+      inclusions: [...s.inclusions], productName: s.productName, hardness: s.hardness, warrantyMonths: s.warrantyMonths,
+      referenceUnitPriceCentavos: s.referenceUnitPriceCentavos,
+      offers: release.sizes.map((size) => publicOffer(s.offers.find((o) => o.vehicleCategoryId === size.id)!)),
+    })),
+    addOnCompatibility: release.compatibility.map((c) => ({ baseServiceId: c.baseServiceId, addOnServiceId: c.addOnServiceId })),
+  };
 }

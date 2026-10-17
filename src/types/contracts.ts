@@ -202,7 +202,9 @@ export interface StaffSession {
   expiresAt: ISOInstant;
 }
 
-// Public database-backed catalog used to resolve booking UUIDs.
+// Release-1 catalog shape, kept only so the old booking wizard compiles until P1-05 moves it to
+// ./catalog-contracts. GET /api/catalog no longer serves this shape: it returns the ADR-004
+// BookingCatalogResponse from ./catalog-contracts (no multiplier or bay fields).
 export interface BookingCatalog {
   vehicleCategories: VehicleCategory[];
   services: ServicePackage[];
