@@ -42,9 +42,11 @@ The LE manually runs three sessions on two providers. **Agents never launch othe
 
 | Terminal | Provider | Role |
 | --- | --- | --- |
-| PM-PROJ-ZEUS | Claude Code | Project manager: turns LE goals into tasks, assigns Owner/Reviewer, owns BOARD.md. No application code |
-| CLAUDE-PROJ-ZEUS | Claude Code | Full-stack engineer: UI, server/APIs, data, security, QA, CI/CD, Git |
-| CODEX-PROJ-ZEUS | Codex | Full-stack engineer with the same scope. **Designated `dev` integrator** |
+| ZEUS-PM | Claude Code | Project manager: turns LE goals into tasks, assigns Owner/Reviewer, owns BOARD.md. No application code |
+| ZEUS-CLAUDE | Claude Code | Full-stack engineer: UI, server/APIs, data, security, QA, CI/CD, Git |
+| ZEUS-CODEX | Codex | Full-stack engineer with the same scope. **Designated `dev` integrator** |
+
+Renamed 2026-10-17. Older handoffs, tasks and BOARD.md entries may still use PM-PROJ-ZEUS, CLAUDE-PROJ-ZEUS and CODEX-PROJ-ZEUS; they mean the same sessions.
 
 - An LE-assigned `.team/tasks/P1-NN.md` in TODO or DOING authorizes implementation. Without one, report availability and wait. PM writes tasks; engineers do not.
 - Read `.team/BOARD.md` before starting: your task, its dependencies and any LE notice. Only PM or the LE edits BOARD.md.
@@ -68,7 +70,7 @@ Follow AGENTIC_WORKFLOW §2 (explore, plan, implement, verify, review, commit) w
 - Create task worktrees from local `dev`: `git worktree add ../zeus-p1-NN -b feat/p1-NN-<slug> dev`. Reuse assigned worktrees. If `dev` is missing, report it; do not recreate it.
 - Do not implement in the canonical root: it is the integration checkout. Preserve other people's uncommitted work.
 - Commit messages: `type(scope): summary`, with type `feat|fix|chore|docs` and scope a task id (`p1-09`) or area (`db`, `repo`). The body explains why. End with your provider's attribution trailer.
-- Only CODEX-PROJ-ZEUS merges reviewed, verified SHAs into `dev` (`git merge --no-ff <branch>`), then re-runs the checks on the integrated SHA. `main` needs LE approval.
+- Only ZEUS-CODEX merges reviewed, verified SHAs into `dev` (`git merge --no-ff <branch>`), then re-runs the checks on the integrated SHA. `main` needs LE approval.
 - `.team/`, `.agents/`, `prompts/` and `config/ai-team.json` are gitignored and absent from worktrees. Read them at the canonical root: `C:/Users/User/Documents/Code Projects/zeus-auto-detailing/`.
 
 ## Code conventions
