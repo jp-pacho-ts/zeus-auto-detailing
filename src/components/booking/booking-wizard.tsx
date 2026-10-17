@@ -27,6 +27,8 @@ import {
 import { brandConfig } from "@/config/brand";
 import { formatDuration } from "@/config/catalog";
 import { Logo } from "@/components/ui/logo";
+import { publicDayMessage, slotLabel, toPublicSlot, type PublicSlot } from "@/components/booking/public-slot";
+import { isTimeConflict, publicSubmitError } from "@/components/booking/submit-error";
 import { CreateBookingSchema } from "@/lib/validation";
 import { createBookingAction } from "@/server/actions/booking";
 import type {
@@ -403,16 +405,15 @@ export function BookingWizard({
         setUncertain(false);
         attempt.current = null;
       } else {
-        setFieldErrors(result.error.fieldErrors);
-        setMessage(result.error.message);
+        // Conflict errors can carry staff-entered block text; only the public view is rendered.
+        const shown = publicSubmitError(result.error);
+        setFieldErrors(shown.fieldErrors);
+        setMessage(shown.message);
         setUncertain(result.error.retryable);
         if (!result.error.retryable) attempt.current = null;
-        if (result.error.code === "SLOT_UNAVAILABLE" || result.error.code === "SCHEDULE_CONFLICT") {
+        if (isTimeConflict(result.error)) {
           setSelection(null);
           setStep(3);
-          setMessage(
-            "The selected arrival slot is no longer available. Please select another time session. Your customer and vehicle details have been saved.",
-          );
           setAvailabilityVersion((v) => v + 1);
         }
         if (result.error.code === "NOT_FOUND") {
@@ -453,14 +454,18 @@ export function BookingWizard({
   ];
 
   // Group slots into Morning (08:00–12:00) and Afternoon (12:00–18:00) blocks (Hick's Law)
-  const morningSlots = live?.data?.slots.filter((s) => s.startTime < "12:00") ?? [];
-  const afternoonSlots = live?.data?.slots.filter((s) => s.startTime >= "12:00") ?? [];
+  // Customers only ever see public slot state: no bay counts, capacity or staff-entered text.
+  const publicSlots = live?.data?.slots.map(toPublicSlot) ?? [];
+  const anySelectable = publicSlots.some((s) => s.selectable);
+  const morningSlots = publicSlots.filter((s) => s.startTime < "12:00");
+  const afternoonSlots = publicSlots.filter((s) => s.startTime >= "12:00");
 
-  const renderSlot = (s: AvailableSlotData["slots"][number]) => {
+  const renderSlot = (s: PublicSlot) => {
     const isSelected = selection?.key === key && selection.time === s.startTime;
+    const label = slotLabel(s);
     return (
       <label
-        key={s.slotId}
+        key={s.startTime}
         className={`flex min-h-[64px] items-center justify-between gap-3 rounded border px-4 py-3 transition-colors ${
           !s.selectable
             ? "cursor-not-allowed border-border opacity-50 bg-[#121214]/60"
@@ -471,20 +476,12 @@ export function BookingWizard({
       >
         <div>
           <span className="block font-semibold text-foreground">{timeLabel(s.startTime)}</span>
-          <span className="block text-xs text-muted-foreground">
-            {s.selectable
-              ? s.remainingCapacity === 1
-                ? "1 Bay Left"
-                : `${s.remainingCapacity} Bays Open`
-              : s.state === "SOLD_OUT"
-              ? "Sold Out"
-              : s.reason}
-          </span>
+          <span className="block text-xs text-muted-foreground">{label}</span>
         </div>
         <input
           type="radio"
           name="arrival-time"
-          aria-label={`${timeLabel(s.startTime)} — ${s.selectable ? `${s.remainingCapacity} bays available` : s.reason}`}
+          aria-label={`${timeLabel(s.startTime)} — ${label}`}
           checked={isSelected}
           disabled={!s.selectable}
           onChange={() => setSelection({ key, time: s.startTime })}
@@ -515,7 +512,7 @@ export function BookingWizard({
                   setMessage("");
                 }}
                 disabled={locked}
-                          className="inline-flex min-h-[44px] items-center text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Change
               </button>
@@ -535,7 +532,7 @@ export function BookingWizard({
                     setMessage("");
                   }}
                   disabled={locked}
-                          className="inline-flex min-h-[44px] items-center text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Change
                 </button>
@@ -561,7 +558,7 @@ export function BookingWizard({
                       setMessage("");
                     }}
                     disabled={locked}
-                          className="inline-flex min-h-[44px] items-center text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Change
                   </button>
@@ -889,7 +886,7 @@ export function BookingWizard({
                       className={control}
                     />
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Choose today through the next 90 days. Operating hours and bay availability are checked in real-time.
+                      Choose today through the next 90 days. Operating hours and availability are checked in real-time.
                     </p>
                   </div>
 
@@ -908,13 +905,13 @@ export function BookingWizard({
                         </p>
                       </div>
                       <span className="rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                        {brandConfig.defaultBays} Detailing Bays
+                        Live availability
                       </span>
                     </div>
 
                     {!live && (
                       <div role="status" className="mt-6 grid grid-cols-2 gap-3">
-                        <span className="sr-only">Loading bay availability</span>
+                        <span className="sr-only">Loading availability</span>
                         {[0, 1, 2, 3].map((i) => (
                           <div
                             key={i}
@@ -944,13 +941,13 @@ export function BookingWizard({
                           aria-live="polite"
                           className="my-3 text-xs text-zinc-400"
                         >
-                          {live.data.reason ||
-                            (live.data.slots.some((s) => s.selectable)
+                          {publicDayMessage(live.data) ||
+                            (anySelectable
                               ? "Live availability calculated for the full service duration."
                               : "No arrival sessions remain for this service on this date.")}
                         </p>
 
-                        {!live.data.slots.some((s) => s.selectable) && (
+                        {!anySelectable && (
                           <div className="my-4 rounded border border-border/80 bg-[#121214] p-4 text-sm">
                             <p className="text-zinc-400">
                               All arrival sessions are booked or unavailable for {date ? dateLabel(date) : "this date"}.
@@ -1006,7 +1003,7 @@ export function BookingWizard({
                         <div className="mt-4 flex items-start gap-2.5 rounded border border-border/60 bg-[#121214] p-3 text-xs text-zinc-400">
                           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                           <p>
-                            <strong className="text-foreground">Availability Notice:</strong> Selecting an arrival time does not hold the slot. Bay availability is secured when your booking request is submitted.
+                            <strong className="text-foreground">Availability Notice:</strong> Selecting an arrival time does not hold the slot. Your time is secured when your booking request is submitted.
                           </p>
                         </div>
 
@@ -1061,7 +1058,7 @@ export function BookingWizard({
                             setMessage("");
                           }}
                           disabled={locked}
-                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           aria-label="Edit vehicle classification"
                         >
                           Edit
@@ -1084,7 +1081,7 @@ export function BookingWizard({
                             setMessage("");
                           }}
                           disabled={locked}
-                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           aria-label="Edit detailing service"
                         >
                           Edit
@@ -1107,7 +1104,7 @@ export function BookingWizard({
                             setMessage("");
                           }}
                           disabled={locked}
-                          className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           aria-label="Edit appointment schedule"
                         >
                           Edit
@@ -1589,8 +1586,8 @@ export function BookingWizard({
             )}
           </div>
           {step === 4 && (
-            <p className="mt-3 text-right text-xs text-zinc-400">
-              Submitting creates a PENDING booking request. Our shop will review bay capacity and contact you to confirm your appointment.
+            <p className="ml-auto mt-3 max-w-[70ch] text-right text-xs text-zinc-400">
+              Submitting creates a PENDING booking request. Our shop will review your request and contact you to confirm your appointment.
             </p>
           )}
         </div>
