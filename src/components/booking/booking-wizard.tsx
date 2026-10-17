@@ -28,6 +28,7 @@ import { brandConfig } from "@/config/brand";
 import { formatDuration } from "@/config/catalog";
 import { Logo } from "@/components/ui/logo";
 import { publicDayMessage, slotLabel, toPublicSlot, type PublicSlot } from "@/components/booking/public-slot";
+import { isTimeConflict, publicSubmitError } from "@/components/booking/submit-error";
 import { CreateBookingSchema } from "@/lib/validation";
 import { createBookingAction } from "@/server/actions/booking";
 import type {
@@ -404,16 +405,15 @@ export function BookingWizard({
         setUncertain(false);
         attempt.current = null;
       } else {
-        setFieldErrors(result.error.fieldErrors);
-        setMessage(result.error.message);
+        // Conflict errors can carry staff-entered block text; only the public view is rendered.
+        const shown = publicSubmitError(result.error);
+        setFieldErrors(shown.fieldErrors);
+        setMessage(shown.message);
         setUncertain(result.error.retryable);
         if (!result.error.retryable) attempt.current = null;
-        if (result.error.code === "SLOT_UNAVAILABLE" || result.error.code === "SCHEDULE_CONFLICT") {
+        if (isTimeConflict(result.error)) {
           setSelection(null);
           setStep(3);
-          setMessage(
-            "The selected arrival slot is no longer available. Please select another time session. Your customer and vehicle details have been saved.",
-          );
           setAvailabilityVersion((v) => v + 1);
         }
         if (result.error.code === "NOT_FOUND") {
@@ -1586,7 +1586,7 @@ export function BookingWizard({
             )}
           </div>
           {step === 4 && (
-            <p className="mt-3 text-right text-xs text-zinc-400">
+            <p className="ml-auto mt-3 max-w-[70ch] text-right text-xs text-zinc-400">
               Submitting creates a PENDING booking request. Our shop will review your request and contact you to confirm your appointment.
             </p>
           )}

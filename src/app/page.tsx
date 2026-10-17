@@ -147,7 +147,7 @@ export default function HomePage() {
                 </div>
 
                 {group.note && (
-                  <p className="-mt-2 mb-6 max-w-3xl text-sm text-muted-foreground">
+                  <p className="-mt-2 mb-6 max-w-[62ch] text-sm text-muted-foreground">
                     {group.note}
                   </p>
                 )}
