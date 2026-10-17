@@ -9,8 +9,6 @@ export interface SemaphoreOptions { maxActive: number; maxQueued: number; maxWai
 export interface Semaphore {
   // Resolves to a release function. Release is idempotent; abort only affects a queued wait.
   acquire(signal?: AbortSignal): Promise<() => void>;
-  // A free permit now, or null; never queues and never passes a waiter.
-  tryAcquire(): (() => void) | null;
   stats(): { active: number; queued: number };
 }
 
@@ -50,11 +48,6 @@ export function createSemaphore({ maxActive, maxQueued, maxWaitMs }: SemaphoreOp
         signal?.addEventListener("abort", onAbort, { once: true });
         queue.push(waiter);
       });
-    },
-    tryAcquire() {
-      if (active >= maxActive || queue.length > 0) return null;
-      active++;
-      return releaser();
     },
     stats: () => ({ active, queued: queue.length }),
   };

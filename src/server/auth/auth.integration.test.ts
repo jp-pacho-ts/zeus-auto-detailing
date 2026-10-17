@@ -689,25 +689,69 @@ test("F2: an aborted or queued session lookup dispatches no query, through the s
   assert.deepEqual(m.admission.staffDbStats().STAFF_SESSION, { active: 0, queued: 0 });
 });
 
-test("F2: an abort cancels an active read in the database, and its permit is held until the read settles", { skip }, async () => {
+// LE decision 2026-10-18 (P1-06 delta review, replacing R17): an abort during an active read is
+// bounded by the scope's statement timeout. The read keeps only its own permit until it has
+// settled in the database, takes no second permit or connection, and nothing runs after it.
+test("F2: an aborted active read holds only its own permit until it settles, bounded by the statement timeout", { skip }, async () => {
   const controller = new AbortController();
-  const read = m.admission.withStaffDb("STAFF_READ", (tx) => tx.$queryRaw`SELECT pg_sleep(3) AS slept`, { signal: controller.signal, access: "read" });
+  const read = m.admission.withStaffDb("STAFF_SESSION", (tx) => tx.$queryRaw`SELECT 1 AS slept FROM pg_sleep(3)`, { signal: controller.signal, access: "read" });
   const outcome = read.then(() => "completed", (e) => (is503(e) ? "refused" : String(e)));
   await waitFor(async () => (await activeStatements("pg_sleep(3)")) === 1, "the read to start");
   const before = events.length;
   controller.abort();
   const abortedAt = performance.now();
-  // The next STAFF_READ phase cannot start until the cancelled read has settled in the database.
-  const next = m.admission.withStaffDb("STAFF_READ", async () => activeStatements("pg_sleep(3)"));
-  assert.equal(m.admission.staffDbStats().STAFF_READ.active, 1);
+  // While it runs: one SESSION permit, nothing else, and the next SESSION phase waits for it.
+  const stats = m.admission.staffDbStats();
+  assert.deepEqual(stats, { STAFF_LOGIN_DB: { active: 0, queued: 0 }, STAFF_SESSION: { active: 1, queued: 0 },
+    STAFF_READ: { active: 0, queued: 0 }, STAFF_MUTATION: { active: 0, queued: 0 } });
   assert.equal(await outcome, "refused");
   const settledMs = performance.now() - abortedAt;
-  assert.ok(settledMs < 1500, `cancelled read settled ${Math.round(settledMs)} ms after abort (pg_sleep(3) was not cancelled)`);
+  // pg_sleep(3) is ended by the 1 s SESSION statement timeout, not by a second connection.
+  assert.ok(settledMs < 2000, `aborted read held its permit ${Math.round(settledMs)} ms (statement timeout not applied)`);
   assert.equal(await activeStatements("pg_sleep(3)"), 0);
-  assert.equal(await next, 0);
-  assert.ok(events.slice(before).some((e) => e.event === "staff.db_refused" && e.fields.scope === "STAFF_READ" && e.fields.reason === "ABORTED"),
+  assert.ok(events.slice(before).some((e) => e.event === "staff.db_refused" && e.fields.scope === "STAFF_SESSION" && e.fields.reason === "ABORTED"),
     JSON.stringify(events.slice(before)));
-  for (const stats of Object.values(m.admission.staffDbStats())) assert.deepEqual(stats, { active: 0, queued: 0 });
+  for (const s of Object.values(m.admission.staffDbStats())) assert.deepEqual(s, { active: 0, queued: 0 });
+  // A read that completes after the abort is still discarded: nothing that depends on it runs.
+  const late = new AbortController();
+  let after = false;
+  const discarded = m.admission.withStaffPermit("STAFF_SESSION", async (permit) => {
+    await permit.read(async (tx) => { const rows = await tx.$queryRaw`SELECT 1 AS slept FROM pg_sleep(0.2)`; return rows; });
+    after = true;
+  }, { signal: late.signal });
+  await waitFor(async () => (await activeStatements("pg_sleep(0.2)")) === 1, "the short read to start");
+  late.abort();
+  await assert.rejects(discarded, is503);
+  assert.equal(after, false);
+});
+
+test("F2 regression: anonymous aborts never take the READ or MUTATION reservation, even with every staff permit busy", { skip }, async () => {
+  // Two anonymous-reachable SESSION reads and the LOGIN_DB phase run slow, then are aborted.
+  const controllers = [new AbortController(), new AbortController(), new AbortController()];
+  const anonymous = [
+    m.admission.withStaffDb("STAFF_SESSION", (tx) => tx.$queryRaw`SELECT 1 AS slept FROM pg_sleep(0.8)`, { signal: controllers[0].signal, access: "read" }),
+    m.admission.withStaffDb("STAFF_SESSION", (tx) => tx.$queryRaw`SELECT 1 AS slept FROM pg_sleep(0.8)`, { signal: controllers[1].signal, access: "read" }),
+    m.admission.withStaffDb("STAFF_LOGIN_DB", (tx) => tx.$queryRaw`SELECT 1 AS slept FROM pg_sleep(0.8)`, { signal: controllers[2].signal, access: "read" }),
+  ].map((p) => p.then(() => "completed", (e) => (is503(e) ? "refused" : String(e))));
+  await waitFor(async () => (await activeStatements("pg_sleep(0.8)")) === 3, "three anonymous reads to start");
+  controllers.forEach((c) => c.abort());
+  // Authenticated READ and MUTATION work arrives while the aborted reads are still running.
+  const started: string[] = [];
+  const authenticated = [
+    m.admission.withStaffDb("STAFF_READ", async (tx) => { started.push("READ"); return tx.$queryRaw`SELECT 1 AS slept FROM pg_sleep(0.3)`; }),
+    m.admission.withStaffDb("STAFF_MUTATION", async (tx) => { started.push("MUTATION"); return tx.$queryRaw`SELECT 1 AS slept FROM pg_sleep(0.3)`; }),
+  ];
+  await waitFor(() => started.length === 2, "authenticated phases to start");
+  // All five permits are busy; anonymous scopes hold three, the protected two hold their own work.
+  assert.deepEqual(m.admission.staffDbStats(), { STAFF_LOGIN_DB: { active: 1, queued: 0 }, STAFF_SESSION: { active: 2, queued: 0 },
+    STAFF_READ: { active: 1, queued: 0 }, STAFF_MUTATION: { active: 1, queued: 0 } });
+  assert.equal(await activeStatements("pg_sleep(0.8)"), 3); // the aborted reads are still running, on their own permits
+  await Promise.all(authenticated);
+  assert.deepEqual(await Promise.all(anonymous), ["refused", "refused", "refused"]);
+  for (const s of Object.values(m.admission.staffDbStats())) assert.deepEqual(s, { active: 0, queued: 0 });
+  // No cancellation path exists that could reach another scope's permits.
+  const source = await import("node:fs").then((fs) => fs.readFileSync(require.resolve("./db-admission"), "utf8"));
+  assert.doesNotMatch(source, /pg_cancel_backend|tryAcquire/);
 });
 
 test("F2: an abort never cancels a started write; logout, refresh, activation and failure accounting commit holding their permit", { skip }, async () => {

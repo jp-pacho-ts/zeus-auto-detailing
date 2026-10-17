@@ -13,10 +13,13 @@ import { trace } from "./trace";
 // statement and lock timeouts. The permit is released only after that work settles in the
 // database. Never nest calls or fan out queries.
 //
-// Abort (permit lifecycle): an abort while queued leaves the queue without a permit. An abort
-// during a read transaction cancels its statement in the database (pg_cancel_backend), and the
-// permit is held until the read has settled. A started write transaction is never cancelled:
-// it keeps its permit until it commits, rolls back or times out.
+// Abort (permit lifecycle; LE decision 2026-10-18 on the P1-06 delta review): an abort before
+// a read starts, or while queued, dispatches nothing and holds no permit. An abort during a
+// read is bounded by the scope's statement timeout: the read keeps only its own permit until it
+// has settled in the database, and its result is discarded, so nothing that depends on it runs.
+// Cancelling it early would need a second connection, which D-01 does not budget (one permit
+// per request; READ and MUTATION reserved for verified staff). A started write transaction is
+// never cancelled: it keeps its permit until it commits, rolls back or times out.
 export type StaffTx = Prisma.TransactionClient;
 export type StaffDbAccess = "read" | "write";
 
@@ -53,9 +56,6 @@ export interface StaffDbPermit {
 
 class ReadAborted extends Error {}
 
-// Identifies the read's transaction, so the cancel can never reach a later one on that connection.
-interface Backend { pid: number; startedUs: string }
-
 export async function withStaffDb<T>(scope: StaffDbScope, work: (tx: StaffTx) => Promise<T>, options: StaffDbOptions & { access?: StaffDbAccess } = {}): Promise<T> {
   return withStaffPermit(scope, (permit) => (options.access === "read" ? permit.read(work) : permit.write(work)), options);
 }
@@ -75,7 +75,6 @@ export async function withStaffPermit<T>(scope: StaffDbScope, body: (permit: Sta
   }
   trace(`db:${scope}:acquire`);
 
-  const cancellations: Promise<void>[] = [];
   let live = false;
   let readAborted = false;
   async function transaction<R>(access: StaffDbAccess, work: (tx: StaffTx) => Promise<R>): Promise<R> {
@@ -87,11 +86,10 @@ export async function withStaffPermit<T>(scope: StaffDbScope, body: (permit: Sta
         // set_config(..., true) is SET LOCAL; one SELECT is one round trip (a utility SET is not).
         // Scopes without explicit locks still bound implicit row locks (refresh, logout) by
         // their statement timeout.
-        const [backend] = await tx.$queryRaw<Backend[]>`SELECT set_config('statement_timeout', ${String(policy.statementTimeoutMs)}, true),
-          set_config('lock_timeout', ${String(policy.lockTimeoutMs ?? policy.statementTimeoutMs)}, true),
-          pg_backend_pid() AS "pid", (extract(epoch FROM now()) * 1000000)::bigint::text AS "startedUs"`;
+        await tx.$queryRaw`SELECT set_config('statement_timeout', ${String(policy.statementTimeoutMs)}, true),
+          set_config('lock_timeout', ${String(policy.lockTimeoutMs ?? policy.statementTimeoutMs)}, true)`;
         if (access === "write" || !signal) return work(tx);
-        const onAbort = () => { readAborted = true; cancellations.push(cancelRead(db, scope, backend)); };
+        const onAbort = () => { readAborted = true; };
         if (signal.aborted) { readAborted = true; throw new ReadAborted(); }
         signal.addEventListener("abort", onAbort, { once: true });
         try {
@@ -128,32 +126,7 @@ export async function withStaffPermit<T>(scope: StaffDbScope, body: (permit: Sta
     }
     throw new StaffAuthError("RETRYABLE_ERROR");
   } finally {
-    await Promise.allSettled(cancellations);
     release();
     trace(`db:${scope}:release`);
-  }
-}
-
-// The cancelling statement needs a pooled connection, so it holds a free staff permit (of any
-// scope) while it runs. With none free, the read runs to its statement timeout instead and the
-// accounting stays exact. It matches the read's backend and transaction start, and only while a
-// statement is active, so it cannot cancel that connection's next transaction.
-const CANCEL_PERMIT_ORDER: StaffDbScope[] = ["STAFF_READ", "STAFF_SESSION", "STAFF_MUTATION", "STAFF_LOGIN_DB"];
-async function cancelRead(db: PrismaClient, scope: StaffDbScope, backend: Backend): Promise<void> {
-  let release: (() => void) | null = null;
-  for (const candidate of CANCEL_PERMIT_ORDER) {
-    release = permits[candidate].tryAcquire();
-    if (release) break;
-  }
-  if (!release) { authEvent("staff.db_refused", { scope, reason: "CANCEL_DEFERRED" }); return; }
-  trace("db:cancel");
-  try {
-    await db.$queryRaw`SELECT pg_cancel_backend("pid") FROM pg_stat_activity
-      WHERE "pid" = ${backend.pid}::int AND "state" = 'active'
-        AND (extract(epoch FROM "xact_start") * 1000000)::bigint = ${backend.startedUs}::bigint`;
-  } catch {
-    authEvent("staff.db_refused", { scope, reason: "CANCEL_FAILED" });
-  } finally {
-    release();
   }
 }

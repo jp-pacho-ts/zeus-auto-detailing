@@ -48,18 +48,6 @@ test("abort while queued leaves the queue; an already-aborted signal never acqui
   held();
 });
 
-test("tryAcquire takes a free permit at once and never queues", async () => {
-  const s = createSemaphore({ maxActive: 1, maxQueued: 5, maxWaitMs: 1000 });
-  const a = s.tryAcquire();
-  assert.ok(a);
-  assert.equal(s.tryAcquire(), null);
-  assert.deepEqual(s.stats(), { active: 1, queued: 0 });
-  const queued = s.acquire();
-  a(); a();
-  (await queued)(); // the queued waiter got the permit first; tryAcquire never jumps the queue
-  assert.deepEqual(s.stats(), { active: 0, queued: 0 });
-});
-
 test("release is idempotent: a double release never frees a second permit", async () => {
   const s = createSemaphore({ maxActive: 1, maxQueued: 5, maxWaitMs: 1000 });
   const a = await s.acquire();
