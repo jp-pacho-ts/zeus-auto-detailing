@@ -19,10 +19,10 @@ export async function readAvailability(tx: Prisma.TransactionClient, request: Ge
   ]);
   if (!category || !VehicleCategoryCodeSchema.safeParse(category.slug).success) throw new DomainError("NOT_FOUND", "Choose a supported vehicle category.", { vehicleCategoryId: ["Vehicle category is unavailable."] });
   if (!service || !service.isActive) throw new DomainError("NOT_FOUND", "Choose an active service.", { serviceId: ["Service is unavailable."] });
-  if (!config || service.bayCapacityRequired !== 1 || category.sizeMultiplier.lte(0) || service.price.lt(0)) throw new DomainError("SCHEDULE_CONFLICT", "The shop catalog or schedule needs review.");
+  if (!config || category.sizeMultiplier === null || service.price === null || service.durationMinutes === null || service.bayCapacityRequired !== 1 || category.sizeMultiplier.lte(0) || service.price.lt(0)) throw new DomainError("SCHEDULE_CONFLICT", "The shop catalog or schedule needs review.");
   const price = service.price.mul(category.sizeMultiplier).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
   const totalPriceCentavos = price.mul(100).toNumber();
   if (!Number.isSafeInteger(totalPriceCentavos)) throw new DomainError("SCHEDULE_CONFLICT", "The service quote is unavailable.");
   const data = calculateAvailability({ request, now, config, templates, overrides, blocks, bookings, durationMinutes: service.durationMinutes, totalPriceCentavos });
-  return { data, service, category, price };
+  return { data, service: { ...service, durationMinutes: service.durationMinutes }, category, price };
 }

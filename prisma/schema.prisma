@@ -44,29 +44,31 @@ enum InventoryTransactionType {
 // -----------------------------------------------------------------------------
 
 model VehicleCategory {
-  id             String    @id @default(uuid())
+  id             String             @id @default(uuid())
   name           String
-  slug           String    @unique
+  slug           String             @unique
   description    String?
-  sizeMultiplier Decimal   @db.Decimal(5, 2)
+  sizeMultiplier Decimal?           @db.Decimal(5, 2)
   sortOrder      Int
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime           @default(now())
+  offers         ServiceSizeOffer[]
   bookings       Booking[]
 
   @@map("vehicle_categories")
 }
 
 model Service {
-  id                  String          @id @default(uuid())
+  id                  String                  @id @default(uuid())
   name                String
-  slug                String          @unique
+  slug                String                  @unique
   description         String?
   category            ServiceKind
-  durationMinutes     Int
-  price               Decimal         @db.Decimal(10, 2)
-  bayCapacityRequired Int             @default(1)
-  isActive            Boolean         @default(true)
+  durationMinutes     Int?
+  price               Decimal?                @db.Decimal(10, 2)
+  bayCapacityRequired Int                     @default(1)
+  isActive            Boolean                 @default(true)
   bookings            Booking[]
+  catalogVersions     CatalogServiceVersion[]
   recipes             ServiceRecipe[]
 
   @@map("services")
@@ -148,6 +150,13 @@ model Booking {
   requestHash                 String
   createdAt                   DateTime               @default(now())
   updatedAt                   DateTime               @updatedAt
+  snapshotVersion             SnapshotVersion        @default(LEGACY_V1)
+  catalogReleaseId            String?
+  catalogRelease              CatalogRelease?        @relation(fields: [catalogReleaseId], references: [id], onDelete: Restrict)
+  vehicleSizeCodeSnapshot     String?
+  catalogFingerprint          String?
+  pricingAlgorithm            String?
+  lineItems                   BookingLineItem[]
   assignments                 BookingAssignment[]
   commissionPayouts           CommissionPayout[]
   inventoryTransactions       InventoryTransaction[]
@@ -163,14 +172,16 @@ model Booking {
 // -----------------------------------------------------------------------------
 
 model Staff {
-  id                    String              @id @default(uuid())
+  id                    String                    @id @default(uuid())
   name                  String
   phone                 String
-  email                 String              @unique
+  email                 String                    @unique
   role                  StaffRole
-  defaultCommissionRate Decimal             @default(0.10) @db.Decimal(5, 2)
-  isActive              Boolean             @default(true)
-  createdAt             DateTime            @default(now())
+  defaultCommissionRate Decimal                   @default(0.10) @db.Decimal(5, 2)
+  isActive              Boolean                   @default(true)
+  createdAt             DateTime                  @default(now())
+  catalogPublishers     CatalogPublisher[]
+  catalogEvents         CatalogPublicationEvent[]
   assignments           BookingAssignment[]
   commissionPayouts     CommissionPayout[]
 
@@ -254,4 +265,228 @@ model InventoryTransaction {
   @@index([inventoryItemId])
   @@index([bookingId])
   @@map("inventory_transactions")
+}
+
+// ADR-004: new releases use exact offers; legacy identity fields above are historical only.
+enum CatalogReleaseState {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+enum CatalogServiceGroup {
+  WASH
+  DETAILING
+  GRAPHENE
+  TINT
+  PPF
+  REPAINT
+}
+
+enum CatalogServiceType {
+  BASE
+  ADD_ON
+}
+
+enum PriceUnit {
+  VEHICLE
+  PANEL
+}
+
+enum OfferState {
+  OFFERED
+  NOT_OFFERED
+  UNCONFIRMED
+}
+
+enum CatalogBookingMode {
+  FIXED_ONLINE
+  QUOTE_REQUIRED
+}
+
+enum DurationKind {
+  UNKNOWN
+  TIMED
+  MULTI_DAY
+}
+
+enum BayHoldPolicy {
+  UNCONFIRMED
+  CONTINUOUS
+  SEGMENTED
+}
+
+enum SnapshotVersion {
+  LEGACY_V1
+  CATALOG_V2
+}
+
+model CatalogRelease {
+  id                 String                    @id @default(uuid())
+  version            String                    @unique
+  state              CatalogReleaseState       @default(DRAFT)
+  sourcePath         String
+  sourceReceivedDate DateTime                  @db.Date
+  sourceSha256       String
+  manifestSha256     String
+  manifestJson       String
+  reviewReference    String?
+  publishedAt        DateTime?                 @db.Timestamptz(3)
+  createdAt          DateTime                  @default(now()) @db.Timestamptz(3)
+  services           CatalogServiceVersion[]
+  head               CatalogHead?
+  bookings           Booking[]
+  events             CatalogPublicationEvent[] @relation("NewRelease")
+  previousEvents     CatalogPublicationEvent[] @relation("PreviousRelease")
+
+  @@map("catalog_releases")
+}
+
+model CatalogHead {
+  shopId    Int            @id @default(1)
+  releaseId String         @unique
+  release   CatalogRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+
+  @@map("catalog_head")
+}
+
+model CatalogServiceVersion {
+  releaseId                  String
+  serviceId                  String
+  release                    CatalogRelease       @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  service                    Service              @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  slug                       String
+  name                       String
+  sourceName                 String
+  description                String?
+  group                      CatalogServiceGroup
+  type                       CatalogServiceType
+  unit                       PriceUnit
+  inclusions                 String[]
+  productName                String?
+  hardness                   String?
+  warrantyMonths             Int?
+  filmThicknessMil           String?
+  referenceUnitPriceCentavos Int?
+  sortOrder                  Int
+  provenance                 Json
+  offers                     ServiceSizeOffer[]
+  baseCompatibilities        AddOnCompatibility[] @relation("Base")
+  addOnCompatibilities       AddOnCompatibility[] @relation("AddOn")
+
+  @@id([releaseId, serviceId])
+  @@unique([releaseId, slug])
+  @@map("catalog_service_versions")
+}
+
+model ServiceSizeOffer {
+  id                      String                @id
+  releaseId               String
+  serviceId               String
+  vehicleCategoryId       String
+  serviceVersion          CatalogServiceVersion @relation(fields: [releaseId, serviceId], references: [releaseId, serviceId], onDelete: Restrict)
+  vehicleCategory         VehicleCategory       @relation(fields: [vehicleCategoryId], references: [id], onDelete: Restrict)
+  sizeCode                String
+  state                   OfferState
+  bookingMode             CatalogBookingMode
+  unitPriceCentavos       Int?
+  compareAtCentavos       Int?
+  sourceCompareAtCentavos Int?
+  compareAtVerified       Boolean               @default(false)
+  promoStartsAt           DateTime?             @db.Timestamptz(3)
+  promoEndsAt             DateTime?             @db.Timestamptz(3)
+  workPlan                ServiceWorkPlan?
+  lines                   BookingLineItem[]
+
+  @@unique([releaseId, serviceId, vehicleCategoryId])
+  @@unique([id, releaseId, serviceId, vehicleCategoryId])
+  @@map("service_size_offers")
+}
+
+model ServiceWorkPlan {
+  offerId         String               @id
+  offer           ServiceSizeOffer     @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  kind            DurationKind
+  durationMinutes Int?
+  elapsedDays     Int?
+  bayHoldPolicy   BayHoldPolicy        @default(UNCONFIRMED)
+  segments        CatalogHoldSegment[]
+
+  @@map("service_work_plans")
+}
+
+model CatalogHoldSegment {
+  id        String          @id @default(uuid())
+  offerId   String
+  workPlan  ServiceWorkPlan @relation(fields: [offerId], references: [offerId], onDelete: Restrict)
+  dayOffset Int
+  startTime String
+  endTime   String
+
+  @@unique([offerId, dayOffset, startTime])
+  @@map("catalog_hold_segments")
+}
+
+model AddOnCompatibility {
+  releaseId      String
+  baseServiceId  String
+  addOnServiceId String
+  base           CatalogServiceVersion @relation("Base", fields: [releaseId, baseServiceId], references: [releaseId, serviceId], onDelete: Restrict)
+  addOn          CatalogServiceVersion @relation("AddOn", fields: [releaseId, addOnServiceId], references: [releaseId, serviceId], onDelete: Restrict)
+  sizeCodes      String[]
+
+  @@id([releaseId, baseServiceId, addOnServiceId])
+  @@map("add_on_compatibility")
+}
+
+model BookingLineItem {
+  id                String             @id @default(uuid())
+  bookingId         String
+  booking           Booking            @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  order             Int
+  releaseId         String
+  serviceId         String
+  vehicleCategoryId String
+  offerId           String
+  offer             ServiceSizeOffer   @relation(fields: [offerId, releaseId, serviceId, vehicleCategoryId], references: [id, releaseId, serviceId, vehicleCategoryId], onDelete: Restrict)
+  type              CatalogServiceType
+  nameSnapshot      String
+  unit              PriceUnit
+  quantity          Int
+  unitPriceCentavos Int
+  subtotalCentavos  Int
+  addedMinutes      Int
+
+  @@unique([bookingId, order])
+  @@map("booking_line_items")
+}
+
+// Only the migration owner provisions this mapping. Session DB identity supplies actor.
+model CatalogPublisher {
+  databaseRole String @id
+  actorStaffId String
+  actor        Staff  @relation(fields: [actorStaffId], references: [id], onDelete: Restrict)
+
+  @@map("catalog_publishers")
+}
+
+model CatalogPublicationEvent {
+  id                     String          @id @default(uuid())
+  releaseId              String
+  previousReleaseId      String?
+  release                CatalogRelease  @relation("NewRelease", fields: [releaseId], references: [id], onDelete: Restrict)
+  previousRelease        CatalogRelease? @relation("PreviousRelease", fields: [previousReleaseId], references: [id], onDelete: Restrict)
+  actorStaffId           String
+  actor                  Staff           @relation(fields: [actorStaffId], references: [id], onDelete: Restrict)
+  databaseRole           String
+  action                 String
+  reason                 String
+  reviewReference        String
+  sourceSha256           String
+  manifestSha256         String
+  previousManifestSha256 String?
+  createdAt              DateTime        @default(now()) @db.Timestamptz(3)
+
+  @@index([releaseId, createdAt])
+  @@map("catalog_publication_events")
 }
