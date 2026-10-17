@@ -14,7 +14,13 @@ const status = spawnSync("git", [
   "*.ts", "*.tsx", "*.js", "*.mjs", "*.cjs", "package.json", "package-lock.json", "tsconfig.json",
   ":(exclude)next-env.d.ts",
 ], { cwd, encoding: "utf8" });
-if (status.status !== 0 || !status.stdout.trim()) process.exit(0);
+if (status.error || status.status !== 0) {
+  // An unknown tree is not a clean tree: say so rather than skipping the checks silently.
+  const reason = status.error ? status.error.message : `exit ${status.status}: ${status.stderr.trim()}`;
+  process.stderr.write(`git status failed in ${cwd} (${reason}); typecheck and lint did not run.\n`);
+  process.exit(2);
+}
+if (!status.stdout.trim()) process.exit(0);
 
 for (const script of ["typecheck", "lint"]) {
   const run = spawnSync(`npm run ${script}`, { cwd, encoding: "utf8", shell: true });
