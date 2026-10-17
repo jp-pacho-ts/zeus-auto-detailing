@@ -78,6 +78,26 @@ operator. A ROLLBACK: reason records the action distinctly. No destructive SQL:
     node prisma/catalog/cli.mjs rollback-draft --release <previous-release-id> --version <new-unique-version> --source "$env:CATALOG_SOURCE_PATH"
     node prisma/catalog/cli.mjs publish --release <new-id> --hash <new-reviewed-hash> --review <review-reference> --reason "ROLLBACK: <prior-release-id> <reason>"
 
+## P1-13 runtime-role ordering
+
+The catalog migration grants runtime reads conditionally. As the migration owner,
+provision the real `zeus_app` role **before `migrate deploy`**. If the role is
+provisioned afterwards, the owner must explicitly grant reads on the same six
+catalog tables before enabling the application:
+
+```sql
+GRANT SELECT ON
+  public.catalog_releases, public.catalog_head, public.catalog_service_versions,
+  public.service_size_offers, public.service_work_plans, public.add_on_compatibility
+TO zeus_app;
+```
+
+This does not grant publication or catalog writes. Production provisioning and
+migrations still require separate LE approval; nothing here authorizes a live
+operation. `verify.mjs` bootstraps only its synthetic loopback role as the cluster
+owner before applying migrations. Its fresh-cluster regression requires a new
+`initdb` directory: a new database alone still reuses cluster-wide roles.
+
 ## Verification
 
 `node prisma/catalog/verify.mjs` creates fresh synthetic loopback databases without

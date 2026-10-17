@@ -21,6 +21,12 @@ function run(executable, args, env, expected = 0) {
 function prisma(args, env) { run(process.execPath, ['node_modules/prisma/build/index.js', ...args], env); }
 async function create(name) { assert.match(name, /^(p1_01_catalog|zeus_t007)_[a-z0-9]+$/); await admin.$executeRawUnsafe(`CREATE DATABASE ${name}`); const u = new URL(adminUrl); u.pathname = '/' + name; return u.toString(); }
 try {
+    // The migration grants catalog reads only when the runtime role already exists.
+    // Bootstrap it through the isolated cluster owner, before either migrate deploy.
+    const runtimeRoles = await admin.$queryRaw`SELECT 1 FROM pg_roles WHERE rolname = 'zeus_app'`;
+    if (!runtimeRoles.length)
+        await admin.$executeRawUnsafe('CREATE ROLE zeus_app LOGIN');
+    console.log('Prepared zeus_app runtime role before migrations');
     const catalogUrl = await create('p1_01_catalog_' + stamp);
     const env = { DATABASE_URL: catalogUrl, CATALOG_TEST_DATABASE_URL: catalogUrl, CATALOG_SOURCE_PATH: process.env.CATALOG_SOURCE_PATH };
     const u = new URL(catalogUrl), connect = ['-h', u.hostname, '-p', u.port || '5432', '-U', decodeURIComponent(u.username), '-d', u.pathname.slice(1), '-v', 'ON_ERROR_STOP=1'];
