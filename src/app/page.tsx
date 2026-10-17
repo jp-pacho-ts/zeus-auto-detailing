@@ -2,26 +2,20 @@ import * as React from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  CalendarCheck,
   Check,
   Clock,
   MapPin,
   MessageSquare,
   Phone,
   Shield,
-  Wrench,
 } from "lucide-react";
 import { brandConfig } from "@/config/brand";
-import { services, formatCurrency } from "@/config/catalog";
 import { CustomerHeader } from "@/components/layout/customer-header";
 import { CustomerFooter } from "@/components/layout/customer-footer";
-import { BayEstimator } from "@/components/home/bay-estimator";
+import { SERVICE_MENU } from "@/components/home/service-menu";
 
 export default function HomePage() {
-  // Group services by discipline
-  const disciplines = Array.from(
-    new Set(services.map((s) => s.discipline)),
-  );
-
   return (
     <div className="min-h-screen bg-[#09090b] text-[#f5f5f4]">
       <CustomerHeader />
@@ -69,10 +63,10 @@ export default function HomePage() {
           >
             <div>
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
-                <Wrench className="h-3.5 w-3.5" aria-hidden="true" /> Detailing Bays
+                <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" /> Appointments
               </p>
               <p className="mt-1 text-base font-bold text-foreground">
-                {brandConfig.defaultBays} Detailing Bays
+                Book Online
               </p>
               <p className="text-xs text-muted-foreground">
                 By appointment only
@@ -117,12 +111,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 2. Signature Live Thing: Interactive Bay & Duration Estimator */}
-        <div id="estimator">
-          <BayEstimator />
-        </div>
-
-        {/* 3. Editorial Service Menu: Divided by treatment discipline */}
+        {/* 2. Editorial Service Menu: client catalog categories. Prices return with P1-02. */}
         <section
           id="services"
           aria-labelledby="services-title"
@@ -140,93 +129,70 @@ export default function HomePage() {
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
               Every vehicle undergoes inspection and decontamination before mechanical work.
-              Transparent pricing with no hidden surcharges.
+              Prices depend on your vehicle size. Message us for a quote, or book a time and we
+              confirm the details with you.
             </p>
           </div>
 
           <div className="mt-14 space-y-16">
-            {disciplines.map((discipline) => {
-              const disciplineServices = services.filter(
-                (s) => s.discipline === discipline,
-              );
+            {SERVICE_MENU.map((group) => (
+              <div key={group.name} className="border-t border-border pt-10">
+                <div className="mb-6 flex flex-col justify-between gap-2 sm:flex-row sm:items-baseline">
+                  <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                    {group.name}
+                  </h3>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {group.services.length} {group.services.length === 1 ? "service" : "services"} available
+                  </span>
+                </div>
 
-              return (
-                <div key={discipline} className="border-t border-border pt-10">
-                  <div className="mb-6 flex flex-col justify-between gap-2 sm:flex-row sm:items-baseline">
-                    <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                      {discipline}
-                    </h3>
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {disciplineServices.length} {disciplineServices.length === 1 ? "package" : "packages"} available
-                    </span>
-                  </div>
+                {group.note && (
+                  <p className="-mt-2 mb-6 max-w-3xl text-sm text-muted-foreground">
+                    {group.note}
+                  </p>
+                )}
 
-                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    {disciplineServices.map((service) => (
-                      <div
-                        key={service.id}
-                        className="flex flex-col justify-between rounded border border-border bg-[#121214] p-6 transition-colors hover:border-zinc-700"
-                      >
-                        <div>
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <span className="inline-block rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-primary">
-                                {service.tag}
-                              </span>
-                              <h4 className="mt-2 text-lg font-bold text-foreground">
-                                {service.name}
-                              </h4>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-xl font-extrabold tabular-nums text-foreground">
-                                {formatCurrency(service.price)}
-                              </span>
-                              <span className="block text-xs text-muted-foreground">
-                                Base (Sedan)
-                              </span>
-                            </div>
-                          </div>
-
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  {group.services.map((service) => (
+                    <div
+                      key={service.name}
+                      className="flex flex-col justify-between rounded border border-border bg-[#121214] p-6 transition-colors hover:border-zinc-700"
+                    >
+                      <div>
+                        <span className="inline-block rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-primary">
+                          {service.tag}
+                        </span>
+                        <h4 className="mt-2 text-lg font-bold text-foreground">
+                          {service.name}
+                        </h4>
+                        {service.desc && (
                           <p className="mt-3 text-sm text-muted-foreground">
                             {service.desc}
                           </p>
-
-                          <div className="mt-4 flex items-center gap-2 text-xs font-medium text-foreground">
-                            <Clock className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                            Estimated Service Duration: {service.durationLabel}
-                          </div>
-
-                          <ul
-                            aria-label={`Inclusions for ${service.name}`}
-                            className="mt-5 space-y-2 border-t border-border/60 pt-4 text-xs text-zinc-300"
-                          >
-                            {service.features.map((feat) => (
-                              <li key={feat} className="flex items-start gap-2">
-                                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                                <span>{feat}</span>
-                              </li>
-                            ))}
-                          </ul>
-
-                          <p className="mt-4 text-[11px] text-muted-foreground italic">
-                            Note: {service.multiplierNote}
-                          </p>
-                        </div>
-
-                        <div className="mt-6 pt-4 border-t border-border">
-                          <Link
-                            href={`/book?service=${encodeURIComponent(service.id)}&vehicle=sedan`}
-                            className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded bg-[#18181b] border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:text-primary"
-                          >
-                            Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                          </Link>
-                        </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-14 flex flex-col gap-4 border-t border-border pt-10 sm:flex-row sm:items-center">
+            <Link
+              href="/book"
+              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-6 py-3 text-base font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <a
+              href={brandConfig.facebookMessengerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded border border-border bg-[#18181b] px-6 py-3 text-base font-medium text-foreground transition-colors hover:border-zinc-700"
+            >
+              <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" /> Message Us for Pricing
+            </a>
           </div>
         </section>
 

@@ -1,12 +1,5 @@
-import * as React from "react";
-import type { Metadata } from "next";
-import { brandConfig } from "@/config/brand";
-import { AdminPortal } from "@/components/admin/admin-portal";
+import { StaffPortalClosed } from "@/app/admin/staff-portal-closed";
 
-export const metadata: Metadata = {
-  title: `Team & Commissions | ${brandConfig.businessName}`,
-};
-
-export default function DetailersPage() {
-  return <AdminPortal initialTab="Team & Commissions" />;
+export default function Page() {
+  return <StaffPortalClosed />;
 }
