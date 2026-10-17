@@ -20,10 +20,10 @@ coverage/
 .DS_Store
 Thumbs.db
 
-# AI Agents, plans, and workflows
+# Local-only agent workflow files (AGENTS.md and CLAUDE.md are tracked)
+!/AGENTS.md
+.claude/settings.local.json
 .agents/
-AGENTS.md
-CLAUDE.md
 PLAN.md
 *plan*.md
 .team/

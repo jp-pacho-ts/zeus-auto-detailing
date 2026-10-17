@@ -21,7 +21,7 @@ Automotive Detailing Studio Operating System & Online Booking Platform for **Zeu
 
 ### Prerequisites
 
-- Node.js >= 20.9.0
+- Node.js >= 22
 - npm
 - PostgreSQL database
 
@@ -35,21 +35,22 @@ cd zeus-auto-detailing
 
 2. Install dependencies:
 ```bash
-npm install
+npm ci
 ```
 
 3. Setup environment variables:
 ```bash
 cp .env.example .env
-# Update DATABASE_URL and admin credentials in .env
+# Set DATABASE_URL in .env
 ```
 
 4. Initialize database:
 ```bash
+npx prisma migrate deploy
 npx prisma generate
-npx prisma db push
-npm run prisma:seed # or npx tsx prisma/seed.ts
 ```
+
+   Optional: seed the draft service catalog. This needs the client catalog document, which is not in the repository (ask the Lead Engineer). See [prisma/catalog/README.md](prisma/catalog/README.md).
 
 5. Run development server:
 ```bash
@@ -57,3 +58,5 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+Checks (`npm run typecheck`, `npm run lint`, `npm test`, `npm run build`) and contributor rules are in [AGENTS.md](AGENTS.md).

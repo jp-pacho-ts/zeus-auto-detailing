@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "next dev",
@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint src tailwind.config.ts next.config.mjs postcss.config.mjs --config src/lib/eslint.config.mjs --max-warnings 0",
     "typecheck": "tsc --noEmit",
+    "test": "node --require ./src/server/__tests__/register.cjs --test \"src/**/*.test.ts\"",
     "docs:docx": "node scripts/generate-proposal-docx.mjs"
   },
   "dependencies": {
