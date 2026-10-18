@@ -9,7 +9,7 @@ import {
   CalendarDays,
   ClipboardList,
   Users,
-  X,
+  LogOut,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { BookingsTab } from "./bookings-tab";
@@ -17,6 +17,10 @@ import { CalendarTab } from "./calendar-tab";
 import { DetailersTab } from "./detailers-tab";
 import { InventoryTab } from "./inventory-tab";
 import { AnalyticsTab } from "./analytics-tab";
+import type { StaffSessionView } from "@/server/auth/types";
+import { adminRequest } from "./bookings/client";
+import { LoadState, useAdminResource } from "./bookings/use-admin-resource";
+import { brandConfig } from "@/config/brand";
 
 export type AdminTab =
   | "Bookings"
@@ -27,7 +31,10 @@ export type AdminTab =
 
 interface NavItem {
   name: AdminTab;
-  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>;
+  icon: React.ComponentType<{
+    className?: string;
+    "aria-hidden"?: boolean | "true" | "false";
+  }>;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -39,14 +46,74 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
-  const [tab, setTab] = React.useState<AdminTab>(initialTab ?? "Bookings");
+  const [tab, setTab] = React.useState<AdminTab>(
+    NAV_ITEMS.some((n) => n.name === initialTab) ? initialTab! : "Bookings",
+  );
+  const session = useAdminResource<StaffSessionView>("/api/admin/auth/session");
+  const [signingOut, setSigningOut] = React.useState(false),
+    [logoutError, setLogoutError] = React.useState<string | null>(null);
+  const leaving = React.useRef(false);
+  React.useEffect(() => {
+    const refresh = (e: PageTransitionEvent) => {
+      if (e.persisted) window.location.reload();
+    };
+    window.addEventListener("pageshow", refresh);
+    return () => window.removeEventListener("pageshow", refresh);
+  }, []);
+  async function signOut() {
+    if (leaving.current) return;
+    leaving.current = true;
+    setSigningOut(true);
+    setLogoutError(null);
+    session.setData(null);
+    try {
+      await adminRequest("/api/admin/auth/logout", {
+        method: "POST",
+        body: {},
+      });
+      window.location.replace("/admin/login");
+    } catch {
+      setLogoutError(
+        "Sign-out could not be confirmed. Retry to close your session.",
+      );
+      leaving.current = false;
+    }
+  }
+  if (signingOut)
+    return (
+      <main className="min-h-screen bg-[#09090b] p-6 text-foreground">
+        <p role="status">Signing out...</p>
+        {logoutError && (
+          <div role="alert">
+            {logoutError}
+            <button
+              className="ml-3 min-h-[44px] underline"
+              onClick={() => void signOut()}
+            >
+              Retry sign-out
+            </button>
+          </div>
+        )}
+      </main>
+    );
+  if (!session.data)
+    return (
+      <main className="min-h-screen bg-[#09090b] p-6 text-foreground">
+        <LoadState
+          loading={session.loading}
+          error={session.error}
+          retry={session.reload}
+        />
+      </main>
+    );
+  const staff = session.data;
 
   return (
-    <div className="flex min-h-screen bg-[#09090b] text-[#f5f5f4]">
+    <div className="flex min-h-screen flex-col md:flex-row bg-[#09090b] text-[#f5f5f4]">
       {/* Sidebar Navigation */}
       <aside
         aria-label="Shop Management Sidebar"
-        className="flex w-64 shrink-0 flex-col border-r border-border bg-[#121214] p-6"
+        className="flex w-full shrink-0 md:w-64 flex-col border-r border-border bg-[#121214] p-6"
       >
         <Link href="/" aria-label="Return to public shop site" className="mb-8">
           <Logo small />
@@ -56,7 +123,10 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
           Shop Management
         </p>
 
-        <nav aria-label="Shop Operations Navigation" className="space-y-1">
+        <nav
+          aria-label="Shop Operations Navigation"
+          className="flex flex-wrap gap-1 md:block md:space-y-1"
+        >
           {NAV_ITEMS.map(({ name, icon: Icon }) => {
             const isActive = tab === name;
             return (
@@ -65,7 +135,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                 key={name}
                 onClick={() => setTab(name)}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex w-full min-h-[44px] items-center gap-3 rounded px-3 py-2 text-xs font-medium transition-colors ${
+                className={`flex flex-1 min-w-[140px] md:w-full min-h-[44px] items-center gap-3 rounded px-3 py-2 text-xs font-medium transition-colors ${
                   isActive
                     ? "bg-primary/10 text-primary font-bold"
                     : "text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
@@ -79,35 +149,49 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         </nav>
 
         {/* Staff footer */}
-        <div className="mt-auto border-t border-border pt-4">
+        <div className="mt-4 md:mt-auto border-t border-border pt-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-                JD
+                {staff.displayName
+                  .split(/\s+/)
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join("")}
               </div>
               <div>
-                <p className="text-xs font-bold text-foreground">Juan Dela Cruz</p>
-                <p className="text-[10px] text-muted-foreground">Shop Manager</p>
+                <p className="text-xs font-bold text-foreground">
+                  {staff.displayName}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {staff.role === "ADMIN" ? "Shop Manager" : "Shop Staff"}
+                </p>
               </div>
             </div>
-            <Link
-              href="/"
-              aria-label="Exit admin portal"
-              className="text-muted-foreground hover:text-foreground"
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="inline-flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap text-xs text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </Link>
+              <LogOut className="h-4 w-4" aria-hidden="true" /> Sign out
+            </button>
           </div>
         </div>
       </aside>
 
       {/* Main Admin Content */}
-      <main className="flex-1 overflow-auto p-8 lg:p-10">
+      <main className="min-w-0 flex-1 overflow-auto p-8 lg:p-10">
         <div className="mx-auto max-w-6xl">
           <header className="mb-8 flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                Saturday · October 18, 2026
+                {new Intl.DateTimeFormat(brandConfig.locale, {
+                  timeZone: brandConfig.timezone,
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                }).format(new Date())}
               </p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {tab}
@@ -123,14 +207,15 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                 href="/book"
                 className="inline-flex min-h-[40px] items-center gap-2 rounded bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary-hover"
               >
-                New Booking <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                New Booking{" "}
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             </div>
           </header>
 
           {/* Active Tab View */}
-          {tab === "Bookings" && <BookingsTab />}
-          {tab === "Bay Calendar" && <CalendarTab />}
+          {tab === "Bookings" && <BookingsTab role={staff.role} />}
+          {tab === "Bay Calendar" && <CalendarTab role={staff.role} />}
           {tab === "Team & Commissions" && <DetailersTab />}
           {tab === "Supplies & Inventory" && <InventoryTab />}
           {tab === "Sales Analytics" && <AnalyticsTab />}

@@ -49,14 +49,19 @@ export function LoginForm({ next }: { next: string }) {
         router.replace(next);
         return;
       }
-      let message = ERRORS[response.status] ?? "We couldn't sign you in. Please try again.";
+      let message =
+        ERRORS[response.status] ?? "We couldn't sign you in. Please try again.";
       if (response.status === 401) {
-        const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+        const body = (await response.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
         message = body?.error?.message ?? message;
       }
       setError(message);
     } catch {
-      setError("Couldn't reach the shop server. Check your connection and try again.");
+      setError(
+        "Couldn't reach the shop server. Check your connection and try again.",
+      );
     }
     setLoading(false);
   };
@@ -64,7 +69,11 @@ export function LoginForm({ next }: { next: string }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[#09090b] px-4 py-12 text-[#f5f5f4]">
       <div className="mb-8">
-        <Link href="/" aria-label="Return to public site" className="inline-flex min-h-[44px] items-center">
+        <Link
+          href="/"
+          aria-label="Return to public site"
+          className="inline-flex min-h-[44px] items-center"
+        >
           <Logo />
         </Link>
       </div>
@@ -81,12 +90,15 @@ export function LoginForm({ next }: { next: string }) {
           Shop Management
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Sign in to manage bay scheduling, team commissions, and supplies inventory.
+          Sign in to manage daily queues, booking services, and bay assignments.
         </p>
 
         <form onSubmit={handleLogin} className="mt-6 space-y-4">
           <div>
-            <label htmlFor="staff-identifier" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <label
+              htmlFor="staff-identifier"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               Staff Email or ID
             </label>
             <input
@@ -102,7 +114,10 @@ export function LoginForm({ next }: { next: string }) {
           </div>
 
           <div>
-            <label htmlFor="staff-password" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <label
+              htmlFor="staff-password"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               Password
             </label>
             <input
@@ -117,7 +132,11 @@ export function LoginForm({ next }: { next: string }) {
             />
           </div>
 
-          {error && <p role="alert" className="text-xs font-medium text-rose-400">{error}</p>}
+          {error && (
+            <p role="alert" className="text-xs font-medium text-rose-400">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
@@ -134,7 +153,8 @@ export function LoginForm({ next }: { next: string }) {
             href="/"
             className="inline-flex min-h-[44px] items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
-            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to public shop site
+            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to
+            public shop site
           </Link>
         </div>
       </div>
