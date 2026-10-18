@@ -140,18 +140,37 @@ ALTER TABLE booking_management_grants ADD CONSTRAINT grant_shape CHECK ("credent
 ALTER TABLE booking_management_sessions ADD CONSTRAINT management_session_shape CHECK ("credentialVersion">=1 AND kid ~ '^[a-z0-9][a-z0-9-]{0,31}$' AND "grantKid" ~ '^[a-z0-9][a-z0-9-]{0,31}$' AND "expiresAt">"issuedAt" AND "expiresAt"<="issuedAt"+interval '24 hours');
 CREATE FUNCTION booking_session_binding() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE g booking_management_grants;
-BEGIN SELECT * INTO g FROM booking_management_grants WHERE id=NEW."grantId";
+BEGIN
+ -- Revocation remains possible after the parent grant has already been revoked.
+ IF TG_OP='UPDATE' AND (to_jsonb(NEW)-'revokedAt') IS NOT DISTINCT FROM (to_jsonb(OLD)-'revokedAt') THEN RETURN NEW; END IF;
+ SELECT * INTO g FROM booking_management_grants WHERE id=NEW."grantId";
  IF NOT FOUND OR g."bookingId"<>NEW."bookingId" OR g."credentialVersion"<>NEW."credentialVersion" OR g.kid<>NEW."grantKid" OR g."expiresAt"<NEW."expiresAt" OR g."issuedAt">NEW."issuedAt" OR g."revokedAt" IS NOT NULL THEN RAISE EXCEPTION 'Invalid management session provenance'; END IF; RETURN NEW; END $$;
 CREATE TRIGGER booking_session_binding BEFORE INSERT OR UPDATE ON booking_management_sessions FOR EACH ROW EXECUTE FUNCTION booking_session_binding();
 ALTER TABLE booking_turnstile_uses ADD CONSTRAINT turnstile_shape CHECK ("tokenHash" ~ '^[a-f0-9]{64}$' AND "expiresAt">"createdAt");
 ALTER TABLE booking_notification_outbox ADD CONSTRAINT notification_shape CHECK (state IN ('PENDING','SENDING','SENT','FAILED') AND attempts BETWEEN 0 AND 3 AND ((state='SENT')=("sentAt" IS NOT NULL)));
+-- Authority is immutable after issuance; revocation is the single allowed transition.
+CREATE FUNCTION booking_management_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Management authority is immutable'; END IF;
+ IF (to_jsonb(NEW)-'revokedAt') IS DISTINCT FROM (to_jsonb(OLD)-'revokedAt')
+    OR OLD."revokedAt" IS NOT NULL OR NEW."revokedAt" IS NULL THEN
+  RAISE EXCEPTION 'Management authority is immutable except one-way revocation';
+ END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER booking_management_immutable BEFORE UPDATE OR DELETE ON booking_management_grants FOR EACH ROW EXECUTE FUNCTION booking_management_immutable();
+CREATE TRIGGER booking_management_immutable BEFORE UPDATE OR DELETE ON booking_management_sessions FOR EACH ROW EXECUTE FUNCTION booking_management_immutable();
+
 DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='zeus_app') THEN
  -- The baseline deliberately provisions no broad runtime role. These are the exact
  -- existing tables needed by public day create/availability and its database guards.
  GRANT SELECT ON bookings,vehicle_categories,services,schedule_configs,time_slots,blocked_dates TO zeus_app;
  GRANT INSERT ON bookings TO zeus_app;
  GRANT SELECT,INSERT ON booking_operations,booking_turnstile_uses TO zeus_app;
- GRANT SELECT,INSERT,UPDATE ON booking_management_grants,booking_management_sessions,booking_notification_outbox TO zeus_app;
+ GRANT SELECT,INSERT ON booking_management_grants,booking_management_sessions,booking_notification_outbox TO zeus_app;
+ REVOKE UPDATE ON booking_management_grants,booking_management_sessions,booking_notification_outbox FROM zeus_app;
+ GRANT UPDATE ("revokedAt") ON booking_management_grants,booking_management_sessions TO zeus_app;
+ GRANT UPDATE (state,attempts,"nextAttemptAt","sentAt") ON booking_notification_outbox TO zeus_app;
  REVOKE UPDATE,DELETE ON booking_operations,booking_turnstile_uses FROM zeus_app;
  REVOKE DELETE ON booking_management_grants,booking_management_sessions,booking_notification_outbox FROM zeus_app;
 END IF; END $$;

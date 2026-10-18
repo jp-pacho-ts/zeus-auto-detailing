@@ -13,14 +13,14 @@ import { getDayAvailability } from "./availability-public";
 import { bookingPost } from "./bookings-http";
 import { sendTurnNotice, drainShopNotifications } from "./notifications/bookings";
 import { sha256 } from "./bookings-hash";
+import { smtpSimulation, type SimulatedEmail } from "./notifications/smtp.fixture";
 const url = process.env.T007_TEST_DATABASE_URL, skip = !url;
 const root = new PrismaClient({ datasources: { db: { url: url ?? "postgresql://unused@localhost/zeus_t007_unused" } } });
 const clients: PrismaClient[] = [];
-let server: Server, endpoint = "", sequence = 0, emailDown = false;
-const emails: {
-    key: string;
-    body: string;
-}[] = [], proofs: string[] = [];
+let server: Server, endpoint = "", sequence = 0;
+let smtp: Awaited<ReturnType<typeof smtpSimulation>>;
+let emails: SimulatedEmail[]=[];
+const proofs:string[]=[];
 const manifest = readManifest(), release = releaseFromManifest();
 const config = parseBookingConfiguration({
     BOOKING_QUOTE_KEYS: "q:" + randomBytes(32).toString("base64url"), BOOKING_QUOTE_ACTIVE_KID: "q", MANAGEMENT_GRANT_KEYS: "g:" + randomBytes(32).toString("base64url"), MANAGEMENT_GRANT_ACTIVE_KID: "g", MANAGEMENT_SESSION_KEYS: "s:" + randomBytes(32).toString("base64url"), MANAGEMENT_SESSION_ACTIVE_KID: "s", ONLINE_BOOKING_MODE: "OPEN", TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA", NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA", TURNSTILE_ALLOWED_HOSTNAMES: "localhost", APP_ORIGIN: "http://localhost:3000", CLIENT_IP_SOURCE: "PROXY_HOPS", TRUSTED_PROXY_HOPS: "1", NODE_ENV: "test"
@@ -45,17 +45,13 @@ before(async () => {
                 success: token !== "invalid", action: "booking_create", hostname: "localhost"
             }));
         }
-        else if (req.url === "/emails") {
-            emails.push({ key: String(req.headers["idempotency-key"]), body });
-            res.writeHead(emailDown ? 503 : 200, { "content-type": "application/json" });
-            res.end(JSON.stringify(emailDown ? { message: "outage" } : { id: randomUUID() }));
-        }
         else {
             res.writeHead(501);
             res.end();
         }
     });
     await new Promise<void>(r => server.listen(0, "127.0.0.1", r));
+    smtp=await smtpSimulation();emails=smtp.attempts;
     endpoint = "http://127.0.0.1:" + (server.address() as {
         port: number;
     }).port;
@@ -64,6 +60,7 @@ after(async () => {
     for (const c of clients)
         await c.$disconnect();
     await root.$disconnect();
+    if(smtp)await smtp.close();
     if (server) {
         server.closeAllConnections();
         await new Promise<void>(r => server.close(() => r()));
@@ -83,7 +80,7 @@ async function fixture(suffix: string) {
         })) });
     const options: CreateDayBookingOptions = {
         db, config, headers: headers(), turnstileEndpoint: endpoint + "/siteverify", notification: {
-            endpoint: endpoint + "/emails", apiKey: "synthetic", from: "Zeus <noreply@example.test>", shopEmail: "shop@example.test", origin: config.origin
+            ...smtp.config, origin: config.origin
         }
     };
     async function request(slugs = ["basic-wash"], date = day()) {
@@ -250,15 +247,15 @@ test("HTTP boundary rejects CSRF/old slots/unknown body fields; success is no-st
     noPrivate(await response.json());
     assert.equal((await call({ ...r, turnstileToken: "fresh" })).status, 200);
 });
-test("mail outage cannot roll back booking, retry uses one provider key, turn notices disclose no private values", { skip }, async () => {
+test("mail outage cannot roll back booking, retry uses one stable Message-ID, turn notices disclose no private values", { skip }, async () => {
     const f = await fixture("mail"), r = await f.request();
-    emailDown = true;
+    smtp.setRejected(true);
     let result: Awaited<ReturnType<typeof f.create>>;
     try {
         result = await f.create(r);
     }
     finally {
-        emailDown = false;
+        smtp.setRejected(false);
     }
     assert.equal(code(result), "OK");
     const b = await f.db.booking.findFirstOrThrow();
@@ -267,27 +264,27 @@ test("mail outage cannot roll back booking, retry uses one provider key, turn no
     await drainShopNotifications({ ...f.options, bookingId: b.id });
     const outbox = await f.db.bookingNotificationOutbox.findFirstOrThrow();
     assert.equal(outbox.state, "SENT");
-    const shop = emails.filter(e => e.key === "booking-shop/" + b.id);
+    const shop = emails.filter(e => e.messageId === `<booking-shop.${outbox.id}@localhost>`);
     assert.ok(shop.length >= 2);
-    assert.equal(new Set(shop.map(e => e.body)).size, 1);
+    assert.equal(new Set(shop.map(e => e.text)).size, 1);
     for (const e of shop) {
         for (const privateValue of [
             "CANARY CUSTOMER", "canary@example.test", "+639170000001", "PRIVATE PLATE", "PRIVATE NOTES", "queuePosition", "dailyCap"
         ])
-            assert.equal(e.body.includes(privateValue), false, privateValue);
+            assert.equal(e.text.includes(privateValue), false, privateValue);
     }
     assert.equal(await sendTurnNotice(b.id, f.options), "SENT");
     const turn = emails.at(-1)!;
-    const parsed = JSON.parse(turn.body);
+    const parsed = {to:[turn.to],text:turn.text};
     assert.equal(parsed.to[0], "canary@example.test");
     assert.equal(parsed.text, "Your turn is coming at Zeus Auto Detailing. Please be ready to visit the shop. Contact the shop if you need help.");
     noPrivate(parsed.text);
-    emailDown = true;
+    smtp.setRejected(true);
     try {
         assert.equal(await sendTurnNotice(b.id, f.options), "NOT_SENT");
     }
     finally {
-        emailDown = false;
+        smtp.setRejected(false);
     }
     await f.db.booking.update({ where: { id: b.id }, data: { customerEmail: null } });
     const n = emails.length;
@@ -430,4 +427,82 @@ test("legacy HTTP replay work still obeys trusted per-client transport admission
     assert.equal(body.error.commitState, "UNKNOWN");
     assert.equal(response!.headers.get("retry-after"), String(body.error.retryAfterSeconds));
     assert.equal(await f.db.booking.count(), 0);
+});
+
+test("F1 management authority is immutable as zeus_app and revocation is one-way", { skip }, async () => {
+ const f=await fixture("immutable_authority");assert.equal(code(await f.create(await f.request())),"OK");
+ const grant=await f.db.bookingManagementGrant.findFirstOrThrow(),session=await f.db.bookingManagementSession.findFirstOrThrow();
+ const appUrl=new URL(f.dbUrl);appUrl.username="zeus_app";
+ const app=new PrismaClient({datasources:{db:{url:appUrl.toString()}}});clients.push(app);
+ for(const [table,row,changes] of [
+  ["booking_management_grants",grant,{expiresAt:new Date(grant.expiresAt.getTime()+1000),issuedAt:new Date(grant.issuedAt.getTime()+1000),kid:"changed",bookingId:randomUUID(),credentialVersion:2,id:randomUUID()}],
+  ["booking_management_sessions",session,{expiresAt:new Date(grant.expiresAt.getTime()+1000),issuedAt:new Date(session.issuedAt.getTime()+1000),kid:"changed",grantKid:"changed",bookingId:randomUUID(),grantId:randomUUID(),credentialVersion:2,id:randomUUID()}]
+ ] as const){
+  const original=await f.db.$queryRawUnsafe(`SELECT to_jsonb(t)::text AS body FROM ${table} t WHERE id=$1`,row.id);
+  for(const [column,value] of Object.entries(changes)){
+   await assert.rejects(app.$executeRawUnsafe(`UPDATE ${table} SET "${column}"=$1 WHERE id=$2`,value,row.id),/permission denied|immutable|provenance/i,`${table}.${column}`);
+   assert.deepEqual(await f.db.$queryRawUnsafe(`SELECT to_jsonb(t)::text AS body FROM ${table} t WHERE id=$1`,row.id),original);
+  }
+ }
+ // Revoke grant first, then session: revoking a session must still work after its grant.
+ for(const [table,row] of [["booking_management_grants",grant],["booking_management_sessions",session]] as const){
+  assert.equal(await app.$executeRawUnsafe(`UPDATE ${table} SET "revokedAt"=statement_timestamp() WHERE id=$1`,row.id),1);
+  const revoked=await f.db.$queryRawUnsafe(`SELECT to_jsonb(t)::text AS body FROM ${table} t WHERE id=$1`,row.id);
+  for(const assignment of ['"revokedAt"=NULL','"revokedAt"=statement_timestamp()+interval \'1 day\'']){
+   await assert.rejects(app.$executeRawUnsafe(`UPDATE ${table} SET ${assignment} WHERE id=$1`,row.id),/immutable/i);
+   assert.deepEqual(await f.db.$queryRawUnsafe(`SELECT to_jsonb(t)::text AS body FROM ${table} t WHERE id=$1`,row.id),revoked);
+  }
+  // Owner connection exercises the trigger defense independently of runtime column grants.
+  await assert.rejects(f.db.$executeRawUnsafe(`UPDATE ${table} SET "issuedAt"="issuedAt"+interval '1 second' WHERE id=$1`,row.id),/immutable/i);
+ }
+});
+
+test("F1 exact runtime UPDATE column grants and immutable outbox payload", { skip }, async()=>{
+ const f=await fixture("immutable_privileges");assert.equal(code(await f.create(await f.request())),"OK");
+ const allowed:Record<string,string[]>={booking_management_grants:["revokedAt"],booking_management_sessions:["revokedAt"],booking_notification_outbox:["state","attempts","nextAttemptAt","sentAt"]};
+ for(const [table,columns] of Object.entries(allowed)){
+  const rows=await f.db.$queryRaw<{column:string;allowed:boolean}[]>`SELECT column_name AS column,has_column_privilege('zeus_app',table_name,column_name,'UPDATE') AS allowed FROM information_schema.columns WHERE table_schema='public' AND table_name=${table}`;
+  assert.deepEqual(rows.filter(r=>r.allowed).map(r=>r.column).sort(),[...columns].sort());
+ }
+ const appUrl=new URL(f.dbUrl);appUrl.username="zeus_app";const app=new PrismaClient({datasources:{db:{url:appUrl.toString()}}});clients.push(app);
+ const outbox=await f.db.bookingNotificationOutbox.findFirstOrThrow();
+ for(const column of ["subject","text","bookingId","id","createdAt"]){await assert.rejects(app.$executeRawUnsafe(`UPDATE booking_notification_outbox SET "${column}"="${column}" WHERE id=$1`,outbox.id),/permission denied/i)}
+});
+test("F2 SMTP acceptance then finalize failure reclaims once with the same outbox Message-ID", { skip }, async()=>{
+ const f=await fixture("smtp_finalize"),r=await f.request();
+ await f.db.$executeRawUnsafe('CREATE TABLE fixture_finalize_fault(enabled boolean NOT NULL)');
+ await f.db.$executeRawUnsafe('INSERT INTO fixture_finalize_fault VALUES (true)');
+ await f.db.$executeRawUnsafe(`CREATE FUNCTION fixture_finalize_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.state='SENT' AND (SELECT enabled FROM fixture_finalize_fault) THEN RAISE EXCEPTION 'Synthetic finalize failure'; END IF; RETURN NEW; END $$`);
+ await f.db.$executeRawUnsafe('CREATE TRIGGER fixture_finalize_guard BEFORE UPDATE ON booking_notification_outbox FOR EACH ROW EXECUTE FUNCTION fixture_finalize_guard()');
+ const first=await f.create(r);assert.equal(code(first),"OK");
+ const b=await f.db.booking.findFirstOrThrow(),box=await f.db.bookingNotificationOutbox.findFirstOrThrow();
+ assert.deepEqual([box.state,box.attempts],["SENDING",1]);
+ const messageId=`<booking-shop.${box.id}@localhost>`;
+ const accepted=()=>smtp.messages.filter(e=>e.messageId===messageId);
+ assert.equal(accepted().length,1,"SMTP actually accepted before DB finalize failed");
+ assert.equal(code(await f.create({...r,turnstileToken:randomUUID()})),"OK");assert.equal(accepted().length,1,"replay cannot enqueue/send again");
+ await f.db.$executeRawUnsafe('UPDATE fixture_finalize_fault SET enabled=false');
+ await f.db.bookingNotificationOutbox.update({where:{id:box.id},data:{nextAttemptAt:new Date(0)}});
+ await drainShopNotifications({...f.options,bookingId:b.id});
+ const sent=await f.db.bookingNotificationOutbox.findUniqueOrThrow({where:{id:box.id}});
+ assert.deepEqual([sent.state,sent.attempts],["SENT",2]);assert.equal(accepted().length,2,"one residual resend after a single finalize failure");
+ assert.deepEqual(accepted().map(e=>[e.messageId,e.subject,e.text]),Array.from({length:2},()=>[messageId,box.subject,box.text]));
+ await drainShopNotifications({...f.options,bookingId:b.id});assert.equal(accepted().length,2);assert.equal(await f.db.bookingNotificationOutbox.count(),1);
+});
+
+test("F2 repeated accepted/finalize failures still cannot exceed three claimed sends", { skip }, async()=>{
+ const f=await fixture("smtp_finalize_limit");
+ await f.db.$executeRawUnsafe(`CREATE FUNCTION fixture_always_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.state='SENT' THEN RAISE EXCEPTION 'Synthetic finalize failure'; END IF; RETURN NEW; END $$`);
+ await f.db.$executeRawUnsafe('CREATE TRIGGER fixture_always_fail BEFORE UPDATE ON booking_notification_outbox FOR EACH ROW EXECUTE FUNCTION fixture_always_fail()');
+ assert.equal(code(await f.create(await f.request())),"OK");
+ const box=await f.db.bookingNotificationOutbox.findFirstOrThrow(),key=`<booking-shop.${box.id}@localhost>`;
+ for(let i=0;i<2;i++){
+  await f.db.bookingNotificationOutbox.update({where:{id:box.id},data:{nextAttemptAt:new Date(0)}});
+  await assert.rejects(drainShopNotifications({...f.options,bookingId:box.bookingId}),/Synthetic finalize failure/);
+ }
+ await f.db.bookingNotificationOutbox.update({where:{id:box.id},data:{nextAttemptAt:new Date(0)}});
+ await drainShopNotifications({...f.options,bookingId:box.bookingId});
+ assert.equal(smtp.messages.filter(e=>e.messageId===key).length,3);
+ assert.equal((await f.db.bookingNotificationOutbox.findUniqueOrThrow({where:{id:box.id}})).attempts,3);
+ assert.equal(await f.db.bookingNotificationOutbox.count(),1);
 });
