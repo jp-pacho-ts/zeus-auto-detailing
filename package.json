@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint src tailwind.config.ts next.config.mjs postcss.config.mjs --config src/lib/eslint.config.mjs --max-warnings 0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "node --require ./src/server/__tests__/register.cjs --test \"src/**/*.test.ts\"",
     "staff:credential": "tsx --require ./src/server/auth/cli-preload.cjs src/server/auth/staff-credential.ts",
     "docs:docx": "node scripts/generate-proposal-docx.mjs"

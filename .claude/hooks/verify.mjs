@@ -12,7 +12,6 @@ const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const status = spawnSync("git", [
   "status", "--porcelain", "--",
   "*.ts", "*.tsx", "*.js", "*.mjs", "*.cjs", "package.json", "package-lock.json", "tsconfig.json",
-  ":(exclude)next-env.d.ts",
 ], { cwd, encoding: "utf8" });
 if (status.error || status.status !== 0) {
   // An unknown tree is not a clean tree: say so rather than skipping the checks silently.
