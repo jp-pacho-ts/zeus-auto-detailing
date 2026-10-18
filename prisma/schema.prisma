@@ -184,8 +184,44 @@ model Staff {
   catalogEvents         CatalogPublicationEvent[]
   assignments           BookingAssignment[]
   commissionPayouts     CommissionPayout[]
+  credential            StaffCredential?
+  sessions              StaffSession[]
 
   @@map("staff")
+}
+
+// ADR-003 Option A. The credential row is the per-staff lock for every auth writer.
+model StaffCredential {
+  staffId           String    @id
+  staff             Staff     @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  passwordHash      String // argon2id PHC string
+  generation        Int       @default(1) // S-01: +1 on every set/reset, never on rehash
+  passwordChangedAt DateTime  @db.Timestamptz(3)
+  failedLoginCount  Int       @default(0)
+  lockedUntil       DateTime? @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime  @db.Timestamptz(3)
+
+  @@map("staff_credentials")
+}
+
+// Only the SHA-256 of the opaque cookie token is stored. No IP address or user agent.
+model StaffSession {
+  id                   String    @id @default(uuid())
+  tokenHash            String    @unique
+  staffId              String
+  staff                Staff     @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  credentialGeneration Int
+  createdAt            DateTime  @db.Timestamptz(3)
+  lastSeenAt           DateTime  @db.Timestamptz(3)
+  idleExpiresAt        DateTime  @db.Timestamptz(3)
+  expiresAt            DateTime  @db.Timestamptz(3)
+  revokedAt            DateTime? @db.Timestamptz(3)
+  revokedReason        String? // LOGOUT, PASSWORD_CHANGED, DEACTIVATED, ADMIN_REVOKED or ROTATED
+
+  @@index([staffId])
+  @@index([expiresAt])
+  @@map("staff_sessions")
 }
 
 model BookingAssignment {
