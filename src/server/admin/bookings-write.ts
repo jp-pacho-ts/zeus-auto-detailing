@@ -55,13 +55,13 @@ export async function setBookingStatus(actor: StaffActor, id: unknown, input: un
     if (!STATUS_FROM[v.status].includes(b.status)) return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
     if (!canPerform(STATUS_OP[v.status], actor.role)) return conflict(tx, "FORBIDDEN", bookingId);
     const v3 = b.snapshotVersion === "QUEUE_V3";
-    if (v.status === "COMPLETED" && b.lineItems.some((l) => l.removedAt === null && l.workStatus !== "DONE")) {
+    if (v3 && v.status === "COMPLETED" && b.lineItems.some((l) => l.removedAt === null && l.workStatus !== "DONE")) {
       return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId, "Mark every service done before completing the booking.");
     }
     if (v.status === "PENDING") {
       const day = isoDay(b.bookingDate);
-      if (!v3 || day < today(options)) return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId, "Only an upcoming day-queue booking can be reinstated.");
-      await fits(tx, bookingId, b.queueCode!, day);
+      if (!v3 || b.cancellationKind !== "SHOP_DECLINED" || day < today(options)) return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId, "Only an upcoming shop-declined day-queue booking can be reinstated.");
+      await checkTarget(tx, bookingId, b.queueCode!, day, today(options));
     }
     await bump(tx, bookingId, v.expectedRevision, {
       status: v.status,
@@ -82,6 +82,14 @@ async function fits(tx: StaffTx, bookingId: string, queueCode: string, day: stri
   if (cap === null || (await committed(tx, queueCode, day, bookingId)) >= cap) {
     await conflict(tx, "SCHEDULE_CONFLICT", bookingId, "That day is full for this queue.", { toDate: ["That day is full for this queue."] });
   }
+}
+
+// Both moves and reinstatements take capacity only on an eligible active target (D5/R16).
+async function checkTarget(tx: StaffTx, bookingId: string, queueCode: string, day: string, now: string): Promise<void> {
+  if (day < now || day > addDays(now, 90)) throw fieldError("toDate", "Choose a day from today to 90 days ahead.");
+  const queue = await tx.bookingQueue.findUnique({ where: { code: queueCode } });
+  if (!queue || !queue.isActive) throw fieldError("toQueueCode", "Choose an active queue.");
+  await fits(tx, bookingId, queueCode, day);
 }
 
 // W2: decline = CANCELLED with the shop-decline kind (§14); the reason stays in the audit.
@@ -112,11 +120,7 @@ export async function moveBooking(actor: StaffActor, id: unknown, input: unknown
     const fromDay = isoDay(b.bookingDate);
     if (fromDay === v.toDate && b.queueCode === v.toQueueCode) return result(tx, bookingId, true);
     if (b.status !== "PENDING" && b.status !== "CONFIRMED") return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
-    const now = today(options);
-    if (v.toDate < now || v.toDate > addDays(now, 90)) throw fieldError("toDate", "Choose a day from today to 90 days ahead.");
-    const queue = await tx.bookingQueue.findUnique({ where: { code: v.toQueueCode } });
-    if (!queue || !queue.isActive) throw fieldError("toQueueCode", "Choose an active queue.");
-    await fits(tx, bookingId, v.toQueueCode, v.toDate);
+    await checkTarget(tx, bookingId, v.toQueueCode, v.toDate, today(options));
     const { _max } = await tx.booking.aggregate({ where: { bookingDate: dateCarrier(v.toDate), queueCode: v.toQueueCode }, _max: { queuePosition: true } });
     await bump(tx, bookingId, v.expectedRevision, { bookingDate: dateCarrier(v.toDate), startsAt: dayStart(v.toDate), endsAt: dayEnd(v.toDate),
       queueCode: v.toQueueCode, queuePosition: (_max.queuePosition ?? 0) + 1 });

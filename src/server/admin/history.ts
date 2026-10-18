@@ -35,10 +35,11 @@ export async function lookupCustomerHistory(actor: StaffActor, input: unknown, o
   const normalized = CustomerPhoneSchema.safeParse(phone);
   const digest = historyDigest(ring, normalized.success ? normalized.data : null, phone);
   const result = await withStaffPermit("STAFF_MUTATION", (permit) => permit.write(async (tx) => {
-    const rows = normalized.success
-      ? await tx.booking.findMany({ where: { customerPhone: normalized.data }, orderBy: [{ bookingDate: "desc" }, { createdAt: "desc" }], take: LIMIT + 1,
-        include: { lineItems: { orderBy: { order: "asc" } }, bayAssignments: { include: { bay: { select: { id: true, name: true } } } }, queue: { select: { name: true } } } })
-      : [];
+    // D8: both empty-result classes perform the same indexed read before their audit. The
+    // sentinel cannot be a normalized PH phone; raw malformed input never becomes a selector.
+    const found = await tx.booking.findMany({ where: { customerPhone: normalized.success ? normalized.data : "" }, orderBy: [{ bookingDate: "desc" }, { createdAt: "desc" }], take: LIMIT + 1,
+      include: { lineItems: { orderBy: { order: "asc" } }, bayAssignments: { include: { bay: { select: { id: true, name: true } } } }, queue: { select: { name: true } } } });
+    const rows = normalized.success ? found : [];
     await tx.bookingAuditEvent.create({ data: { action: "HISTORY_LOOKUP", actorStaffId: actor.staffId, phoneDigest: digest, resultCount: Math.min(rows.length, LIMIT) } });
     return rows;
   }), { db: options.db });

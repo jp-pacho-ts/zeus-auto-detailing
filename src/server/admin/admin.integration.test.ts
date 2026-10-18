@@ -364,3 +364,98 @@ test("races: two staff on one booking, and a staff move against a customer creat
   const committed = await db.booking.count({ where: { bookingDate: new Date(target + "T00:00:00Z"), queueCode: "WASH", status: { not: "CANCELLED" } } });
   assert.equal(committed, 5);
 });
+
+test("Codex F1: only eligible SHOP_DECLINED bookings can be reinstated, with target checks and no partial writes", { skip }, async (t) => {
+  for (const [label, day, kind, inactive, code] of [
+    ["customer cancellation", "2027-04-01", "CUSTOMER", false, "BOOKING_NOT_MANAGEABLE"],
+    ["staff cancellation", "2027-04-02", "STAFF", false, "BOOKING_NOT_MANAGEABLE"],
+    ["inactive queue", "2027-04-03", "SHOP_DECLINED", true, "VALIDATION_ERROR"],
+    ["past day", "2027-02-28", "SHOP_DECLINED", false, "BOOKING_NOT_MANAGEABLE"],
+    ["beyond horizon", "2027-06-01", "SHOP_DECLINED", false, "VALIDATION_ERROR"],
+  ] as const) {
+    await t.test(label, async () => {
+      const id = await book(select("S", "regular-tint"), day, { status: "CANCELLED", cancellationKind: kind, terminalAt: new Date().toISOString() });
+      const before = await db.booking.findUniqueOrThrow({ where: { id } });
+      if (inactive) await db.bookingQueue.update({ where: { code: "TINT_PPF" }, data: { isActive: false } });
+      try {
+        await refused(s.setBookingStatus(ADMIN, id, { expectedRevision: 2, status: "PENDING", reason: "Review correction" }, opts()), "VERSION_CONFLICT", "revision first",
+          (e) => assert.equal(e.currentBooking?.revision, 1));
+        await refused(s.setBookingStatus(ADMIN, id, { expectedRevision: 1, status: "PENDING", reason: "Review correction" }, opts()), code, label);
+        assert.deepEqual(await db.booking.findUniqueOrThrow({ where: { id } }), before);
+        assert.equal((await audits(id)).length, 0);
+      } finally {
+        if (inactive) await db.bookingQueue.update({ where: { code: "TINT_PPF" }, data: { isActive: true } });
+      }
+    });
+  }
+  for (const day of ["2027-03-01", "2027-05-30"]) {
+    const id = await book(select("S", "regular-tint"), day, { status: "CANCELLED", cancellationKind: "SHOP_DECLINED", terminalAt: new Date().toISOString() });
+    await refused(s.setBookingStatus(STAFF, id, { expectedRevision: 1, status: "PENDING", reason: "Review correction" }, opts()), "FORBIDDEN", "ADMIN only");
+    const changed = await s.setBookingStatus(ADMIN, id, { expectedRevision: 1, status: "PENDING", reason: "Review correction" }, opts());
+    assert.deepEqual([changed.booking.status, changed.booking.revision, changed.booking.cancellationKind], ["PENDING", 2, null]);
+    assert.deepEqual((await audits(id)).map((a) => [a.action, a.fromRevision, a.toRevision]), [["STATUS_CHANGED", 1, 2]]);
+  }
+});
+
+test("Codex F2: historical LEGACY_V1 and CATALOG_V2 can complete without mutable line progress", { skip }, async () => {
+  const priced = pricing.priceSelection(r0(), select("S", "basic-wash"));
+  assert.equal(priced.kind, "QUOTED");
+  if (priced.kind !== "QUOTED") throw new Error("Missing fixed-wash fixture");
+  const q = priced.quote, line = q.lines[0];
+  for (const version of ["LEGACY_V1", "CATALOG_V2"] as const) {
+    const id = randomUUID(), lineId = randomUUID();
+    await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(746001, 1)");
+      await insert(tx, "bookings", { id, referenceCode: version === "LEGACY_V1" ? "ZEUS-LG0002" : "ZEUS-V20002", customerName: "Synthetic historical", customerPhone: "+639170000001", vehicleModel: "Synthetic",
+        vehicleCategoryId: q.vehicleCategoryId, serviceId: line.serviceId, bookingDate: "2027-04-04", startTime: "08:00", endTime: "08:30", startsAt: "2027-04-04T00:00:00Z", endsAt: "2027-04-04T00:30:00Z", durationMinutes: 30,
+        priceSnapshot: 180, serviceNameSnapshot: line.name, vehicleCategoryNameSnapshot: "Small", idempotencyKey: randomUUID(), requestHash: "historical-completion", updatedAt: new Date().toISOString(), status: "IN_PROGRESS", snapshotVersion: version,
+        ...(version === "CATALOG_V2" ? { catalogReleaseId: releaseId, vehicleSizeCodeSnapshot: "S", catalogFingerprint: "a".repeat(64), pricingAlgorithm: "php-service-size-v2" } : {}) });
+      if (version === "CATALOG_V2") await insert(tx, "booking_line_items", { id: lineId, bookingId: id, order: 0, releaseId, serviceId: line.serviceId, vehicleCategoryId: q.vehicleCategoryId,
+        offerId: line.offerId, type: line.kind, nameSnapshot: line.name, unit: line.unit, quantity: 1, unitPriceCentavos: line.unitPriceCentavos, subtotalCentavos: line.subtotalCentavos, addedMinutes: 30 });
+    });
+    const originalLines = await db.bookingLineItem.findMany({ where: { bookingId: id } });
+    if (version === "CATALOG_V2") await refused(s.setLineStatus(STAFF, id, lineId, { expectedRevision: 1, workStatus: "DONE" }, opts()), "BOOKING_NOT_MANAGEABLE", "historical line stays immutable");
+    const completed = await s.setBookingStatus(STAFF, id, { expectedRevision: 1, status: "COMPLETED" }, opts());
+    assert.deepEqual([completed.booking.status, completed.booking.revision], ["COMPLETED", 2]);
+    assert.deepEqual(await db.bookingLineItem.findMany({ where: { bookingId: id } }), originalLines);
+    assert.deepEqual((await audits(id)).map((a) => [a.action, a.fromStatus, a.toStatus, a.fromRevision, a.toRevision]), [["STATUS_CHANGED", "IN_PROGRESS", "COMPLETED", 1, 2]]);
+    assert.equal((await s.setBookingStatus(ADMIN, id, { expectedRevision: 2, status: "COMPLETED" }, opts())).noChange, true);
+    assert.equal((await audits(id)).length, 1);
+  }
+});
+
+test("Codex F3: malformed cursor key returns 400 before a database permit", { skip }, async () => {
+  const { encodeCursor, filterHash } = await import("./cursor");
+  const cursor = encodeCursor({ s: "DAY_ASC", f: filterHash(["LIST", null, null, null, null]), k: ["not-a-date"] });
+  let transactions = 0;
+  const tracked = new Proxy(db, { get(target, key) { if (key === "$transaction") { transactions++; } return Reflect.get(target, key); } });
+  await refused(s.listBookings(STAFF, { cursor }, opts({ db: tracked })), "VALIDATION_ERROR", "bad cursor",
+    (e) => { assert.equal(e.status, 400); assert.ok(e.fieldErrors.cursor); });
+  assert.equal(transactions, 0);
+});
+
+test("Codex F4: unknown and malformed history use equivalent query work, fixed empties and separate HMAC audits", { skip }, async () => {
+  const queries: import("@prisma/client").Prisma.BookingFindManyArgs[] = [];
+  const tracked = new Proxy(db, { get(target, key) {
+    if (key === "$transaction") return <T,>(work: (tx: import("@prisma/client").Prisma.TransactionClient) => Promise<T>, settings?: { maxWait?: number; timeout?: number; isolationLevel?: import("@prisma/client").Prisma.TransactionIsolationLevel }) =>
+      target.$transaction((tx) => work(new Proxy(tx, { get(t, k) {
+        if (k === "booking") return new Proxy(t.booking, { get(delegate, op) {
+          if (op === "findMany") return (args: import("@prisma/client").Prisma.BookingFindManyArgs) => { queries.push(args); return delegate.findMany(args); };
+          return Reflect.get(delegate, op);
+        } });
+        return Reflect.get(t, k);
+      } })), settings);
+    return Reflect.get(target, key);
+  } });
+  const before = await db.bookingAuditEvent.count({ where: { action: "HISTORY_LOOKUP" } });
+  const unknown = await s.lookupCustomerHistory({ ...ADMIN, sessionId: randomUUID() }, { phone: "+639000000998" }, opts({ db: tracked, ring }));
+  const malformed = await s.lookupCustomerHistory({ ...ADMIN, sessionId: randomUUID() }, { phone: "not a phone" }, opts({ db: tracked, ring }));
+  assert.deepEqual(unknown, { bookings: [], truncated: false });
+  assert.deepEqual(malformed, unknown);
+  assert.equal(queries.length, 2, "both inputs run the lookup before the common audit");
+  assert.deepEqual(queries[1], { ...queries[0], where: { customerPhone: "" } });
+  const lookups = await db.bookingAuditEvent.findMany({ where: { action: "HISTORY_LOOKUP" }, orderBy: { createdAt: "asc" }, skip: before });
+  const { historyDigest } = await import("./history-key-ring");
+  assert.deepEqual(lookups.map((a) => [a.phoneDigest, a.resultCount]), [[historyDigest(ring, "+639000000998"), 0], [historyDigest(ring, null, "not a phone"), 0]]);
+  assert.equal(JSON.stringify(events).includes("not a phone"), false);
+});

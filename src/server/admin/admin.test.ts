@@ -115,3 +115,17 @@ test("the error envelope: status per code, currentBooking only where given, and 
   assert.equal(isGuardViolation(new Error("new row for relation \"booking_audit_events\" violates check constraint \"booking_audit_shape\"")), true);
   assert.equal(isGuardViolation(new Error("Connection refused")), false);
 });
+
+test("Codex F3: cursor tuples validate dates, timestamps, UUIDs and exact arity for each sort", () => {
+  const f = filterHash(["LIST", null, null, null, null]);
+  const uuid = id.toLowerCase(), instant = "2027-01-01T00:00:00.000Z";
+  for (const [sort, keys] of [
+    ["DAY_ASC", ["not-a-date"]], ["DAY_ASC", ["2027-02-30", instant, uuid]], ["DAY_ASC", ["2027-01-01", "not-an-instant", uuid]],
+    ["DAY_ASC", ["2027-01-01", instant, "bad-id"]], ["DAY_ASC", ["2027-01-01", instant, uuid, "extra"]], ["DAY_ASC", [1, instant, uuid]],
+    ["CREATED_AT_DESC", [instant]], ["CREATED_AT_DESC", ["2027-02-30T00:00:00.000Z", uuid]], ["CREATED_AT_DESC", [instant, "bad-id"]],
+    ["CREATED_AT_DESC", [instant, uuid, "extra"]], ["CREATED_AT_DESC", [1, uuid]],
+  ] as const) {
+    assert.throws(() => decodeCursor(encodeCursor({ s: sort, f, k: [...keys] }), sort, f), (e: unknown) => e instanceof AdminServiceError && e.status === 400 && Boolean(e.fieldErrors.cursor), `${sort} ${JSON.stringify(keys)}`);
+  }
+  assert.deepEqual(decodeCursor(encodeCursor({ s: "CREATED_AT_DESC", f, k: [instant, uuid] }), "CREATED_AT_DESC", f), [instant, uuid]);
+});
