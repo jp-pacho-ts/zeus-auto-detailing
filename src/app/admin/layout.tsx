@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { brandConfig } from "@/config/brand";
 
-// No client-side session gate: every /admin route renders the static closed page until P1-06.
+// No session gate here: layouts do not re-run on client navigation, so every admin page
+// calls requireStaffPage() itself, and every admin service repeats its own guard.
 export const metadata: Metadata = {
   title: `Staff Portal | ${brandConfig.businessName}`,
   robots: { index: false, follow: false },
