@@ -25,7 +25,7 @@ export function releaseFromManifest(manifest: Manifest = readManifest(), release
     services: manifest.services.map((s: any) => ({
       id: s.id, slug: s.slug, name: s.name, description: s.description, group: s.group, type: s.type, unit: s.unit,
       inclusions: s.inclusions, productName: s.productName, hardness: s.hardness, warrantyMonths: s.warrantyMonths,
-      referenceUnitPriceCentavos: s.referenceUnitPriceCentavos, sortOrder: s.sortOrder,
+      referenceUnitPriceCentavos: s.referenceUnitPriceCentavos, sortOrder: s.sortOrder, queueCode: s.queueCode ?? null,
       offers: s.offers.map((o: any) => ({
         id: o.id, vehicleCategoryId: o.vehicleCategoryId, sizeCode: o.sizeCode, state: o.state, bookingMode: o.bookingMode,
         unitPriceCentavos: o.unitPriceCentavos, durationKind: o.durationKind, durationMinutes: o.durationMinutes, elapsedDays: o.elapsedDays,

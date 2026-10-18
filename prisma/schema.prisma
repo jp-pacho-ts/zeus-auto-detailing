@@ -124,44 +124,59 @@ model BlockedDate {
 }
 
 model Booking {
-  id                          String                 @id @default(uuid())
-  referenceCode               String                 @unique
+  id                          String                   @id @default(uuid())
+  referenceCode               String                   @unique
   customerName                String
   customerPhone               String
   customerEmail               String?
   vehiclePlate                String?
   vehicleModel                String
   vehicleCategoryId           String
-  vehicleCategory             VehicleCategory        @relation(fields: [vehicleCategoryId], references: [id])
+  vehicleCategory             VehicleCategory          @relation(fields: [vehicleCategoryId], references: [id])
   serviceId                   String
-  service                     Service                @relation(fields: [serviceId], references: [id])
-  bookingDate                 DateTime               @db.Date
-  startTime                   String
-  endTime                     String
-  status                      BookingStatus          @default(PENDING)
+  service                     Service                  @relation(fields: [serviceId], references: [id])
+  bookingDate                 DateTime                 @db.Date
+  startTime                   String? // legacy and catalog-v2 only (D1); NULL for QUEUE_V3
+  endTime                     String?
+  status                      BookingStatus            @default(PENDING)
   notes                       String?
   startsAt                    DateTime
   endsAt                      DateTime
-  durationMinutes             Int
-  priceSnapshot               Decimal                @db.Decimal(10, 2)
+  durationMinutes             Int?
+  priceSnapshot               Decimal                  @db.Decimal(10, 2)
   serviceNameSnapshot         String
   vehicleCategoryNameSnapshot String
-  idempotencyKey              String                 @unique
+  idempotencyKey              String                   @unique
   requestHash                 String
-  createdAt                   DateTime               @default(now())
-  updatedAt                   DateTime               @updatedAt
-  snapshotVersion             SnapshotVersion        @default(LEGACY_V1)
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
+  snapshotVersion             SnapshotVersion          @default(LEGACY_V1)
   catalogReleaseId            String?
-  catalogRelease              CatalogRelease?        @relation(fields: [catalogReleaseId], references: [id], onDelete: Restrict)
+  catalogRelease              CatalogRelease?          @relation(fields: [catalogReleaseId], references: [id], onDelete: Restrict)
   vehicleSizeCodeSnapshot     String?
   catalogFingerprint          String?
   pricingAlgorithm            String?
+  // ADR-005 day queue (QUEUE_V3 only; NULL on legacy rows). startsAt/endsAt hold the Manila day window.
+  queueCode                   String?
+  queue                       BookingQueue?            @relation(fields: [queueCode], references: [code], onDelete: Restrict, onUpdate: Restrict)
+  queuePosition               Int?
+  revision                    Int                      @default(1)
+  receiptTotalCentavos        Int? // immutable create receipt: the accepted quote's totals
+  receiptEstimatedCentavos    Int?
+  terminalAt                  DateTime?                @db.Timestamptz(3)
+  cancellationKind            BookingCancellationKind?
+  createdTxId                 BigInt                   @default(dbgenerated("txid_current()"))
   lineItems                   BookingLineItem[]
   assignments                 BookingAssignment[]
   commissionPayouts           CommissionPayout[]
   inventoryTransactions       InventoryTransaction[]
+  bayAssignments              BookingBayAssignment[]
+  auditEvents                 BookingAuditEvent[]
 
+  @@unique([bookingDate, queueCode, queuePosition])
   @@index([bookingDate, status, startTime, endTime])
+  @@index([customerPhone, bookingDate(sort: Desc)])
+  @@index([bookingDate, queueCode, status])
   @@index([serviceId])
   @@index([vehicleCategoryId])
   @@map("bookings")
@@ -186,6 +201,13 @@ model Staff {
   commissionPayouts     CommissionPayout[]
   credential            StaffCredential?
   sessions              StaffSession[]
+  queuesUpdated         BookingQueue[]            @relation("QueueUpdatedBy")
+  capOverridesUpdated   QueueCapOverride[]        @relation("CapOverrideUpdatedBy")
+  bayAssignments        BookingBayAssignment[]    @relation("BayAssignedBy")
+  linesAdded            BookingLineItem[]         @relation("LineAddedBy")
+  linesRemoved          BookingLineItem[]         @relation("LineRemovedBy")
+  linePricesSet         BookingLineItem[]         @relation("LinePriceSetBy")
+  auditEvents           BookingAuditEvent[]
 
   @@map("staff")
 }
@@ -355,6 +377,42 @@ enum BayHoldPolicy {
 enum SnapshotVersion {
   LEGACY_V1
   CATALOG_V2
+  QUEUE_V3
+}
+
+// ADR-005 booking model (P1-02).
+enum LinePriceStatus {
+  PRICED
+  FOR_QUOTE
+}
+
+enum LineWorkStatus {
+  WAITING
+  IN_PROGRESS
+  DONE
+}
+
+enum BookingCancellationKind {
+  CUSTOMER
+  SHOP_DECLINED
+  STAFF
+}
+
+enum BookingAuditAction {
+  STATUS_CHANGED
+  RESCHEDULED
+  QUEUE_MOVED
+  REORDERED
+  LINE_ADDED
+  LINE_REMOVED
+  LINE_STATUS_CHANGED
+  PRICE_SET
+  BAY_ASSIGNED
+  BAY_UNASSIGNED
+  BAY_LIST_CHANGED
+  CAP_CHANGED
+  CUSTOMER_NOTIFIED
+  HISTORY_LOOKUP
 }
 
 model CatalogRelease {
@@ -406,6 +464,8 @@ model CatalogServiceVersion {
   referenceUnitPriceCentavos Int?
   sortOrder                  Int
   provenance                 Json
+  queueCode                  String? // NULL only on releases published before the queue model
+  queue                      BookingQueue?        @relation(fields: [queueCode], references: [code], onDelete: Restrict, onUpdate: Restrict)
   offers                     ServiceSizeOffer[]
   baseCompatibilities        AddOnCompatibility[] @relation("Base")
   addOnCompatibilities       AddOnCompatibility[] @relation("AddOn")
@@ -476,22 +536,40 @@ model AddOnCompatibility {
 }
 
 model BookingLineItem {
-  id                String             @id @default(uuid())
-  bookingId         String
-  booking           Booking            @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  order             Int
-  releaseId         String
-  serviceId         String
-  vehicleCategoryId String
-  offerId           String
-  offer             ServiceSizeOffer   @relation(fields: [offerId, releaseId, serviceId, vehicleCategoryId], references: [id, releaseId, serviceId, vehicleCategoryId], onDelete: Restrict)
-  type              CatalogServiceType
-  nameSnapshot      String
-  unit              PriceUnit
-  quantity          Int
-  unitPriceCentavos Int
-  subtotalCentavos  Int
-  addedMinutes      Int
+  id                         String              @id @default(uuid())
+  bookingId                  String
+  booking                    Booking             @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  order                      Int
+  releaseId                  String
+  serviceId                  String
+  vehicleCategoryId          String
+  offerId                    String
+  offer                      ServiceSizeOffer    @relation(fields: [offerId, releaseId, serviceId, vehicleCategoryId], references: [id, releaseId, serviceId, vehicleCategoryId], onDelete: Restrict)
+  type                       CatalogServiceType
+  nameSnapshot               String
+  unit                       PriceUnit
+  quantity                   Int
+  unitPriceCentavos          Int? // charged snapshot; NULL for a QUEUE_V3 FOR_QUOTE line
+  subtotalCentavos           Int?
+  addedMinutes               Int? // catalog-v2 only; durations are informational under ADR-005
+  // ADR-005 / Amendment 1 (QUEUE_V3 lines). Snapshot columns above never change (A4).
+  lineVersion                SnapshotVersion     @default(CATALOG_V2)
+  priceStatus                LinePriceStatus?
+  referenceUnitPriceCentavos Int?
+  referenceSubtotalCentavos  Int?
+  staffPriceCentavos         Int? // ADMIN-set final line price or override; the audit keeps the reason
+  staffPriceSetAt            DateTime?           @db.Timestamptz(3)
+  staffPriceSetByStaffId     String?
+  staffPriceSetBy            Staff?              @relation("LinePriceSetBy", fields: [staffPriceSetByStaffId], references: [id], onDelete: Restrict)
+  workStatus                 LineWorkStatus      @default(WAITING)
+  workStatusChangedAt        DateTime?           @db.Timestamptz(3)
+  addedAt                    DateTime            @default(now()) @db.Timestamptz(3)
+  addedByStaffId             String? // NULL: created with the booking
+  addedBy                    Staff?              @relation("LineAddedBy", fields: [addedByStaffId], references: [id], onDelete: Restrict)
+  removedAt                  DateTime?           @db.Timestamptz(3)
+  removedByStaffId           String?
+  removedBy                  Staff?              @relation("LineRemovedBy", fields: [removedByStaffId], references: [id], onDelete: Restrict)
+  auditEvents                BookingAuditEvent[]
 
   @@unique([bookingId, order])
   @@map("booking_line_items")
@@ -525,4 +603,119 @@ model CatalogPublicationEvent {
 
   @@index([releaseId, createdAt])
   @@map("catalog_publication_events")
+}
+
+// -----------------------------------------------------------------------------
+// ADR-005 queues, caps, bays and the staff audit trail (P1-02 booking model)
+// -----------------------------------------------------------------------------
+
+// Queue list (reference data). dailyCap NULL means not configured: every day is unavailable.
+model BookingQueue {
+  code             String                  @id
+  name             String
+  sortOrder        Int                     @unique
+  isActive         Boolean                 @default(true)
+  dailyCap         Int?
+  revision         Int                     @default(1)
+  updatedAt        DateTime                @db.Timestamptz(3)
+  updatedByStaffId String?
+  updatedBy        Staff?                  @relation("QueueUpdatedBy", fields: [updatedByStaffId], references: [id], onDelete: Restrict)
+  capOverrides     QueueCapOverride[]
+  bookings         Booking[]
+  serviceVersions  CatalogServiceVersion[]
+  auditEvents      BookingAuditEvent[]
+
+  @@map("booking_queues")
+}
+
+model QueueCapOverride {
+  id               String       @id @default(uuid())
+  queueCode        String
+  queue            BookingQueue @relation(fields: [queueCode], references: [code], onDelete: Restrict, onUpdate: Restrict)
+  date             DateTime     @db.Date
+  dailyCap         Int
+  revision         Int          @default(1)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime     @db.Timestamptz(3)
+  updatedByStaffId String
+  updatedBy        Staff        @relation("CapOverrideUpdatedBy", fields: [updatedByStaffId], references: [id], onDelete: Restrict)
+
+  @@unique([queueCode, date])
+  @@map("queue_cap_overrides")
+}
+
+// Staff-side only; customers never see bays (ADR-005 §13). nameKey = lower(btrim(name)).
+model Bay {
+  id          String                 @id @default(uuid())
+  name        String
+  nameKey     String                 @unique
+  sortOrder   Int
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime               @db.Timestamptz(3)
+  assignments BookingBayAssignment[]
+  auditEvents BookingAuditEvent[]
+
+  @@map("bays")
+}
+
+// One bay per booking per day (a multi-day job can hold a bay on later days).
+model BookingBayAssignment {
+  bookingId         String
+  booking           Booking  @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  date              DateTime @db.Date
+  bayId             String
+  bay               Bay      @relation(fields: [bayId], references: [id], onDelete: Restrict)
+  assignedAt        DateTime @db.Timestamptz(3)
+  assignedByStaffId String
+  assignedBy        Staff    @relation("BayAssignedBy", fields: [assignedByStaffId], references: [id], onDelete: Restrict)
+
+  @@id([bookingId, date])
+  @@index([bayId, date])
+  @@map("booking_bay_assignments")
+}
+
+// Immutable staff audit trail (ADR-003 T-021, re-expressed for ADR-005). SELECT and INSERT only.
+// HISTORY_LOOKUP stores a keyed HMAC-SHA256 digest of the normalized phone, never the phone.
+model BookingAuditEvent {
+  id                    String             @id @default(uuid())
+  action                BookingAuditAction
+  actorStaffId          String
+  actor                 Staff              @relation(fields: [actorStaffId], references: [id], onDelete: Restrict)
+  bookingId             String?
+  booking               Booking?           @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  lineId                String?
+  line                  BookingLineItem?   @relation(fields: [lineId], references: [id], onDelete: Restrict)
+  queueCode             String?
+  queue                 BookingQueue?      @relation(fields: [queueCode], references: [code], onDelete: Restrict, onUpdate: Restrict)
+  bayId                 String?
+  bay                   Bay?               @relation(fields: [bayId], references: [id], onDelete: Restrict)
+  fromRevision          Int?
+  toRevision            Int?
+  fromStatus            BookingStatus?
+  toStatus              BookingStatus?
+  fromDate              DateTime?          @db.Date
+  toDate                DateTime?          @db.Date
+  fromQueueCode         String?
+  toQueueCode           String?
+  fromPosition          Int?
+  toPosition            Int?
+  fromLineStatus        LineWorkStatus?
+  toLineStatus          LineWorkStatus?
+  previousPriceCentavos Int?
+  newPriceCentavos      Int?
+  capDate               DateTime?          @db.Date
+  previousCap           Int?
+  newCap                Int?
+  phoneDigest           String?
+  resultCount           Int?
+  reason                String?
+  requestId             String?
+  txId                  BigInt             @default(dbgenerated("txid_current()"))
+  createdAt             DateTime           @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId, createdAt])
+  @@index([actorStaffId, createdAt])
+  @@index([lineId])
+  @@map("booking_audit_events")
 }

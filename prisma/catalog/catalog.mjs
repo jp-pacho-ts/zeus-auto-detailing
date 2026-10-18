@@ -34,6 +34,8 @@ export function validateManifest(m) {
         assert.ok(['WASH', 'DETAILING', 'GRAPHENE', 'TINT', 'PPF', 'REPAINT'].includes(s.group));
         assert.ok(['BASE', 'ADD_ON'].includes(s.type));
         assert.ok(['VEHICLE', 'PANEL'].includes(s.unit));
+        // ADR-005 §7: the queue is release data (a booking_queues code); publish_catalog checks it exists.
+        assert.match(s.queueCode, /^[A-Z][A-Z0-9_]{0,31}$/);
         assert.equal(s.offers.length, 5);
         assert.deepEqual(s.offers.map(o => o.sizeCode), SIZES);
         money(s.referenceUnitPriceCentavos);

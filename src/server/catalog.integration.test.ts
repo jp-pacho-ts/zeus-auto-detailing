@@ -11,6 +11,7 @@ import { NextRequest } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import type { BookingQuote, CatalogSelection } from "@/types/catalog-contracts";
 import { bySlug, readManifest, releaseFromManifest, sizeId, type Manifest } from "./catalog.fixture";
+import { publish as publishRelease } from "./catalog-db.fixture";
 
 const url = process.env.T007_TEST_DATABASE_URL;
 const enabled = Boolean(url);
@@ -41,43 +42,7 @@ let releaseA = "";
 const NOW = new Date("2026-10-18T02:00:00.000Z");
 const at = (ms = 0) => () => new Date(NOW.getTime() + ms);
 
-// Mirrors prisma/catalog/catalog.mjs seedCatalog (draft only), without its source-document
-// check, so tests can also publish label or mode changes. publish_catalog still verifies every
-// stored row against the manifest JSON and hash.
-async function insertDraft(target: Manifest): Promise<{ releaseId: string; hash: string }> {
-  const { canonicalManifest, manifestSha256 } = await import("./catalog.fixture");
-  const releaseId = m.tooling.stableId("release." + target.version);
-  const hash = manifestSha256(target);
-  const groupToKind: Record<string, "EXTERIOR_WASH_SEAL" | "INTERIOR_DETAILING" | "CERAMIC_COATING" | "WINDOW_TINT_PPF" | "PAINT_CORRECTION"> =
-    { WASH: "EXTERIOR_WASH_SEAL", DETAILING: "INTERIOR_DETAILING", GRAPHENE: "CERAMIC_COATING", TINT: "WINDOW_TINT_PPF", PPF: "WINDOW_TINT_PPF", REPAINT: "PAINT_CORRECTION" };
-  await db.$transaction(async (tx) => {
-    await tx.catalogRelease.create({ data: { id: releaseId, version: target.version, sourcePath: target.sourcePath,
-      sourceReceivedDate: new Date(target.sourceReceivedDate + "T00:00:00Z"), sourceSha256: target.sourceSha256, manifestSha256: hash, manifestJson: canonicalManifest(target) } });
-    for (const size of target.sizes) {
-      if (!(await tx.vehicleCategory.findUnique({ where: { slug: size.code } }))) {
-        await tx.vehicleCategory.create({ data: { id: size.id, slug: size.code, name: size.name, sortOrder: size.sortOrder, sizeMultiplier: null } });
-      }
-    }
-    for (const service of target.services) {
-      if (!(await tx.service.findUnique({ where: { slug: service.slug } }))) {
-        await tx.service.create({ data: { id: service.id, slug: service.slug, name: service.name, category: groupToKind[service.group], price: null, durationMinutes: null, isActive: false } });
-      }
-      const { id, offers, ...metadata } = service;
-      await tx.catalogServiceVersion.create({ data: { releaseId, serviceId: id, ...metadata } });
-      for (const offer of offers) {
-        const { durationKind, durationMinutes, elapsedDays, bayHoldPolicy, ...data } = offer;
-        await tx.serviceSizeOffer.create({ data: { ...data, releaseId, serviceId: id, workPlan: { create: { kind: durationKind, durationMinutes, elapsedDays, bayHoldPolicy } } } });
-      }
-    }
-    for (const pair of target.compatibility) await tx.addOnCompatibility.create({ data: { releaseId, ...pair } });
-  }, { timeout: 60_000 });
-  return { releaseId, hash };
-}
-async function publish(target: Manifest, reason = "P1-02 test publication"): Promise<string> {
-  const { releaseId, hash } = await insertDraft(target);
-  await db.$queryRaw`SELECT publish_catalog(${releaseId}, ${hash}, ${"P1-02 synthetic review"}, ${reason}) AS event_id`;
-  return releaseId;
-}
+const publish = (target: Manifest, reason?: string) => publishRelease(db, target, m.tooling.stableId, reason);
 const variant = (version: string, mutate: (target: Manifest) => void = () => {}) => {
   const target = m.tooling.rollbackManifest(manifest, version);
   mutate(target);

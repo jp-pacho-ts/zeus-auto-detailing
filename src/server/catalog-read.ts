@@ -34,7 +34,7 @@ export async function loadCurrentRelease(tx: CatalogTx): Promise<ReleaseSnapshot
   const versions = await tx.catalogServiceVersion.findMany({
     where: { releaseId: release.id }, orderBy: [{ sortOrder: "asc" }, { slug: "asc" }],
     select: { serviceId: true, slug: true, name: true, description: true, group: true, type: true, unit: true, inclusions: true,
-      productName: true, hardness: true, warrantyMonths: true, referenceUnitPriceCentavos: true, sortOrder: true },
+      productName: true, hardness: true, warrantyMonths: true, referenceUnitPriceCentavos: true, sortOrder: true, queueCode: true },
   });
   const offers = await tx.serviceSizeOffer.findMany({
     where: { releaseId: release.id },
@@ -66,7 +66,7 @@ export async function loadCurrentRelease(tx: CatalogTx): Promise<ReleaseSnapshot
       if (own.length !== sizes.length || new Set(own.map((o) => o.vehicleCategoryId)).size !== sizes.length) throw new CatalogIntegrityError("service without five size offers");
       return { id: v.serviceId, slug: v.slug, name: v.name, description: v.description, group: v.group, type: v.type, unit: v.unit,
         inclusions: [...v.inclusions], productName: v.productName, hardness: v.hardness, warrantyMonths: v.warrantyMonths,
-        referenceUnitPriceCentavos: v.referenceUnitPriceCentavos, sortOrder: v.sortOrder, offers: own };
+        referenceUnitPriceCentavos: v.referenceUnitPriceCentavos, sortOrder: v.sortOrder, queueCode: v.queueCode, offers: own };
     }),
     compatibility: compatibility.map((c) => ({ baseServiceId: c.baseServiceId, addOnServiceId: c.addOnServiceId, sizeCodes: [...c.sizeCodes] })),
   };

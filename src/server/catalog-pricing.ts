@@ -22,7 +22,9 @@ export interface ReleaseOffer {
 export interface ReleaseService {
   id: string; slug: string; name: string; description: string | null; group: CatalogServiceKind;
   type: "BASE" | "ADD_ON"; unit: PriceUnit; inclusions: string[]; productName: string | null; hardness: string | null;
-  warrantyMonths: number | null; referenceUnitPriceCentavos: number | null; sortOrder: number; offers: ReleaseOffer[];
+  warrantyMonths: number | null; referenceUnitPriceCentavos: number | null; sortOrder: number;
+  queueCode: string | null; // release data (ADR-005 §7); NULL only on releases from before the queue model
+  offers: ReleaseOffer[];
 }
 export interface ReleaseSnapshot {
   releaseId: string; version: string; manifestSha256: string;

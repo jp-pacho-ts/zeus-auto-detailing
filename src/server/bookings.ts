@@ -9,6 +9,8 @@ import { prisma } from "./db";
 import { contractError, DomainError, validationError } from "./errors";
 
 function summary(b: Booking): BookingSummary {
+  // Slot-era serializer: QUEUE_V3 day bookings have no clock times (P1-02 D1); P1-03 replaces it.
+  if (b.startTime === null || b.endTime === null || b.durationMinutes === null) throw new Error("Day-queue booking in the legacy slot summary");
   return { id: b.id, referenceCode: b.referenceCode, status: b.status, vehicleCategoryId: b.vehicleCategoryId, vehicleCategoryName: b.vehicleCategoryNameSnapshot, serviceId: b.serviceId, serviceName: b.serviceNameSnapshot, bookingDate: b.bookingDate.toISOString().slice(0, 10), startTime: b.startTime, endTime: b.endTime, startsAt: b.startsAt.toISOString(), endsAt: b.endsAt.toISOString(), timezone: SHOP_TIMEZONE, durationMinutes: b.durationMinutes, totalPriceCentavos: b.priceSnapshot.mul(100).toNumber(), currency: SHOP_CURRENCY, customerName: b.customerName, customerPhone: b.customerPhone, customerEmail: b.customerEmail, vehicleModel: b.vehicleModel, vehiclePlate: b.vehiclePlate, specialRequests: b.notes, createdAt: b.createdAt.toISOString() };
 }
 function requestHash(r: CreateBookingRequest): string {
