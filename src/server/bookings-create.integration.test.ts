@@ -271,8 +271,9 @@ test("mail outage cannot roll back booking, retry uses one stable Message-ID, tu
         for (const privateValue of [
             "CANARY CUSTOMER", "canary@example.test", "+639170000001", "PRIVATE PLATE", "PRIVATE NOTES", "queuePosition", "dailyCap"
         ])
-            assert.equal(e.text.includes(privateValue), false, privateValue);
+            { assert.equal(e.text.includes(privateValue), false, privateValue); assert.equal(e.raw.includes(privateValue), false, "MIME header/body: "+privateValue); }
     }
+    assert.ok(shop.every(e=>e.to===f.options.notification!.shopEmail),"Shop notifications go only to the configured shop recipient");
     assert.equal(await sendTurnNotice(b.id, f.options), "SENT");
     const turn = emails.at(-1)!;
     const parsed = {to:[turn.to],text:turn.text};
