@@ -307,6 +307,14 @@ BEGIN
 END $$;
 CREATE CONSTRAINT TRIGGER booking_revision_bump AFTER UPDATE ON bookings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION check_booking_revision();
 
+-- The same binding for createdTxId (frozen by G11): create lines belong to the inserting transaction.
+CREATE FUNCTION guard_booking_created_tx() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
+BEGIN
+ IF NEW."createdTxId" IS DISTINCT FROM txid_current() THEN RAISE EXCEPTION 'Booking createdTxId must be the inserting transaction'; END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER booking_created_tx BEFORE INSERT ON bookings FOR EACH ROW EXECUTE FUNCTION guard_booking_created_tx();
+
 -- Q3: a (day, queue) never holds more non-CANCELLED day bookings than its effective cap (the
 -- override, else the queue default). A NULL cap holds none. COMPLETED keeps its unit (§9).
 CREATE FUNCTION queue_day_overbooked(p_queue text, p_date date) RETURNS boolean LANGUAGE sql STABLE SET search_path=pg_catalog,public AS $$
@@ -434,6 +442,21 @@ BEGIN
  IF st = 'COMPLETED' AND ROW(NEW."workStatus", NEW."removedAt") IS DISTINCT FROM ROW(OLD."workStatus", OLD."removedAt") THEN
   RAISE EXCEPTION 'A completed booking takes only a final price';
  END IF;
+ -- Codex review F1: who set a price, and when a price or status changed, move only with that
+ -- value (so under its role, revision and audit checks). The database stamps the times.
+ IF NEW."staffPriceCentavos" IS NOT DISTINCT FROM OLD."staffPriceCentavos" THEN
+  IF ROW(NEW."staffPriceSetAt", NEW."staffPriceSetByStaffId") IS DISTINCT FROM ROW(OLD."staffPriceSetAt", OLD."staffPriceSetByStaffId") THEN
+   RAISE EXCEPTION 'A line price actor or time changes only with the price';
+  END IF;
+ ELSE
+  NEW."staffPriceSetAt" := CURRENT_TIMESTAMP;
+ END IF;
+ IF NEW."workStatus" IS NOT DISTINCT FROM OLD."workStatus" THEN
+  IF NEW."workStatusChangedAt" IS DISTINCT FROM OLD."workStatusChangedAt" THEN RAISE EXCEPTION 'A line status time changes only with the status'; END IF;
+ ELSE
+  NEW."workStatusChangedAt" := CURRENT_TIMESTAMP;
+ END IF;
+ IF OLD."removedAt" IS NULL AND NEW."removedAt" IS NOT NULL THEN NEW."removedAt" := CURRENT_TIMESTAMP; END IF;
  IF NEW."staffPriceCentavos" IS DISTINCT FROM OLD."staffPriceCentavos" AND NOT EXISTS(SELECT 1 FROM public.staff
     WHERE id = NEW."staffPriceSetByStaffId" AND "isActive" AND role IN ('ADMIN', 'MANAGER')) THEN
   RAISE EXCEPTION 'Only ADMIN sets a line price';
@@ -450,7 +473,8 @@ CREATE FUNCTION check_booking_line_audit() RETURNS trigger LANGUAGE plpgsql SET 
 DECLARE cur int; start text; ok boolean := true;
 BEGIN
  IF NEW."lineVersion"::text <> 'QUEUE_V3' OR (TG_OP = 'INSERT' AND NEW."addedByStaffId" IS NULL) THEN RETURN NULL; END IF;
- IF TG_OP = 'UPDATE' AND ROW(NEW."workStatus", NEW."staffPriceCentavos", NEW."removedAt") IS NOT DISTINCT FROM ROW(OLD."workStatus", OLD."staffPriceCentavos", OLD."removedAt") THEN RETURN NULL; END IF;
+ IF TG_OP = 'UPDATE' AND ROW(NEW."workStatus", NEW."workStatusChangedAt", NEW."staffPriceCentavos", NEW."staffPriceSetAt", NEW."staffPriceSetByStaffId", NEW."removedAt", NEW."removedByStaffId")
+    IS NOT DISTINCT FROM ROW(OLD."workStatus", OLD."workStatusChangedAt", OLD."staffPriceCentavos", OLD."staffPriceSetAt", OLD."staffPriceSetByStaffId", OLD."removedAt", OLD."removedByStaffId") THEN RETURN NULL; END IF;
  SELECT revision INTO cur FROM public.bookings WHERE id = NEW."bookingId";
  start := current_setting('zeus_rev.b' || replace(NEW."bookingId", '-', '_'), true);
  IF coalesce(start, '') = '' OR cur <= start::int THEN RAISE EXCEPTION 'A booking line change needs a new booking revision and its audit row'; END IF;
@@ -585,6 +609,15 @@ ALTER TABLE booking_audit_events ADD CONSTRAINT booking_audit_shape CHECK (COALE
     WHEN 'HISTORY_LOOKUP' THEN "phoneDigest" IS NOT NULL AND "resultCount" IS NOT NULL AND "bookingId" IS NULL AND "lineId" IS NULL
     ELSE false END, false));
 CREATE FUNCTION reject_booking_audit_change() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Booking audit is append-only'; END $$;
+-- Codex review F2: txId is the inserting transaction, never a caller's claim, so a row committed
+-- by another transaction cannot satisfy the same-transaction audit check. createdAt is stamped too.
+CREATE FUNCTION guard_booking_audit_insert() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
+BEGIN
+ IF NEW."txId" IS DISTINCT FROM txid_current() THEN RAISE EXCEPTION 'Booking audit txId must be the inserting transaction'; END IF;
+ NEW."createdAt" := CURRENT_TIMESTAMP;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER booking_audit_insert BEFORE INSERT ON booking_audit_events FOR EACH ROW EXECUTE FUNCTION guard_booking_audit_insert();
 CREATE TRIGGER booking_audit_immutable BEFORE UPDATE OR DELETE ON booking_audit_events FOR EACH ROW EXECUTE FUNCTION reject_booking_audit_change();
 CREATE TRIGGER booking_audit_no_truncate BEFORE TRUNCATE ON booking_audit_events FOR EACH STATEMENT EXECUTE FUNCTION reject_booking_audit_change();
 

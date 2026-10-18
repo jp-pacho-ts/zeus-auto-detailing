@@ -471,6 +471,109 @@ test("the audit trail (Q1) is append-only, shape-checked per action, and stores 
   await rejects(db.$executeRawUnsafe(`TRUNCATE booking_audit_events CASCADE`), /append-only/, "truncate");
 });
 
+// Codex review 922c175 F1/F2 regressions, run as the runtime role. Fixture-only grants: production
+// zeus_app reads every table and updates bookings through the owner's default privileges (tables
+// owned by P1-03/P1-06); the P1-02 grants under test are not changed.
+async function runtimeFixtureGrants() {
+  await db.$executeRawUnsafe(`GRANT SELECT ON ALL TABLES IN SCHEMA public TO zeus_app`);
+  await db.$executeRawUnsafe(`GRANT UPDATE (revision) ON bookings TO zeus_app`);
+}
+// One transaction: the shop lock as the owner, then everything else as zeus_app.
+const asApp = <T,>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => inTx(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE zeus_app"); return fn(tx); });
+const bump = (tx: Tx, bookingId: string, from: number) => tx.$executeRawUnsafe(`UPDATE bookings SET revision=${from + 1} WHERE id=${lit(bookingId)} AND revision=${from}`);
+async function lineState(bookingId: string) {
+  const line = await one<Record<string, unknown>>(db, `SELECT "staffPriceCentavos", "staffPriceSetAt", "staffPriceSetByStaffId", "workStatus", "workStatusChangedAt"
+    FROM booking_line_items WHERE "bookingId"=${lit(bookingId)} AND "order"=0`);
+  const { revision } = await one<{ revision: number }>(db, `SELECT revision FROM bookings WHERE id=${lit(bookingId)}`);
+  const { n } = await one<{ n: bigint }>(db, `SELECT count(*) AS n FROM booking_audit_events WHERE "bookingId"=${lit(bookingId)}`);
+  return { line, revision, audits: Number(n) };
+}
+
+test("F1: as zeus_app, a price actor or time, or a status time, never changes without its value (rolled back, nothing changed)", { skip }, async (t) => {
+  if (!runtimeRole) { t.skip("zeus_app role could not be created on this test cluster"); return; }
+  await runtimeFixtureGrants();
+  const id = await createV3(fresh(quote(select("S", "basic-wash")), "2027-06-01", 1));
+  const line = (await lineOf(id, 0)).id as string;
+  // Correct ADMIN price set, then a correct status change: each with its revision and audit row.
+  await staffEdit(id, async (tx, rev) => {
+    await tx.$executeRawUnsafe(`UPDATE booking_line_items SET "staffPriceCentavos"=20000, "staffPriceSetAt"=now(), "staffPriceSetByStaffId"=${lit(adminId)} WHERE id=${lit(line)}`);
+    await audit(tx, { action: "PRICE_SET", bookingId: id, lineId: line, newPriceCentavos: 20000, reason: "Confirmed", fromRevision: rev, toRevision: rev + 1 });
+  });
+  await staffEdit(id, async (tx, rev) => {
+    await tx.$executeRawUnsafe(`UPDATE booking_line_items SET "workStatus"='IN_PROGRESS', "workStatusChangedAt"=now() WHERE id=${lit(line)}`);
+    await audit(tx, { action: "LINE_STATUS_CHANGED", bookingId: id, lineId: line, fromLineStatus: "WAITING", toLineStatus: "IN_PROGRESS", fromRevision: rev, toRevision: rev + 1 });
+  });
+  const before = await lineState(id);
+  assert.deepEqual([before.line.staffPriceCentavos, before.line.staffPriceSetByStaffId, before.revision, before.audits], [20000, adminId, 3, 2]);
+  for (const [label, set] of [["price actor to a DETAILER", `"staffPriceSetByStaffId"=${lit(detailerId)}`], ["backdated price time", `"staffPriceSetAt"='2000-01-01T00:00:00Z'`],
+    ["backdated status time", `"workStatusChangedAt"='2000-01-01T00:00:00Z'`]] as const) {
+    await rejects(asApp((tx) => tx.$executeRawUnsafe(`UPDATE booking_line_items SET ${set} WHERE id=${lit(line)}`)), /changes only with/, label);
+    // A revision bump does not make a metadata-only change acceptable either.
+    await rejects(asApp(async (tx) => { await bump(tx, id, 3); await tx.$executeRawUnsafe(`UPDATE booking_line_items SET ${set} WHERE id=${lit(line)}`); }), /changes only with/, label + " with a revision");
+    assert.deepEqual(await lineState(id), before, label + ": rolled back, nothing changed");
+  }
+  // A real price change, as zeus_app with its revision and audit, keeps the database's time, not the caller's.
+  await asApp(async (tx) => {
+    await bump(tx, id, 3);
+    await tx.$executeRawUnsafe(`UPDATE booking_line_items SET "staffPriceCentavos"=21000, "staffPriceSetAt"='2000-01-01T00:00:00Z', "staffPriceSetByStaffId"=${lit(adminId)} WHERE id=${lit(line)}`);
+    await audit(tx, { action: "PRICE_SET", bookingId: id, lineId: line, previousPriceCentavos: 20000, newPriceCentavos: 21000, reason: "Corrected", fromRevision: 3, toRevision: 4 });
+  });
+  const repriced = await lineState(id);
+  assert.deepEqual([repriced.line.staffPriceCentavos, repriced.revision, repriced.audits], [21000, 4, 3]);
+  assert.ok((repriced.line.staffPriceSetAt as Date).getTime() > Date.parse("2026-01-01"), "the caller's backdated time is not kept");
+  // The price actor is still checked when the price changes.
+  await rejects(asApp(async (tx) => {
+    await bump(tx, id, 4);
+    await tx.$executeRawUnsafe(`UPDATE booking_line_items SET "staffPriceCentavos"=22000, "staffPriceSetByStaffId"=${lit(detailerId)} WHERE id=${lit(line)}`);
+  }), /Only ADMIN/, "a DETAILER price");
+});
+
+test("F2: an audit row from another transaction never satisfies an edit, whatever txId it claims; the default txId binds the atomic edit", { skip }, async (t) => {
+  if (!runtimeRole) { t.skip("zeus_app role could not be created on this test cluster"); return; }
+  await runtimeFixtureGrants();
+  const id = await createV3(fresh(quote(select("S", "basic-wash")), "2027-06-02", 1));
+  const line = (await lineOf(id, 0)).id as string;
+  const statusAudit = { action: "LINE_STATUS_CHANGED", bookingId: id, lineId: line, fromLineStatus: "WAITING", toLineStatus: "IN_PROGRESS", fromRevision: 1, toRevision: 2 };
+  // Transaction T learns its own txid before taking the shop lock; connection U writes first.
+  let tTxid = 0;
+  let ready!: () => void; const reached = new Promise<void>((r) => { ready = r; });
+  let release!: () => void; const uDone = new Promise<void>((r) => { release = r; });
+  const editT = db.$transaction(async (tx) => {
+    tTxid = Number((await one<{ x: bigint }>(tx, "SELECT txid_current() AS x")).x);
+    ready();
+    await uDone;
+    await lock(tx);
+    await tx.$executeRawUnsafe("SET LOCAL ROLE zeus_app");
+    await bump(tx, id, 1);
+    await tx.$executeRawUnsafe(`UPDATE booking_line_items SET "workStatus"='IN_PROGRESS', "workStatusChangedAt"=now() WHERE id=${lit(line)}`);
+    // No audit row of its own.
+  }, { timeout: 20_000 });
+  await reached;
+  // U pre-writes the row T needs and claims T's txId: refused at insert.
+  await rejects(asApp((tx) => audit(tx, { ...statusAudit, txId: tTxid })), /inserting transaction/, "explicit foreign txId");
+  // U pre-writes it with its own default txId: stored, but it is U's row.
+  await asApp((tx) => audit(tx, statusAudit));
+  release();
+  await rejects(editT, /audit row/, "T reuses U's committed audit row");
+  const refused = await lineState(id);
+  assert.deepEqual([refused.line.workStatus, refused.revision, refused.audits], ["WAITING", 1, 1], "T rolled back");
+  // Positive: one atomic edit as zeus_app with the default txId commits, and its audit row carries that transaction.
+  const txid = await asApp(async (tx) => {
+    const own = (await one<{ x: bigint }>(tx, "SELECT txid_current() AS x")).x;
+    await bump(tx, id, 1);
+    await tx.$executeRawUnsafe(`UPDATE booking_line_items SET "workStatus"='IN_PROGRESS', "workStatusChangedAt"=now() WHERE id=${lit(line)}`);
+    await audit(tx, statusAudit);
+    return own;
+  });
+  const edited = await lineState(id);
+  assert.deepEqual([edited.line.workStatus, edited.revision, edited.audits], ["IN_PROGRESS", 2, 2]);
+  const stamped = await db.$queryRawUnsafe<{ txId: bigint }[]>(`SELECT "txId" FROM booking_audit_events WHERE "bookingId"=${lit(id)} ORDER BY "createdAt", "txId"`);
+  assert.equal(stamped.filter((e) => e.txId === txid).length, 1, "the edit's audit row carries its own transaction");
+  // Related: a booking's createdTxId is the inserting transaction too, so create lines cannot be borrowed later.
+  const rows = fresh(quote(select("S", "basic-wash")), "2027-06-03", 1);
+  await rejects(createV3({ ...rows, booking: { ...rows.booking, createdTxId: Number(txid) } }), /inserting transaction/, "a borrowed createdTxId");
+});
+
 test("runtime role zeus_app: audit is SELECT/INSERT only, line updates are column-limited, catalog stays read-only", { skip }, async (t) => {
   if (!runtimeRole) { t.skip("zeus_app role could not be created on this test cluster"); return; }
   const priv = async (table: string, p: string) => (await one<{ ok: boolean }>(db, `SELECT has_table_privilege('zeus_app', ${lit("public." + table)}, ${lit(p)}) AS ok`)).ok;
