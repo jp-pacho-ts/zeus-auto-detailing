@@ -96,11 +96,14 @@ test("HTTP availability rejects unknown/duplicate query keys and catalog DTOs co
     const rejected = await availabilityRoute.GET(new NextRequest("http://localhost/api/availability?" + query + suffix));
     assert.equal(rejected.status, 400);
   }
+  // ADR-004 (P1-02): the catalog route serves only a published release, never these release-1
+  // multiplier rows; this database has none, so it fails closed. The published-release DTO
+  // (real UUIDs, exact allowlist) is covered by src/server/catalog.integration.test.ts.
   const catalogResponse = await catalogRoute.GET(new NextRequest("http://localhost/api/catalog"));
-  const catalog = await catalogResponse.json(); assert.equal(catalog.ok, true);
-  assert.equal(catalog.data.vehicleCategories[0].id, categoryId);
-  assert.ok(catalog.data.services.some((s: { id: string }) => s.id === serviceId));
-  assert.equal(JSON.stringify(catalog).includes("customerPhone"), false);
+  assert.equal(catalogResponse.status, 503);
+  const catalogText = await catalogResponse.text();
+  const catalog = JSON.parse(catalogText); assert.equal(catalog.ok, false); assert.equal(catalog.error.code, "RETRYABLE_ERROR");
+  for (const leaked of [categoryId, serviceId, shortServiceId, "sizeMultiplier", "bayCapacityRequired", "customerPhone"]) assert.equal(catalogText.includes(leaked), false, leaked);
 });
 test("HTTP booking adapter persists once, returns 201/200 for create/replay and rejects malformed or oversized bodies", { skip: !enabled }, async () => {
   const { NextRequest } = await import("next/server");
