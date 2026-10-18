@@ -9,6 +9,8 @@ export interface BookingConfiguration {
     grant: QuoteKeyRing;
     session: QuoteKeyRing;
     mode: "OPEN" | "PAUSED";
+    shopDailyBudget: number;
+    pendingAlertThreshold: number;
     origin: string;
     challenge: {
         secret: string;
@@ -36,8 +38,10 @@ export function parseBookingConfiguration(env: Env = process.env): BookingConfig
     if (env.NODE_ENV === "production" && [secret, site].some(k => /^[123]x0/.test(k)))
         throw new Error("Turnstile test keys are forbidden in production");
     const identity = clientIdentityConfig(env);
+    const count = (name: string, fallback: string) => z.string().regex(/^[1-9][0-9]*$/).transform(Number).pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER)).parse(env[name] ?? fallback);
+    const shopDailyBudget = count("BOOKING_SHOP_DAILY_BUDGET", "60"), pendingAlertThreshold = count("BOOKING_PENDING_ALERT_THRESHOLD", "20");
     return {
-        quote, grant, session, mode, origin: origin.origin, challenge: { secret, hostnames }, identity
+        quote, grant, session, mode, origin: origin.origin, challenge: { secret, hostnames }, identity, shopDailyBudget, pendingAlertThreshold
     };
 }
 export function grantExpiry(issued: Date, dayEnd: Date, terminalAt: Date | null): Date {

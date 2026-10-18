@@ -143,7 +143,7 @@ test("last day unit race, immutable normalized snapshots, terminal replay and fr
     assert.equal(await f.db.bookingOperation.count({ where: { outcome: "COMMITTED" } }), 1);
     assert.equal(await f.db.bookingNotificationOutbox.count(), 1);
 });
-test("day allowlist, NULL-cap full, full closure canaries, partial block ignored, next day and stale create", { skip }, async () => {
+test("day allowlist, NULL-cap unlimited, full closure canaries, partial block ignored, next day and stale create", { skip }, async () => {
     const f = await fixture("days"), r = await f.request();
     await f.db.blockedDate.create({ data: { date: new Date(day()), reason: "CANARY STAFF REASON" } });
     await f.db.blockedDate.create({ data: {
@@ -164,7 +164,21 @@ test("day allowlist, NULL-cap full, full closure canaries, partial block ignored
     noPrivate(stale.result);
     await f.db.$executeRaw `UPDATE booking_queues SET "dailyCap"=NULL,revision=revision+1,"updatedAt"=now() WHERE code='WASH'`;
     const full = await f.create({ ...await f.request(["basic-wash"], day(2)), customerPhone: "+639170000003" });
-    assert.equal(code(full), "FULLY_BOOKED");
+    assert.equal(code(full), "OK");
+    const unlimited = await getDayAvailability(selection, f.options);
+    assert.ok(unlimited.ok);
+    if (unlimited.ok) assert.deepEqual(unlimited.data.days.map(d => d.state), ["CLOSED", "AVAILABLE", "AVAILABLE"]);
+    await f.db.queueCapOverride.create({data:{queueCode:"WASH",date:new Date(day(2)),dailyCap:1,updatedAt:new Date(),updatedByStaffId:f.actor}});
+    const limited = await f.create({...await f.request(["basic-wash"],day(2)),customerPhone:"+639170000004"});
+    assert.equal(code(limited),"FULLY_BOOKED");
+    noPrivate(limited.result);
+    const reached = await getDayAvailability(selection, f.options);
+    assert.ok(reached.ok);
+    if (reached.ok) assert.deepEqual(reached.data.days.map(d=>d.state),["CLOSED","FULLY_BOOKED","AVAILABLE"]);
+    await f.db.$executeRawUnsafe('UPDATE booking_queues SET "isActive"=false,revision=revision+1,"updatedAt"=now() WHERE code=\'WASH\'');
+    const inactive = await getDayAvailability(selection, f.options);
+    assert.ok(inactive.ok);
+    if (inactive.ok) assert.ok(inactive.data.days.every(d=>d.state==="CLOSED"));
     noPrivate(full.result);
 });
 test("multi-service priced/reference/panel snapshots stay server priced and primary binds the queue", { skip }, async () => {
@@ -385,10 +399,10 @@ test("customer DB phases bound aborted reads, reject aborted admission, and fini
     assert.ok(await f.db.bookingOperation.findUnique({ where: { keyHash: key } }));
     assert.equal(await withBookingDb(f.db, "READ", tx => tx.bookingOperation.count({ where: { keyHash: key } })), 1);
 });
-test("zero configured shop caps is definitively fully booked, and an aborted completed read is discarded", { skip }, async () => {
+test("all NULL shop caps allow booking, and an aborted completed read is discarded", { skip }, async () => {
     const f = await fixture("zero"), r = await f.request();
     await f.db.$executeRawUnsafe('UPDATE booking_queues SET "dailyCap"=NULL,revision=revision+1,"updatedAt"=now()');
-    assert.equal(code(await f.create(r)), "FULLY_BOOKED");
+    assert.equal(code(await f.create(r)), "OK");
     const { withBookingDb } = await import("./bookings-admission"), controller = new AbortController();
     await assert.rejects(withBookingDb(f.db, "READ", async (tx) => { await tx.$queryRawUnsafe("SELECT 1"); controller.abort(); return "must not escape"; }, controller.signal), /ABORTED/);
 });
@@ -506,4 +520,31 @@ test("F2 repeated accepted/finalize failures still cannot exceed three claimed s
  assert.equal(smtp.messages.filter(e=>e.messageId===key).length,3);
  assert.equal((await f.db.bookingNotificationOutbox.findUniqueOrThrow({where:{id:box.id}})).attempts,3);
  assert.equal(await f.db.bookingNotificationOutbox.count(),1);
+});
+
+test("configured shop daily budget is independent of NULL queue caps, preserves replay and counts all days", { skip }, async () => {
+ const f=await fixture("dailybudget");
+ await f.db.$executeRawUnsafe('UPDATE booking_queues SET "dailyCap"=NULL,revision=revision+1,"updatedAt"=now()');
+ const options={config:{...config,shopDailyBudget:2}}, a=await f.request(), b={...await f.request(["regular-tint"],day(2)),customerPhone:"+639170000002"};
+ assert.equal(code(await f.create(a,headers(),options)),"OK");
+ assert.equal(code(await f.create(b,headers(),options)),"OK");
+ const calls=proofs.length;
+ const denied=await f.create({...await f.request(["basic-wash"],day(3)),customerPhone:"+639170000003"},headers(),options);
+ assert.equal(code(denied),"ONLINE_BOOKING_UNAVAILABLE"); noPrivate(denied.result);
+ assert.equal(proofs.length,calls,"daily refusal is before the challenge");
+ assert.equal(code(await f.create(a,headers(),options)),"OK","exact replay bypasses the exhausted daily budget");
+ assert.equal(await f.db.booking.count(),2);
+});
+
+test("PENDING alert counts all queues on one day without any cap and logs no private count", { skip }, async () => {
+ const f=await fixture("pendingcount"), logs:string[]=[], original=console.warn;
+ await f.db.$executeRawUnsafe('UPDATE booking_queues SET "dailyCap"=NULL,revision=revision+1,"updatedAt"=now()');
+ console.warn=(value:unknown)=>{logs.push(String(value));};
+ try {
+  const opts={config:{...config,pendingAlertThreshold:1}};
+  assert.equal(code(await f.create(await f.request(),headers(),opts)),"OK");
+  assert.equal(logs.some(x=>x.includes("booking.pending_count")),false);
+  assert.equal(code(await f.create({...await f.request(["regular-tint"]),customerPhone:"+639170000002"},headers(),opts)),"OK");
+  assert.deepEqual(logs.filter(x=>x.includes("booking.pending_count")).map(x=>JSON.parse(x)),[{event:"booking.pending_count",level:"WARN"}]);
+ }finally{console.warn=original;}
 });

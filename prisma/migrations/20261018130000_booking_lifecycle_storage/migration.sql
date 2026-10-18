@@ -174,3 +174,13 @@ DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='zeus_app') THEN
  REVOKE UPDATE,DELETE ON booking_operations,booking_turnstile_uses FROM zeus_app;
  REVOKE DELETE ON booking_management_grants,booking_management_sessions,booking_notification_outbox FROM zeus_app;
 END IF; END $$;
+
+-- LE 2026-10-19, ADR-005 Amendment 3 supersedes P1-02's NULL = full rule.
+-- NULL disables the optional limit. Overrides (including zero) still take precedence;
+-- every non-CANCELLED QUEUE_V3 visit, including COMPLETED, consumes a configured unit.
+CREATE OR REPLACE FUNCTION queue_day_overbooked(p_queue text, p_date date) RETURNS boolean LANGUAGE sql STABLE SET search_path=pg_catalog,public AS $$
+ SELECT COALESCE(n > COALESCE((SELECT o."dailyCap" FROM public.queue_cap_overrides o WHERE o."queueCode" = p_queue AND o.date = p_date),
+                             (SELECT q."dailyCap" FROM public.booking_queues q WHERE q.code = p_queue)), false)
+ FROM (SELECT count(*) AS n FROM public.bookings b WHERE b."queueCode" = p_queue AND b."bookingDate" = p_date
+       AND b."snapshotVersion"::text = 'QUEUE_V3' AND b.status <> 'CANCELLED') c
+$$;

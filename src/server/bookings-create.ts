@@ -14,7 +14,7 @@ import { BookingFailure, bookingError, paused, unavailable } from "./bookings-er
 import { createAdmission, enterBooking, withBookingDb } from "./bookings-admission";
 import { parseBookingConfiguration, grantExpiry, signManagementToken, type BookingConfiguration } from "./bookings-credentials";
 import { verifyTurnstile, turnstileRemoteIp } from "./bookings-turnstile";
-import { readDayStates, shopDayCap, dayWindow, validDay } from "./availability-days";
+import { readDayStates, dayWindow, validDay } from "./availability-days";
 import { drainShopNotifications, shopNotificationMessage, type NotificationConfiguration } from "./notifications/bookings";
 export { lockBookingDates, lockBookingShop } from "./bookings-locks";
 export interface CreateDayBookingOptions {
@@ -184,7 +184,7 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
                 return { prior };
             if (await tx.booking.findFirst({ where: { idempotencyKey: { equals: r.idempotencyKey, mode: "insensitive" } }, select: { id: true } }))
                 return { prior: fail(bookingError("IDEMPOTENCY_CONFLICT", "This retry key belongs to a previous submission.")) };
-            return { budget: newEffectBudget(await counts(tx, now), clientHash, Infinity, now) };
+            return { budget: newEffectBudget(await counts(tx, now), clientHash, c.shopDailyBudget, now) };
         }, options.signal);
         if ("prior" in preflight && preflight.prior && !("refresh" in preflight.prior))
             return preflight.prior;
@@ -239,7 +239,7 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
             if (state !== "AVAILABLE")
                 return terminal(reject(state === "CLOSED" ? "DAY_CLOSED" : "FULLY_BOOKED", state === "CLOSED" ? "The shop is closed on this day. Choose another day." : "This day is fully booked. Choose another day."));
             // A full/closed selected day has the fixed terminal business outcome, including a last-unit race.
-            const dailyBudget = newEffectBudget(cts, clientHash, await shopDayCap(tx, r.bookingDate), now);
+            const dailyBudget = newEffectBudget(cts, clientHash, c.shopDailyBudget, now);
             if (dailyBudget)
                 return fail(dailyBudget);
             const q = accepted.priced, size = accepted.release.sizes.find(s => s.id === q.vehicleCategoryId)!;
@@ -259,11 +259,9 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
             const authority = await credentials(tx, b, now, c, true);
             if (!authority)
                 throw new Error("Credential mint failed");
-            const cap = await tx.bookingQueue.findUnique({ where: { code: q.queueId }, select: { dailyCap: true, capOverrides: { where: { date: b.bookingDate }, select: { dailyCap: true } } } });
-            const effective = cap?.capOverrides[0]?.dailyCap ?? cap?.dailyCap ?? 0;
-            const pending = await tx.booking.count({where:{queueCode:q.queueId,bookingDate:b.bookingDate,status:"PENDING"}});
-            const level = pendingAlertLevel(r.bookingDate,now,pending,effective);
-            if (level) console.warn(JSON.stringify({event:"booking.pending_share",level}));
+            const pending = await tx.booking.count({where:{bookingDate:b.bookingDate,status:"PENDING",snapshotVersion:"QUEUE_V3"}});
+            const level = pendingAlertLevel(r.bookingDate,now,pending,c.pendingAlertThreshold);
+            if (level) console.warn(JSON.stringify({event:"booking.pending_count",level}));
 
             return {
                 result: { ok: true as const, data: {

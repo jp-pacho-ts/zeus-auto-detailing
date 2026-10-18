@@ -81,3 +81,15 @@ test("management token claims match the frozen flat ARCHITECTURE contract",()=>{
   assert.equal("grantKid" in payload,purpose==="BOOKING_MANAGEMENT_SESSION");
  }
 });
+
+test("daily shop and pending alert configuration defaults and explicit positive safe integers",()=>{
+ const e=env(), c=parseBookingConfiguration(e);
+ assert.equal(c.shopDailyBudget,60);assert.equal(c.pendingAlertThreshold,20);
+ const custom=parseBookingConfiguration({...e,BOOKING_SHOP_DAILY_BUDGET:"120",BOOKING_PENDING_ALERT_THRESHOLD:"35"});
+ assert.equal(custom.shopDailyBudget,120);assert.equal(custom.pendingAlertThreshold,35);
+ for(const name of ["BOOKING_SHOP_DAILY_BUDGET","BOOKING_PENDING_ALERT_THRESHOLD"]){
+  for(const value of ["","0","-1","1.5","foo","Infinity","9007199254740992"]){
+   assert.throws(()=>parseBookingConfiguration({...e,[name]:value}),name+"="+value);
+  }
+ }
+});

@@ -31,15 +31,9 @@ export async function readDayStates(tx: Prisma.TransactionClient, queueCode: str
     const result: PublicDay[] = [];
     for (let day = from; day <= through; day = addDays(day, 1)) {
         const cap = caps.has(day) ? caps.get(day)! : queue?.dailyCap ?? null;
-        const state: PublicDayState = !effective || day < effective || closed.has(day) || !open.has(dateCarrier(day).getUTCDay()) ? "CLOSED"
-            : !queue?.isActive || cap === null || cap <= (counts.get(day) ?? 0) ? "FULLY_BOOKED" : "AVAILABLE";
+        const state: PublicDayState = !queue?.isActive || !effective || day < effective || closed.has(day) || !open.has(dateCarrier(day).getUTCDay()) ? "CLOSED"
+            : cap !== null && cap <= (counts.get(day) ?? 0) ? "FULLY_BOOKED" : "AVAILABLE";
         result.push({ date: day, state });
     }
     return result;
-}
-export async function shopDayCap(tx: Prisma.TransactionClient, day: string): Promise<number> {
-    const queues = await tx.bookingQueue.findMany({ where: { isActive: true }, select: {
-            code: true, dailyCap: true, capOverrides: { where: { date: dateCarrier(day) }, select: { dailyCap: true } }
-        } });
-    return queues.reduce((sum, q) => sum + (q.capOverrides.length ? q.capOverrides[0].dailyCap : q.dailyCap ?? 0), 0);
 }

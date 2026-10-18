@@ -354,11 +354,16 @@ test("A4 line edits: staff add, status, price and soft removal need the revision
   }), /cancelled/, "edit after cancel");
 });
 
-test("caps (Q3): no configured cap refuses, the last unit is taken once, cancel frees it, and caps cannot drop below future bookings", { skip }, async () => {
+test("caps (Q3): NULL cap is unlimited, the last unit is taken once, cancel frees it, and caps cannot drop below future bookings", { skip }, async () => {
   const q = quote(select("L", "regular-tint"));
   const day = "2027-05-10";
   await db.$executeRawUnsafe(`UPDATE booking_queues SET "dailyCap"=NULL, revision=revision+1, "updatedAt"=now() WHERE code='TINT_PPF'`);
-  await rejects(createV3(fresh(q, day, 1)), /cap/, "no configured cap");
+  // LE contract change, ADR-005 Amendment 3: NULL is unlimited, not full.
+  await createV3(fresh(q, "2027-05-11", 1));
+  await createV3(fresh(q, "2027-05-11", 2));
+  await rejects(db.$executeRawUnsafe(`UPDATE booking_queues SET "dailyCap"=1, revision=revision+1, "updatedAt"=now() WHERE code='TINT_PPF'`), /cap/, "enabling a limit below unlimited occupancy");
+  await db.$executeRawUnsafe(`UPDATE booking_queues SET "dailyCap"=NULL, revision=revision+1, "updatedAt"=now() WHERE code='TINT_PPF'`);
+  await insert(db, "queue_cap_overrides", { id: randomUUID(), queueCode: "TINT_PPF", date: "2027-05-11", dailyCap: 2, updatedAt: new Date().toISOString(), updatedByStaffId: adminId });
   await db.$executeRawUnsafe(`UPDATE booking_queues SET "dailyCap"=1, revision=revision+1, "updatedAt"=now() WHERE code='TINT_PPF'`);
   // Two customers race for the last unit: both take the shop lock, exactly one commits.
   const results = await Promise.allSettled([createV3(fresh(q, day, 1)), createV3(fresh(q, day, 2))]);
@@ -367,7 +372,8 @@ test("caps (Q3): no configured cap refuses, the last unit is taken once, cancel 
   assert.match(String((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason), /cap/);
   // Lowering the cap below a committed future booking is refused (default and override).
   await rejects(db.$executeRawUnsafe(`UPDATE booking_queues SET "dailyCap"=0, revision=revision+1, "updatedAt"=now() WHERE code='TINT_PPF'`), /cap/, "default below committed");
-  await rejects(db.$executeRawUnsafe(`UPDATE booking_queues SET "dailyCap"=NULL, revision=revision+1, "updatedAt"=now() WHERE code='TINT_PPF'`), /cap/, "unset below committed");
+  await db.$executeRawUnsafe(`UPDATE booking_queues SET "dailyCap"=NULL, revision=revision+1, "updatedAt"=now() WHERE code='TINT_PPF'`);
+  await db.$executeRawUnsafe(`UPDATE booking_queues SET "dailyCap"=1, revision=revision+1, "updatedAt"=now() WHERE code='TINT_PPF'`);
   await rejects(insert(db, "queue_cap_overrides", { id: randomUUID(), queueCode: "TINT_PPF", date: day, dailyCap: 0, updatedAt: new Date().toISOString(), updatedByStaffId: adminId }), /cap/, "override below committed");
   // An override raises the day; cancelling frees a unit; un-cancelling into a full day is refused.
   const override = randomUUID();
