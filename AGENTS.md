@@ -25,7 +25,7 @@ The block below was verified 2026-10-17 in Git Bash. The DB and catalog suites w
 ```powershell
 npm ci                 # install; package.json/lockfile have one writer at a time
 npx prisma generate    # after a fresh install or a schema change
-npm run typecheck      # tsc --noEmit
+npm run typecheck      # next typegen, then tsc --noEmit (next-env.d.ts is generated and untracked)
 npm run lint           # ESLint, --max-warnings 0
 npm test               # node:test on src/**/*.test.ts; the 6 DB tests skip without a DB
 npm run build          # next build: task worktree or git-archive export only
