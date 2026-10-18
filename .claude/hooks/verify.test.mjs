@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const hook = path.join(path.dirname(fileURLToPath(import.meta.url)), "verify.mjs");
 const dirs = [];
@@ -69,4 +69,12 @@ test("an ignored next-env.d.ts change runs no checks; a source change still does
   const changed = runHook(dir, { stop_hook_active: false });
   assert.equal(changed.status, 2);
   assert.match(changed.stderr, /npm run typecheck failed/);
+});
+
+// P1-15: `next dev` writes a managed agent-rules block into AGENTS.md when it detects an AI agent,
+// which dirties the tree on every agent dev run. The documented opt-out must stay set.
+test("next.config disables Next's AGENTS.md/CLAUDE.md agent-rules writer", async () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const { default: config } = await import(pathToFileURL(path.join(root, "next.config.mjs")).href);
+  assert.equal(config.agentRules, false);
 });
