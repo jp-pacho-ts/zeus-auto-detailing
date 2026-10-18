@@ -1,12 +1,16 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import type {
-  BookingQuote, CatalogSelection, CatalogServiceKind, PriceEstimate, PriceUnit, PublicDuration,
-  QuoteRequiredReason, QuotedLine, VehicleCategoryCode,
+  BookingQuote, CatalogSelection, CatalogServiceKind, OnlineBooking, PriceUnit, QuotedLine, VehicleCategoryCode,
 } from "@/types/catalog-contracts";
+import { CatalogIntegrityError } from "./catalog-errors";
+import { bookingQueue, primaryServiceLine } from "./catalog-queues";
 
-// Server-authoritative ADR-004 pricing over one immutable published release. Pure: the read
-// seam (catalog-read.ts) loads the release; nothing here touches the database or a client price.
+export { CatalogIntegrityError };
+
+// Server-authoritative pricing for the ADR-005 queue model over one immutable published release
+// (ADR-004 per-size offers). Pure: the read seam (catalog-read.ts) loads the release; nothing here
+// touches the database, a client price or a duration.
 
 export interface ReleaseSize { id: string; code: VehicleCategoryCode; name: string; description: string | null; sortOrder: number }
 export interface ReleaseOffer {
@@ -26,9 +30,8 @@ export interface ReleaseSnapshot {
   compatibility: { baseServiceId: string; addOnServiceId: string; sizeCodes: string[] }[];
 }
 
-export const PRICING_ALGORITHM = "php-service-size-v2" as const;
+export const PRICING_ALGORITHM = "php-service-size-v3" as const;
 export const MAX_CENTAVOS = 100_000_000;
-const MAX_MINUTES = 540;
 
 export type UnsignedQuote = Omit<BookingQuote, "issuedAt" | "expiresAt" | "quoteToken">;
 export interface PricingRejection {
@@ -37,131 +40,110 @@ export interface PricingRejection {
   fieldErrors: Record<string, string[]>;
 }
 export type PricingResult =
-  | { kind: "BOOKABLE"; quote: UnsignedQuote }
-  | { kind: "QUOTE_REQUIRED"; estimate: PriceEstimate; reasons: QuoteRequiredReason[] }
+  | { kind: "QUOTED"; quote: UnsignedQuote }
   | { kind: "REJECTED"; error: PricingRejection };
-
-export class CatalogIntegrityError extends Error {}
 
 const reject = (code: PricingRejection["code"], field: string, message: string): PricingResult =>
   ({ kind: "REJECTED", error: { code, message, fieldErrors: { [field]: [message] } } });
 
-function offerFor(service: ReleaseService, size: ReleaseSize): ReleaseOffer {
-  const offer = service.offers.find((o) => o.vehicleCategoryId === size.id);
-  if (!offer) throw new CatalogIntegrityError("missing size offer"); // the release has five per service
-  return offer;
+// How a cell books online (ADR-005 §3, Amendment 1 A1 and A2):
+// - OFFERED + FIXED_ONLINE: a PRICED line at the source price (today the three washes). Without
+//   a source price (which the P1-01 offer check forbids) it is not bookable.
+// - OFFERED + QUOTE_REQUIRED: a FOR_QUOTE line; the source price, if any, is its reference.
+// - UNCONFIRMED: not bookable, except a per-panel service with a source reference (panel
+//   repaint), which is FOR_QUOTE with count x the per-panel reference as its reference.
+// - NOT_OFFERED: not bookable.
+export function offerBooking(service: ReleaseService, offer: ReleaseOffer): OnlineBooking {
+  if (offer.state === "OFFERED") {
+    if (offer.bookingMode === "QUOTE_REQUIRED") return "FOR_QUOTE";
+    return offer.unitPriceCentavos !== null ? "PRICED" : "UNAVAILABLE";
+  }
+  if (offer.state === "UNCONFIRMED" && service.unit === "PANEL" && service.referenceUnitPriceCentavos !== null) return "FOR_QUOTE";
+  return "UNAVAILABLE";
 }
+const referenceUnit = (service: ReleaseService, offer: ReleaseOffer) =>
+  offer.state === "OFFERED" ? offer.unitPriceCentavos : service.referenceUnitPriceCentavos;
 
-interface PricedLine { service: ReleaseService; offer: ReleaseOffer; quantity: number }
-
-// Exact (service, size) lookup, add-on rules and quantity bounds; then either a signable fixed
-// quote (plain fixed wash only) or a quote-first estimate.
+// One size, one or more distinct services in the customer's order. Each line is checked on its
+// own (exists, bookable on that size, quantity fits its unit), then the composition: at least one
+// base service, and every add-on compatible with some base line on that size. The first base in
+// the customer's order is the primary service and decides the queue (ADR-005 §8). Lines come back
+// in canonical order (A6): the primary, the other bases by service ID, then add-ons by service ID.
 export function priceSelection(release: ReleaseSnapshot, selection: CatalogSelection): PricingResult {
   const size = release.sizes.find((s) => s.id === selection.vehicleCategoryId);
   if (!size) return reject("NOT_FOUND", "vehicleCategoryId", "Choose one of the listed vehicle sizes.");
-  const base = release.services.find((s) => s.id === selection.serviceId);
-  if (!base) return reject("NOT_FOUND", "serviceId", "Choose one of the listed services.");
-  if (base.type !== "BASE") return reject("VALIDATION_ERROR", "serviceId", "Add-ons are added to a wash; choose a wash first.");
-  const baseOffer = offerFor(base, size);
-  if (baseOffer.state === "NOT_OFFERED") return reject("SERVICE_NOT_OFFERED", "serviceId", "This service isn't offered for that vehicle size.");
-  if (!Number.isSafeInteger(selection.quantity) || selection.quantity < 1 || selection.quantity > 20
-      || (base.unit === "VEHICLE" && selection.quantity !== 1)) {
-    return reject("VALIDATION_ERROR", "quantity", base.unit === "VEHICLE" ? "This service is priced per vehicle." : "Choose 1 to 20 panels.");
+
+  const resolved: { service: ReleaseService; offer: ReleaseOffer; quantity: number; booking: OnlineBooking }[] = [];
+  for (const [i, line] of selection.lines.entries()) {
+    const service = release.services.find((s) => s.id === line.serviceId);
+    if (!service) return reject("NOT_FOUND", `lines.${i}.serviceId`, "Choose one of the listed services.");
+    const offer = service.offers.find((o) => o.vehicleCategoryId === size.id);
+    if (!offer) throw new CatalogIntegrityError("missing size offer"); // the release has five per service
+    const booking = offerBooking(service, offer);
+    if (booking === "UNAVAILABLE") {
+      return reject("SERVICE_NOT_OFFERED", `lines.${i}.serviceId`, offer.state === "NOT_OFFERED"
+        ? "This service isn't offered for that vehicle size." : "This service can't be booked online for that vehicle size yet. Contact the shop.");
+    }
+    if (!Number.isSafeInteger(line.quantity) || line.quantity < 1 || line.quantity > 20 || (service.unit === "VEHICLE" && line.quantity !== 1)) {
+      return reject("VALIDATION_ERROR", `lines.${i}.quantity`, service.unit === "VEHICLE" ? "This service is priced per vehicle." : "Choose 1 to 20 panels.");
+    }
+    resolved.push({ service, offer, quantity: line.quantity, booking });
+  }
+  const bases = resolved.filter((r) => r.service.type === "BASE");
+  if (bases.length === 0) return reject("VALIDATION_ERROR", "lines.0.serviceId", "Add-ons are added to a main service; choose one first.");
+  for (const [i, r] of resolved.entries()) {
+    if (r.service.type !== "ADD_ON") continue;
+    const compatible = bases.some((b) => release.compatibility.some((c) =>
+      c.baseServiceId === b.service.id && c.addOnServiceId === r.service.id && c.sizeCodes.includes(size.code)));
+    if (!compatible) return reject("VALIDATION_ERROR", `lines.${i}.serviceId`, "This add-on can't be added to the selected services.");
   }
 
-  const addOnLines: PricedLine[] = [];
-  for (const id of selection.addOnServiceIds) {
-    const addOn = release.services.find((s) => s.id === id);
-    if (!addOn) return reject("NOT_FOUND", "addOnServiceIds", "Choose one of the listed add-ons.");
-    if (addOn.type !== "ADD_ON" || addOn.id === base.id) return reject("VALIDATION_ERROR", "addOnServiceIds", "Only listed add-ons can be added to a service.");
-    const offer = offerFor(addOn, size);
-    if (offer.state === "NOT_OFFERED") return reject("SERVICE_NOT_OFFERED", "addOnServiceIds", "This add-on isn't offered for that vehicle size.");
-    const compatible = release.compatibility.some((c) => c.baseServiceId === base.id && c.addOnServiceId === addOn.id && c.sizeCodes.includes(size.code));
-    if (!compatible) return reject("VALIDATION_ERROR", "addOnServiceIds", "This add-on can't be added to that service.");
-    addOnLines.push({ service: addOn, offer, quantity: 1 });
-  }
-  // BASE first, then add-ons by lowercase service UUID.
-  addOnLines.sort((a, b) => (a.service.id < b.service.id ? -1 : 1));
-  const lines: PricedLine[] = [{ service: base, offer: baseOffer, quantity: selection.quantity }, ...addOnLines];
+  const primary = primaryServiceLine(release, selection.lines);
+  const queueId = bookingQueue(release, [primary]); // fails closed when the primary has no queue
+  const byId = (a: { service: ReleaseService }, b: { service: ReleaseService }) => (a.service.id < b.service.id ? -1 : a.service.id > b.service.id ? 1 : 0);
+  const canonical = [
+    resolved.find((r) => r.service.id === primary.serviceId)!,
+    ...bases.filter((r) => r.service.id !== primary.serviceId).sort(byId),
+    ...resolved.filter((r) => r.service.type === "ADD_ON").sort(byId),
+  ];
 
-  // Integer money only, every product and sum checked against the contract maximum.
-  const amounts = lines.map(({ service, offer, quantity }) => {
-    const unit = offer.unitPriceCentavos ?? (offer.state === "UNCONFIRMED" ? service.referenceUnitPriceCentavos : null);
-    return { unit, subtotal: unit === null ? null : unit * quantity };
-  });
-  if (amounts.some((a) => a.subtotal !== null && !(Number.isSafeInteger(a.subtotal) && a.subtotal <= MAX_CENTAVOS))) {
-    return reject("VALIDATION_ERROR", "quantity", "Contact the shop to price this selection.");
-  }
-  const confirmed = lines.every((l) => l.offer.state === "OFFERED" && l.offer.unitPriceCentavos !== null);
-  const total = confirmed ? amounts.reduce((sum, a) => sum + (a.subtotal as number), 0) : null;
-  if (total !== null && total > MAX_CENTAVOS) return reject("VALIDATION_ERROR", "addOnServiceIds", "Contact the shop to price this selection.");
-
-  const bookable = lines.length === 1 && base.unit === "VEHICLE" && selection.quantity === 1 && total !== null
-    && baseOffer.state === "OFFERED" && baseOffer.bookingMode === "FIXED_ONLINE" && baseOffer.durationKind === "TIMED"
-    && Number.isSafeInteger(baseOffer.durationMinutes) && baseOffer.durationMinutes! >= 1 && baseOffer.durationMinutes! <= MAX_MINUTES;
-  if (bookable) {
-    const quoteLines: QuotedLine[] = [{
-      kind: "BASE", serviceId: base.id, offerId: baseOffer.id, name: base.name, unit: base.unit, quantity: 1,
-      unitPriceCentavos: total, subtotalCentavos: total, addedMinutes: baseOffer.durationMinutes!,
-    }];
-    const durationMinutes = baseOffer.durationMinutes!;
+  // Integer money only; every product and sum is checked against the contract maximum.
+  const lines: QuotedLine[] = canonical.map(({ service, offer, quantity, booking }) => {
+    const unit = booking === "PRICED" ? offer.unitPriceCentavos! : referenceUnit(service, offer);
+    const subtotal = unit === null ? null : unit * quantity;
     return {
-      kind: "BOOKABLE",
-      quote: {
-        serviceId: selection.serviceId, vehicleCategoryId: selection.vehicleCategoryId, quantity: 1, addOnServiceIds: [],
-        version: 2, catalogReleaseId: release.releaseId,
-        catalogFingerprint: catalogFingerprint(release, selection, quoteLines, total, durationMinutes),
-        pricingAlgorithm: PRICING_ALGORITHM, lines: quoteLines, totalPriceCentavos: total, durationMinutes, currency: "PHP",
-      },
+      serviceId: service.id, offerId: offer.id, kind: service.type, name: service.name, unit: service.unit, quantity,
+      priceStatus: booking === "PRICED" ? "PRICED" : "FOR_QUOTE",
+      unitPriceCentavos: booking === "PRICED" ? unit : null, subtotalCentavos: booking === "PRICED" ? subtotal : null,
+      referenceUnitPriceCentavos: booking === "PRICED" ? null : unit, referenceSubtotalCentavos: booking === "PRICED" ? null : subtotal,
     };
+  });
+  const total = lines.reduce((s, l) => s + (l.subtotalCentavos ?? 0), 0);
+  const forQuote = lines.filter((l) => l.priceStatus === "FOR_QUOTE");
+  const estimated = forQuote.every((l) => l.referenceSubtotalCentavos !== null) ? total + forQuote.reduce((s, l) => s + l.referenceSubtotalCentavos!, 0) : null;
+  const amounts = [...lines.flatMap((l) => [l.subtotalCentavos, l.referenceSubtotalCentavos]), total, estimated];
+  if (amounts.some((a) => a !== null && !(Number.isSafeInteger(a) && a <= MAX_CENTAVOS))) {
+    return reject("VALIDATION_ERROR", "lines", "Contact the shop to price this selection.");
   }
-
-  const durationOf = ({ service, offer, quantity }: PricedLine): PublicDuration => {
-    if (offer.durationKind === "MULTI_DAY") return { kind: "MULTI_DAY", elapsedDays: offer.elapsedDays };
-    // A per-panel time multiplied by the panel count would be an invented duration.
-    if (offer.durationKind !== "TIMED" || offer.durationMinutes === null || (service.unit === "PANEL" && quantity !== 1)) return { kind: "UNKNOWN" };
-    return { kind: "TIMED", minutes: offer.durationMinutes };
-  };
-  const durations = lines.map(durationOf);
-  let duration: PublicDuration;
-  if (durations.some((d) => d.kind === "UNKNOWN")) duration = { kind: "UNKNOWN" };
-  else if (durations.some((d) => d.kind === "MULTI_DAY")) duration = { kind: "MULTI_DAY", elapsedDays: durations[0].kind === "MULTI_DAY" ? durations[0].elapsedDays : null };
-  else {
-    const minutes = durations.reduce((sum, d) => sum + (d.kind === "TIMED" ? d.minutes : 0), 0);
-    duration = minutes <= MAX_MINUTES ? { kind: "TIMED", minutes } : { kind: "UNKNOWN" };
-  }
-
-  const reasons = new Set<QuoteRequiredReason>();
-  if (lines.some((l) => l.offer.unitPriceCentavos === null)) reasons.add("PRICE_UNCONFIRMED");
-  if (lines.some((l) => l.offer.state === "UNCONFIRMED")) reasons.add("ELIGIBILITY_UNCONFIRMED");
-  if (durations[0].kind === "UNKNOWN") reasons.add("DURATION_UNKNOWN");
-  if (durations.some((d) => d.kind === "MULTI_DAY")) reasons.add("MULTI_DAY");
-  if (durations.slice(1).some((d) => d.kind !== "TIMED")) reasons.add("ADD_ON_DURATION_UNKNOWN");
-  // Offered but quote-first, or a composition with no composite availability contract yet.
-  if (baseOffer.bookingMode === "QUOTE_REQUIRED" || reasons.size === 0) reasons.add("INSPECTION_REQUIRED");
-  const order: QuoteRequiredReason[] = ["PRICE_UNCONFIRMED", "ELIGIBILITY_UNCONFIRMED", "DURATION_UNKNOWN", "MULTI_DAY", "INSPECTION_REQUIRED", "ADD_ON_DURATION_UNKNOWN"];
+  const body = { vehicleCategoryId: selection.vehicleCategoryId, primaryServiceId: primary.serviceId, queueId, lines,
+    totalPriceCentavos: total, estimatedTotalCentavos: estimated };
   return {
-    kind: "QUOTE_REQUIRED",
-    reasons: order.filter((r) => reasons.has(r)),
-    estimate: {
-      catalogReleaseId: release.releaseId,
-      selection: { serviceId: selection.serviceId, vehicleCategoryId: selection.vehicleCategoryId, quantity: selection.quantity, addOnServiceIds: [...selection.addOnServiceIds] },
-      lines: lines.map((l, i) => ({ serviceId: l.service.id, name: l.service.name, unit: l.service.unit, quantity: l.quantity,
-        unitPriceCentavos: amounts[i].unit, subtotalCentavos: amounts[i].subtotal })),
-      totalPriceCentavos: total,
-      currency: "PHP",
-      duration,
+    kind: "QUOTED",
+    quote: {
+      version: 3, catalogReleaseId: release.releaseId, catalogFingerprint: catalogFingerprint(release, body),
+      pricingAlgorithm: PRICING_ALGORITHM, ...body, currency: "PHP",
     },
   };
 }
 
 // Lowercase SHA-256 of the fixed-order array; the manifest hash is server-resolved.
 export function catalogFingerprint(
-  release: Pick<ReleaseSnapshot, "releaseId" | "manifestSha256">, selection: CatalogSelection,
-  lines: QuotedLine[], totalPriceCentavos: number, durationMinutes: number,
+  release: Pick<ReleaseSnapshot, "releaseId" | "manifestSha256">,
+  q: Pick<UnsignedQuote, "vehicleCategoryId" | "primaryServiceId" | "queueId" | "lines" | "totalPriceCentavos" | "estimatedTotalCentavos">,
 ): string {
-  const selectionArray = [selection.serviceId, selection.vehicleCategoryId, selection.quantity, [...selection.addOnServiceIds]];
-  const lineArrays = lines.map((l) => [l.kind, l.serviceId, l.offerId, l.name, l.unit, l.quantity, l.unitPriceCentavos, l.subtotalCentavos, l.addedMinutes]);
-  const value = [PRICING_ALGORITHM, release.releaseId, release.manifestSha256, selectionArray, lineArrays, totalPriceCentavos, durationMinutes, "PHP"];
+  const lineArrays = q.lines.map((l) => [l.serviceId, l.offerId, l.kind, l.name, l.unit, l.quantity, l.priceStatus,
+    l.unitPriceCentavos, l.subtotalCentavos, l.referenceUnitPriceCentavos, l.referenceSubtotalCentavos]);
+  const value = [PRICING_ALGORITHM, release.releaseId, release.manifestSha256, q.vehicleCategoryId, q.primaryServiceId, q.queueId,
+    lineArrays, q.totalPriceCentavos, q.estimatedTotalCentavos, "PHP"];
   return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 }

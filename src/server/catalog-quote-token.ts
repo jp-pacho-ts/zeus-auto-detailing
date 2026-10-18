@@ -3,9 +3,10 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { BookingQuoteSchema, type BookingQuote, type QuotedLine } from "@/types/catalog-contracts";
 import type { UnsignedQuote } from "./catalog-pricing";
 
-// Booking quote v2 tokens (ARCHITECTURE T-042 "Transport, tamper evidence and exact acceptance"):
+// Booking quote v3 tokens (ADR-005 line items; framing from ARCHITECTURE T-042 "Transport, tamper
+// evidence and exact acceptance"):
 // base64url(payload UTF-8 JSON) + "." + base64url(HMAC-SHA256(BOOKING_QUOTE[kid], payloadEncoded)),
-// payload {v:2,kid,purpose:"BOOKING_QUOTE",quote:<every BookingQuote field but quoteToken>}.
+// payload {v:3,kid,purpose:"BOOKING_QUOTE",quote:<every BookingQuote field but quoteToken>}.
 // A quote carries no authority of its own: create recomputes it from the current release.
 
 export const QUOTE_TTL_MS = 15 * 60_000;
@@ -64,17 +65,18 @@ export function quoteKeyRing(): QuoteKeyRing {
 }
 
 type QuoteFields = Omit<BookingQuote, "quoteToken">;
-const orderedLine = (l: QuotedLine) => ({ kind: l.kind, serviceId: l.serviceId, offerId: l.offerId, name: l.name, unit: l.unit,
-  quantity: l.quantity, unitPriceCentavos: l.unitPriceCentavos, subtotalCentavos: l.subtotalCentavos, addedMinutes: l.addedMinutes });
+const orderedLine = (l: QuotedLine) => ({ serviceId: l.serviceId, offerId: l.offerId, kind: l.kind, name: l.name, unit: l.unit,
+  quantity: l.quantity, priceStatus: l.priceStatus, unitPriceCentavos: l.unitPriceCentavos, subtotalCentavos: l.subtotalCentavos,
+  referenceUnitPriceCentavos: l.referenceUnitPriceCentavos, referenceSubtotalCentavos: l.referenceSubtotalCentavos });
 // The schema's field order, and only its fields: anything else is dropped and so fails comparison.
 const orderedQuote = (q: QuoteFields): QuoteFields => ({
-  serviceId: q.serviceId, vehicleCategoryId: q.vehicleCategoryId, quantity: q.quantity,
-  addOnServiceIds: Array.isArray(q.addOnServiceIds) ? [...q.addOnServiceIds] : q.addOnServiceIds,
   version: q.version, catalogReleaseId: q.catalogReleaseId, catalogFingerprint: q.catalogFingerprint, pricingAlgorithm: q.pricingAlgorithm,
+  vehicleCategoryId: q.vehicleCategoryId, primaryServiceId: q.primaryServiceId, queueId: q.queueId,
   lines: Array.isArray(q.lines) ? q.lines.map((l) => (l && typeof l === "object" ? orderedLine(l) : l)) : q.lines,
-  totalPriceCentavos: q.totalPriceCentavos, durationMinutes: q.durationMinutes, currency: q.currency, issuedAt: q.issuedAt, expiresAt: q.expiresAt,
+  totalPriceCentavos: q.totalPriceCentavos, estimatedTotalCentavos: q.estimatedTotalCentavos, currency: q.currency,
+  issuedAt: q.issuedAt, expiresAt: q.expiresAt,
 });
-const payloadText = (kid: string, quote: QuoteFields) => JSON.stringify({ v: 2, kid, purpose: "BOOKING_QUOTE", quote: orderedQuote(quote) });
+const payloadText = (kid: string, quote: QuoteFields) => JSON.stringify({ v: 3, kid, purpose: "BOOKING_QUOTE", quote: orderedQuote(quote) });
 const mac = (key: Buffer, encoded: string) => createHmac("sha256", key).update(encoded, "ascii").digest();
 
 export function signQuote(body: UnsignedQuote, ring: QuoteKeyRing, now: Date): BookingQuote {
@@ -106,7 +108,7 @@ export function verifyQuote(candidate: unknown, ring: QuoteKeyRing, now: Date): 
     text = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.from(encoded, "base64url"));
     payload = JSON.parse(text);
   } catch { return INVALID; }
-  if (!isRecord(payload) || payload.v !== 2 || payload.purpose !== "BOOKING_QUOTE" || typeof payload.kid !== "string") return INVALID;
+  if (!isRecord(payload) || payload.v !== 3 || payload.purpose !== "BOOKING_QUOTE" || typeof payload.kid !== "string") return INVALID;
   const key = ring.keys.get(payload.kid);
   if (!key || !timingSafeEqual(mac(key, encoded), tag)) return INVALID;
   // The signed text must be exactly our serialization of its own content: no extra or missing

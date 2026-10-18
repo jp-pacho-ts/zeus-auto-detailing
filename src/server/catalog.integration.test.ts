@@ -107,18 +107,29 @@ before(async () => {
 });
 after(async () => { await db.$disconnect(); await admin.$disconnect(); });
 
-const select = (slug: string, size: string, extra: Partial<CatalogSelection> = {}): CatalogSelection => {
-  const r = releaseFromManifest();
-  return { serviceId: bySlug(r, slug).id, vehicleCategoryId: sizeId(r, size), quantity: 1, addOnServiceIds: [], ...extra };
-};
-async function bookableQuote(slug = "basic-wash", size = "S", now = at()): Promise<BookingQuote> {
-  const result = await m.quote.getBookingQuote(select(slug, size), { db, ring, now });
-  assert.ok(result.ok && result.data.kind === "BOOKABLE", JSON.stringify(result));
-  return result.data.quote!;
+const r0 = releaseFromManifest();
+const id = (slug: string) => bySlug(r0, slug).id;
+// One size and the customer's ordered lines; [slug, n] sets a panel count.
+const select = (size: string, ...lines: (string | [string, number])[]): CatalogSelection => ({
+  vehicleCategoryId: sizeId(r0, size),
+  lines: lines.map((l) => (typeof l === "string" ? { serviceId: id(l), quantity: 1 } : { serviceId: id(l[0]), quantity: l[1] })),
+});
+async function quoteOf(selection: CatalogSelection, now = at()): Promise<BookingQuote> {
+  const result = await m.quote.getBookingQuote(selection, { db, ring, now });
+  assert.ok(result.ok, JSON.stringify(result));
+  return result.data.quote;
 }
+type Body = Omit<BookingQuote, "quoteToken" | "issuedAt" | "expiresAt">;
+const bodyOf = (quote: BookingQuote): Body => {
+  const draft: Partial<BookingQuote> = { ...quote };
+  delete draft.quoteToken; delete draft.issuedAt; delete draft.expiresAt;
+  return draft as Body;
+};
 const check = (candidate: unknown, now = at()) => db.$transaction((tx) => m.quote.checkAcceptedQuote(tx, candidate, { ring, now }));
 const sortPairs = <T extends { baseServiceId: string; addOnServiceId: string }>(pairs: T[]) =>
   [...pairs].sort((a, b) => (a.baseServiceId + a.addOnServiceId).localeCompare(b.baseServiceId + b.addOnServiceId));
+const offerAt = (t: Manifest, slug: string, size: string) =>
+  t.services.find((x: { slug: string }) => x.slug === slug).offers.find((o: { sizeCode: string }) => o.sizeCode === size);
 
 test("the published release loads exactly as the reviewed manifest, in one read-only REPEATABLE READ transaction", { skip }, async () => {
   const seen = await m.read.readPublicCatalog(async (release, tx) => ({
@@ -130,12 +141,11 @@ test("the published release loads exactly as the reviewed manifest, in one read-
   const expected = releaseFromManifest(manifest, releaseA);
   assert.ok(seen.release);
   assert.deepEqual({ ...seen.release, compatibility: sortPairs(seen.release.compatibility) }, { ...expected, compatibility: sortPairs(expected.compatibility) });
-  // Every one of the 105 cells, priced from the database, matches the manifest.
+  // Every one of the 105 cells, priced from the database, matches pricing from the manifest.
   for (const service of manifest.services) {
     for (const offer of service.offers) {
-      const priced = m.pricing.priceSelection(seen.release, { serviceId: service.id, vehicleCategoryId: offer.vehicleCategoryId, quantity: 1, addOnServiceIds: [] });
-      if (priced.kind === "BOOKABLE") assert.equal(priced.quote.totalPriceCentavos, offer.unitPriceCentavos, `${service.slug}/${offer.sizeCode}`);
-      if (priced.kind === "QUOTE_REQUIRED") assert.equal(priced.estimate.totalPriceCentavos, offer.state === "OFFERED" ? offer.unitPriceCentavos : null);
+      const selection = { vehicleCategoryId: offer.vehicleCategoryId, lines: [{ serviceId: service.id, quantity: 1 }] };
+      assert.deepEqual(m.pricing.priceSelection(seen.release, selection), m.pricing.priceSelection(expected, selection), `${service.slug}/${offer.sizeCode}`);
     }
   }
   // The seam cannot write.
@@ -163,66 +173,81 @@ test("GET /api/catalog serves only the allowlisted DTO; legacy rows and private 
   assert.deepEqual(body, JSON.parse(JSON.stringify(await m.catalog.getBookingCatalog({ db }))));
 });
 
-test("quotes over the database: a fixed wash signs, quote-first estimates, not-offered is 400, and create accepts it", { skip }, async () => {
-  const quote = await bookableQuote("premium-wash", "XL");
-  assert.equal(quote.catalogReleaseId, releaseA);
-  assert.deepEqual([quote.totalPriceCentavos, quote.durationMinutes, quote.lines[0].name], [75000, 45, "Premium Wash"]);
-  const accepted = await check(quote, at(60_000));
-  assert.ok(accepted.ok && accepted.quote.catalogFingerprint === quote.catalogFingerprint && accepted.release.releaseId === releaseA);
-  const estimate = await m.quote.getBookingQuote(select("arcane-graphene", "S"), { db, ring, now: at() });
-  assert.ok(estimate.ok && estimate.data.kind === "QUOTE_REQUIRED" && estimate.data.quote === null);
-  assert.equal(estimate.ok && estimate.data.kind === "QUOTE_REQUIRED" && estimate.data.estimate.totalPriceCentavos, 1_310_000);
-  const notOffered = await m.quote.getBookingQuote(select("premium-wash", "MOTOR"), { db, ring, now: at() });
-  assert.equal(!notOffered.ok && notOffered.error.code, "SERVICE_NOT_OFFERED");
-  assert.equal(!notOffered.ok && notOffered.error.commitState, "NOT_APPLICABLE");
-  const malformed = await m.quote.getBookingQuote({ ...select("basic-wash", "S"), price: 1 }, { db, ring, now: at() });
+test("quotes over the database: priced, for-quote and panel lines sign with their queue; not offered is 400; create accepts them", { skip }, async () => {
+  const wash = await quoteOf(select("XL", "premium-wash"));
+  assert.deepEqual([wash.catalogReleaseId, wash.primaryServiceId, wash.queueId, wash.totalPriceCentavos, wash.estimatedTotalCentavos, wash.lines[0].priceStatus],
+    [releaseA, id("premium-wash"), "WASH", 75000, 75000, "PRICED"]);
+  const accepted = await check(wash, at(60_000));
+  assert.ok(accepted.ok && accepted.quote.catalogFingerprint === wash.catalogFingerprint && accepted.release.releaseId === releaseA && accepted.priced.queueId === "WASH");
+  // One visit, several services: a for-quote coating first (the primary), a priced wash and a for-quote add-on.
+  const visit = await quoteOf(select("S", "arcane-graphene", "bac-to-zero", "basic-wash"));
+  assert.deepEqual(visit.lines.map((l) => [l.serviceId, l.priceStatus]), [[id("arcane-graphene"), "FOR_QUOTE"],
+    [id("basic-wash"), "PRICED"], [id("bac-to-zero"), "FOR_QUOTE"]]);
+  assert.deepEqual([visit.queueId, visit.totalPriceCentavos, visit.estimatedTotalCentavos], ["DETAILING_COATING", 18000, 1_310_000 + 18000 + 50000]);
+  const acceptedVisit = await check(visit);
+  assert.ok(acceptedVisit.ok);
+  assert.deepEqual(acceptedVisit.ok && acceptedVisit.priced, bodyOf(visit));
+  // Panel repaint on any size: for quote, count x the per-panel reference.
+  const panel = await quoteOf(select("MOTOR", ["panel-repaint", 3]));
+  assert.deepEqual([panel.queueId, panel.totalPriceCentavos, panel.estimatedTotalCentavos, panel.lines[0].referenceUnitPriceCentavos], ["REPAINT", 0, 1_050_000, 350_000]);
+  assert.ok((await check(panel)).ok);
+  const notOffered = await m.quote.getBookingQuote(select("MOTOR", "premium-wash"), { db, ring, now: at() });
+  assert.ok(!notOffered.ok && notOffered.error.code === "SERVICE_NOT_OFFERED" && notOffered.error.commitState === "NOT_APPLICABLE");
+  const unconfirmed = await m.quote.getBookingQuote(select("M", "basic-wash", "headlight-restoration"), { db, ring, now: at() });
+  assert.ok(!unconfirmed.ok && unconfirmed.error.code === "SERVICE_NOT_OFFERED" && "lines.1.serviceId" in unconfirmed.error.fieldErrors);
+  const malformed = await m.quote.getBookingQuote({ ...select("S", "basic-wash"), price: 1 }, { db, ring, now: at() });
   assert.equal(!malformed.ok && malformed.error.code, "VALIDATION_ERROR");
 });
 
-test("create-time checks: forgery 400, signed-but-wrong prices and quote-first are refused, expiry gets a fresh quote", { skip }, async () => {
-  const quote = await bookableQuote("signature-wash", "M");
+test("create-time checks: forgery 400; signed-but-wrong lines, totals, primary or queue are refused; expiry gets a fresh quote", { skip }, async () => {
+  const quote = await quoteOf(select("M", "signature-wash", "interior-detailing"));
+  const body = bodyOf(quote);
+  const [wash, detailing] = body.lines;
   // Invalid MAC or binding: 400 with no fresh quote.
-  for (const forged of [{ ...quote, quoteToken: quote.quoteToken.slice(0, -3) + "AAA" }, { ...quote, totalPriceCentavos: 1, lines: [{ ...quote.lines[0], unitPriceCentavos: 1, subtotalCentavos: 1 }] }]) {
+  for (const forged of [{ ...quote, quoteToken: quote.quoteToken.slice(0, -3) + "AAA" },
+    { ...quote, totalPriceCentavos: 1, estimatedTotalCentavos: 1 + detailing.referenceSubtotalCentavos!, lines: [{ ...wash, unitPriceCentavos: 1, subtotalCentavos: 1 }, detailing] }]) {
     const r = await check(forged);
     assert.ok(!r.ok && r.error.code === "VALIDATION_ERROR" && r.error.currentQuote === null && r.error.commitState === "NOT_COMMITTED");
   }
-  // A preview pasted as the accepted quote.
-  const preview = await m.quote.getBookingQuote(select("basic-wash", "S", { addOnServiceIds: [bySlug(releaseFromManifest(), "bac-to-zero").id] }), { db, ring, now: at() });
-  assert.ok(preview.ok && preview.data.kind === "QUOTE_REQUIRED");
-  for (const pasted of [preview.ok ? preview.data : null, preview.ok && preview.data.kind === "QUOTE_REQUIRED" ? preview.data.estimate : null]) {
+  // A response envelope or a bare selection pasted as the accepted quote.
+  for (const pasted of [{ quote }, select("M", "signature-wash")]) {
     const r = await check(pasted);
     assert.equal(!r.ok && r.error.code, "VALIDATION_ERROR");
   }
-  // Correctly signed but not what the server computes (only possible with a leaked key): never accepted.
-  const draft: Partial<BookingQuote> = { ...quote };
-  delete draft.quoteToken; delete draft.issuedAt; delete draft.expiresAt;
-  const body = draft as Omit<BookingQuote, "quoteToken" | "issuedAt" | "expiresAt">;
-  // Regression: the fingerprint was the only field compared, so a signed lower price with the
-  // honest fingerprint was accepted. Price and duration changes with consistent arithmetic:
-  const cheap = m.token.signQuote({ ...body, totalPriceCentavos: 100, lines: [{ ...body.lines[0], unitPriceCentavos: 100, subtotalCentavos: 100 }] }, ring, NOW);
-  const short = m.token.signQuote({ ...body, durationMinutes: 5, lines: [{ ...body.lines[0], addedMinutes: 5 }] }, ring, NOW);
-  for (const tampered of [cheap, short]) {
-    const tamperedCheck = await check(tampered);
-    assert.ok(!tamperedCheck.ok && tamperedCheck.error.code === "CATALOG_UPDATED", JSON.stringify(tamperedCheck));
-    assert.deepEqual(!tamperedCheck.ok && [tamperedCheck.error.currentQuote?.totalPriceCentavos, tamperedCheck.error.currentQuote?.durationMinutes], [45000, 35]);
+  // Correctly signed (only possible with a leaked key) but not what the server computes: never accepted,
+  // even with consistent arithmetic and the honest fingerprint. Regression for the fingerprint-only check.
+  const estimate = (lines: Body["lines"]) => lines.reduce((s, l) => s + (l.subtotalCentavos ?? l.referenceSubtotalCentavos!), 0);
+  const cheapLines = [{ ...wash, unitPriceCentavos: 100, subtotalCentavos: 100 }, detailing];
+  const promoted = [wash, { ...detailing, priceStatus: "PRICED" as const, unitPriceCentavos: 1, subtotalCentavos: 1, referenceUnitPriceCentavos: null, referenceSubtotalCentavos: null }];
+  const tampered: [string, Body][] = [
+    ["cheaper priced line", { ...body, lines: cheapLines, totalPriceCentavos: 100, estimatedTotalCentavos: estimate(cheapLines) }],
+    ["for-quote line charged", { ...body, lines: promoted, totalPriceCentavos: wash.subtotalCentavos! + 1, estimatedTotalCentavos: estimate(promoted) }],
+    ["lower reference", { ...body, lines: [wash, { ...detailing, referenceUnitPriceCentavos: 1, referenceSubtotalCentavos: 1 }], estimatedTotalCentavos: wash.subtotalCentavos! + 1 }],
+    ["another queue", { ...body, queueId: "REPAINT" }],
+  ];
+  for (const [label, fields] of tampered) {
+    const r = await check(m.token.signQuote(fields, ring, NOW));
+    assert.ok(!r.ok && r.error.code === "CATALOG_UPDATED", label + JSON.stringify(r));
+    assert.deepEqual(!r.ok && r.error.currentQuote && bodyOf(r.error.currentQuote), body, label);
   }
+  // A changed primary is a different visit: the queue always follows the server's primary, never the client's queueId.
+  const reprimaried = await check(m.token.signQuote({ ...body, primaryServiceId: detailing.serviceId, lines: [detailing, wash] }, ring, NOW));
+  assert.ok(!reprimaried.ok && reprimaried.error.code === "CATALOG_UPDATED");
+  assert.deepEqual(!reprimaried.ok && [reprimaried.error.currentQuote?.primaryServiceId, reprimaried.error.currentQuote?.queueId], [detailing.serviceId, "DETAILING_COATING"]);
   // The honest quote passes, and create receives the server's own computation to snapshot.
   const honest = await check(quote);
   assert.ok(honest.ok);
   assert.deepEqual(honest.ok && honest.priced, body);
-  const r = releaseFromManifest();
-  const quoteFirst = m.token.signQuote({ ...body, serviceId: bySlug(r, "interior-detailing").id, lines: [{ ...body.lines[0], serviceId: bySlug(r, "interior-detailing").id }] }, ring, NOW);
-  const quoteFirstCheck = await check(quoteFirst);
-  assert.ok(!quoteFirstCheck.ok && quoteFirstCheck.error.code === "QUOTE_REQUIRED" && quoteFirstCheck.error.currentQuote === null);
-  const motor = sizeId(r, "MOTOR");
-  const notOffered = m.token.signQuote({ ...body, serviceId: bySlug(r, "premium-wash").id, vehicleCategoryId: motor, lines: [{ ...body.lines[0], serviceId: bySlug(r, "premium-wash").id }] }, ring, NOW);
-  const notOfferedCheck = await check(notOffered);
-  assert.equal(!notOfferedCheck.ok && notOfferedCheck.error.code, "SERVICE_NOT_OFFERED");
+  // A signed selection the current release refuses keeps that refusal, with no fresh quote.
+  const premium = { ...wash, serviceId: id("premium-wash") };
+  const notOffered = await check(m.token.signQuote({ ...body, vehicleCategoryId: sizeId(r0, "MOTOR"), primaryServiceId: premium.serviceId, lines: [premium],
+    totalPriceCentavos: premium.subtotalCentavos!, estimatedTotalCentavos: premium.subtotalCentavos! }, ring, NOW));
+  assert.ok(!notOffered.ok && notOffered.error.code === "SERVICE_NOT_OFFERED" && notOffered.error.currentQuote === null);
   // Exactly at expiry: QUOTE_EXPIRED with a fresh, current quote.
   const expired = await check(quote, at(15 * 60_000));
   assert.ok(!expired.ok && expired.error.code === "QUOTE_EXPIRED" && expired.error.currentQuote);
   assert.equal(!expired.ok && expired.error.currentQuote?.issuedAt, new Date(NOW.getTime() + 15 * 60_000).toISOString());
-  assert.equal(!expired.ok && expired.error.currentQuote?.totalPriceCentavos, quote.totalPriceCentavos);
+  assert.deepEqual(!expired.ok && expired.error.currentQuote && bodyOf(expired.error.currentQuote), body);
 });
 
 test("a quote read never mixes releases when a publication lands mid-read", { skip }, async () => {
@@ -240,27 +265,26 @@ test("a quote read never mixes releases when a publication lands mid-read", { sk
       })), options as never);
     },
   }) as PrismaClient;
-  const before = (await m.catalog.getBookingCatalog({ db })).ok;
-  assert.ok(before);
-  const pendingQuote = m.quote.getBookingQuote(select("basic-wash", "L"), { db: instrumented, ring, now: at() });
+  assert.ok((await m.catalog.getBookingCatalog({ db })).ok);
+  const pendingQuote = m.quote.getBookingQuote(select("L", "basic-wash"), { db: instrumented, ring, now: at() });
   await reached;
-  const releaseB = await publish(variant("p1-02-mid-read", (t) => { t.services[0].offers.find((o: { sizeCode: string }) => o.sizeCode === "L").unitPriceCentavos = 26000; }));
+  const releaseB = await publish(variant("p1-02-mid-read", (t) => { offerAt(t, "basic-wash", "L").unitPriceCentavos = 26000; }));
   resume();
   const result = await pendingQuote;
-  assert.ok(result.ok && result.data.kind === "BOOKABLE");
-  const quote = result.ok && result.data.kind === "BOOKABLE" ? result.data.quote : null;
-  const offer = await db.serviceSizeOffer.findUniqueOrThrow({ where: { id: quote!.lines[0].offerId } });
+  assert.ok(result.ok);
+  const quote = result.data.quote;
+  const offer = await db.serviceSizeOffer.findUniqueOrThrow({ where: { id: quote.lines[0].offerId } });
   // Head, offer and price all from the release that was current when the read began.
-  assert.deepEqual([quote!.catalogReleaseId, offer.releaseId, quote!.totalPriceCentavos], [releaseA, releaseA, 25000]);
+  assert.deepEqual([quote.catalogReleaseId, offer.releaseId, quote.totalPriceCentavos], [releaseA, releaseA, 25000]);
   // The next read sees the new release and its price; the old quote is now stale.
-  const after = await bookableQuote("basic-wash", "L");
+  const after = await quoteOf(select("L", "basic-wash"));
   assert.deepEqual([after.catalogReleaseId, after.totalPriceCentavos], [releaseB, 26000]);
   const stale = await check(quote);
   assert.ok(!stale.ok && stale.error.code === "CATALOG_UPDATED" && stale.error.currentQuote?.totalPriceCentavos === 26000);
 });
 
-test("any new release invalidates old quotes: same prices, label-only, newly unbookable, and a rollback as a new version", { skip }, async () => {
-  const before = await bookableQuote("basic-wash", "M");
+test("any new release invalidates old quotes: same prices, label-only, newly for-quote, newly unbookable, and a rollback as a new version", { skip }, async () => {
+  const before = await quoteOf(select("M", "basic-wash"));
   // Same prices, new release identity.
   const same = await publish(variant("p1-02-same-prices"));
   const sameCheck = await check(before);
@@ -268,18 +292,28 @@ test("any new release invalidates old quotes: same prices, label-only, newly unb
   assert.equal(!sameCheck.ok && sameCheck.error.currentQuote?.catalogReleaseId, same);
   assert.equal(!sameCheck.ok && sameCheck.error.currentQuote?.totalPriceCentavos, before.totalPriceCentavos); // identical total, still a new acceptance
   // Label-only republish.
-  const beforeLabel = await bookableQuote("basic-wash", "M");
+  const beforeLabel = await quoteOf(select("M", "basic-wash"));
   await publish(variant("p1-02-label", (t) => { t.services[0].name = "Basic Wash (Express)"; }));
   const labelCheck = await check(beforeLabel);
   assert.ok(!labelCheck.ok && labelCheck.error.code === "CATALOG_UPDATED" && labelCheck.error.currentQuote?.lines[0].name === "Basic Wash (Express)");
-  // A pair that becomes quote-first: CATALOG_UPDATED with no fresh quote and a field error.
-  const beforeMode = await bookableQuote("basic-wash", "M");
-  await publish(variant("p1-02-quote-first", (t) => { Object.assign(t.services[0].offers.find((o: { sizeCode: string }) => o.sizeCode === "M"), { bookingMode: "QUOTE_REQUIRED" }); }));
+  // A priced cell that becomes quote-first stays bookable, now for quote with its price as the reference.
+  const beforeMode = await quoteOf(select("M", "basic-wash"));
+  await publish(variant("p1-02-quote-first", (t) => { offerAt(t, "basic-wash", "M").bookingMode = "QUOTE_REQUIRED"; }));
   const modeCheck = await check(beforeMode);
-  assert.ok(!modeCheck.ok && modeCheck.error.code === "CATALOG_UPDATED" && modeCheck.error.currentQuote === null && modeCheck.error.fieldErrors.serviceId);
+  assert.ok(!modeCheck.ok && modeCheck.error.code === "CATALOG_UPDATED");
+  const modeQuote = !modeCheck.ok ? modeCheck.error.currentQuote : null;
+  assert.deepEqual(modeQuote && [modeQuote.lines[0].priceStatus, modeQuote.totalPriceCentavos, modeQuote.estimatedTotalCentavos], ["FOR_QUOTE", 0, 20000]);
+  // A cell that becomes unconfirmed: CATALOG_UPDATED with no fresh quote and a field error.
+  const beforeUnconfirmed = await quoteOf(select("M", "signature-wash"));
+  await publish(variant("p1-02-unconfirmed", (t) => {
+    Object.assign(offerAt(t, "signature-wash", "M"), { state: "UNCONFIRMED", bookingMode: "QUOTE_REQUIRED", unitPriceCentavos: null, durationKind: "UNKNOWN", durationMinutes: null });
+  }));
+  const unconfirmedCheck = await check(beforeUnconfirmed);
+  assert.ok(!unconfirmedCheck.ok && unconfirmedCheck.error.code === "CATALOG_UPDATED" && unconfirmedCheck.error.currentQuote === null
+    && unconfirmedCheck.error.fieldErrors.lines, JSON.stringify(unconfirmedCheck));
   // Rolling back to the original content as a new version does not resurrect release-A quotes.
   const rollback = await publish(variant("p1-02-rollback"), "ROLLBACK: restore reviewed manifest");
-  const original = m.token.signQuote({ ...(await bookableQuote("basic-wash", "M")), catalogReleaseId: releaseA }, ring, NOW);
+  const original = m.token.signQuote({ ...bodyOf(await quoteOf(select("M", "basic-wash"))), catalogReleaseId: releaseA }, ring, NOW);
   const rollbackCheck = await check(original);
   assert.ok(!rollbackCheck.ok && rollbackCheck.error.code === "CATALOG_UPDATED" && rollbackCheck.error.currentQuote?.catalogReleaseId === rollback);
   const events = await db.catalogPublicationEvent.findMany({ where: { releaseId: rollback } });
@@ -297,8 +331,8 @@ test("C-02: each public catalog or quote read is exactly one REPEATABLE READ tra
     },
   }) as PrismaClient;
   assert.ok((await m.catalog.getBookingCatalog({ db: recording })).ok);
-  assert.ok((await m.quote.getBookingQuote(select("basic-wash", "S"), { db: recording, ring, now: at() })).ok);
-  assert.ok((await m.quote.getBookingQuote(select("panel-repaint", "S", { quantity: 3 }), { db: recording, ring, now: at() })).ok);
+  assert.ok((await m.quote.getBookingQuote(select("S", "basic-wash"), { db: recording, ring, now: at() })).ok);
+  assert.ok((await m.quote.getBookingQuote(select("S", ["panel-repaint", 3], "full-detailing"), { db: recording, ring, now: at() })).ok);
   assert.deepEqual(calls, ["tx:RepeatableRead", "tx:RepeatableRead", "tx:RepeatableRead"]);
   // Invalid input is refused before any database work.
   assert.equal((await m.quote.getBookingQuote({ serviceId: "x" }, { db: recording, ring })).ok, false);
@@ -309,13 +343,12 @@ test("fail closed: no published release or no key ring is 503, never an empty, d
   // The T007 database has no catalog head.
   const none = await m.catalog.getBookingCatalog({ db: admin });
   assert.ok(!none.ok && none.error.code === "RETRYABLE_ERROR" && none.error.retryAfterSeconds === 10);
-  const noneQuote = await m.quote.getBookingQuote(select("basic-wash", "S"), { db: admin, ring, now: at() });
+  const noneQuote = await m.quote.getBookingQuote(select("S", "basic-wash"), { db: admin, ring, now: at() });
   assert.equal(!noneQuote.ok && noneQuote.error.code, "RETRYABLE_ERROR");
-  // No BOOKING_QUOTE_KEYS in this process: a bookable selection cannot be signed.
+  // No BOOKING_QUOTE_KEYS in this process: nothing is quoted, priced or for quote (every v3 quote is signed).
   assert.equal(process.env.BOOKING_QUOTE_KEYS, undefined);
-  const unsigned = await m.quote.getBookingQuote(select("basic-wash", "S"), { db, now: at() });
-  assert.ok(!unsigned.ok && unsigned.error.code === "RETRYABLE_ERROR");
-  // Quote-first estimates need no key.
-  const estimate = await m.quote.getBookingQuote(select("full-detailing", "S"), { db, now: at() });
-  assert.ok(estimate.ok && estimate.data.kind === "QUOTE_REQUIRED");
+  for (const selection of [select("S", "basic-wash"), select("S", "full-detailing")]) {
+    const unsigned = await m.quote.getBookingQuote(selection, { db, now: at() });
+    assert.ok(!unsigned.ok && unsigned.error.code === "RETRYABLE_ERROR");
+  }
 });

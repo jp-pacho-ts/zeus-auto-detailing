@@ -1,4 +1,4 @@
-// Quote v2 signature binding, token parser and key ring (T-043 T-046 cases 3, 4 and 5).
+// Quote v3 (ADR-005) signature binding, token parser and key ring (T-043 T-046 cases 3, 4 and 5).
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
@@ -12,10 +12,11 @@ const ring = parseQuoteKeyRing({ BOOKING_QUOTE_KEYS: `q-2026a:${secret(1)},q-202
 const NOW = new Date("2026-10-18T02:00:00.000Z");
 const release = releaseFromManifest();
 
-function freshQuote(slug = "signature-wash", size = "M", keys: QuoteKeyRing = ring, now = NOW): BookingQuote {
-  const priced = priceSelection(release, { serviceId: bySlug(release, slug).id, vehicleCategoryId: sizeId(release, size), quantity: 1, addOnServiceIds: [] });
-  assert.equal(priced.kind, "BOOKABLE");
-  return signQuote(priced.kind === "BOOKABLE" ? priced.quote : (null as never), keys, now);
+// Default: a wash (PRICED) with a for-quote add-on and a for-quote detailing line.
+function freshQuote(slugs = ["signature-wash", "bac-to-zero", "interior-detailing"], size = "M", keys: QuoteKeyRing = ring, now = NOW): BookingQuote {
+  const priced = priceSelection(release, { vehicleCategoryId: sizeId(release, size), lines: slugs.map((s) => ({ serviceId: bySlug(release, s).id, quantity: 1 })) });
+  assert.equal(priced.kind, "QUOTED");
+  return signQuote(priced.kind === "QUOTED" ? priced.quote : (null as never), keys, now);
 }
 const decode = (token: string) => JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString("utf8"));
 // Signs arbitrary payload text with a ring key, to prove that a valid MAC alone is not enough.
@@ -25,7 +26,7 @@ const forge = (payloadText: string, key = ring.keys.get("q-2026a")!, algorithm =
 };
 const ok = (q: unknown, now = NOW, keys = ring) => verifyQuote(q, keys, now).ok;
 
-test("a signed quote verifies; the payload is the fixed-order v2 BOOKING_QUOTE object", () => {
+test("a signed quote verifies; the payload is the fixed-order v3 BOOKING_QUOTE object", () => {
   const q = freshQuote();
   const v = verifyQuote(q, ring, NOW);
   assert.ok(v.ok && !v.expired);
@@ -33,52 +34,77 @@ test("a signed quote verifies; the payload is the fixed-order v2 BOOKING_QUOTE o
   assert.equal(Date.parse(q.expiresAt) - Date.parse(q.issuedAt), 15 * 60_000);
   const payload = decode(q.quoteToken);
   assert.deepEqual(Object.keys(payload), ["v", "kid", "purpose", "quote"]);
-  assert.deepEqual([payload.v, payload.kid, payload.purpose], [2, "q-2026a", "BOOKING_QUOTE"]);
-  assert.deepEqual(Object.keys(payload.quote), ["serviceId", "vehicleCategoryId", "quantity", "addOnServiceIds", "version", "catalogReleaseId",
-    "catalogFingerprint", "pricingAlgorithm", "lines", "totalPriceCentavos", "durationMinutes", "currency", "issuedAt", "expiresAt"]);
-  assert.deepEqual(Object.keys(payload.quote.lines[0]), ["kind", "serviceId", "offerId", "name", "unit", "quantity", "unitPriceCentavos", "subtotalCentavos", "addedMinutes"]);
+  assert.deepEqual([payload.v, payload.kid, payload.purpose], [3, "q-2026a", "BOOKING_QUOTE"]);
+  assert.deepEqual(Object.keys(payload.quote), ["version", "catalogReleaseId", "catalogFingerprint", "pricingAlgorithm", "vehicleCategoryId",
+    "primaryServiceId", "queueId", "lines", "totalPriceCentavos", "estimatedTotalCentavos", "currency", "issuedAt", "expiresAt"]);
+  assert.deepEqual(Object.keys(payload.quote.lines[0]), ["serviceId", "offerId", "kind", "name", "unit", "quantity", "priceStatus",
+    "unitPriceCentavos", "subtotalCentavos", "referenceUnitPriceCentavos", "referenceSubtotalCentavos"]);
+  assert.deepEqual([payload.quote.primaryServiceId, payload.quote.queueId], [bySlug(release, "signature-wash").id, "WASH"]);
   const signed: Partial<BookingQuote> = { ...q };
   delete signed.quoteToken;
   assert.deepEqual(payload.quote, signed);
+  // No duration, time or day is signed (ADR-005).
+  for (const word of ["duration", "Minutes", "startTime", "bookingDate", "slot"]) assert.equal(JSON.stringify(payload).includes(word), false, word);
   // A verify-only key still verifies quotes it signed (rotation step 2).
-  const older = freshQuote("basic-wash", "S", { ...ring, activeKid: "q-2026b" });
+  const older = freshQuote(["basic-wash"], "S", { ...ring, activeKid: "q-2026b" });
   assert.equal(decode(older.quoteToken).kid, "q-2026b");
   assert.ok(ok(older));
+  // A ten-line quote fits the token bound.
+  const ten = ["signature-wash", "bac-to-zero", "glass-acid-rain-removal", "interior-detailing", "exterior-detailing", "engine-detailing",
+    "full-detailing", "eclipse-graphene", "nano-ceramic-tint", "panel-repaint"];
+  assert.ok(ok(freshQuote(ten)));
 });
 
 test("changing any outer field or signed line field is rejected, even with consistent arithmetic", () => {
   const q = freshQuote();
-  const line = q.lines[0];
+  const [wash, detailing, addOn] = q.lines; // canonical: primary, other bases, add-ons
   const other = "22222222-2222-4222-8222-222222222222";
   const mutations: [string, BookingQuote][] = [
-    ["serviceId", { ...q, serviceId: bySlug(release, "basic-wash").id, lines: [{ ...line, serviceId: bySlug(release, "basic-wash").id }] }],
     ["vehicleCategoryId", { ...q, vehicleCategoryId: sizeId(release, "L") }],
     ["catalogReleaseId", { ...q, catalogReleaseId: other }],
     ["catalogFingerprint", { ...q, catalogFingerprint: "a".repeat(64) }],
     ["issuedAt and expiresAt", { ...q, issuedAt: new Date(NOW.getTime() + 60_000).toISOString(), expiresAt: new Date(NOW.getTime() + 16 * 60_000).toISOString() }],
-    ["offerId", { ...q, lines: [{ ...line, offerId: other }] }],
-    ["name", { ...q, lines: [{ ...line, name: line.name + " Promo" }] }],
-    ["addedMinutes and duration", { ...q, durationMinutes: 30, lines: [{ ...line, addedMinutes: 30 }] }],
+    // The primary service and its queue, changed together with a consistent canonical order.
+    ["primary service", { ...q, primaryServiceId: detailing.serviceId, queueId: "DETAILING_COATING", lines: [detailing, wash, addOn] }],
+    ["queue", { ...q, queueId: "REPAINT" }],
+    ["dropped line", { ...q, lines: [wash, addOn], estimatedTotalCentavos: q.estimatedTotalCentavos! - detailing.referenceSubtotalCentavos! }],
+    ["swapped service", { ...q, primaryServiceId: bySlug(release, "basic-wash").id, lines: [{ ...wash, serviceId: bySlug(release, "basic-wash").id }, detailing, addOn] }],
+    ["offerId", { ...q, lines: [{ ...wash, offerId: other }, detailing, addOn] }],
+    ["name", { ...q, lines: [{ ...wash, name: wash.name + " Promo" }, detailing, addOn] }],
+    ["kind", { ...q, lines: [wash, { ...addOn, kind: "BASE" }, detailing] }],
     // Every price changed consistently: the schema accepts the arithmetic, the MAC does not.
-    ["all prices", { ...q, totalPriceCentavos: 100, lines: [{ ...line, unitPriceCentavos: 100, subtotalCentavos: 100 }] }],
+    ["priced amount", { ...q, totalPriceCentavos: 100, estimatedTotalCentavos: q.estimatedTotalCentavos! - wash.subtotalCentavos! + 100,
+      lines: [{ ...wash, unitPriceCentavos: 100, subtotalCentavos: 100 }, detailing, addOn] }],
+    ["estimate", { ...q, estimatedTotalCentavos: q.estimatedTotalCentavos! - detailing.referenceSubtotalCentavos! + 1,
+      lines: [wash, { ...detailing, referenceUnitPriceCentavos: 1, referenceSubtotalCentavos: 1 }, addOn] }],
+    // A for-quote line turned into a priced one at its reference amount.
+    ["for quote made priced", { ...q, totalPriceCentavos: q.totalPriceCentavos + detailing.referenceSubtotalCentavos!,
+      lines: [wash, { ...detailing, priceStatus: "PRICED", unitPriceCentavos: detailing.referenceUnitPriceCentavos, subtotalCentavos: detailing.referenceSubtotalCentavos,
+        referenceUnitPriceCentavos: null, referenceSubtotalCentavos: null }, addOn] }],
   ];
   for (const [label, mutated] of mutations) assert.equal(ok(mutated), false, label);
   // Shape-level tampering never reaches the MAC check.
   for (const [label, mutated] of [
-    ["quantity", { ...q, quantity: 2 }],
-    ["unit", { ...q, lines: [{ ...line, unit: "PANEL" }] }],
-    ["subtotal", { ...q, lines: [{ ...line, subtotalCentavos: line.subtotalCentavos + 1 }] }],
+    ["quantity", { ...q, lines: [{ ...wash, quantity: 2, subtotalCentavos: wash.subtotalCentavos! * 2 }, detailing, addOn] }],
+    ["subtotal", { ...q, lines: [{ ...wash, subtotalCentavos: wash.subtotalCentavos! + 1 }, detailing, addOn] }],
+    ["for-quote with a charge", { ...q, lines: [wash, { ...detailing, unitPriceCentavos: 1, subtotalCentavos: 1 }, addOn] }],
     ["total", { ...q, totalPriceCentavos: q.totalPriceCentavos + 1 }],
+    ["estimated total", { ...q, estimatedTotalCentavos: null }],
+    ["duplicate line", { ...q, lines: [wash, wash, addOn] }],
+    ["primary not first", { ...q, primaryServiceId: detailing.serviceId }],
+    ["non-canonical order", { ...q, lines: [wash, addOn, detailing] }],
+    ["malformed queue", { ...q, queueId: "wash" }],
+    ["no base line", { ...q, lines: [addOn], totalPriceCentavos: 0, estimatedTotalCentavos: addOn.referenceSubtotalCentavos }],
     ["currency", { ...q, currency: "USD" }],
-    ["version", { ...q, version: 1 }],
-    ["algorithm", { ...q, pricingAlgorithm: "legacy-php-size-v1" }],
-    ["add-on", { ...q, addOnServiceIds: [bySlug(release, "bac-to-zero").id] }],
+    ["version", { ...q, version: 2 }],
+    ["algorithm", { ...q, pricingAlgorithm: "php-service-size-v2" }],
+    ["a duration", { ...q, durationMinutes: 35 }],
     ["extra field", { ...q, discountCentavos: 0 }],
     ["missing token", { ...q, quoteToken: undefined }],
-    ["estimate as quote", { kind: "QUOTE_REQUIRED", quote: null }],
+    ["a selection as quote", { vehicleCategoryId: q.vehicleCategoryId, lines: [{ serviceId: wash.serviceId, quantity: 1 }] }],
   ] as [string, unknown][]) assert.equal(ok(mutated), false, label);
   // Uppercase IDs are the same quote (IDs are lowercased before binding).
-  assert.equal(ok({ ...q, serviceId: q.serviceId.toUpperCase() }), true);
+  assert.equal(ok({ ...q, vehicleCategoryId: q.vehicleCategoryId.toUpperCase() }), true);
 });
 
 test("token parser: purpose, version, kid, framing, canonical JSON and algorithm are all exact", () => {
@@ -91,14 +117,14 @@ test("token parser: purpose, version, kid, framing, canonical JSON and algorithm
   assert.equal(ok(withToken(forge(text))), true);
   const rejects: [string, string][] = [
     ["wrong purpose", forge(JSON.stringify({ ...payload, purpose: "BOOKING_MANAGEMENT" }))],
-    ["v1 payload", forge(JSON.stringify({ ...payload, v: 1 }))],
+    ["v2 payload", forge(JSON.stringify({ ...payload, v: 2 }))],
     ["unknown kid", forge(JSON.stringify({ ...payload, kid: "q-retired" }))],
     ["kid not matching key", forge(text, ring.keys.get("q-2026b")!)],
     ["extra payload field", forge(JSON.stringify({ ...payload, admin: true }))],
     ["extra quote field", forge(JSON.stringify({ ...payload, quote: { ...payload.quote, note: "x" } }))],
-    ["reordered keys", forge(JSON.stringify({ kid: payload.kid, v: 2, purpose: payload.purpose, quote: payload.quote }))],
+    ["reordered keys", forge(JSON.stringify({ kid: payload.kid, v: 3, purpose: payload.purpose, quote: payload.quote }))],
     ["whitespace", forge(JSON.stringify(payload, null, 1))],
-    ["duplicate key", forge(text.replace('"v":2,', '"v":2,"v":2,'))],
+    ["duplicate key", forge(text.replace('"v":3,', '"v":3,"v":3,'))],
     ["escaped text", forge(text.replace('"BOOKING_QUOTE"', '"BOOKING_\\u0051UOTE"'))],
     ["HMAC-SHA512", forge(text, ring.keys.get("q-2026a")!, "sha512")],
     ["changed MAC", encoded + "." + (mac[0] === "A" ? "B" : "A") + mac.slice(1)],
@@ -108,7 +134,7 @@ test("token parser: purpose, version, kid, framing, canonical JSON and algorithm
     ["three parts", q.quoteToken + ".x"],
     ["no MAC", encoded],
     ["empty MAC", encoded + "."],
-    ["oversize", "a".repeat(4097)],
+    ["oversize", "a".repeat(8193)],
     ["not UTF-8", Buffer.from([0xff, 0xfe, 0x7b]).toString("base64url") + "." + mac],
     ["not JSON", forge("{")],
     ["array payload", forge("[]")],
@@ -130,9 +156,9 @@ test("time: exactly fifteen minutes, expiry edge, future issuedAt and malformed 
   const edge = at(15 * 60_000);
   assert.ok(edge.ok && edge.expired); // authentic but expired: QUOTE_EXPIRED, not a forgery
   // issuedAt more than one minute in the future is refused; exactly one minute is tolerated.
-  const future = freshQuote("signature-wash", "M", ring, new Date(NOW.getTime() + 60_001));
+  const future = freshQuote(undefined, "M", ring, new Date(NOW.getTime() + 60_001));
   assert.equal(ok(future), false);
-  assert.equal(ok(freshQuote("signature-wash", "M", ring, new Date(NOW.getTime() + 60_000))), true);
+  assert.equal(ok(freshQuote(undefined, "M", ring, new Date(NOW.getTime() + 60_000))), true);
   // Malformed instants and a different TTL fail the shape check before any MAC work.
   for (const [issuedAt, expiresAt] of [["2026-10-18T02:00:00Z", "2026-10-18T02:15:00Z"], ["2026-10-18T02:00:00.000+08:00", q.expiresAt],
     [q.issuedAt, new Date(NOW.getTime() + 16 * 60_000).toISOString()], ["not a date", q.expiresAt]]) {

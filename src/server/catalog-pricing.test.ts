@@ -1,213 +1,208 @@
-// ADR-004 pricing and the fixed/quote-first split (T-043 T-046 cases 1, 2 and 8), against the
-// reviewed manifest. No database: the DB suite proves the loaded release equals this fixture.
+// ADR-005 multi-line pricing over the ADR-004 release (T-043 T-046 cases 1, 2 and 8 re-expressed
+// for line items), against the reviewed manifest. No database: the DB suite proves the loaded
+// release equals this fixture.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
-import { CatalogSelectionSchema, type CatalogSelection } from "@/types/catalog-contracts";
-import { catalogFingerprint, priceSelection, type PricingResult, type ReleaseSnapshot } from "./catalog-pricing";
+import { BookingQuoteSchema, CatalogSelectionSchema, selectionOfQuote, type CatalogSelection } from "@/types/catalog-contracts";
+import { catalogFingerprint, offerBooking, priceSelection, type PricingResult, type ReleaseSnapshot } from "./catalog-pricing";
 import { bySlug, readManifest, releaseFromManifest, sizeId } from "./catalog.fixture";
 
 const release = releaseFromManifest();
-const select = (slug: string, size: string, extra: Partial<CatalogSelection> = {}): CatalogSelection =>
-  ({ serviceId: bySlug(release, slug).id, vehicleCategoryId: sizeId(release, size), quantity: 1, addOnServiceIds: [], ...extra });
-const addOns = (...slugs: string[]) => slugs.map((s) => bySlug(release, s).id).sort();
-const rejected = (r: PricingResult, code: string) => { assert.equal(r.kind, "REJECTED", JSON.stringify(r)); assert.equal(r.kind === "REJECTED" && r.error.code, code, JSON.stringify(r)); };
+const select = (size: string, ...lines: (string | [string, number])[]): CatalogSelection => ({
+  vehicleCategoryId: sizeId(release, size),
+  lines: lines.map((l) => (typeof l === "string" ? { serviceId: bySlug(release, l).id, quantity: 1 } : { serviceId: bySlug(release, l[0]).id, quantity: l[1] })),
+});
+const quoted = (r: PricingResult) => { assert.equal(r.kind, "QUOTED", JSON.stringify(r)); return r.kind === "QUOTED" ? r.quote : (null as never); };
+const rejected = (r: PricingResult, code: string, field?: string) => {
+  assert.equal(r.kind, "REJECTED", JSON.stringify(r));
+  if (r.kind !== "REJECTED") return;
+  assert.equal(r.error.code, code, JSON.stringify(r));
+  if (field) assert.ok(field in r.error.fieldErrors, JSON.stringify(r.error.fieldErrors));
+};
+const amounts = (r: PricingResult) => quoted(r).lines.map((l) => [l.priceStatus, l.unitPriceCentavos, l.subtotalCentavos, l.referenceUnitPriceCentavos, l.referenceSubtotalCentavos]);
 function clone(mutate: (r: ReleaseSnapshot) => void): ReleaseSnapshot {
   const copy = structuredClone(release);
   mutate(copy);
   return copy;
 }
 
-test("worked examples from the contract", () => {
-  // Basic Wash / MOTOR: one VEHICLE base line, 10000 centavos, 30 minutes.
-  const basic = priceSelection(release, select("basic-wash", "MOTOR"));
-  assert.equal(basic.kind, "BOOKABLE");
-  if (basic.kind !== "BOOKABLE") return;
-  assert.equal(basic.quote.lines.length, 1);
-  assert.deepEqual({ ...basic.quote.lines[0], offerId: "x" }, { kind: "BASE", serviceId: bySlug(release, "basic-wash").id, offerId: "x", name: "Basic Wash",
-    unit: "VEHICLE", quantity: 1, unitPriceCentavos: 10000, subtotalCentavos: 10000, addedMinutes: 30 });
-  assert.equal(basic.quote.totalPriceCentavos, 10000);
-  assert.equal(basic.quote.durationMinutes, 30);
-  assert.equal(basic.quote.version, 2);
-  assert.equal(basic.quote.pricingAlgorithm, "php-service-size-v2");
-  assert.equal(basic.quote.currency, "PHP");
-  // Basic Wash / S + Bac to Zero: known sum 68000 but quote-first (added duration unknown).
-  const composite = priceSelection(release, select("basic-wash", "S", { addOnServiceIds: addOns("bac-to-zero") }));
-  assert.equal(composite.kind, "QUOTE_REQUIRED");
-  if (composite.kind !== "QUOTE_REQUIRED") return;
-  assert.equal(composite.estimate.totalPriceCentavos, 68000);
-  assert.deepEqual(composite.estimate.duration, { kind: "UNKNOWN" });
-  assert.ok(composite.reasons.includes("ADD_ON_DURATION_UNKNOWN"));
-  // Panel repaint x2: reference 350000 per panel, total null until fitment is confirmed.
-  const panel = priceSelection(release, select("panel-repaint", "M", { quantity: 2 }));
-  assert.equal(panel.kind, "QUOTE_REQUIRED");
-  if (panel.kind !== "QUOTE_REQUIRED") return;
-  assert.deepEqual(panel.estimate.lines, [{ serviceId: bySlug(release, "panel-repaint").id, name: "Panel repaint", unit: "PANEL", quantity: 2,
-    unitPriceCentavos: 350000, subtotalCentavos: 700000 }]);
-  assert.equal(panel.estimate.totalPriceCentavos, null);
-  assert.ok(panel.reasons.includes("ELIGIBILITY_UNCONFIRMED"));
-  // Premium Wash / MOTOR is not offered: never a zero price.
-  rejected(priceSelection(release, select("premium-wash", "MOTOR")), "SERVICE_NOT_OFFERED");
-  // Headlight / M: unconfirmed, no price, quote-first.
-  const headlight = priceSelection(release, select("headlight-restoration", "M"));
-  assert.equal(headlight.kind, "QUOTE_REQUIRED");
-  if (headlight.kind !== "QUOTE_REQUIRED") return;
-  assert.equal(headlight.estimate.totalPriceCentavos, null);
-  assert.equal(headlight.estimate.lines[0].unitPriceCentavos, null);
-  assert.ok(headlight.reasons.includes("PRICE_UNCONFIRMED") && headlight.reasons.includes("ELIGIBILITY_UNCONFIRMED"));
+test("worked examples: priced washes, for-quote lines with reference estimates, server totals", () => {
+  // Basic Wash / MOTOR: one priced line.
+  const basic = quoted(priceSelection(release, select("MOTOR", "basic-wash")));
+  assert.deepEqual({ ...basic.lines[0], offerId: "x" }, { serviceId: bySlug(release, "basic-wash").id, offerId: "x", kind: "BASE", name: "Basic Wash", unit: "VEHICLE",
+    quantity: 1, priceStatus: "PRICED", unitPriceCentavos: 10000, subtotalCentavos: 10000, referenceUnitPriceCentavos: null, referenceSubtotalCentavos: null });
+  assert.deepEqual([basic.totalPriceCentavos, basic.estimatedTotalCentavos, basic.version, basic.pricingAlgorithm, basic.currency], [10000, 10000, 3, "php-service-size-v3", "PHP"]);
+  // Basic Wash / S + Bac to Zero: the add-on is bookable for quote, with its source price as the estimate.
+  const composite = priceSelection(release, select("S", "basic-wash", "bac-to-zero"));
+  assert.deepEqual(amounts(composite), [["PRICED", 18000, 18000, null, null], ["FOR_QUOTE", null, null, 50000, 50000]]);
+  assert.deepEqual([quoted(composite).totalPriceCentavos, quoted(composite).estimatedTotalCentavos], [18000, 68000]);
+  // A detailing visit with a wash: several base services in one booking, in the customer's order.
+  const visit = quoted(priceSelection(release, select("S", "interior-detailing", "basic-wash")));
+  assert.deepEqual(visit.lines.map((l) => [l.name, l.priceStatus]), [["Interior Detailing", "FOR_QUOTE"], ["Basic Wash", "PRICED"]]);
+  assert.deepEqual([visit.totalPriceCentavos, visit.estimatedTotalCentavos], [18000, 368000]);
+  // Panel repaint x2: for quote with the per-panel reference as the estimate (LE 2026-10-18).
+  const panel = priceSelection(release, select("M", ["panel-repaint", 2]));
+  assert.deepEqual(amounts(panel), [["FOR_QUOTE", null, null, 350000, 700000]]);
+  assert.deepEqual([quoted(panel).totalPriceCentavos, quoted(panel).estimatedTotalCentavos], [0, 700000]);
+  // Coatings stay for quote: the source price is a reference, never a charged amount (LE 2026-10-18).
+  assert.deepEqual(amounts(priceSelection(release, select("S", "eclipse-graphene"))), [["FOR_QUOTE", null, null, 1170000, 1170000]]);
+  assert.deepEqual(amounts(priceSelection(release, select("S", "headlight-restoration"))), [["FOR_QUOTE", null, null, 160000, 160000]]);
+  // Not offered, and unconfirmed (other than panel repaint), cannot be booked.
+  rejected(priceSelection(release, select("MOTOR", "premium-wash")), "SERVICE_NOT_OFFERED", "lines.0.serviceId");
+  rejected(priceSelection(release, select("M", "headlight-restoration")), "SERVICE_NOT_OFFERED", "lines.0.serviceId");
+  rejected(priceSelection(release, select("S", "motorcycle-graphene")), "SERVICE_NOT_OFFERED");
+  // Quotes carry no duration or time.
+  const keys = JSON.stringify(basic);
+  for (const word of ["duration", "Minutes", "startTime", "slot", "bookingDate"]) assert.equal(keys.includes(word), false, word);
 });
 
-test("every one of the 105 pairs prices exactly as the reviewed manifest says", () => {
+test("every one of the 105 cells books exactly as the reviewed manifest and the LE decisions say", () => {
   const manifest = readManifest();
-  let bookable = 0;
+  const counts = { PRICED: 0, FOR_QUOTE: 0, UNAVAILABLE: 0, ADD_ON_ALONE: 0 };
   for (const service of manifest.services) {
     for (const offer of service.offers) {
-      const result = priceSelection(release, { serviceId: service.id, vehicleCategoryId: offer.vehicleCategoryId, quantity: 1, addOnServiceIds: [] });
       const label = `${service.slug}/${offer.sizeCode}`;
-      if (service.type === "ADD_ON") { rejected(result, "VALIDATION_ERROR"); continue; } // never sold alone
-      if (offer.state === "NOT_OFFERED") { rejected(result, "SERVICE_NOT_OFFERED"); continue; }
-      if (offer.bookingMode === "FIXED_ONLINE") {
-        assert.equal(result.kind, "BOOKABLE", label);
-        if (result.kind !== "BOOKABLE") continue;
-        bookable++;
-        assert.equal(result.quote.totalPriceCentavos, offer.unitPriceCentavos, label);
-        assert.equal(result.quote.durationMinutes, offer.durationMinutes, label);
-        assert.equal(result.quote.lines[0].offerId, offer.id, label);
-        continue;
-      }
-      assert.equal(result.kind, "QUOTE_REQUIRED", label);
-      if (result.kind !== "QUOTE_REQUIRED") continue;
-      assert.ok(result.reasons.length >= 1, label);
-      const line = result.estimate.lines[0];
-      const expectedUnit = offer.unitPriceCentavos ?? (offer.state === "UNCONFIRMED" ? service.referenceUnitPriceCentavos : null);
-      assert.equal(line.unitPriceCentavos, expectedUnit, label);
-      assert.equal(result.estimate.totalPriceCentavos, offer.state === "OFFERED" ? offer.unitPriceCentavos : null, label);
-      assert.deepEqual(result.estimate.duration, { kind: "UNKNOWN" }, label);
+      const result = priceSelection(release, { vehicleCategoryId: offer.vehicleCategoryId, lines: [{ serviceId: service.id, quantity: 1 }] });
+      const panelReference = service.unit === "PANEL" && offer.state === "UNCONFIRMED" && service.referenceUnitPriceCentavos !== null;
+      const expected = offer.state === "OFFERED" ? (offer.bookingMode === "FIXED_ONLINE" ? "PRICED" : "FOR_QUOTE") : panelReference ? "FOR_QUOTE" : "UNAVAILABLE";
+      const s = release.services.find((x) => x.id === service.id)!;
+      assert.equal(offerBooking(s, s.offers.find((o) => o.id === offer.id)!), expected, label);
+      if (service.type === "ADD_ON" && expected !== "UNAVAILABLE") { rejected(result, "VALIDATION_ERROR"); counts.ADD_ON_ALONE++; continue; }
+      counts[expected]++;
+      if (expected === "UNAVAILABLE") { rejected(result, "SERVICE_NOT_OFFERED"); continue; }
+      const line = quoted(result).lines[0];
+      assert.equal(line.offerId, offer.id, label);
+      if (expected === "PRICED") assert.deepEqual([line.unitPriceCentavos, line.referenceUnitPriceCentavos], [offer.unitPriceCentavos, null], label);
+      else assert.deepEqual([line.unitPriceCentavos, line.referenceUnitPriceCentavos], [null, offer.unitPriceCentavos ?? service.referenceUnitPriceCentavos], label);
     }
   }
-  // Only the three plain washes on their offered sizes sign quotes: 5 + 5 + 4.
-  assert.equal(bookable, 14);
+  // 14 priced wash cells; for-quote cells everywhere else that is offered, plus panel repaint on five sizes.
+  assert.deepEqual(counts, { PRICED: 14, FOR_QUOTE: 59, UNAVAILABLE: 24, ADD_ON_ALONE: 8 });
 });
 
-test("quantity, unit and selection shape are enforced; client price fields never parse", () => {
-  rejected(priceSelection(release, select("basic-wash", "S", { quantity: 2 })), "VALIDATION_ERROR"); // VEHICLE is one
-  rejected(priceSelection(release, select("full-detailing", "L", { quantity: 3 })), "VALIDATION_ERROR");
-  const panel20 = priceSelection(release, select("panel-repaint", "S", { quantity: 20 }));
-  assert.equal(panel20.kind === "QUOTE_REQUIRED" && panel20.estimate.lines[0].subtotalCentavos, 7_000_000);
-  const base = select("panel-repaint", "S");
-  for (const bad of [0, 21, 1.5, -1, Number.NaN, Infinity, Number.MAX_SAFE_INTEGER + 2, "2", "1", null]) {
-    assert.equal(CatalogSelectionSchema.safeParse({ ...base, quantity: bad }).success, false, String(bad));
+test("selection shape: distinct services, at most ten lines, numeric quantities, no client price fields", () => {
+  const base = select("S", "basic-wash");
+  assert.equal(CatalogSelectionSchema.safeParse({ ...base, lines: [...base.lines, ...base.lines] }).success, false);
+  assert.equal(CatalogSelectionSchema.safeParse({ ...base, lines: [] }).success, false);
+  const eleven = release.services.slice(0, 11).map((s) => ({ serviceId: s.id, quantity: 1 }));
+  assert.equal(CatalogSelectionSchema.safeParse({ ...base, lines: eleven }).success, false);
+  for (const bad of [0, 21, 1.5, -1, Number.NaN, Infinity, "1", null]) {
+    assert.equal(CatalogSelectionSchema.safeParse({ ...base, lines: [{ ...base.lines[0], quantity: bad }] }).success, false, String(bad));
   }
-  for (const extra of [{ price: 1 }, { totalPriceCentavos: 1 }, { unitPriceCentavos: 1 }, { discount: 1 }, { lines: [] }, { durationMinutes: 30 }, { unit: "PANEL" }]) {
+  for (const extra of [{ price: 1 }, { totalPriceCentavos: 1 }, { unitPriceCentavos: 1 }, { discount: 1 }, { durationMinutes: 30 }, { bookingDate: "2026-10-20" }]) {
     assert.equal(CatalogSelectionSchema.safeParse({ ...base, ...extra }).success, false, JSON.stringify(extra));
+    assert.equal(CatalogSelectionSchema.safeParse({ ...base, lines: [{ ...base.lines[0], ...extra }] }).success, false, JSON.stringify(extra));
   }
-  for (const missing of ["serviceId", "vehicleCategoryId", "quantity", "addOnServiceIds"] as const) {
-    const copy: Record<string, unknown> = { ...base };
-    delete copy[missing];
-    assert.equal(CatalogSelectionSchema.safeParse(copy).success, false, missing);
-  }
+  // Quantity follows the unit: per vehicle is one, panels are 1..20.
+  rejected(priceSelection(release, select("S", ["basic-wash", 2])), "VALIDATION_ERROR", "lines.0.quantity");
+  rejected(priceSelection(release, select("S", "basic-wash", ["bac-to-zero", 2])), "VALIDATION_ERROR", "lines.1.quantity");
+  assert.equal(quoted(priceSelection(release, select("S", ["panel-repaint", 20]))).estimatedTotalCentavos, 7_000_000);
 });
 
-test("add-ons: duplicate, unsorted, too many, alone, self, base-as-add-on, incompatible, wrong size and unknown all reject", () => {
-  const ids = addOns("glass-acid-rain-removal", "bac-to-zero");
-  assert.equal(CatalogSelectionSchema.safeParse(select("basic-wash", "S", { addOnServiceIds: [ids[0], ids[0]] })).success, false);
-  assert.equal(CatalogSelectionSchema.safeParse(select("basic-wash", "S", { addOnServiceIds: [ids[1], ids[0]] })).success, false);
-  assert.equal(CatalogSelectionSchema.safeParse(select("basic-wash", "S", { addOnServiceIds: [...ids, bySlug(release, "interior-detailing").id].sort() })).success, false);
-  // Both compatible add-ons together are a valid (quote-first) composition.
-  const both = priceSelection(release, select("signature-wash", "L", { addOnServiceIds: ids }));
-  assert.equal(both.kind === "QUOTE_REQUIRED" && both.estimate.totalPriceCentavos, 50000 + 75000 + 60000);
-  assert.deepEqual(both.kind === "QUOTE_REQUIRED" && both.estimate.lines.map((l) => l.serviceId), [bySlug(release, "signature-wash").id, ...ids]);
-  // Add-on sold alone.
-  rejected(priceSelection(release, select("bac-to-zero", "S")), "VALIDATION_ERROR");
-  // An add-on that is the base, or a BASE service used as an add-on.
-  const basic = bySlug(release, "basic-wash").id;
-  rejected(priceSelection(release, select("basic-wash", "S", { addOnServiceIds: [basic] })), "VALIDATION_ERROR");
-  rejected(priceSelection(release, select("basic-wash", "S", { addOnServiceIds: addOns("signature-wash") })), "VALIDATION_ERROR");
-  // Incompatible base: detailing takes no wash add-on.
-  rejected(priceSelection(release, select("interior-detailing", "S", { addOnServiceIds: addOns("bac-to-zero") })), "VALIDATION_ERROR");
-  // Wrong size: the add-on is not offered on MOTOR and compatibility excludes MOTOR.
-  rejected(priceSelection(release, select("basic-wash", "MOTOR", { addOnServiceIds: addOns("bac-to-zero") })), "SERVICE_NOT_OFFERED");
-  const motorCompatible = clone((r) => { for (const c of r.compatibility) c.sizeCodes = ["S", "M", "L", "XL"]; for (const o of bySlug(r, "bac-to-zero").offers) if (o.sizeCode === "MOTOR") Object.assign(o, { state: "OFFERED", unitPriceCentavos: 1000 }); });
-  rejected(priceSelection(motorCompatible, select("basic-wash", "MOTOR", { addOnServiceIds: addOns("bac-to-zero") })), "VALIDATION_ERROR");
-  // Unknown IDs, and IDs of the wrong kind (a size used as a service, and the reverse).
+test("add-ons: never alone, only with a compatible base on that size; unknown IDs are not found", () => {
+  rejected(priceSelection(release, select("S", "bac-to-zero")), "VALIDATION_ERROR", "lines.0.serviceId");
+  rejected(priceSelection(release, select("S", "bac-to-zero", "glass-acid-rain-removal")), "VALIDATION_ERROR");
+  // Interior detailing takes no wash add-on; with a wash in the same visit, it does.
+  rejected(priceSelection(release, select("S", "interior-detailing", "bac-to-zero")), "VALIDATION_ERROR", "lines.1.serviceId");
+  const withWash = quoted(priceSelection(release, select("S", "interior-detailing", "bac-to-zero", "basic-wash")));
+  assert.deepEqual(withWash.lines.map((l) => l.kind), ["BASE", "BASE", "ADD_ON"]);
+  // Both add-ons on one wash (no fixed limit beyond distinct services).
+  assert.equal(quoted(priceSelection(release, select("L", "signature-wash", "glass-acid-rain-removal", "bac-to-zero"))).estimatedTotalCentavos, 50000 + 75000 + 60000);
+  // Wrong size: add-ons are not offered on MOTOR; a compatibility row that excludes the size also refuses.
+  rejected(priceSelection(release, select("MOTOR", "basic-wash", "bac-to-zero")), "SERVICE_NOT_OFFERED", "lines.1.serviceId");
+  const motor = clone((r) => { for (const o of bySlug(r, "bac-to-zero").offers) if (o.sizeCode === "MOTOR") Object.assign(o, { state: "OFFERED", unitPriceCentavos: 1000 }); });
+  rejected(priceSelection(motor, select("MOTOR", "basic-wash", "bac-to-zero")), "VALIDATION_ERROR", "lines.1.serviceId");
   const unknown = "11111111-1111-4111-8111-111111111111";
-  rejected(priceSelection(release, { ...select("basic-wash", "S"), serviceId: unknown }), "NOT_FOUND");
-  rejected(priceSelection(release, { ...select("basic-wash", "S"), vehicleCategoryId: unknown }), "NOT_FOUND");
-  rejected(priceSelection(release, { ...select("basic-wash", "S"), vehicleCategoryId: basic }), "NOT_FOUND");
-  rejected(priceSelection(release, { ...select("basic-wash", "S"), serviceId: sizeId(release, "S") }), "NOT_FOUND");
-  rejected(priceSelection(release, select("basic-wash", "S", { addOnServiceIds: [unknown] })), "NOT_FOUND");
+  rejected(priceSelection(release, { ...select("S", "basic-wash"), vehicleCategoryId: unknown }), "NOT_FOUND", "vehicleCategoryId");
+  rejected(priceSelection(release, { ...select("S", "basic-wash"), vehicleCategoryId: bySlug(release, "basic-wash").id }), "NOT_FOUND");
+  rejected(priceSelection(release, { vehicleCategoryId: sizeId(release, "S"), lines: [{ serviceId: bySlug(release, "basic-wash").id, quantity: 1 }, { serviceId: unknown, quantity: 1 }] }), "NOT_FOUND", "lines.1.serviceId");
+  rejected(priceSelection(release, { vehicleCategoryId: sizeId(release, "S"), lines: [{ serviceId: sizeId(release, "S"), quantity: 1 }] }), "NOT_FOUND");
 });
 
-test("a row flag cannot enable fixed add-ons, panels, unknown or multi-day bookings", () => {
-  // Add-on rows marked FIXED with known minutes: the composition stays quote-first.
-  const fixedAddOn = clone((r) => { for (const o of bySlug(r, "bac-to-zero").offers) if (o.state === "OFFERED") Object.assign(o, { bookingMode: "FIXED_ONLINE", durationKind: "TIMED", durationMinutes: 15 }); });
-  const composite = priceSelection(fixedAddOn, select("basic-wash", "S", { addOnServiceIds: addOns("bac-to-zero") }));
-  assert.equal(composite.kind, "QUOTE_REQUIRED");
-  assert.deepEqual(composite.kind === "QUOTE_REQUIRED" && composite.estimate.duration, { kind: "TIMED", minutes: 45 });
-  // A FIXED row on a PANEL service, on an UNKNOWN or MULTI_DAY plan, or not OFFERED, never signs.
-  const forced = (mutate: (o: ReleaseSnapshot["services"][number]["offers"][number], s: ReleaseSnapshot["services"][number]) => void, slug = "panel-repaint") =>
-    clone((r) => { const s = bySlug(r, slug); for (const o of s.offers) if (o.sizeCode === "M") mutate(o, s); });
-  const panel = forced((o) => Object.assign(o, { state: "OFFERED", bookingMode: "FIXED_ONLINE", unitPriceCentavos: 350000, durationKind: "TIMED", durationMinutes: 60 }));
-  assert.equal(priceSelection(panel, select("panel-repaint", "M")).kind, "QUOTE_REQUIRED");
-  const unknown = forced((o) => Object.assign(o, { bookingMode: "FIXED_ONLINE", durationKind: "UNKNOWN", durationMinutes: null }), "full-detailing");
-  const unknownResult = priceSelection(unknown, select("full-detailing", "M"));
-  assert.ok(unknownResult.kind === "QUOTE_REQUIRED" && unknownResult.reasons.includes("DURATION_UNKNOWN"));
-  const multi = forced((o) => Object.assign(o, { bookingMode: "FIXED_ONLINE", durationKind: "MULTI_DAY", durationMinutes: null, elapsedDays: 3 }), "full-detailing");
-  const multiResult = priceSelection(multi, select("full-detailing", "M"));
-  assert.ok(multiResult.kind === "QUOTE_REQUIRED" && multiResult.reasons.includes("MULTI_DAY"));
-  assert.deepEqual(multiResult.kind === "QUOTE_REQUIRED" && multiResult.estimate.duration, { kind: "MULTI_DAY", elapsedDays: 3 });
-  const unconfirmed = forced((o) => Object.assign(o, { state: "UNCONFIRMED", bookingMode: "FIXED_ONLINE", unitPriceCentavos: 20000, durationKind: "TIMED", durationMinutes: 30 }), "basic-wash");
-  assert.equal(priceSelection(unconfirmed, select("basic-wash", "M")).kind, "QUOTE_REQUIRED");
-  // A TIMED panel never multiplies its minutes by the panel count.
-  const timedPanel = forced((o) => Object.assign(o, { state: "OFFERED", unitPriceCentavos: 350000, durationKind: "TIMED", durationMinutes: 60 }));
-  const timed = priceSelection(timedPanel, select("panel-repaint", "M", { quantity: 3 }));
-  assert.deepEqual(timed.kind === "QUOTE_REQUIRED" && timed.estimate.duration, { kind: "UNKNOWN" });
-  assert.equal(timed.kind === "QUOTE_REQUIRED" && timed.estimate.totalPriceCentavos, 1_050_000);
+test("pricing never depends on durations, and only fixed offered cells are charged", () => {
+  // Durations are informational (ADR-005): changing every work plan changes no quote.
+  const timed = clone((r) => { for (const s of r.services) for (const o of s.offers) Object.assign(o, { durationKind: "MULTI_DAY", durationMinutes: null, elapsedDays: 3 }); });
+  for (const sel of [select("S", "basic-wash", "bac-to-zero"), select("XL", "ppf-8-0-mil"), select("M", ["panel-repaint", 4])]) {
+    assert.deepEqual(priceSelection(timed, sel), priceSelection(release, sel));
+  }
+  // An unconfirmed cell with a sourced price is still not bookable, except the panel reference rule.
+  const pricedUnconfirmed = clone((r) => { for (const o of bySlug(r, "headlight-restoration").offers) if (o.sizeCode === "M") o.unitPriceCentavos = 160000; });
+  rejected(priceSelection(pricedUnconfirmed, select("M", "headlight-restoration")), "SERVICE_NOT_OFFERED");
+  // A panel service without a reference has nothing to estimate and is not bookable.
+  const noReference = clone((r) => { bySlug(r, "panel-repaint").referenceUnitPriceCentavos = null; });
+  rejected(priceSelection(noReference, select("M", "panel-repaint")), "SERVICE_NOT_OFFERED");
+  assert.equal(JSON.stringify(release).includes("compareAt"), false); // no comparison price can reach a charge
 });
 
 test("totals stay safe integers within 100,000,000 centavos", () => {
   const huge = clone((r) => {
     for (const o of bySlug(r, "basic-wash").offers) if (o.sizeCode === "S") o.unitPriceCentavos = 100_000_000;
-    for (const o of bySlug(r, "bac-to-zero").offers) if (o.sizeCode === "S") o.unitPriceCentavos = 1;
+    for (const o of bySlug(r, "signature-wash").offers) if (o.sizeCode === "S") o.unitPriceCentavos = 1;
   });
-  rejected(priceSelection(huge, select("basic-wash", "S", { addOnServiceIds: addOns("bac-to-zero") })), "VALIDATION_ERROR");
-  const max = priceSelection(huge, select("basic-wash", "S"));
-  assert.equal(max.kind === "BOOKABLE" && max.quote.totalPriceCentavos, 100_000_000);
+  assert.equal(quoted(priceSelection(huge, select("S", "basic-wash"))).totalPriceCentavos, 100_000_000);
+  rejected(priceSelection(huge, select("S", "basic-wash", "signature-wash")), "VALIDATION_ERROR");
+  // The estimate is bounded too.
+  rejected(priceSelection(huge, select("S", "basic-wash", "bac-to-zero")), "VALIDATION_ERROR");
 });
 
-test("the fingerprint is the specified SHA-256 and binds release, manifest, selection and every line field", () => {
-  const result = priceSelection(release, select("signature-wash", "XL"));
-  assert.equal(result.kind, "BOOKABLE");
-  if (result.kind !== "BOOKABLE") return;
-  const q = result.quote;
-  const selection = [q.serviceId, q.vehicleCategoryId, q.quantity, q.addOnServiceIds];
-  const lines = q.lines.map((l) => [l.kind, l.serviceId, l.offerId, l.name, l.unit, l.quantity, l.unitPriceCentavos, l.subtotalCentavos, l.addedMinutes]);
-  const expected = createHash("sha256").update(JSON.stringify(["php-service-size-v2", release.releaseId, release.manifestSha256, selection, lines,
-    q.totalPriceCentavos, q.durationMinutes, "PHP"]), "utf8").digest("hex");
+test("the fingerprint is the specified SHA-256 and binds release, manifest, size, primary, queue and every line field", () => {
+  const q = quoted(priceSelection(release, select("XL", "signature-wash", "bac-to-zero")));
+  const lineArrays = q.lines.map((l) => [l.serviceId, l.offerId, l.kind, l.name, l.unit, l.quantity, l.priceStatus, l.unitPriceCentavos,
+    l.subtotalCentavos, l.referenceUnitPriceCentavos, l.referenceSubtotalCentavos]);
+  const expected = createHash("sha256").update(JSON.stringify(["php-service-size-v3", release.releaseId, release.manifestSha256, q.vehicleCategoryId,
+    q.primaryServiceId, q.queueId, lineArrays, q.totalPriceCentavos, q.estimatedTotalCentavos, "PHP"]), "utf8").digest("hex");
   assert.equal(q.catalogFingerprint, expected);
-  const line = q.lines[0];
+  const fp = (r: Pick<ReleaseSnapshot, "releaseId" | "manifestSha256">, over: Partial<typeof q> = {}) => catalogFingerprint(r, { ...q, ...over });
+  const line = q.lines[1];
   const variants = [
-    catalogFingerprint({ ...release, releaseId: "2e5d1c7e-3b0a-4c8e-9d61-0a8f1b2c3d4e" }, q, q.lines, q.totalPriceCentavos, q.durationMinutes),
-    catalogFingerprint({ ...release, manifestSha256: "0".repeat(64) }, q, q.lines, q.totalPriceCentavos, q.durationMinutes),
-    catalogFingerprint(release, { ...q, quantity: 2 }, q.lines, q.totalPriceCentavos, q.durationMinutes),
-    ...(["offerId", "name", "unitPriceCentavos", "subtotalCentavos", "addedMinutes"] as const).map((field) =>
-      catalogFingerprint(release, q, [{ ...line, [field]: typeof line[field] === "number" ? (line[field] as number) + 1 : line[field] + "x" }], q.totalPriceCentavos, q.durationMinutes)),
-    catalogFingerprint(release, q, q.lines, q.totalPriceCentavos + 1, q.durationMinutes),
-    catalogFingerprint(release, q, q.lines, q.totalPriceCentavos, q.durationMinutes + 1),
+    fp({ ...release, releaseId: "2e5d1c7e-3b0a-4c8e-9d61-0a8f1b2c3d4e" }), fp({ ...release, manifestSha256: "0".repeat(64) }),
+    fp(release, { vehicleCategoryId: sizeId(release, "L") }), fp(release, { lines: [...q.lines].reverse() }),
+    fp(release, { primaryServiceId: bySlug(release, "basic-wash").id }), fp(release, { queueId: "DETAILING_COATING" }),
+    fp(release, { totalPriceCentavos: q.totalPriceCentavos + 1 }), fp(release, { estimatedTotalCentavos: null }),
+    ...(["offerId", "name", "kind", "priceStatus", "referenceUnitPriceCentavos", "referenceSubtotalCentavos", "quantity"] as const).map((field) =>
+      fp(release, { lines: [q.lines[0], { ...line, [field]: typeof line[field] === "number" ? (line[field] as number) + 1 : String(line[field]) + "x" }] })),
   ];
   assert.equal(new Set([q.catalogFingerprint, ...variants]).size, variants.length + 1);
 });
 
-test("estimates never charge comparison prices and QUOTE_REQUIRED always carries a reason", () => {
-  for (const service of release.services) {
-    if (service.type === "ADD_ON") continue;
-    for (const size of release.sizes) {
-      for (const quantity of service.unit === "PANEL" ? [1, 7] : [1]) {
-        const r = priceSelection(release, { serviceId: service.id, vehicleCategoryId: size.id, quantity, addOnServiceIds: [] });
-        if (r.kind === "QUOTE_REQUIRED") assert.ok(r.reasons.length >= 1 && new Set(r.reasons).size === r.reasons.length, `${service.slug}/${size.code}`);
-      }
-    }
+test("A6: lines are canonical (primary first, other bases, then add-ons, each by service ID); the quote binds the primary and its queue", () => {
+  const id = (slug: string) => bySlug(release, slug).id;
+  // The customer picks an add-on first, then three bases: the first base is the primary.
+  const q = quoted(priceSelection(release, select("S", "bac-to-zero", "interior-detailing", "glass-acid-rain-removal", "exterior-detailing", "basic-wash")));
+  assert.deepEqual(q.lines.map((l) => l.serviceId), [id("interior-detailing"), ...[id("exterior-detailing"), id("basic-wash")].sort(),
+    ...[id("bac-to-zero"), id("glass-acid-rain-removal")].sort()]);
+  assert.deepEqual([q.primaryServiceId, q.queueId], [id("interior-detailing"), "DETAILING_COATING"]);
+  assert.ok(BookingQuoteSchema.safeParse({ ...q, issuedAt: "2026-10-18T02:00:00.000Z", expiresAt: "2026-10-18T02:15:00.000Z", quoteToken: "x" }).success);
+  // Reordering anything after the first base changes nothing.
+  assert.deepEqual(quoted(priceSelection(release, select("S", "interior-detailing", "glass-acid-rain-removal", "basic-wash", "bac-to-zero", "exterior-detailing"))), q);
+  // The same services with another first base: another primary, queue and fingerprint.
+  const wash = quoted(priceSelection(release, select("S", "basic-wash", "interior-detailing", "bac-to-zero", "exterior-detailing", "glass-acid-rain-removal")));
+  assert.deepEqual([wash.primaryServiceId, wash.queueId, wash.lines[0].serviceId], [id("basic-wash"), "WASH", id("basic-wash")]);
+  assert.notEqual(wash.catalogFingerprint, q.catalogFingerprint);
+  assert.deepEqual([...wash.lines].map((l) => l.serviceId).sort(), [...q.lines].map((l) => l.serviceId).sort());
+  // Pricing a quote's own lines again is a fixed point: create recomputes it this way.
+  assert.deepEqual(quoted(priceSelection(release, selectionOfQuote(q))), q);
+  assert.deepEqual(quoted(priceSelection(release, selectionOfQuote(wash))), wash);
+  // Each queue is reachable through its own primary service.
+  assert.deepEqual(["basic-wash", "full-detailing", "eclipse-graphene", "regular-tint", "ppf-7-5-mil", ["panel-repaint", 3], "washover-repaint"].map((l) =>
+    quoted(priceSelection(release, select("M", l as string))).queueId), ["WASH", "DETAILING_COATING", "DETAILING_COATING", "TINT_PPF", "TINT_PPF", "REPAINT", "REPAINT"]);
+  // A quote whose primary is not its first line, or whose lines are out of canonical order, fails the contract shape.
+  const signed = { ...q, issuedAt: "2026-10-18T02:00:00.000Z", expiresAt: "2026-10-18T02:15:00.000Z", quoteToken: "x" };
+  for (const bad of [{ ...signed, primaryServiceId: q.lines[1].serviceId }, { ...signed, lines: [q.lines[0], q.lines[2], q.lines[1], q.lines[3], q.lines[4]] },
+    { ...signed, lines: [q.lines[0], q.lines[1], q.lines[2], q.lines[4], q.lines[3]] }, { ...signed, lines: [q.lines[3], ...q.lines.filter((_, i) => i !== 3)] },
+    { ...signed, queueId: "wash" }, { ...signed, queueId: "" }]) {
+    assert.equal(BookingQuoteSchema.safeParse(bad).success, false, JSON.stringify([bad.primaryServiceId, bad.queueId, bad.lines.map((l) => l.serviceId)]));
   }
-  // The internal model has no compare-at field: pricing cannot read one.
-  assert.equal(JSON.stringify(release).includes("compareAt"), false);
+});
+
+test("A1: an offered quote-first cell without a source price is a for-quote line with no reference", () => {
+  const noSource = clone((r) => { for (const o of bySlug(r, "interior-detailing").offers) if (o.sizeCode === "S") o.unitPriceCentavos = null; });
+  const q = priceSelection(noSource, select("S", "interior-detailing", "basic-wash"));
+  assert.deepEqual(amounts(q), [["FOR_QUOTE", null, null, null, null], ["PRICED", 18000, 18000, null, null]]);
+  // The charged total is the priced lines; no estimate is shown while a for-quote line has no reference.
+  assert.deepEqual([quoted(q).totalPriceCentavos, quoted(q).estimatedTotalCentavos], [18000, null]);
+  // A fixed online cell is never booked without a price (the P1-01 offer check forbids it; fail closed).
+  const fixedNoPrice = clone((r) => { for (const o of bySlug(r, "basic-wash").offers) if (o.sizeCode === "S") o.unitPriceCentavos = null; });
+  rejected(priceSelection(fixedNoPrice, select("S", "basic-wash")), "SERVICE_NOT_OFFERED", "lines.0.serviceId");
 });

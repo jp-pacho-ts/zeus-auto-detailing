@@ -14,7 +14,7 @@ const CATALOG_KEYS = ["catalogReleaseId", "catalogVersion", "vehicleCategories",
 const SIZE_KEYS = ["id", "code", "name", "description", "sortOrder"];
 const SERVICE_KEYS = ["id", "slug", "name", "description", "category", "type", "unit", "inclusions", "productName", "hardness",
   "warrantyMonths", "referenceUnitPriceCentavos", "offers"];
-const OFFER_KEYS = ["id", "vehicleCategoryId", "duration", "state", "bookingMode", "unitPriceCentavos", "compareAtCentavos"];
+const OFFER_KEYS = ["id", "vehicleCategoryId", "duration", "onlineBooking", "state", "bookingMode", "unitPriceCentavos", "compareAtCentavos"];
 const CANARIES = ["bayCapacityRequired", "maxVehicleCapacity", "remainingCapacity", "bayHoldPolicy", "segments", "sizeMultiplier",
   "sourceCompareAtCentavos", "compareAtVerified", "provenance", "sourceName", "rating", "costCentavos", "privateNote", "manifestSha256", "CANARY"];
 
@@ -61,12 +61,20 @@ test("offer states and durations project exactly; labels pass through as text", 
     return s.offers.find((o) => o.vehicleCategoryId === catalog.vehicleCategories.find((v) => v.code === code)!.id)!;
   };
   assert.deepEqual({ ...find("basic-wash", "MOTOR"), id: "x" }, { id: "x", vehicleCategoryId: catalog.vehicleCategories[0].id,
-    duration: { kind: "TIMED", minutes: 30 }, state: "OFFERED", bookingMode: "FIXED_ONLINE", unitPriceCentavos: 10000, compareAtCentavos: null });
+    duration: { kind: "TIMED", minutes: 30 }, onlineBooking: "PRICED", state: "OFFERED", bookingMode: "FIXED_ONLINE", unitPriceCentavos: 10000, compareAtCentavos: null });
   assert.deepEqual(find("premium-wash", "MOTOR").duration, { kind: "UNKNOWN" });
   assert.equal(find("premium-wash", "MOTOR").state, "NOT_OFFERED");
   assert.equal(find("premium-wash", "MOTOR").unitPriceCentavos, null);
-  assert.deepEqual([find("headlight-restoration", "M").state, find("headlight-restoration", "M").unitPriceCentavos], ["UNCONFIRMED", null]);
-  assert.deepEqual([find("arcane-graphene", "S").unitPriceCentavos, find("arcane-graphene", "S").bookingMode], [1310000, "QUOTE_REQUIRED"]);
+  assert.deepEqual([find("headlight-restoration", "M").state, find("headlight-restoration", "M").unitPriceCentavos, find("headlight-restoration", "M").onlineBooking],
+    ["UNCONFIRMED", null, "UNAVAILABLE"]);
+  assert.deepEqual([find("arcane-graphene", "S").unitPriceCentavos, find("arcane-graphene", "S").bookingMode, find("arcane-graphene", "S").onlineBooking],
+    [1310000, "QUOTE_REQUIRED", "FOR_QUOTE"]);
+  assert.equal(find("premium-wash", "MOTOR").onlineBooking, "UNAVAILABLE");
+  assert.deepEqual(["MOTOR", "S", "M", "L", "XL"].map((c) => find("panel-repaint", c).onlineBooking), Array(5).fill("FOR_QUOTE"));
+  // The public cell flag is the same server rule pricing uses, for every one of the 105 cells.
+  const counts: Record<string, number> = {};
+  for (const svc of catalog.services) for (const o of svc.offers) counts[o.onlineBooking] = (counts[o.onlineBooking] ?? 0) + 1;
+  assert.deepEqual(counts, { PRICED: 14, FOR_QUOTE: 67, UNAVAILABLE: 24 });
   const panel = catalog.services.find((s) => s.slug === "panel-repaint")!;
   assert.deepEqual([panel.unit, panel.referenceUnitPriceCentavos], ["PANEL", 350000]);
   // A hostile label is returned verbatim as JSON text; rendering is text, never HTML.
@@ -75,18 +83,21 @@ test("offer states and durations project exactly; labels pass through as text", 
   assert.equal(projectPublicCatalog(hostile).services[0].name, "<img src=x onerror=alert(1)>");
 });
 
-test("the quote query adapter takes exactly four keys, canonical numbers and one comma list", () => {
-  const ids = ["0b8b3b3e-2b1a-4e5c-9f00-000000000001", "0b8b3b3e-2b1a-4e5c-9f00-000000000002"];
+test("the quote query adapter takes exactly vehicleCategoryId and one ordered serviceId:quantity list", () => {
+  const ids = ["0b8b3b3e-2b1a-4e5c-9f00-000000000001", "0b8b3b3e-2b1a-4e5c-9f00-000000000002", "0b8b3b3e-2b1a-4e5c-9f00-000000000003"];
   const q = (s: string) => parseBookingQuoteQuery(new URLSearchParams(s));
-  const base = `serviceId=${ids[0]}&vehicleCategoryId=${ids[1]}`;
-  assert.deepEqual(q(`${base}&quantity=1&addOnServiceIds=`), { ok: true, data: { serviceId: ids[0], vehicleCategoryId: ids[1], quantity: 1, addOnServiceIds: [] } });
-  assert.deepEqual(q(`${base}&quantity=20&addOnServiceIds=${ids[0]},${ids[1]}`), { ok: true, data: { serviceId: ids[0], vehicleCategoryId: ids[1], quantity: 20, addOnServiceIds: ids } });
+  const size = `vehicleCategoryId=${ids[0]}`;
+  assert.deepEqual(q(`${size}&lines=${ids[1]}:1`), { ok: true, data: { vehicleCategoryId: ids[0], lines: [{ serviceId: ids[1], quantity: 1 }] } });
+  // The customer order is kept (the first base line is the primary service).
+  assert.deepEqual(q(`${size}&lines=${ids[2]}:20,${ids[1]}:1`), { ok: true, data: { vehicleCategoryId: ids[0],
+    lines: [{ serviceId: ids[2], quantity: 20 }, { serviceId: ids[1], quantity: 1 }] } });
   for (const bad of [
-    `${base}&quantity=1`, `${base}&addOnServiceIds=`, `${base}&quantity=1&addOnServiceIds=&extra=1`, `${base}&quantity=1&quantity=1&addOnServiceIds=`,
-    `${base}&${base}&quantity=1&addOnServiceIds=`, ...["0", "21", "01", "1.0", "+1", " 1", "1e1", "", "abc", "-1"].map((n) => `${base}&quantity=${encodeURIComponent(n)}&addOnServiceIds=`),
-    `${base}&quantity=1&addOnServiceIds=${ids[0]},`, `${base}&quantity=1&addOnServiceIds=,${ids[0]}`,
+    size, `lines=${ids[1]}:1`, `${size}&lines=`, `${size}&lines=${ids[1]}:1&extra=1`, `${size}&${size}&lines=${ids[1]}:1`,
+    `${size}&lines=${ids[1]}:1&lines=${ids[2]}:1`, `${size}&lines=${ids[1]}`, `${size}&lines=${ids[1]}:1,`, `${size}&lines=,${ids[1]}:1`,
+    `${size}&lines=${ids[1]}:1:2`, ...["0", "21", "01", "1.0", "+1", " 1", "1e1", "", "abc", "-1"].map((n) => `${size}&lines=${ids[1]}:${encodeURIComponent(n)}`),
+    `${size}&lines=${Array.from({ length: 11 }, (_, i) => `0b8b3b3e-2b1a-4e5c-9f00-0000000000${String(i).padStart(2, "0")}:1`).join(",")}`,
   ]) assert.equal(q(bad).ok, false, bad);
-  // Duplicate, unsorted and over-limit add-on lists reach the schema, which rejects them.
+  // Duplicate services and malformed IDs reach the schema, which rejects them.
 });
 
 test("C-02: only the read seam touches the database in the catalog modules", () => {
