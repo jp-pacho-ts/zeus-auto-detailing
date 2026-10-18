@@ -378,8 +378,7 @@ export function BookingsTab({
             <div className="border-y border-border bg-[#18181b] p-4">
               <h2 className="text-sm font-bold">{q.name}</h2>
               <p className="text-xs text-muted-foreground">
-                {q.committed} committed · Cap{" "}
-                {q.effectiveCap ?? "unconfigured (full)"}
+                {q.committed} committed · {q.effectiveCap === null ? "no limit" : `Limit ${q.effectiveCap}`}
                 {!q.isActive ? " · Inactive" : ""}
               </p>
             </div>

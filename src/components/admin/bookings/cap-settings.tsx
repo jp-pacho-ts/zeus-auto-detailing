@@ -42,7 +42,7 @@ export function CapSettings({
         { method, body },
       );
       if (mounted.current) {
-        setMessage("Queue cap updated.");
+        setMessage("Queue limit updated.");
         void caps.reload();
         void onChanged();
       }
@@ -55,7 +55,7 @@ export function CapSettings({
         setError(
           e instanceof Error
             ? e.message
-            : "Cap update failed. Refresh before retrying.",
+            : "Limit update failed. Refresh before retrying.",
         );
         void caps.reload();
       }
@@ -70,11 +70,11 @@ export function CapSettings({
       aria-labelledby="caps-title"
     >
       <h2 id="caps-title" className="font-bold">
-        Queue caps · {date}
+        Optional limits · {date}
       </h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Caps count car visits. An unconfigured cap means fully booked. Changes
-        cannot go below committed visits.
+        Limits are off by default. Leave the default blank for no limit. An
+        enabled limit counts car visits and cannot go below committed visits.
       </p>
       <LoadState
         loading={caps.loading}
@@ -109,7 +109,7 @@ export function CapSettings({
                   const value = String(
                     new FormData(e.currentTarget).get("cap"),
                   );
-                  if (window.confirm(`Update ${q.name}'s default cap?`))
+                  if (window.confirm(`Update ${q.name}'s default limit?`))
                     void save(
                       q.code,
                       {
@@ -121,19 +121,19 @@ export function CapSettings({
                 }}
               >
                 <label className="text-xs">
-                  Default cap · {q.name}
+                  Default limit · {q.name}
                   <input
                     type="number"
                     name="cap"
                     min={0}
                     max={500}
                     defaultValue={q.dailyCap ?? ""}
-                    placeholder="Unconfigured"
+                    placeholder="Off (no limit)"
                     className={fieldClass}
                   />
                 </label>
                 <Button className="mt-2" disabled={busy}>
-                  Save default cap
+                  Save default limit
                 </Button>
               </form>
               <form
@@ -142,7 +142,11 @@ export function CapSettings({
                   const value = Number(
                     new FormData(e.currentTarget).get("cap"),
                   );
-                  if (window.confirm(`Set ${q.name}'s cap for ${date}?`))
+                  if (
+                    window.confirm(
+                      `Set ${q.name}'s optional limit for ${date}?`,
+                    )
+                  )
                     void save(
                       q.code,
                       {
@@ -154,7 +158,7 @@ export function CapSettings({
                 }}
               >
                 <label className="text-xs">
-                  Date cap · {q.name}
+                  Date limit (optional) · {q.name}
                   <input
                     type="number"
                     name="cap"
@@ -166,7 +170,7 @@ export function CapSettings({
                   />
                 </label>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Button disabled={busy}>Save date cap</Button>
+                  <Button disabled={busy}>Save date limit</Button>
                   {override && (
                     <Button
                       type="button"
@@ -175,7 +179,7 @@ export function CapSettings({
                       onClick={() => {
                         if (
                           window.confirm(
-                            "Remove this date override and use the default cap?",
+                            "Remove this date override and use the default limit?",
                           )
                         )
                           void save(
