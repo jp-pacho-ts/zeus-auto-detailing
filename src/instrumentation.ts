@@ -5,4 +5,6 @@ export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { refuseStartupOnInvalidConfiguration } = await import("@/server/auth/startup");
   refuseStartupOnInvalidConfiguration();
+  const { refuseBookingStartupOnInvalidConfiguration } = await import("@/server/bookings-startup");
+  refuseBookingStartupOnInvalidConfiguration();
 }

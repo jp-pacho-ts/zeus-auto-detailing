@@ -1,3 +1,4 @@
+import { BookingQuoteSchema, CatalogSelectionSchema } from "@/types/catalog-contracts";
 import { z } from "zod";
 
 export const VehicleCategoryCodeSchema = z.enum([
@@ -69,3 +70,17 @@ export const UpdateBookingStatusSchema = z.object({
   bookingId: UUIDSchema,
   status: BookingStatusSchema,
 }).strict();
+
+// P1-03 queue contracts. The archived slot schemas above remain for historical replay only.
+export const TurnstileTokenSchema = z.string().min(1).max(2048).regex(/^[\x21-\x7E]+$/);
+export const CreateDayBookingSchema = CreateBookingSchema.omit({ serviceId: true, startTime: true, vehicleCategoryId: true }).extend({
+ contractVersion: z.literal(4),
+ idempotencyKey: z.string().uuid().refine(s => s[14] === "4").transform(s => s.toLowerCase()),
+ vehicleCategoryId: CatalogSelectionSchema.shape.vehicleCategoryId,
+ lines: CatalogSelectionSchema.shape.lines,
+ acceptedQuote: BookingQuoteSchema,
+ turnstileToken: TurnstileTokenSchema,
+}).strict().superRefine((r, ctx) => {
+ if (r.vehicleCategoryId !== r.acceptedQuote.vehicleCategoryId || r.lines.length !== r.acceptedQuote.lines.length || r.lines.some((l, i) => l.serviceId !== r.acceptedQuote.lines[i].serviceId || l.quantity !== r.acceptedQuote.lines[i].quantity)) ctx.addIssue({ code: "custom", path: ["acceptedQuote"], message: "Selection must match the accepted quote" });
+});
+export const DayAvailabilitySchema = CatalogSelectionSchema.extend({ fromDate: LocalDateSchema, days: z.number().int().min(1).max(31).default(14) }).strict();

@@ -1,4 +1,5 @@
 import "server-only";
+import { clientIdentityConfig, trustedClientKey } from "./auth/client-identity";
 import { createHash } from "node:crypto";
 import { DomainError } from "./errors";
 import type { ContractError, ErrorCode } from "@/types/contracts";
@@ -8,7 +9,7 @@ export function rateLimit(headers: Headers, scope: string, limit: number): void 
   const now = Date.now();
   for (const [key, value] of windows) if (value.until <= now) windows.delete(key);
   // The deployment ingress must overwrite client-supplied forwarding headers.
-  const address = headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown";
+  const address = trustedClientKey(headers, clientIdentityConfig());
   const key = scope + createHash("sha256").update(address).digest("hex");
   const current = windows.get(key) || { count: 0, until: now + 60000 };
   if (current.count >= limit || (!windows.has(key) && windows.size >= 5000)) throw new DomainError("RATE_LIMITED", "Too many requests. Please wait a minute before retrying.", {}, true);

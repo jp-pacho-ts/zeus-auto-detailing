@@ -1,5 +1,6 @@
 // Production startup refusals (T-037 D-01 enforcement; N-02 identity) through src/instrumentation.ts.
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { test } from "node:test";
@@ -42,12 +43,24 @@ test("production startup refuses missing or low pool settings and missing or inv
 // The real register() hook in a child process, as `next start` calls it before serving.
 const CONFIG_KEYS = ["NODE_ENV", "NEXT_RUNTIME", "DATABASE_URL", "CLIENT_IP_SOURCE", "TRUSTED_PROXY_HOPS", "TRUSTED_CLIENT_IP_MODE"];
 const baseEnv = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !CONFIG_KEYS.includes(key)));
+// P1-03 startup integration: explicit synthetic booking configuration in this child only.
+// No global test-process key: catalog's missing-key regression remains meaningful.
+const bookingStartupFixture = () => ({
+ NODE_ENV: "production" as const,
+ BOOKING_QUOTE_KEYS:"q:"+randomBytes(48).toString("base64url"), BOOKING_QUOTE_ACTIVE_KID:"q",
+ MANAGEMENT_GRANT_KEYS:"g:"+randomBytes(48).toString("base64url"), MANAGEMENT_GRANT_ACTIVE_KID:"g",
+ MANAGEMENT_SESSION_KEYS:"s:"+randomBytes(48).toString("base64url"), MANAGEMENT_SESSION_ACTIVE_KID:"s",
+ APP_ORIGIN:"https://zeus.test.invalid", ONLINE_BOOKING_MODE:"PAUSED",
+ TURNSTILE_SECRET_KEY:"synthetic_production_shape_secret_for_startup",
+ NEXT_PUBLIC_TURNSTILE_SITE_KEY:"synthetic_public_site_key_for_startup",
+ TURNSTILE_ALLOWED_HOSTNAMES:"zeus.test.invalid",
+});
 function runRegister(childEnv: Record<string, string | undefined>) {
   const root = process.cwd();
   const script = `require(${JSON.stringify(path.join(root, "src", "instrumentation.ts"))}).register()
     .then(() => { console.log("REGISTERED"); }, (e) => { console.error("REFUSED " + e.message); process.exitCode = 1; });`;
   return spawnSync(process.execPath, ["--require", path.join(root, "src/server/__tests__/register.cjs"), "-e", script],
-    { cwd: root, env: { ...baseEnv(), ...childEnv } as NodeJS.ProcessEnv, encoding: "utf8" });
+    { cwd: root, env: { ...baseEnv(), ...bookingStartupFixture(), ...childEnv } as NodeJS.ProcessEnv, encoding: "utf8" });
 }
 
 test("src/instrumentation.ts register() refuses a bad production configuration and accepts a good one", () => {

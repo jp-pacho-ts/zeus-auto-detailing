@@ -161,6 +161,11 @@ model Booking {
   queue                       BookingQueue?            @relation(fields: [queueCode], references: [code], onDelete: Restrict, onUpdate: Restrict)
   queuePosition               Int?
   revision                    Int                      @default(1)
+  managementTokenVersion      Int                      @default(1)
+  operations                  BookingOperation[]
+  managementGrants            BookingManagementGrant[]
+  managementSessions          BookingManagementSession[]
+  notificationOutbox          BookingNotificationOutbox?
   receiptTotalCentavos        Int? // immutable create receipt: the accepted quote's totals
   receiptEstimatedCentavos    Int?
   terminalAt                  DateTime?                @db.Timestamptz(3)
@@ -718,4 +723,87 @@ model BookingAuditEvent {
   @@index([actorStaffId, createdAt])
   @@index([lineId])
   @@map("booking_audit_events")
+}
+
+model BookingOperation {
+  id                String               @id @default(uuid())
+  keyHash           String               @unique
+  kind              String
+  bookingId         String?
+  booking           Booking?             @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  requestHash       String?
+  outcome           String
+  rejectionCode     String?
+  rejectionData     Json?
+  resultingRevision Int?
+  credentialVersion Int?
+  clientHash        String?
+  createdAt         DateTime             @default(now()) @db.Timestamptz(3)
+  committedAt       DateTime?            @db.Timestamptz(3)
+  recoveryExpiresAt DateTime             @db.Timestamptz(3)
+  turnstileUse      BookingTurnstileUse?
+
+  @@index([bookingId, createdAt])
+  @@index([kind, outcome, createdAt])
+  @@index([clientHash, kind, outcome, createdAt])
+  @@map("booking_operations")
+}
+
+model BookingManagementGrant {
+  id                String                     @id @default(uuid())
+  bookingId         String
+  booking           Booking                    @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  credentialVersion Int
+  kid               String
+  issuedAt          DateTime                   @db.Timestamptz(3)
+  expiresAt         DateTime                   @db.Timestamptz(3)
+  revokedAt         DateTime?                  @db.Timestamptz(3)
+  sessions          BookingManagementSession[]
+
+  @@index([bookingId, credentialVersion])
+  @@map("booking_management_grants")
+}
+
+model BookingManagementSession {
+  id                String                 @id @default(uuid())
+  bookingId         String
+  booking           Booking                @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  grantId           String
+  grant             BookingManagementGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  credentialVersion Int
+  kid               String
+  grantKid          String
+  issuedAt          DateTime               @db.Timestamptz(3)
+  expiresAt         DateTime               @db.Timestamptz(3)
+  revokedAt         DateTime?              @db.Timestamptz(3)
+
+  @@index([bookingId, expiresAt])
+  @@map("booking_management_sessions")
+}
+
+model BookingTurnstileUse {
+  tokenHash   String           @id
+  operationId String           @unique
+  operation   BookingOperation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  expiresAt   DateTime         @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("booking_turnstile_uses")
+}
+
+model BookingNotificationOutbox {
+  subject String
+  text String
+  id            String    @id @default(uuid())
+  bookingId     String    @unique
+  booking       Booking   @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  state         String    @default("PENDING")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @db.Timestamptz(3)
+  sentAt        DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([state, nextAttemptAt])
+  @@map("booking_notification_outbox")
 }

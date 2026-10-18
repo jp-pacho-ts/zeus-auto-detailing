@@ -210,3 +210,13 @@ export interface BookingCatalog {
   services: ServicePackage[];
 }
 export type BookingCatalogResponse = Result<BookingCatalog>;
+
+// P1-03 day create v4; release-1 DTOs above are legacy compatibility only.
+export type CreateDayBookingRequest = import("zod").z.infer<typeof import("@/lib/validation").CreateDayBookingSchema>;
+export type DayAvailabilityRequest = import("zod").z.infer<typeof import("@/lib/validation").DayAvailabilitySchema>;
+export type PublicDayState = "AVAILABLE" | "FULLY_BOOKED" | "CLOSED";
+export interface PublicDay { date: LocalDate; state: PublicDayState }
+export interface DayAvailabilityData { timezone: "Asia/Manila"; days: PublicDay[]; nextAvailableDay: LocalDate | null; searchedThrough: LocalDate; generatedAt: ISOInstant; quote: import("./catalog-contracts").BookingQuote; onlineBookingStatus: "OPEN" | "PAUSED" }
+export interface DayBookingView { id: UUID; referenceCode: string; status: BookingStatus; revision: number; bookingDate: LocalDate; timezone: "Asia/Manila"; vehicleCategoryId: UUID; vehicleCategoryName: string; lines: { serviceId: UUID; name: string; quantity: number; priceStatus: "PRICED" | "FOR_QUOTE"; subtotalCentavos: number | null; referenceSubtotalCentavos: number | null }[]; totalPriceCentavos: number; estimatedTotalCentavos: number | null; currency: "PHP" }
+export type DayBookingResponse = import("./catalog-contracts").LifecycleResult<{ booking: DayBookingView; managementAccess: { accessToken: string; expiresAt: ISOInstant } | null; commitState: "COMMITTED"; replayed: boolean }>;
+export type DayAvailabilityResponse = import("./catalog-contracts").LifecycleResult<DayAvailabilityData>;
