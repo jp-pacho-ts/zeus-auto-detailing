@@ -18,68 +18,75 @@ import {
   Printer,
   ShieldCheck,
   Sparkles,
-  Sun,
-  Sunset,
   Truck,
   Wind,
   X,
 } from "lucide-react";
 import { brandConfig } from "@/config/brand";
-import { formatDuration } from "@/config/catalog";
 import { Logo } from "@/components/ui/logo";
-import { publicDayMessage, slotLabel, toPublicSlot, type PublicSlot } from "@/components/booking/public-slot";
-import { isTimeConflict, publicSubmitError } from "@/components/booking/submit-error";
-import { CreateBookingSchema } from "@/lib/validation";
-import { createBookingAction } from "@/server/actions/booking";
+import { TurnstileChallenge } from "@/components/booking/turnstile";
+import {
+  availableAddOns,
+  createDayRequest,
+  dayStateLabel,
+  isMultiDay,
+  money,
+  offerLabel,
+  publicCreateError,
+  quoteTotal,
+  resolveDeepLink,
+  selectionLines,
+  type DetailsForm,
+  type ServicePick,
+} from "@/components/booking/day-booking";
 import type {
-  AvailableSlotData,
-  AvailableSlotResponse,
   BookingCatalog,
   BookingCatalogResponse,
-  BookingSummary,
-  CreateBookingRequest,
+  BookingQuote,
+  BookingQuoteResponse,
+  ServicePackage,
+} from "@/types/catalog-contracts";
+import type {
+  CreateDayBookingRequest,
+  DayAvailabilityData,
+  DayAvailabilityResponse,
+  DayBookingResponse,
+  DayBookingView,
 } from "@/types/contracts";
 
-function getVehicleCategoryIcon(codeOrName: string) {
-  const lower = codeOrName.toLowerCase();
-  if (lower.includes("motorcycle") || lower.includes("bike") || lower === "motorcycle_specialty") return Bike;
-  if (lower.includes("pickup") || lower.includes("van") || lower === "pickup_van" || lower.includes("truck")) return Truck;
-  if (lower.includes("suv") || lower.includes("crossover") || lower === "suv_crossover") return CarFront;
+function getVehicleCategoryIcon(code: string) {
+  if (code === "MOTOR") return Bike;
+  if (code === "L" || code === "XL") return Truck;
+  if (code === "M") return CarFront;
   return Car;
 }
 
-function getServiceDisciplineIcon(categoryOrName: string) {
-  const lower = categoryOrName.toLowerCase();
-  if (lower.includes("interior") || lower.includes("cabin") || lower.includes("leather") || lower === "interior_detailing") return Wind;
-  if (lower.includes("wash") || lower.includes("seal") || lower.includes("water") || lower.includes("clean") || lower === "exterior_wash_seal") return Droplets;
-  if (lower.includes("correction") || lower.includes("polish") || lower.includes("scratch") || lower === "paint_correction") return Sparkles;
+function getServiceDisciplineIcon(category: string) {
+  if (category === "WASH") return Droplets;
+  if (category === "DETAILING") return Wind;
+  if (category === "GRAPHENE" || category === "REPAINT") return Sparkles;
   return ShieldCheck;
 }
 
+const DAYS_PER_PAGE = 14;
 const todayInManila = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
-const money = (centavos: number) =>
-  new Intl.NumberFormat(brandConfig.locale, { style: "currency", currency: "PHP" }).format(centavos / 100);
+const addDays = (day: string, n: number) =>
+  new Date(new Date(day + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
 const dateLabel = (date: string) =>
   new Intl.DateTimeFormat(brandConfig.locale, { dateStyle: "full", timeZone: "Asia/Manila" }).format(
     new Date(date + "T00:00:00+08:00"),
   );
-const timeLabel = (time: string) =>
-  new Intl.DateTimeFormat(brandConfig.locale, { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" }).format(
-    new Date("2000-01-01T" + time + ":00+08:00"),
+const shortDayLabel = (date: string) =>
+  new Intl.DateTimeFormat(brandConfig.locale, { weekday: "short", month: "short", day: "numeric", timeZone: "Asia/Manila" }).format(
+    new Date(date + "T00:00:00+08:00"),
   );
+const linesQuery = (lines: ServicePick[]) => lines.map((l) => l.serviceId + ":" + l.quantity).join(",");
+const BOOKING_HEADERS = { "content-type": "application/json", "x-zeus-booking": "1" };
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 const control =
   "mt-2 min-h-[48px] w-full rounded border border-input bg-card px-4 py-3 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 transition-colors";
 const panel = "rounded border border-border bg-card p-6 sm:p-8";
-const vehicleCodes: Record<string, string> = {
-  sedan: "SEDAN",
-  suv: "SUV_CROSSOVER",
-  pickup: "PICKUP_VAN",
-  motorcycle: "MOTORCYCLE_SPECIALTY",
-};
-const serviceAliases: Record<string, string> = {
-  "signature-9h-graphene": "signature-ceramic-coating",
-};
 
 function formatPhilippinePhone(raw: string): string {
   if (!raw) return "";
@@ -101,6 +108,14 @@ function formatPhilippinePhone(raw: string): string {
   return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
 }
 
+// A priced line reads as its price; a for-quote line as "For quote", with its estimate if any.
+const lineAmount = (l: { priceStatus: "PRICED" | "FOR_QUOTE"; subtotalCentavos: number | null; referenceSubtotalCentavos: number | null }) =>
+  l.priceStatus === "PRICED" && l.subtotalCentavos !== null
+    ? money(l.subtotalCentavos)
+    : l.referenceSubtotalCentavos === null
+      ? "For quote"
+      : "For quote · est. " + money(l.referenceSubtotalCentavos);
+
 export function BookingWizard({
   initialServiceId,
   initialVehicleName,
@@ -113,19 +128,16 @@ export function BookingWizard({
   const [catalogError, setCatalogError] = React.useState("");
   const [catalogVersion, setCatalogVersion] = React.useState(0);
   const [vehicleId, setVehicleId] = React.useState("");
-  const [serviceId, setServiceId] = React.useState("");
+  const [picks, setPicks] = React.useState<ServicePick[]>([]);
   const [linkWarning, setLinkWarning] = React.useState("");
   const [copied, setCopied] = React.useState(false);
-  const [scanning, setScanning] = React.useState(false);
-  const [date, setDate] = React.useState(todayInManila);
-  const [selection, setSelection] = React.useState<{ key: string; time: string } | null>(null);
-  const [availability, setAvailability] = React.useState<{
-    key: string;
-    data: AvailableSlotData | null;
-    error: string;
-  } | null>(null);
-  const [availabilityVersion, setAvailabilityVersion] = React.useState(0);
-  const [form, setForm] = React.useState({
+  const [fromDate, setFromDate] = React.useState(todayInManila);
+  const [day, setDay] = React.useState("");
+  const [quoteState, setQuoteState] = React.useState<{ key: string; quote: BookingQuote | null; error: string } | null>(null);
+  const [quoteVersion, setQuoteVersion] = React.useState(0);
+  const [days, setDays] = React.useState<{ key: string; data: DayAvailabilityData | null; error: string } | null>(null);
+  const [daysVersion, setDaysVersion] = React.useState(0);
+  const [form, setForm] = React.useState<DetailsForm>({
     customerName: "",
     customerPhone: "",
     customerEmail: "",
@@ -133,20 +145,21 @@ export function BookingWizard({
     vehiclePlate: "",
     specialRequests: "",
   });
+  const [challenge, setChallenge] = React.useState({ version: 0, token: "" });
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string[]>>({});
   const [message, setMessage] = React.useState("");
   const [pending, setPending] = React.useState(false);
   const [uncertain, setUncertain] = React.useState(false);
-  const [booking, setBooking] = React.useState<BookingSummary | null>(null);
+  const [booking, setBooking] = React.useState<{ view: DayBookingView; vehicleModel: string; vehiclePlate: string | null; customerName: string; customerPhone: string; multiDay: boolean } | null>(null);
 
   const submitting = React.useRef(false);
-  const attempt = React.useRef<CreateBookingRequest | null>(null);
+  const attempt = React.useRef<CreateDayBookingRequest | null>(null);
   const errorSummary = React.useRef<HTMLDivElement>(null);
   const deepLinkHandled = React.useRef(false);
 
   const copyReference = () => {
-    if (!booking?.referenceCode || typeof navigator === "undefined" || !navigator.clipboard) return;
-    navigator.clipboard.writeText(booking.referenceCode).then(
+    if (!booking || typeof navigator === "undefined" || !navigator.clipboard) return;
+    navigator.clipboard.writeText(booking.view.referenceCode).then(
       () => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -155,61 +168,29 @@ export function BookingWizard({
     );
   };
 
-  // Scan forward (in small batches to respect the availability rate limit) for the
-  // nearest date with at least one open arrival session.
-  const findNextAvailableDate = async () => {
-    setScanning(true);
-    setMessage("");
-    try {
-      let cursor = date;
-      for (let scanned = 0; scanned < 30; scanned += 5) {
-        const batch: string[] = [];
-        for (let i = 0; i < 5; i++) {
-          cursor = new Date(new Date(cursor + "T00:00:00Z").getTime() + 86400000).toISOString().slice(0, 10);
-          if (cursor <= maxDate) batch.push(cursor);
-        }
-        if (!batch.length) break;
-        const results = await Promise.all(
-          batch.map(async (day) => {
-            const query = new URLSearchParams({ date: day, vehicleCategoryId: vehicleId, serviceId });
-            const response = await fetch("/api/availability?" + query, { cache: "no-store" });
-            const result: AvailableSlotResponse = await response.json();
-            return result.ok && result.data.slots.some((s) => s.selectable) ? day : null;
-          }),
-        );
-        const found = results.find(Boolean);
-        if (found) {
-          setDate(found);
-          setSelection(null);
-          return;
-        }
-      }
-      setMessage(
-        `No open arrival sessions were found in the next 30 days. Please contact the shop at ${brandConfig.displayPhone}.`,
-      );
-    } catch {
-      setMessage("Could not check upcoming dates. Check your connection and retry.");
-    } finally {
-      setScanning(false);
-    }
-  };
-
-  const key = date + "|" + vehicleId + "|" + serviceId;
   const vehicle = catalog?.vehicleCategories.find((v) => v.id === vehicleId);
-  const service = catalog?.services.find((s) => s.id === serviceId);
-  const live = availability?.key === key ? availability : null;
-  const slot =
-    selection?.key === key
-      ? live?.data?.slots.find((s) => s.startTime === selection.time && s.selectable)
-      : undefined;
-  const maxDate = new Date(new Date(todayInManila() + "T00:00:00Z").getTime() + 90 * 86400000)
-    .toISOString()
-    .slice(0, 10);
-
-  const currentTotal =
-    live?.data?.totalPriceCentavos ??
-    Math.round((service?.basePriceCentavos ?? 0) * (vehicle?.sizeMultiplier ?? 1));
-  const currentDuration = live?.data?.durationMinutes ?? service?.durationMinutes ?? 0;
+  const lines = React.useMemo(
+    () => (catalog && vehicleId ? selectionLines(catalog, vehicleId, picks) : []),
+    [catalog, vehicleId, picks],
+  );
+  const selectionKey = vehicleId + "|" + linesQuery(lines);
+  const daysKey = selectionKey + "|" + fromDate;
+  const liveDays = days?.key === daysKey ? days : null;
+  const lastDay = addDays(todayInManila(), 90);
+  // The newest signed quote for this selection: the day list carries a fresh one too.
+  const quote: BookingQuote | null =
+    (liveDays?.data?.quote && quoteState?.key === selectionKey && quoteState.quote
+      ? Date.parse(liveDays.data.quote.issuedAt) >= Date.parse(quoteState.quote.issuedAt)
+        ? liveDays.data.quote
+        : quoteState.quote
+      : liveDays?.data?.quote ?? (quoteState?.key === selectionKey ? quoteState.quote : null)) ?? null;
+  const total = quote ? quoteTotal(quote) : null;
+  const dayState = liveDays?.data?.days.find((d) => d.date === day)?.state;
+  const multiDay = catalog ? isMultiDay(catalog, lines.map((l) => l.serviceId)) : false;
+  const serviceById = (id: string) => catalog?.services.find((s) => s.id === id);
+  const bases = catalog?.services.filter((s) => s.type === "BASE") ?? [];
+  const addOns = catalog ? availableAddOns(catalog, lines.map((l) => l.serviceId)) : [];
+  const picked = (id: string) => picks.find((p) => p.serviceId === id);
 
   // Inline validation checks for Step 4
   const isPhoneValid = /^(09\d{9}|\+639\d{9})$/.test(form.customerPhone.replace(/[\s()\-]/g, ""));
@@ -229,59 +210,23 @@ export function BookingWizard({
         const data = result.data;
         setCatalog(data);
         setCatalogError("");
-
-        const hasVehicleParam = Boolean(initialVehicleName?.trim());
-        const hasServiceParam = Boolean(initialServiceId?.trim());
-
-        const vQuery = initialVehicleName?.toLowerCase().trim() ?? "";
-        const matchedVehicle = vQuery
-          ? data.vehicleCategories.find(
-              (v) =>
-                v.id.toLowerCase() === vQuery ||
-                v.code.toLowerCase() === vQuery ||
-                v.code === vehicleCodes[vQuery] ||
-                v.name.toLowerCase() === vQuery ||
-                v.name.toLowerCase().split("/")[0].trim() === vQuery,
-            )
-          : undefined;
-
-        const sQuery = initialServiceId?.toLowerCase().trim() ?? "";
-        const matchedService = sQuery
-          ? data.services.find(
-              (s) =>
-                s.id.toLowerCase() === sQuery ||
-                s.slug.toLowerCase() === sQuery ||
-                s.slug === (serviceAliases[sQuery] ?? sQuery) ||
-                s.name.toLowerCase() === sQuery,
-            )
-          : undefined;
-
         // Apply the booking link only on the first catalog load so later catalog refreshes
         // never override choices the customer has made since.
-        if ((hasVehicleParam || hasServiceParam) && !deepLinkHandled.current) {
+        if (!deepLinkHandled.current) {
           deepLinkHandled.current = true;
-          if (matchedVehicle && matchedService) {
-            setVehicleId(matchedVehicle.id);
-            setServiceId(matchedService.id);
-            setLinkWarning("");
-            setStep(3);
-          } else {
-            // Invalid or incomplete parameters: stay on Step 1, do NOT assign fallback index
-            setVehicleId("");
-            setServiceId("");
-            setStep(1);
+          const link = resolveDeepLink(data, initialVehicleName, initialServiceId);
+          if (link.unknown) {
             setLinkWarning(
               "The linked service or vehicle could not be found. Please choose from our available detailing services.",
             );
+          } else {
+            if (link.vehicleId) setVehicleId(link.vehicleId);
+            if (link.serviceId) setPicks([{ serviceId: link.serviceId, quantity: 1 }]);
+            if (link.vehicleId) setStep(2);
           }
         } else {
-          // No parameters, or a refresh after the link was handled: keep still-valid choices
-          setVehicleId((previous) =>
-            data.vehicleCategories.some((v) => v.id === previous) ? previous : "",
-          );
-          setServiceId((previous) =>
-            data.services.some((s) => s.id === previous) ? previous : "",
-          );
+          setVehicleId((previous) => (data.vehicleCategories.some((v) => v.id === previous) ? previous : ""));
+          setPicks((previous) => previous.filter((p) => data.services.some((s) => s.id === p.serviceId)));
         }
       })
       .catch((error) => {
@@ -292,8 +237,35 @@ export function BookingWizard({
     return () => controller.abort();
   }, [initialServiceId, initialVehicleName, catalogVersion]);
 
+  // The server prices the selection (and signs it) as soon as it changes.
   React.useEffect(() => {
-    if (!vehicleId || !serviceId || (step !== 3 && step !== 4) || uncertain) return;
+    if (!vehicleId || !lines.length || step < 2 || step > 4 || uncertain) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const query = new URLSearchParams({ vehicleCategoryId: vehicleId, lines: linesQuery(lines) });
+        const response = await fetch("/api/bookings/quote?" + query, { cache: "no-store", signal: controller.signal });
+        const result: BookingQuoteResponse = await response.json();
+        if (controller.signal.aborted) return;
+        setQuoteState(
+          result.ok
+            ? { key: selectionKey, quote: result.data.quote, error: "" }
+            : { key: selectionKey, quote: null, error: result.error.message },
+        );
+      } catch {
+        if (!controller.signal.aborted)
+          setQuoteState({ key: selectionKey, quote: null, error: "Could not price these services. Check your connection and retry." });
+      }
+    }, 250);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [vehicleId, lines, selectionKey, step, quoteVersion, uncertain]);
+
+  // Day states for the selection's queue; refreshed while choosing and reviewing.
+  React.useEffect(() => {
+    if (!vehicleId || !lines.length || (step !== 3 && step !== 4) || uncertain) return;
     let controller: AbortController | null = null;
     let active = true;
     const refresh = async () => {
@@ -301,41 +273,23 @@ export function BookingWizard({
       const request = new AbortController();
       controller = request;
       try {
-        const query = new URLSearchParams({ date, vehicleCategoryId: vehicleId, serviceId });
-        const response = await fetch("/api/availability?" + query, {
-          cache: "no-store",
-          signal: request.signal,
-        });
-        const result: AvailableSlotResponse = await response.json();
+        const query = new URLSearchParams({ vehicleCategoryId: vehicleId, lines: linesQuery(lines), fromDate, days: String(DAYS_PER_PAGE) });
+        const response = await fetch("/api/availability?" + query, { cache: "no-store", signal: request.signal });
+        const result: DayAvailabilityResponse = await response.json();
         if (!active || request.signal.aborted) return;
         if (!result.ok) {
-          setAvailability({ key, data: null, error: result.error.message });
+          setDays({ key: daysKey, data: null, error: result.error.message });
           return;
         }
-        setAvailability({ key, data: result.data, error: "" });
-        setSelection((previous) =>
-          previous?.key === key &&
-          !result.data.slots.some((s) => s.startTime === previous.time && s.selectable)
-            ? null
-            : previous,
-        );
+        setDays({ key: daysKey, data: result.data, error: "" });
       } catch {
-        if (active && !request.signal.aborted) {
-          setAvailability({
-            key,
-            data: null,
-            error: "Could not refresh availability. Check your connection and retry.",
-          });
-        }
+        if (active && !request.signal.aborted)
+          setDays({ key: daysKey, data: null, error: "Could not refresh the days. Check your connection and retry." });
       }
     };
     void refresh();
-    const interval = window.setInterval(() => {
-      void refresh();
-    }, 15000);
-    const focus = () => {
-      void refresh();
-    };
+    const interval = window.setInterval(() => void refresh(), 60000);
+    const focus = () => void refresh();
     window.addEventListener("focus", focus);
     return () => {
       active = false;
@@ -343,11 +297,24 @@ export function BookingWizard({
       window.clearInterval(interval);
       window.removeEventListener("focus", focus);
     };
-  }, [date, vehicleId, serviceId, step, key, availabilityVersion, uncertain]);
+  }, [vehicleId, lines, fromDate, daysKey, step, daysVersion, uncertain]);
 
   React.useEffect(() => {
     if (message) errorSummary.current?.focus();
   }, [message, fieldErrors]);
+
+  const togglePick = (s: ServicePackage) => {
+    setPicks((previous) =>
+      previous.some((p) => p.serviceId === s.id)
+        ? previous.filter((p) => p.serviceId !== s.id)
+        : [...previous, { serviceId: s.id, quantity: 1 }],
+    );
+    setDay("");
+  };
+  const setQuantity = (serviceId: string, quantity: number) =>
+    setPicks((previous) => previous.map((p) => (p.serviceId === serviceId ? { ...p, quantity } : p)));
+  const newChallenge = () => setChallenge((c) => ({ version: c.version + 1, token: "" }));
+  const onToken = React.useCallback((token: string) => setChallenge((c) => ({ ...c, token })), []);
 
   const next = async () => {
     if (submitting.current) return;
@@ -357,75 +324,80 @@ export function BookingWizard({
       setStep(2);
       return;
     }
-    if (step === 2 && service) {
-      setStep(3);
+    if (step === 2) {
+      if (lines.some((l) => serviceById(l.serviceId)?.type === "BASE")) setStep(3);
+      else setMessage("Choose at least one main service.");
       return;
     }
     if (step === 3) {
-      if (slot) setStep(4);
-      else setMessage("Choose an available arrival time.");
+      if (day && dayState === "AVAILABLE") setStep(4);
+      else setMessage("Choose an available day.");
       return;
     }
     if (step !== 4) return;
     if (!attempt.current) {
-      if (!slot) {
+      if (!quote || !day || dayState !== "AVAILABLE") {
         setStep(3);
-        setMessage("Availability has changed. Please select an arrival time again.");
+        setMessage("Availability has changed. Please choose your day again.");
         return;
       }
-      const cleanPhone = form.customerPhone.replace(/[\s()\-]/g, "");
-      const normalizedPhone = /^9\d{9}$/.test(cleanPhone) ? "+63" + cleanPhone : cleanPhone;
-      const parsed = CreateBookingSchema.safeParse({
-        ...form,
-        customerPhone: normalizedPhone,
-        vehicleCategoryId: vehicleId,
-        serviceId,
-        bookingDate: date,
-        startTime: slot.startTime,
-        idempotencyKey: crypto.randomUUID(),
-      });
-      if (!parsed.success) {
-        const errors: Record<string, string[]> = {};
-        for (const issue of parsed.error.issues) {
-          (errors[issue.path.join(".") || "form"] ??= []).push(issue.message);
-        }
-        setFieldErrors(errors);
+      const built = createDayRequest({ form, quote, bookingDate: day, turnstileToken: challenge.token, idempotencyKey: crypto.randomUUID() });
+      if (!built.ok) {
+        setFieldErrors(built.fieldErrors);
         setMessage("Please check the highlighted details.");
         return;
       }
-      attempt.current = parsed.data;
+      attempt.current = built.data;
+    } else {
+      // Retrying an unconfirmed attempt: same retry key and details, fresh single-use token.
+      attempt.current = { ...attempt.current, turnstileToken: challenge.token };
     }
     submitting.current = true;
     setPending(true);
     try {
-      const result = await createBookingAction(attempt.current);
+      const response = await fetch("/api/bookings", {
+        method: "POST",
+        headers: BOOKING_HEADERS,
+        body: JSON.stringify(attempt.current),
+        cache: "no-store",
+      });
+      const result: DayBookingResponse = await response.json();
       if (result.ok) {
-        setBooking(result.data);
+        const sent = attempt.current;
+        setBooking({
+          view: result.data.booking,
+          vehicleModel: sent.vehicleModel,
+          vehiclePlate: sent.vehiclePlate ?? null,
+          customerName: sent.customerName,
+          customerPhone: sent.customerPhone,
+          multiDay,
+        });
         setStep(5);
         setUncertain(false);
         attempt.current = null;
-      } else {
-        // Conflict errors can carry staff-entered block text; only the public view is rendered.
-        const shown = publicSubmitError(result.error);
-        setFieldErrors(shown.fieldErrors);
-        setMessage(shown.message);
-        setUncertain(result.error.retryable);
-        if (!result.error.retryable) attempt.current = null;
-        if (isTimeConflict(result.error)) {
-          setSelection(null);
-          setStep(3);
-          setAvailabilityVersion((v) => v + 1);
-        }
-        if (result.error.code === "NOT_FOUND") {
-          setStep(result.error.fieldErrors.vehicleCategoryId ? 1 : 2);
-          setCatalogVersion((v) => v + 1);
-        }
+        return;
+      }
+      const shown = publicCreateError(result.error);
+      setFieldErrors(shown.fieldErrors);
+      setMessage(shown.message);
+      setUncertain(shown.uncertain);
+      if (shown.newChallenge) newChallenge();
+      if (shown.uncertain) return;
+      attempt.current = null;
+      if (shown.refreshQuote) setQuoteVersion((v) => v + 1);
+      if (shown.step === "DAY") {
+        setDay("");
+        setStep(3);
+        setDaysVersion((v) => v + 1);
+      }
+      if (shown.step === "SERVICES") {
+        setStep(2);
+        setCatalogVersion((v) => v + 1);
       }
     } catch {
       setUncertain(true);
-      setMessage(
-        "The result could not be confirmed. Retry this same submission to recover your booking safely.",
-      );
+      newChallenge();
+      setMessage("The result could not be confirmed. Retry this same submission to recover your booking safely.");
     } finally {
       submitting.current = false;
       setPending(false);
@@ -438,73 +410,95 @@ export function BookingWizard({
   };
   const locked = pending || uncertain;
   const errorFor = (field: string) => fieldErrors[field]?.join(" ");
-  const STEP_LABELS = [
-    "Vehicle",
-    "Service",
-    "Date & Time",
-    "Details & Review",
-    "Booking Received",
-  ];
-  const headings = [
-    "Choose Vehicle Classification",
-    "Select Detailing Service",
-    "Select Appointment Date & Time",
-    "Details & Review",
-    "Booking Received",
-  ];
+  const STEP_LABELS = ["Vehicle", "Services", "Day", "Details & Review", "Booking Received"];
+  const headings = ["Choose Vehicle Size", "Select Services", "Choose Your Day", "Details & Review", "Booking Received"];
+  const servicesSummary = lines.map((l) => serviceById(l.serviceId)?.name).filter(Boolean).join(", ");
 
-  // Group slots into Morning (08:00–12:00) and Afternoon (12:00–18:00) blocks (Hick's Law)
-  // Customers only ever see public slot state: no bay counts, capacity or staff-entered text.
-  const publicSlots = live?.data?.slots.map(toPublicSlot) ?? [];
-  const anySelectable = publicSlots.some((s) => s.selectable);
-  const morningSlots = publicSlots.filter((s) => s.startTime < "12:00");
-  const afternoonSlots = publicSlots.filter((s) => s.startTime >= "12:00");
-
-  const renderSlot = (s: PublicSlot) => {
-    const isSelected = selection?.key === key && selection.time === s.startTime;
-    const label = slotLabel(s);
+  const renderService = (s: ServicePackage) => {
+    const pick = picked(s.id);
+    const offer = offerLabel(s, vehicleId, pick?.quantity ?? 1);
+    const Icon = getServiceDisciplineIcon(s.category);
     return (
-      <label
-        key={s.startTime}
-        className={`flex min-h-[64px] items-center justify-between gap-3 rounded border px-4 py-3 transition-colors ${
-          !s.selectable
-            ? "cursor-not-allowed border-border opacity-50 bg-[#121214]/60"
-            : isSelected
-            ? "border-primary bg-primary/10 shadow-sm"
-            : "cursor-pointer border-input bg-card hover:border-zinc-500"
-        }`}
-      >
-        <div>
-          <span className="block font-semibold text-foreground">{timeLabel(s.startTime)}</span>
-          <span className="block text-xs text-muted-foreground">{label}</span>
-        </div>
-        <input
-          type="radio"
-          name="arrival-time"
-          aria-label={`${timeLabel(s.startTime)} — ${label}`}
-          checked={isSelected}
-          disabled={!s.selectable}
-          onChange={() => setSelection({ key, time: s.startTime })}
-          className="h-5 w-5 shrink-0 accent-primary"
-        />
-      </label>
+      <div key={s.id}>
+        <label
+          className={
+            panel +
+            " flex min-h-[96px] items-center justify-between gap-4 transition-colors " +
+            (!offer.bookable
+              ? "cursor-not-allowed opacity-50"
+              : pick
+                ? "cursor-pointer border-primary bg-primary/5"
+                : "cursor-pointer hover:border-zinc-500")
+          }
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-[#18181b]">
+              <Icon className="h-5 w-5 text-primary shrink-0" aria-hidden="true" />
+            </div>
+            <div>
+              <span className="block font-bold text-foreground">{s.name}</span>
+              {s.description && <span className="mt-1 block text-sm text-muted-foreground">{s.description}</span>}
+              <span className="mt-3 block text-sm font-semibold text-foreground">
+                {offer.text}
+                {s.unit === "PANEL" && offer.bookable ? " · per panel count" : ""}
+              </span>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            name="service"
+            value={s.id}
+            checked={Boolean(pick)}
+            disabled={!offer.bookable || locked}
+            onChange={() => togglePick(s)}
+            className="h-5 w-5 shrink-0 accent-primary"
+          />
+        </label>
+        {pick && s.unit === "PANEL" && (
+          <div className="mt-2 rounded border border-border bg-[#121214] p-4">
+            <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
+              Number of panels for {s.name}
+            </label>
+            <input
+              id={"panels-" + s.id}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={20}
+              value={pick.quantity}
+              disabled={locked}
+              onChange={(e) => setQuantity(s.id, Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+              className={control}
+            />
+          </div>
+        )}
+      </div>
     );
   };
+
+  const renderTotal = () => (
+    <>
+      <dd className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-foreground">
+        {total ? total.amount : lines.length ? "Pricing…" : "—"}
+      </dd>
+      <p className="mt-1 text-xs text-zinc-400">
+        {total?.note ?? "Taxes, professional consumables & shop service included."}
+      </p>
+    </>
+  );
 
   // Persistent Booking Summary Sidebar (Recognition over Recall)
   const renderSummarySidebar = () => (
     <aside aria-label="Booking Summary" className="hidden lg:col-span-4 lg:block">
       <div className="sticky top-6 rounded border border-border bg-[#121214] p-6 shadow-sm">
         <div className="border-b border-border pb-4">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-primary">
-            Booking Summary
-          </h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-primary">Booking Summary</h2>
         </div>
 
         <dl className="mt-4 space-y-4 text-sm">
           <div>
             <div className="flex items-center justify-between">
-              <dt className="text-xs font-medium text-muted-foreground">Vehicle Classification</dt>
+              <dt className="text-xs font-medium text-muted-foreground">Vehicle Size</dt>
               <button
                 type="button"
                 onClick={() => {
@@ -512,18 +506,17 @@ export function BookingWizard({
                   setMessage("");
                 }}
                 disabled={locked}
-                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Change
               </button>
             </div>
             <dd className="font-bold text-foreground">{vehicle?.name ?? "—"}</dd>
-            <p className="text-xs text-zinc-400">{vehicle?.sizeMultiplier ?? 1.0}× vehicle size adjustment</p>
           </div>
 
           <div className="border-t border-border/60 pt-3">
             <div className="flex items-center justify-between">
-              <dt className="text-xs font-medium text-muted-foreground">Detailing Service</dt>
+              <dt className="text-xs font-medium text-muted-foreground">Services</dt>
               {step > 2 && (
                 <button
                   type="button"
@@ -532,24 +525,19 @@ export function BookingWizard({
                     setMessage("");
                   }}
                   disabled={locked}
-                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Change
                 </button>
               )}
             </div>
-            <dd className="font-bold text-foreground">
-              {service?.name ?? "Selecting service…"}
-            </dd>
-            <p className="text-xs text-zinc-400">
-              {formatDuration(currentDuration)} estimated service duration
-            </p>
+            <dd className="font-bold text-foreground">{servicesSummary || "Selecting services…"}</dd>
           </div>
 
           {step >= 3 && (
             <div className="border-t border-border/60 pt-3">
               <div className="flex items-center justify-between">
-                <dt className="text-xs font-medium text-muted-foreground">Appointment Schedule</dt>
+                <dt className="text-xs font-medium text-muted-foreground">{multiDay ? "Drop-off Day" : "Booking Day"}</dt>
                 {step > 3 && (
                   <button
                     type="button"
@@ -558,31 +546,19 @@ export function BookingWizard({
                       setMessage("");
                     }}
                     disabled={locked}
-                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Change
                   </button>
                 )}
               </div>
-              <dd className="font-bold text-foreground">
-                {date ? dateLabel(date) : "Select date"}
-              </dd>
-              <p className="text-xs text-zinc-400">
-                {slot
-                  ? `${timeLabel(slot.startTime)} – ${timeLabel(slot.endTime)}`
-                  : "Select arrival slot in Step 3"}
-              </p>
+              <dd className="font-bold text-foreground">{day ? dateLabel(day) : "Choose a day"}</dd>
             </div>
           )}
 
           <div className="border-t border-border pt-4">
-            <dt className="text-xs font-medium text-muted-foreground">Estimated Investment</dt>
-            <dd className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-foreground">
-              {money(currentTotal)}
-            </dd>
-            <p className="mt-1 text-xs text-zinc-400">
-              Taxes, professional consumables & shop service included.
-            </p>
+            <dt className="text-xs font-medium text-muted-foreground">{total?.label ?? "Estimated Investment"}</dt>
+            {renderTotal()}
           </div>
         </dl>
       </div>
@@ -593,37 +569,21 @@ export function BookingWizard({
   const renderMobileSummaryTray = () => (
     <div className="mb-6 rounded border border-border bg-[#121214] p-4 text-sm lg:hidden">
       <div className="flex items-start justify-between gap-3 border-b border-border/60 pb-3">
-        <div>
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-            Your Booking
-          </span>
-          <p className="font-bold text-foreground">
-            {service?.name || "Selecting service…"}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {vehicle?.name} · {formatDuration(currentDuration)}
-          </p>
+        <div className="min-w-0">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">Your Booking</span>
+          <p className="break-words font-bold text-foreground">{servicesSummary || "Selecting services…"}</p>
+          <p className="text-xs text-muted-foreground">{vehicle?.name}</p>
         </div>
         <div className="text-right shrink-0">
           <span className="text-base font-extrabold tabular-nums text-foreground">
-            {money(currentTotal)}
+            {total ? total.amount : lines.length ? "Pricing…" : "—"}
           </span>
-          {slot && (
-            <p className="text-[11px] font-medium text-primary">
-              {timeLabel(slot.startTime)}
-            </p>
-          )}
+          {total && total.label !== "Total" && <p className="text-[11px] font-medium text-primary">Estimate</p>}
         </div>
       </div>
       <div className="mt-2.5 flex items-center justify-between text-xs">
         <span className="text-zinc-400">
-          {step === 2
-            ? "Select detailing service"
-            : step === 3
-            ? slot
-              ? `${dateLabel(date)} · ${timeLabel(slot.startTime)}`
-              : "Select arrival slot below"
-            : `${dateLabel(date)} · ${slot ? timeLabel(slot.startTime) : ""}`}
+          {step === 2 ? "Select services" : day ? dateLabel(day) : "Choose a day below"}
         </span>
         <button
           type="button"
@@ -632,13 +592,15 @@ export function BookingWizard({
             setMessage("");
           }}
           disabled={locked}
-                          className="inline-flex min-h-[44px] items-center px-1 font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center px-1 font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
         >
           Change setup
         </button>
       </div>
     </div>
   );
+
+  const quoteLines = quote?.lines ?? [];
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -670,11 +632,7 @@ export function BookingWizard({
       `}</style>
       <header className="border-b border-border bg-card no-print">
         <div className="mx-auto flex h-20 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link
-            href="/"
-            aria-label="Return to home"
-            className="inline-flex min-h-[44px] items-center"
-          >
+          <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center">
             <Logo />
           </Link>
           <span className="text-sm text-muted-foreground">{STEP_LABELS[step - 1]} · Step {step} of 5</span>
@@ -689,10 +647,7 @@ export function BookingWizard({
           )}
         </div>
         <div className="h-1 bg-border">
-          <div
-            className="h-full bg-primary motion-safe:transition-all"
-            style={{ width: step * 20 + "%" }}
-          />
+          <div className="h-full bg-primary motion-safe:transition-all" style={{ width: step * 20 + "%" }} />
         </div>
       </header>
 
@@ -700,7 +655,7 @@ export function BookingWizard({
         <div className="mb-8 max-w-3xl">
           <h1 className="text-2xl font-bold sm:text-3xl">{headings[step - 1]}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Appointment times are shown in Asia/Manila (UTC+8). Service durations are estimates.
+            Days are shown in Asia/Manila (UTC+8). You join that day&apos;s queue and the shop confirms your booking.
           </p>
         </div>
 
@@ -714,10 +669,7 @@ export function BookingWizard({
             <p className="font-semibold">{message}</p>
             {Object.entries(fieldErrors).map(([field, errors]) => (
               <p key={field} className="mt-1">
-                <a
-                  className="inline-flex min-h-[44px] items-center underline"
-                  href={step === 4 ? "#" + field : "#arrival-date"}
-                >
+                <a className="inline-flex min-h-[44px] items-center underline" href={step === 4 ? "#" + field : "#booking-days"}>
                   {errors.join(" ")}
                 </a>
               </p>
@@ -733,17 +685,13 @@ export function BookingWizard({
         {catalogError && (
           <div role="alert" className={panel}>
             <p>{catalogError}</p>
-            <button
-              type="button"
-              onClick={retryCatalog}
-              className="mt-4 min-h-[44px] underline"
-            >
+            <button type="button" onClick={retryCatalog} className="mt-4 min-h-[44px] underline">
               Retry service menu
             </button>
           </div>
         )}
 
-        {/* Step 1: Vehicle Selection (Full Width) */}
+        {/* Step 1: Vehicle Size (Full Width) */}
         {catalog && step === 1 && (
           <div className="max-w-3xl">
             {linkWarning && (
@@ -767,10 +715,10 @@ export function BookingWizard({
             )}
             <fieldset className="space-y-3">
               <legend className="mb-3 text-sm text-muted-foreground">
-                Choose one vehicle category to calibrate service duration and pricing.
+                Choose your vehicle size. Prices are set per size.
               </legend>
               {catalog.vehicleCategories.map((v) => {
-                const VehicleIcon = getVehicleCategoryIcon(v.code || v.name);
+                const VehicleIcon = getVehicleCategoryIcon(v.code);
                 return (
                   <label
                     key={v.id}
@@ -786,10 +734,7 @@ export function BookingWizard({
                       </div>
                       <div>
                         <span className="block font-bold text-foreground">{v.name}</span>
-                        <span className="text-sm text-muted-foreground">{v.description}</span>
-                        <span className="mt-1.5 block text-xs font-semibold text-primary">
-                          {v.sizeMultiplier}× service pricing scale
-                        </span>
+                        {v.description && <span className="text-sm text-muted-foreground">{v.description}</span>}
                       </div>
                     </div>
                     <input
@@ -799,7 +744,7 @@ export function BookingWizard({
                       checked={vehicleId === v.id}
                       onChange={() => {
                         setVehicleId(v.id);
-                        setSelection(null);
+                        setDay("");
                         setLinkWarning("");
                       }}
                       className="h-5 w-5 accent-primary shrink-0"
@@ -814,210 +759,143 @@ export function BookingWizard({
         {/* Steps 2, 3, 4: Multi-Column Layout with Persistent Summary Tray */}
         {catalog && step >= 2 && step <= 4 && (
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-            <div className="lg:col-span-8">
+            <div className="min-w-0 lg:col-span-8">
               {renderMobileSummaryTray()}
 
-              {/* Step 2: Treatment Selection */}
+              {/* Step 2: Services and add-ons */}
               {step === 2 && (
-                <fieldset className="space-y-3">
-                  <legend className="mb-3 text-sm text-muted-foreground">
-                    Choose one active detailing service for your {vehicle?.name}.
-                  </legend>
-                  {catalog.services.map((s) => {
-                    const TreatmentIcon = getServiceDisciplineIcon(s.category || s.name);
-                    return (
-                      <label
-                        key={s.id}
-                        className={
-                          panel +
-                          " flex min-h-[110px] cursor-pointer items-center justify-between gap-4 transition-colors " +
-                          (serviceId === s.id ? "border-primary bg-primary/5" : "hover:border-zinc-500")
-                        }
-                      >
-                        <div className="flex items-start gap-3.5">
-                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-[#18181b]">
-                            <TreatmentIcon className="h-5 w-5 text-primary shrink-0" aria-hidden="true" />
-                          </div>
-                          <div>
-                            <span className="block font-bold text-foreground">{s.name}</span>
-                            <span className="mt-1 block text-sm text-muted-foreground">
-                              {s.description}
-                            </span>
-                            <span className="mt-3 block text-sm font-semibold text-foreground">
-                              {formatDuration(s.durationMinutes)} ·{" "}
-                              {money(Math.round(s.basePriceCentavos * (vehicle?.sizeMultiplier ?? 1)))}
-                            </span>
-                          </div>
-                        </div>
-                        <input
-                          type="radio"
-                          name="service"
-                          value={s.id}
-                          checked={serviceId === s.id}
-                          onChange={() => {
-                            setServiceId(s.id);
-                            setSelection(null);
-                          }}
-                          className="h-5 w-5 shrink-0 accent-primary"
-                        />
-                      </label>
-                    );
-                  })}
-                </fieldset>
+                <div className="space-y-8">
+                  <fieldset className="space-y-3">
+                    <legend className="mb-3 text-sm text-muted-foreground">
+                      Choose one or more services for your {vehicle?.name}. &quot;For quote&quot; services are booked now and priced by the shop.
+                    </legend>
+                    {bases.map(renderService)}
+                  </fieldset>
+                  {addOns.length > 0 && (
+                    <fieldset className="space-y-3">
+                      <legend className="mb-3 text-sm font-semibold text-foreground">Add-ons for your chosen services</legend>
+                      {addOns.map(renderService)}
+                    </fieldset>
+                  )}
+                  {quoteState?.key === selectionKey && quoteState.error && (
+                    <div role="alert" className="text-sm text-destructive">
+                      <p>{quoteState.error}</p>
+                      <button type="button" onClick={() => setQuoteVersion((v) => v + 1)} className="mt-2 min-h-[44px] text-xs underline">
+                        Retry pricing
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
 
-              {/* Step 3: Date & Slot Picker (Grouped by Morning & Afternoon) */}
+              {/* Step 3: Day picker (no times, counts or positions) */}
               {step === 3 && (
-                <div className="space-y-6">
-                  <div className={panel}>
-                    <label htmlFor="arrival-date" className="block text-sm font-semibold text-foreground">
-                      Arrival date
-                    </label>
-                    <input
-                      id="arrival-date"
-                      type="date"
-                      min={todayInManila()}
-                      max={maxDate}
-                      value={date}
-                      onChange={(e) => {
-                        setDate(e.target.value);
-                        setSelection(null);
-                      }}
-                      className={control}
-                    />
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Choose today through the next 90 days. Operating hours and availability are checked in real-time.
-                    </p>
+                <section id="booking-days" aria-labelledby="days-title" aria-busy={!liveDays} className={panel}>
+                  <div className="flex items-baseline justify-between border-b border-border pb-3">
+                    <div>
+                      <h2 id="days-title" className="text-lg font-bold text-foreground">
+                        {multiDay ? "Available drop-off days" : "Available days"}
+                      </h2>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {shortDayLabel(fromDate)} – {shortDayLabel(addDays(fromDate, DAYS_PER_PAGE - 1))}
+                      </p>
+                    </div>
+                    <span className="rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">Live availability</span>
                   </div>
 
-                  <section
-                    aria-labelledby="slots-title"
-                    aria-busy={!live}
-                    className={panel}
-                  >
-                    <div className="flex items-baseline justify-between border-b border-border pb-3">
-                      <div>
-                        <h2 id="slots-title" className="text-lg font-bold text-foreground">
-                          Available arrival sessions
-                        </h2>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {date ? dateLabel(date) : "Choose a date"}
-                        </p>
-                      </div>
-                      <span className="rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                        Live availability
-                      </span>
+                  {!liveDays && (
+                    <div role="status" className="mt-6 grid grid-cols-2 gap-3">
+                      <span className="sr-only">Loading days</span>
+                      {[0, 1, 2, 3].map((i) => (
+                        <div key={i} className="h-16 rounded bg-muted motion-safe:animate-pulse" />
+                      ))}
                     </div>
+                  )}
 
-                    {!live && (
-                      <div role="status" className="mt-6 grid grid-cols-2 gap-3">
-                        <span className="sr-only">Loading availability</span>
-                        {[0, 1, 2, 3].map((i) => (
-                          <div
-                            key={i}
-                            className="h-16 rounded bg-muted motion-safe:animate-pulse"
-                          />
-                        ))}
-                      </div>
-                    )}
+                  {liveDays?.error && (
+                    <div role="alert" className="mt-4">
+                      <p className="text-sm text-destructive">{liveDays.error}</p>
+                      <button type="button" onClick={() => setDaysVersion((v) => v + 1)} className="mt-2 min-h-[44px] text-xs underline">
+                        Retry days
+                      </button>
+                    </div>
+                  )}
 
-                    {live?.error && (
-                      <div role="alert" className="mt-4">
-                        <p className="text-sm text-destructive">{live.error}</p>
-                        <button
-                          type="button"
-                          onClick={() => setAvailabilityVersion((v) => v + 1)}
-                          className="mt-2 min-h-[44px] text-xs underline"
-                        >
-                          Retry availability
-                        </button>
-                      </div>
-                    )}
-
-                    {live?.data && (
-                      <>
-                        <p
-                          role="status"
-                          aria-live="polite"
-                          className="my-3 text-xs text-zinc-400"
-                        >
-                          {publicDayMessage(live.data) ||
-                            (anySelectable
-                              ? "Live availability calculated for the full service duration."
-                              : "No arrival sessions remain for this service on this date.")}
-                        </p>
-
-                        {!anySelectable && (
-                          <div className="my-4 rounded border border-border/80 bg-[#121214] p-4 text-sm">
-                            <p className="text-zinc-400">
-                              All arrival sessions are booked or unavailable for {date ? dateLabel(date) : "this date"}.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => void findNextAvailableDate()}
-                              disabled={scanning}
-                              className="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 disabled:cursor-wait disabled:opacity-60"
+                  {liveDays?.data && (
+                    <>
+                      <p role="status" aria-live="polite" className="my-3 text-xs text-zinc-400">
+                        {liveDays.data.onlineBookingStatus === "PAUSED"
+                          ? `Online booking is paused right now. Please call the shop at ${brandConfig.displayPhone}.`
+                          : liveDays.data.nextAvailableDay
+                            ? `Next available day: ${dateLabel(liveDays.data.nextAvailableDay)}.`
+                            : `No available day was found. Please call the shop at ${brandConfig.displayPhone}.`}
+                      </p>
+                      <fieldset className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <legend className="sr-only">Days</legend>
+                        {liveDays.data.days.map((d) => {
+                          const selectable = d.state === "AVAILABLE";
+                          // A day that stopped being available is shown, but no longer chosen.
+                          const selected = selectable && day === d.date;
+                          return (
+                            <label
+                              key={d.date}
+                              className={`flex min-h-[64px] items-center justify-between gap-3 rounded border px-4 py-3 transition-colors ${
+                                !selectable
+                                  ? "cursor-not-allowed border-border opacity-50 bg-[#121214]/60"
+                                  : selected
+                                    ? "border-primary bg-primary/10 shadow-sm"
+                                    : "cursor-pointer border-input bg-card hover:border-zinc-500"
+                              }`}
                             >
-                              <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                              {scanning ? "Checking upcoming dates…" : "Check Next Available Date"}
-                            </button>
-                          </div>
-                        )}
+                              <div>
+                                <span className="block font-semibold text-foreground">{shortDayLabel(d.date)}</span>
+                                <span className="block text-xs text-muted-foreground">{dayStateLabel(d.state)}</span>
+                              </div>
+                              <input
+                                type="radio"
+                                name="booking-day"
+                                aria-label={`${dateLabel(d.date)} — ${dayStateLabel(d.state)}`}
+                                checked={selected}
+                                disabled={!selectable}
+                                onChange={() => setDay(d.date)}
+                                className="h-5 w-5 shrink-0 accent-primary"
+                              />
+                            </label>
+                          );
+                        })}
+                      </fieldset>
+                    </>
+                  )}
 
-                        {/* Morning Sessions (08:00 - 12:00) */}
-                        {morningSlots.length > 0 && (
-                          <div className="mt-4">
-                            <div className="mb-2 flex items-center justify-between border-b border-border/80 pb-1.5">
-                              <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
-                                <Sun className="h-4 w-4 shrink-0" aria-hidden="true" /> Morning Sessions (08:00 AM – 12:00 PM)
-                              </h3>
-                              <span className="text-xs text-zinc-400">
-                                {morningSlots.filter((s) => s.selectable).length} open
-                              </span>
-                            </div>
-                            <fieldset className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                              <legend className="sr-only">Morning arrival slots</legend>
-                              {morningSlots.map(renderSlot)}
-                            </fieldset>
-                          </div>
-                        )}
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFromDate((f) => (addDays(f, -DAYS_PER_PAGE) < todayInManila() ? todayInManila() : addDays(f, -DAYS_PER_PAGE)))}
+                      disabled={fromDate <= todayInManila()}
+                      className="inline-flex min-h-[44px] items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                      Earlier days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFromDate((f) => addDays(f, DAYS_PER_PAGE))}
+                      disabled={addDays(fromDate, DAYS_PER_PAGE) > lastDay}
+                      className="inline-flex min-h-[44px] items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                      Later days
+                    </button>
+                  </div>
 
-                        {/* Afternoon Sessions (12:00 - 18:00) */}
-                        {afternoonSlots.length > 0 && (
-                          <div className="mt-6">
-                            <div className="mb-2 flex items-center justify-between border-b border-border/80 pb-1.5">
-                              <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
-                                <Sunset className="h-4 w-4 shrink-0" aria-hidden="true" /> Afternoon Sessions (12:00 PM – 06:00 PM)
-                              </h3>
-                              <span className="text-xs text-zinc-400">
-                                {afternoonSlots.filter((s) => s.selectable).length} open
-                              </span>
-                            </div>
-                            <fieldset className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                              <legend className="sr-only">Afternoon arrival slots</legend>
-                              {afternoonSlots.map(renderSlot)}
-                            </fieldset>
-                          </div>
-                        )}
-
-                        <div className="mt-4 flex items-start gap-2.5 rounded border border-border/60 bg-[#121214] p-3 text-xs text-zinc-400">
-                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                          <p>
-                            <strong className="text-foreground">Availability Notice:</strong> Selecting an arrival time does not hold the slot. Your time is secured when your booking request is submitted.
-                          </p>
-                        </div>
-
-                        <p className="mt-4 text-xs text-zinc-400">
-                          {formatDuration(live.data.durationMinutes)} estimated service duration · Estimated quote{" "}
-                          <span className="font-semibold text-foreground">
-                            {money(live.data.totalPriceCentavos)}
-                          </span>
-                          .
-                        </p>
-                      </>
-                    )}
-                  </section>
-                </div>
+                  <div className="mt-4 flex items-start gap-2.5 rounded border border-border/60 bg-[#121214] p-3 text-xs text-zinc-400">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                    <p>
+                      <strong className="text-foreground">Availability Notice:</strong> Choosing a day does not hold a place. Your place in that day&apos;s queue is set when your booking request is submitted.
+                      {multiDay && " This job takes more than one day: the chosen day is your drop-off day."}
+                    </p>
+                  </div>
+                </section>
               )}
 
               {/* Step 4: Customer Details Form */}
@@ -1033,23 +911,15 @@ export function BookingWizard({
                   {/* Explicit Pre-Submission Review Panel */}
                   <div className="mb-6 rounded border border-border bg-[#121214] p-5">
                     <div className="flex items-center justify-between border-b border-border pb-3">
-                      <h2 className="text-sm font-bold uppercase tracking-wider text-primary">
-                        Pre-Submission Review
-                      </h2>
-                      <span className="rounded bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                        Step 4 of 5
-                      </span>
+                      <h2 className="text-sm font-bold uppercase tracking-wider text-primary">Pre-Submission Review</h2>
+                      <span className="rounded bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">Step 4 of 5</span>
                     </div>
 
                     <div className="mt-3 divide-y divide-border/60 text-sm">
-                      {/* Vehicle */}
                       <div className="flex items-start justify-between py-3">
                         <div>
-                          <span className="block text-xs font-medium text-muted-foreground">Vehicle Classification</span>
+                          <span className="block text-xs font-medium text-muted-foreground">Vehicle Size</span>
                           <span className="font-bold text-foreground">{vehicle?.name ?? "—"}</span>
-                          <p className="text-xs text-zinc-400">
-                            {vehicle?.sizeMultiplier ?? 1.0}× vehicle size adjustment
-                          </p>
                         </div>
                         <button
                           type="button"
@@ -1059,20 +929,26 @@ export function BookingWizard({
                           }}
                           disabled={locked}
                           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label="Edit vehicle classification"
+                          aria-label="Edit vehicle size"
                         >
                           Edit
                         </button>
                       </div>
 
-                      {/* Service */}
                       <div className="flex items-start justify-between py-3">
-                        <div>
-                          <span className="block text-xs font-medium text-muted-foreground">Detailing Service</span>
-                          <span className="font-bold text-foreground">{service?.name ?? "—"}</span>
-                          <p className="text-xs text-zinc-400">
-                            {service?.category ? service.category.replace(/_/g, " ") : "Specialized Detailing"}
-                          </p>
+                        <div className="min-w-0">
+                          <span className="block text-xs font-medium text-muted-foreground">Services</span>
+                          <ul className="mt-1 space-y-1">
+                            {quoteLines.map((l) => (
+                              <li key={l.serviceId} className="break-words">
+                                <span className="font-bold text-foreground">
+                                  {l.name}
+                                  {l.unit === "PANEL" ? ` × ${l.quantity} panels` : ""}
+                                </span>{" "}
+                                <span className="text-xs text-zinc-400">· {lineAmount(l)}</span>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                         <button
                           type="button"
@@ -1082,20 +958,21 @@ export function BookingWizard({
                           }}
                           disabled={locked}
                           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label="Edit detailing service"
+                          aria-label="Edit services"
                         >
                           Edit
                         </button>
                       </div>
 
-                      {/* Schedule */}
                       <div className="flex items-start justify-between py-3">
                         <div>
-                          <span className="block text-xs font-medium text-muted-foreground">Appointment Schedule</span>
-                          <span className="font-bold text-foreground">
-                            {dateLabel(date)} · {slot ? `${timeLabel(slot.startTime)} – ${timeLabel(slot.endTime)}` : "Select arrival slot"}
-                          </span>
-                          <p className="text-xs text-zinc-400">Timezone: Asia/Manila (UTC+8)</p>
+                          <span className="block text-xs font-medium text-muted-foreground">{multiDay ? "Drop-off Day" : "Booking Day"}</span>
+                          <span className="font-bold text-foreground">{day ? dateLabel(day) : "Choose a day"}</span>
+                          <p className="text-xs text-zinc-400">
+                            {multiDay
+                              ? "This job takes more than one day: bring your car on this day."
+                              : "Timezone: Asia/Manila (UTC+8)"}
+                          </p>
                         </div>
                         <button
                           type="button"
@@ -1105,33 +982,21 @@ export function BookingWizard({
                           }}
                           disabled={locked}
                           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label="Edit appointment schedule"
+                          aria-label="Edit booking day"
                         >
                           Edit
                         </button>
                       </div>
 
-                      {/* Duration */}
-                      <div className="flex items-start justify-between py-3">
-                        <div>
-                          <span className="block text-xs font-medium text-muted-foreground">Estimated Service Duration</span>
-                          <span className="font-bold text-foreground">{formatDuration(currentDuration)}</span>
-                          <p className="text-xs text-zinc-400">
-                            Estimated shop allocation (intake walkaround to release)
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Estimated Investment */}
                       <div className="pt-3">
                         <div className="flex items-baseline justify-between">
-                          <span className="text-xs font-medium text-muted-foreground">Estimated Investment</span>
+                          <span className="text-xs font-medium text-muted-foreground">{total?.label ?? "Estimated Investment"}</span>
                           <span className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground">
-                            {money(currentTotal)}
+                            {total ? total.amount : "Pricing…"}
                           </span>
                         </div>
                         <p className="mt-1 text-xs text-zinc-400">
-                          Taxes, professional consumables & shop service included.
+                          {total?.note ?? "Taxes, professional consumables & shop service included."}
                         </p>
                       </div>
                     </div>
@@ -1166,9 +1031,7 @@ export function BookingWizard({
                         enterKeyHint="next"
                         maxLength={100}
                         value={form.customerName}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, customerName: e.target.value }))
-                        }
+                        onChange={(e) => setForm((prev) => ({ ...prev, customerName: e.target.value }))}
                         placeholder="e.g. Juan dela Cruz"
                         aria-invalid={Boolean(errorFor("customerName"))}
                         aria-describedby={errorFor("customerName") ? "customerName-error" : undefined}
@@ -1202,21 +1065,14 @@ export function BookingWizard({
                         enterKeyHint="next"
                         maxLength={32}
                         value={form.customerPhone}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            customerPhone: formatPhilippinePhone(e.target.value),
-                          }))
-                        }
+                        onChange={(e) => setForm((prev) => ({ ...prev, customerPhone: formatPhilippinePhone(e.target.value) }))}
                         placeholder="0930 016 2234"
                         aria-invalid={Boolean(errorFor("customerPhone"))}
-                        aria-describedby={
-                          errorFor("customerPhone") ? "customerPhone-error" : "customerPhone-help"
-                        }
+                        aria-describedby={errorFor("customerPhone") ? "customerPhone-error" : "customerPhone-help"}
                         className={`${control} ${errorFor("customerPhone") ? "border-destructive ring-1 ring-destructive" : ""}`}
                       />
                       <p id="customerPhone-help" className="mt-1.5 text-xs text-zinc-400">
-                        Format: 09XX XXX XXXX or +63 9XX XXX XXXX for shop contact and appointment updates.
+                        Format: 09XX XXX XXXX or +63 9XX XXX XXXX for shop contact and booking updates.
                       </p>
                       {errorFor("customerPhone") && (
                         <p id="customerPhone-error" className="mt-1 text-xs text-destructive">
@@ -1239,9 +1095,7 @@ export function BookingWizard({
                         enterKeyHint="next"
                         maxLength={254}
                         value={form.customerEmail}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, customerEmail: e.target.value }))
-                        }
+                        onChange={(e) => setForm((prev) => ({ ...prev, customerEmail: e.target.value }))}
                         placeholder="juan@example.ph"
                         aria-invalid={Boolean(errorFor("customerEmail"))}
                         aria-describedby={errorFor("customerEmail") ? "customerEmail-error" : undefined}
@@ -1273,11 +1127,10 @@ export function BookingWizard({
                         autoComplete="off"
                         enterKeyHint="next"
                         maxLength={100}
+                        required
                         value={form.vehicleModel}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, vehicleModel: e.target.value }))
-                        }
-                        placeholder="e.g. 2024 Toyota Fortuner GR-S"
+                        onChange={(e) => setForm((prev) => ({ ...prev, vehicleModel: e.target.value }))}
+                        placeholder="e.g. Toyota Vios"
                         aria-invalid={Boolean(errorFor("vehicleModel"))}
                         aria-describedby={errorFor("vehicleModel") ? "vehicleModel-error" : undefined}
                         className={`${control} ${errorFor("vehicleModel") ? "border-destructive ring-1 ring-destructive" : ""}`}
@@ -1302,9 +1155,7 @@ export function BookingWizard({
                         enterKeyHint="next"
                         maxLength={20}
                         value={form.vehiclePlate}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, vehiclePlate: e.target.value }))
-                        }
+                        onChange={(e) => setForm((prev) => ({ ...prev, vehiclePlate: e.target.value }))}
                         placeholder="e.g. ABC 1234 or Conduction 0821"
                         aria-invalid={Boolean(errorFor("vehiclePlate"))}
                         aria-describedby={errorFor("vehiclePlate") ? "vehiclePlate-error" : undefined}
@@ -1329,10 +1180,8 @@ export function BookingWizard({
                         maxLength={1000}
                         enterKeyHint="done"
                         value={form.specialRequests}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, specialRequests: e.target.value }))
-                        }
-                        placeholder="Specific scratches, previous ceramic coating brand, interior stains, or arrival preferences…"
+                        onChange={(e) => setForm((prev) => ({ ...prev, specialRequests: e.target.value }))}
+                        placeholder="Specific scratches, previous ceramic coating brand, interior stains, or drop-off preferences…"
                         aria-invalid={Boolean(errorFor("specialRequests"))}
                         aria-describedby={errorFor("specialRequests") ? "specialRequests-error" : undefined}
                         className={control}
@@ -1341,6 +1190,23 @@ export function BookingWizard({
                         <p id="specialRequests-error" className="mt-1.5 text-xs text-destructive">
                           {errorFor("specialRequests")}
                         </p>
+                      )}
+                    </div>
+
+                    {/* Security check (Cloudflare Turnstile) */}
+                    <div id="turnstileToken">
+                      <span className="text-sm font-semibold text-foreground">Security check</span>
+                      <div className="mt-2">
+                        {TURNSTILE_SITE_KEY ? (
+                          <TurnstileChallenge key={challenge.version} siteKey={TURNSTILE_SITE_KEY} onToken={onToken} />
+                        ) : (
+                          <p className="text-xs text-destructive">
+                            Online booking is not available right now. Please call the shop at {brandConfig.displayPhone}.
+                          </p>
+                        )}
+                      </div>
+                      {errorFor("turnstileToken") && (
+                        <p className="mt-1.5 text-xs text-destructive">{errorFor("turnstileToken")}</p>
                       )}
                     </div>
                   </fieldset>
@@ -1356,22 +1222,16 @@ export function BookingWizard({
         {/* Step 5: Booking Confirmation Voucher */}
         {step === 5 && booking && (
           <div className="max-w-3xl space-y-6">
-            <section
-              aria-labelledby="reference-title"
-              className={`${panel} print-receipt-card`}
-            >
+            <section aria-labelledby="reference-title" className={`${panel} print-receipt-card`}>
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
                 <div className="flex items-center gap-3">
                   <ShieldCheck aria-hidden="true" className="h-8 w-8 text-primary shrink-0" />
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                      {booking.status === "CONFIRMED" ? "Booking Confirmed" : "Booking Received"}
+                      {booking.view.status === "CONFIRMED" ? "Booking Confirmed" : "Booking Received"}
                     </p>
-                    <h2
-                      id="reference-title"
-                      className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground sm:text-3xl"
-                    >
-                      {booking.referenceCode}
+                    <h2 id="reference-title" className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground sm:text-3xl">
+                      {booking.view.referenceCode}
                     </h2>
                   </div>
                 </div>
@@ -1412,38 +1272,43 @@ export function BookingWizard({
               </div>
 
               <p className="mt-4 text-sm text-muted-foreground">
-                {booking.status === "CONFIRMED"
-                  ? "Your appointment is confirmed. Please arrive on time for your scheduled intake walkaround."
-                  : "We have received your appointment request. Our shop team will review your booking request and contact you to confirm your slot."}
+                {booking.view.status === "CONFIRMED"
+                  ? "Your booking is confirmed. Please bring your car on your booking day."
+                  : "We have received your booking request. Our shop team will review it and contact you to confirm."}
               </p>
 
               <dl className="mt-6 divide-y divide-border/60 text-sm">
                 <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">Appointment Date & Arrival Time</dt>
+                  <dt className="text-xs text-muted-foreground">{booking.multiDay ? "Drop-off Day" : "Booking Day"}</dt>
                   <dd className="mt-0.5 font-bold text-foreground">
-                    {dateLabel(booking.bookingDate)} · {timeLabel(booking.startTime)}–{timeLabel(booking.endTime)} · {booking.timezone}
+                    {dateLabel(booking.view.bookingDate)} · {booking.view.timezone}
                   </dd>
+                  {booking.multiDay && (
+                    <p className="mt-0.5 text-xs text-zinc-400">
+                      This job takes more than one day. Your chosen day is the drop-off day; the shop tells you when your car is ready.
+                    </p>
+                  )}
                 </div>
                 <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">Detailing Service</dt>
+                  <dt className="text-xs text-muted-foreground">Services</dt>
                   <dd className="mt-0.5 text-foreground">
-                    <span className="font-semibold">{booking.serviceName}</span>
-                  </dd>
-                </div>
-                <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">Estimated Service Duration</dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {formatDuration(booking.durationMinutes)}{" "}
-                    <span className="text-xs text-zinc-400">
-                      (Estimated duration only — not a guaranteed vehicle release time. Final inspection depends on surface condition.)
-                    </span>
+                    <ul className="space-y-1">
+                      {booking.view.lines.map((l) => (
+                        <li key={l.serviceId} className="break-words">
+                          <span className="font-semibold">
+                            {l.name}
+                            {l.quantity > 1 ? ` × ${l.quantity}` : ""}
+                          </span>{" "}
+                          <span className="text-xs text-zinc-400">· {lineAmount(l)}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </dd>
                 </div>
                 <div className="py-3">
                   <dt className="text-xs text-muted-foreground">Vehicle</dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {booking.vehicleCategoryName} · {booking.vehicleModel}
-                    {booking.vehiclePlate ? ` (${booking.vehiclePlate})` : ""}
+                  <dd className="mt-0.5 break-words text-foreground">
+                    {booking.view.vehicleCategoryName} · {booking.vehicleModel} · {booking.vehiclePlate ?? "No plate"}
                   </dd>
                 </div>
                 <div className="py-3">
@@ -1453,12 +1318,10 @@ export function BookingWizard({
                   </dd>
                 </div>
                 <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">Estimated Investment</dt>
-                  <dd className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">
-                    {money(booking.totalPriceCentavos)}
-                  </dd>
+                  <dt className="text-xs text-muted-foreground">{quoteTotal(booking.view).label}</dt>
+                  <dd className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">{quoteTotal(booking.view).amount}</dd>
                   <p className="mt-0.5 text-xs text-zinc-400">
-                    Includes labor, professional coatings/compounds, and shop supplies.
+                    {quoteTotal(booking.view).note ?? "Includes labor, professional coatings/compounds, and shop supplies."}
                   </p>
                 </div>
                 <div className="py-3">
@@ -1486,10 +1349,10 @@ export function BookingWizard({
               <div className="mt-6 rounded border border-border/80 bg-[#121214] p-4 text-xs text-zinc-400">
                 <p>
                   <strong className="text-foreground">Next Steps:</strong>{" "}
-                  {booking.status === "CONFIRMED" ? (
-                    <>Your booking is <span className="font-semibold text-primary">CONFIRMED</span>. Please save or print this receipt for your arrival walkaround.</>
+                  {booking.view.status === "CONFIRMED" ? (
+                    <>Your booking is <span className="font-semibold text-primary">CONFIRMED</span>. Please save or print this receipt for your visit.</>
                   ) : (
-                    <>Your booking is currently <span className="font-semibold text-primary">PENDING</span> shop confirmation. Our shop team will review your booking request and contact you to confirm your slot. Please save or print this receipt for your arrival walkaround.</>
+                    <>Your booking is currently <span className="font-semibold text-primary">PENDING</span> shop confirmation. Our shop team will review your booking request and contact you to confirm. Please save or print this receipt for your visit.</>
                   )}
                 </p>
               </div>
@@ -1497,11 +1360,10 @@ export function BookingWizard({
 
             {/* Post-Booking Assistance: Contact Shop Card */}
             <div className={`${panel} no-print`}>
-              <h3 className="text-base font-bold text-foreground">
-                Contact Shop About This Booking
-              </h3>
+              <h3 className="text-base font-bold text-foreground">Contact Shop About This Booking</h3>
               <p className="mt-1 text-xs text-zinc-400">
-                Have questions or need to modify your arrival time? Reach out directly to Zeus Auto Detailing with reference code <span className="font-mono font-semibold text-primary">{booking.referenceCode}</span>.
+                Have questions or need to change your day? Reach out directly to Zeus Auto Detailing with reference code{" "}
+                <span className="font-mono font-semibold text-primary">{booking.view.referenceCode}</span>.
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <a
@@ -1512,7 +1374,7 @@ export function BookingWizard({
                   Call Shop Hotline ({brandConfig.displayPhone})
                 </a>
                 <a
-                  href={`${brandConfig.facebookMessengerUrl}?text=${encodeURIComponent(`Hi, I have a booking inquiry for reference code ${booking.referenceCode}.`)}`}
+                  href={`${brandConfig.facebookMessengerUrl}?text=${encodeURIComponent(`Hi, I have a booking inquiry for reference code ${booking.view.referenceCode}.`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
@@ -1561,18 +1423,19 @@ export function BookingWizard({
                   !catalog ||
                   Boolean(catalogError) ||
                   (step === 1 && !vehicleId) ||
-                  (step === 2 && !serviceId) ||
-                  (step === 3 && !slot)
+                  (step === 2 && !lines.length) ||
+                  (step === 3 && (!day || dayState !== "AVAILABLE")) ||
+                  (step === 4 && (!challenge.token || (!uncertain && !quote)))
                 }
                 className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-6 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {pending
                   ? "Submitting request…"
                   : step === 4
-                  ? uncertain
-                    ? "Retry same submission"
-                    : "Submit booking request"
-                  : "Continue"}
+                    ? uncertain
+                      ? "Retry same submission"
+                      : "Submit booking request"
+                    : "Continue"}
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </button>
             ) : (
@@ -1587,7 +1450,7 @@ export function BookingWizard({
           </div>
           {step === 4 && (
             <p className="ml-auto mt-3 max-w-[70ch] text-right text-xs text-zinc-400">
-              Submitting creates a PENDING booking request. Our shop will review your request and contact you to confirm your appointment.
+              Submitting adds your car to that day&apos;s queue as a PENDING booking request. Our shop will review it and contact you to confirm.
             </p>
           )}
         </div>
