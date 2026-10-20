@@ -76,9 +76,9 @@ export function newEffectBudget(c: Counts, clientHash: string, cap: number, now:
     }) => r.createdAt.getTime() > now.getTime() - 3600000, recent = c.committed.filter(r => r.createdAt.getTime() > now.getTime() - 86400000), mine = recent.filter(r => r.clientHash === clientHash), h = mine.filter(hour);
     if (h.length >= 3 || mine.length >= 6)
         return bookingError("RATE_LIMITED", "Please wait before making another booking.", { retryable: true, retryAfterSeconds: h.length >= 3 ? waitFor(h, now, 3600000) : waitFor(mine, now, 86400000) });
-    const shopHour = recent.filter(hour);
-    if (shopHour.length >= 5 || (cap > 0 && recent.length >= cap))
-        return paused(shopHour.length >= 5 ? waitFor(shopHour, now, 3600000) : recent.length ? waitFor(recent, now, 86400000) : 60);
+    // LE 2026-10-20: no shop-wide hourly burst; the rolling daily budget remains.
+    if (cap > 0 && recent.length >= cap)
+        return paused(recent.length ? waitFor(recent, now, 86400000) : 60);
     return null;
 }
 function rejectionBudget(c: Counts, clientHash: string, now: Date): boolean {
