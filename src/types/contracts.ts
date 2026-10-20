@@ -222,8 +222,6 @@ export type DayBookingResponse = import("./catalog-contracts").LifecycleResult<{
 
 // P1-04 stable session/API boundary for P1-05 and P1-18. Progress/checklist is deferred.
 export interface ManagedDayBookingView extends DayBookingView {
- vehicleModel:string;
- vehiclePlate:string|null;
  selfServiceAllowed:boolean;
  selfServiceCutoff:ISOInstant;
 }

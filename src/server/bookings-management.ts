@@ -192,8 +192,6 @@ function view(b: Booking, now: Date): ManagedDayBookingView {
     );
   return {
     ...publicDayBooking(b),
-    vehicleModel: b.vehicleModel,
-    vehiclePlate: b.vehiclePlate,
     selfServiceAllowed: eligible(b, now),
     selfServiceCutoff: customerCutoff(
       b.bookingDate.toISOString().slice(0, 10),

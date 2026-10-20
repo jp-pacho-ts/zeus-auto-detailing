@@ -191,6 +191,10 @@ const noPrivate = (r: unknown) => {
     "workStatus",
     "customerPhone",
     "customerEmail",
+    "customerName",
+    "vehicleModel",
+    "vehiclePlate",
+    "PRIVATE PLATE",
   ])
     assert.equal(text.includes(field), false, field);
 };
