@@ -153,4 +153,4 @@ test("in production a failed check refuses staff mutations before any write (503
 });
 
 // The admin, customer-create and staff-auth suites run again with every service call as zeus_app
-// in src/server/runtime-role-suites.integration.test.ts.
+// in src/server/runtime-role-suites.check.ts, a separate command (src/server/__tests__/README.md).

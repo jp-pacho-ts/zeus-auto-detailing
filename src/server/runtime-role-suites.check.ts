@@ -1,7 +1,10 @@
 // P1-10 M1: the admin, customer-create and staff-auth suites rerun with every service call as the
 // zeus_app runtime role provisioned by prisma/sql/runtime-role.sql, each on a fresh sibling
-// database. Fixtures keep the owner client; nothing may fail, cancel or skip. The suites run one
-// after another in this file, so at most one nested suite adds load to npm test at a time.
+// database. Fixtures keep the owner client; nothing may fail, cancel or skip.
+// Not part of npm test (its *.test.ts glob): nested beside the full suite it tripled the run time
+// and pushed timing-bound tests past their limits. Run it on its own, after npm test, with the
+// same two URLs (src/server/__tests__/README.md):
+//   node --require ./src/server/__tests__/register.cjs --test src/server/runtime-role-suites.check.ts
 import { test } from "node:test";
 import { PrismaClient } from "@prisma/client";
 import { runSuiteAsRuntimeRole } from "./catalog-db.fixture";

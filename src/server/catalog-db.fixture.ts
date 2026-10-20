@@ -38,7 +38,7 @@ export function runtimeRoleUrl(ownerUrl: string): string {
   parsed.password = "";
   return parsed.toString();
 }
-// With T007_SERVICE_ROLE=zeus_app (set by runtime-role.integration.test.ts), a suite runs its
+// With T007_SERVICE_ROLE=zeus_app (set by runtime-role-suites.check.ts), a suite runs its
 // service calls as the provisioned runtime role while its fixtures keep the owner client.
 export async function serviceClient(ownerUrl: string, owner: PrismaClient): Promise<PrismaClient> {
   if (process.env.T007_SERVICE_ROLE !== "zeus_app") return owner;
