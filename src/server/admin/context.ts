@@ -15,6 +15,7 @@ export interface AdminOptions {
   signal?: AbortSignal;
   sender?: TurnNoticeSender; // W15 (D2): wired to P1-03's send at integration
   ring?: HistoryKeyRing | null; // W16; default: the process ring, validated on first use
+  enforceAuditPrivileges?: boolean; // S-06 gate (P1-10 M1); default: NODE_ENV=production
 }
 
 export function authorize(actor: StaffActor, op: AdminOp): void {

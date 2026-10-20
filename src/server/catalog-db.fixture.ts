@@ -24,6 +24,51 @@ export async function createAndMigrate(admin: PrismaClient, url: string): Promis
   assert.equal(migrate.status, 0, migrate.stdout + migrate.stderr);
 }
 
+// P1-10 M1: provision the runtime role in a test database exactly as an operator does, with the
+// owner running prisma/sql/runtime-role.sql. The loopback test cluster lets zeus_app log in
+// without a password; a deployed role gets one interactively.
+export function provisionRuntimeRole(ownerUrl: string): void {
+  const run = spawnSync(process.execPath, [path.join(process.cwd(), "node_modules", "prisma", "build", "index.js"), "db", "execute",
+    "--file", path.join(process.cwd(), "prisma", "sql", "runtime-role.sql"), "--url", ownerUrl], { cwd: process.cwd(), encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+}
+export function runtimeRoleUrl(ownerUrl: string): string {
+  const parsed = new URL(ownerUrl);
+  parsed.username = "zeus_app";
+  parsed.password = "";
+  return parsed.toString();
+}
+// With T007_SERVICE_ROLE=zeus_app (set by runtime-role.integration.test.ts), a suite runs its
+// service calls as the provisioned runtime role while its fixtures keep the owner client.
+export async function serviceClient(ownerUrl: string, owner: PrismaClient): Promise<PrismaClient> {
+  if (process.env.T007_SERVICE_ROLE !== "zeus_app") return owner;
+  provisionRuntimeRole(ownerUrl);
+  const { PrismaClient: Client } = await import("@prisma/client");
+  return new Client({ datasources: { db: { url: runtimeRoleUrl(ownerUrl) } } });
+}
+
+// Reruns one service suite with T007_SERVICE_ROLE=zeus_app on a fresh sibling database
+// (<T007 name>_rr_<name>); it must pass with nothing skipped. Returns the runner's summary.
+export async function runSuiteAsRuntimeRole(admin: PrismaClient, t007Url: string, name: string, file: string, servicesUseDatabaseUrl = false): Promise<string> {
+  const suiteUrl = siblingDatabaseUrl(t007Url, "rr_" + name);
+  await createAndMigrate(admin, suiteUrl);
+  if (servicesUseDatabaseUrl) provisionRuntimeRole(suiteUrl);
+  // NODE_TEST_CONTEXT would make the nested runner report in the parent's child protocol.
+  const { NODE_TEST_CONTEXT: _context, ...env } = process.env;
+  void _context;
+  const run = spawnSync(process.execPath, ["--require", path.join(process.cwd(), "src", "server", "__tests__", "register.cjs"), "--test", file], {
+    cwd: process.cwd(), encoding: "utf8", maxBuffer: 64 * 1024 * 1024,
+    env: { ...env, T007_SERVICE_ROLE: "zeus_app", T007_TEST_DATABASE_URL: suiteUrl, DATABASE_URL: servicesUseDatabaseUrl ? runtimeRoleUrl(suiteUrl) : suiteUrl },
+  });
+  const summary = (run.stdout.match(/^ℹ (tests|pass|fail|cancelled|skipped) \d+$/gm) ?? []).join("; ");
+  const failures = run.stdout.split("\n").filter((l) => /^✖|permission denied/i.test(l)).slice(0, 40).join("\n");
+  assert.equal(run.status, 0, `${summary}\n${failures}\n${run.stdout.slice(-4000)}\n${run.stderr.slice(-2000)}`);
+  assert.match(summary, /fail 0/);
+  assert.match(summary, /cancelled 0/);
+  assert.match(summary, /skipped 0/);
+  return summary;
+}
+
 // The publisher mapping: this test login as an active ADMIN (publish_catalog reads session_user).
 export async function mapPublisher(db: PrismaClient, email: string): Promise<string> {
   const [{ role }] = await db.$queryRaw<{ role: string }[]>`SELECT session_user::text AS role`;

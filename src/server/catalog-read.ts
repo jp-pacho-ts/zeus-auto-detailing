@@ -1,26 +1,39 @@
 import "server-only";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { VehicleCategoryCodeSchema } from "@/types/catalog-contracts";
+import { createSemaphore } from "./auth/semaphore";
 import { CatalogIntegrityError, type ReleaseOffer, type ReleaseSnapshot } from "./catalog-pricing";
 import { prisma } from "./db";
 
 // C-02 (T-043): the one named read seam for public catalog reads. GET /api/catalog,
 // getBookingCatalog(), getBookingQuote() and any public page or Action read the current release
-// only through readPublicCatalog, so P1-10 can take the QUOTE admission permit here, before
-// the first query. It is one connection: a single REPEATABLE READ, read-only transaction with
-// the QUOTE statement timeout, whose sequential queries all see the same release (no mixing of
-// head, offers or compatibility across a concurrent publication).
+// only through readPublicCatalog, which takes the QUOTE admission permit (P1-10 M2) before the
+// first query and holds it until the transaction settles. It is one connection: a single
+// REPEATABLE READ, read-only transaction with the QUOTE statement timeout, whose sequential
+// queries all see the same release (no mixing of head, offers or compatibility across a
+// concurrent publication). A full queue or a wait past maxWaitMs throws AdmissionRefused, which
+// both callers answer with 503 RETRYABLE_ERROR and Retry-After, before any connection is taken.
 export type CatalogTx = Prisma.TransactionClient;
 export interface CatalogReadOptions { db?: PrismaClient }
-export const PUBLIC_CATALOG_READ_POLICY = { statementTimeoutMs: 2000, maxWaitMs: 2000, transactionTimeoutMs: 8000 } as const;
+export const PUBLIC_CATALOG_READ_POLICY = {
+  statementTimeoutMs: 2000, maxWaitMs: 2000, transactionTimeoutMs: 8000,
+  permit: { maxActive: 2, maxQueued: 10, maxWaitMs: 1000 }, // 2 of the 27 customer connections
+} as const;
+const quotePermit = createSemaphore(PUBLIC_CATALOG_READ_POLICY.permit);
+export const publicCatalogAdmissionStats = () => quotePermit.stats();
 
 export async function readPublicCatalog<T>(work: (release: ReleaseSnapshot | null, tx: CatalogTx) => T | Promise<T>, options: CatalogReadOptions = {}): Promise<T> {
   const policy = PUBLIC_CATALOG_READ_POLICY;
-  return (options.db ?? prisma).$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT set_config('statement_timeout', ${String(policy.statementTimeoutMs)}, true),
-      set_config('transaction_read_only', 'on', true)`;
-    return work(await loadCurrentRelease(tx), tx);
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: policy.maxWaitMs, timeout: policy.transactionTimeoutMs });
+  const release = await quotePermit.acquire();
+  try {
+    return await (options.db ?? prisma).$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT set_config('statement_timeout', ${String(policy.statementTimeoutMs)}, true),
+        set_config('transaction_read_only', 'on', true)`;
+      return work(await loadCurrentRelease(tx), tx);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: policy.maxWaitMs, timeout: policy.transactionTimeoutMs });
+  } finally {
+    release();
+  }
 }
 
 // The published head and all of its rows, read in the caller's transaction (the seam above, or

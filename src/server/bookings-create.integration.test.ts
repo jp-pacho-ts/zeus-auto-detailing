@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import path from "node:path";
 import { after, before, test } from "node:test";
 import { PrismaClient } from "@prisma/client";
-import { createAndMigrate, mapPublisher, publish, siblingDatabaseUrl } from "./catalog-db.fixture";
+import { createAndMigrate, mapPublisher, publish, serviceClient, siblingDatabaseUrl } from "./catalog-db.fixture";
 import { bySlug, readManifest, releaseFromManifest, sizeId } from "./catalog.fixture";
 import { getBookingQuote } from "./catalog-quote";
 import { parseBookingConfiguration, verifyManagementToken } from "./bookings-credentials";
@@ -70,6 +70,10 @@ async function fixture(suffix: string) {
     const dbUrl = siblingDatabaseUrl(url!, suffix), db = new PrismaClient({ datasources: { db: { url: dbUrl } } });
     clients.push(db);
     await createAndMigrate(root, dbUrl);
+    // Service calls; zeus_app under T007_SERVICE_ROLE (P1-10 M1). Fixtures keep the owner client.
+    const app = await serviceClient(dbUrl, db);
+    if (app !== db)
+        clients.push(app);
     const tooling = await import(path.join(process.cwd(), "prisma", "catalog", "catalog.mjs"));
     const actor = await mapPublisher(db, suffix + "@example.test");
     await publish(db, manifest, tooling.stableId);
@@ -79,13 +83,13 @@ async function fixture(suffix: string) {
             dayOfWeek, startTime: "08:00", endTime: "18:00", maxVehicleCapacity: 2
         })) });
     const options: CreateDayBookingOptions = {
-        db, config, headers: headers(), turnstileEndpoint: endpoint + "/siteverify", notification: {
+        db: app, config, headers: headers(), turnstileEndpoint: endpoint + "/siteverify", notification: {
             ...smtp.config, origin: config.origin
         }
     };
     async function request(slugs = ["basic-wash"], date = day()) {
         const selection = { vehicleCategoryId: sizeId(release, "S"), lines: slugs.map(slug => ({ serviceId: bySlug(release, slug).id, quantity: slug === "panel-repaint" ? 3 : 1 })) };
-        const quoted = await getBookingQuote(selection, { db, ring: config.quote });
+        const quoted = await getBookingQuote(selection, { db: app, ring: config.quote });
         assert.ok(quoted.ok, JSON.stringify(quoted));
         if (!quoted.ok)
             throw Error("quote");

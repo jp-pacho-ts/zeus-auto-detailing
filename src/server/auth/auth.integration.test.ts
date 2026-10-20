@@ -8,11 +8,14 @@ import { after, before, test } from "node:test";
 import { NextRequest } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { hash as rawHash } from "@node-rs/argon2";
+import { runtimeRoleUrl } from "../catalog-db.fixture";
 
 const url = process.env.T007_TEST_DATABASE_URL;
 const enabled = Boolean(url);
 if (url) {
-  assert.equal(process.env.DATABASE_URL, url, "DATABASE_URL must equal the isolated T007_TEST_DATABASE_URL");
+  // Under T007_SERVICE_ROLE the services (DATABASE_URL) run as zeus_app on the same database (P1-10 M1).
+  const serviceUrl = process.env.T007_SERVICE_ROLE === "zeus_app" ? runtimeRoleUrl(url) : url;
+  assert.equal(process.env.DATABASE_URL, serviceUrl, "DATABASE_URL must equal the isolated T007_TEST_DATABASE_URL");
   const parsed = new URL(url);
   assert.ok(["127.0.0.1", "localhost"].includes(parsed.hostname) && parsed.pathname.startsWith("/zeus_t007_"), "Use only an isolated local test database");
 }
