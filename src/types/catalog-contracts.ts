@@ -196,7 +196,7 @@ export interface LifecycleError {
   retryable: boolean;
   commitState: "NOT_COMMITTED" | "UNKNOWN" | "NOT_APPLICABLE";
   currentQuote: BookingQuote | null;
-  currentBooking: null;
+  currentBooking: import("./contracts").ManagedDayBookingView | null;
   retryAfterSeconds: number | null; // integer >= 1 with 429/503; else null
 }
 export type LifecycleResult<T> = { ok: true; data: T } | { ok: false; error: LifecycleError };

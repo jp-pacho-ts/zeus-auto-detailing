@@ -22,14 +22,21 @@ const pools = {
     NOTIFICATION: createSemaphore({
         maxActive: 1, maxQueued: 4, maxWaitMs: 1000
     }),
+    RECOVERY_LOOKUP: createSemaphore({maxActive:2,maxQueued:20,maxWaitMs:2000}),
+    RECOVERY_FENCE: createSemaphore({maxActive:1,maxQueued:5,maxWaitMs:2000}),
+    MANAGEMENT_EXCHANGE: createSemaphore({maxActive:2,maxQueued:10,maxWaitMs:2000}),
+    MANAGEMENT_READ: createSemaphore({maxActive:4,maxQueued:20,maxWaitMs:2000}),
+    MANAGEMENT_MUTATION: createSemaphore({maxActive:2,maxQueued:10,maxWaitMs:3000}),
 };
 export async function withBookingDb<T>(db: PrismaClient, scope: keyof typeof pools, work: (tx: Prisma.TransactionClient) => Promise<T>, signal?: AbortSignal): Promise<T> {
     let release: (() => void) | undefined;
     try {
         release = await pools[scope].acquire(signal);
         return await db.$transaction(async (tx) => {
-            await tx.$queryRaw `SELECT set_config('statement_timeout', ${scope === "PREFLIGHT" ? "1000" : "3000"},true),set_config('lock_timeout','2000',true)`;
-            const read = scope === "READ" || scope === "PREFLIGHT";
+            const statement=scope==="PREFLIGHT"?"1000":["RECOVERY_LOOKUP","MANAGEMENT_EXCHANGE"].includes(scope)?"2000":scope==="MANAGEMENT_MUTATION"?"5000":"3000";
+            const lock=scope==="MANAGEMENT_MUTATION"?"5000":"2000";
+            await tx.$queryRaw `SELECT set_config('statement_timeout', ${statement},true),set_config('lock_timeout',${lock},true)`;
+            const read = ["READ","PREFLIGHT","RECOVERY_LOOKUP","MANAGEMENT_READ","MANAGEMENT_EXCHANGE"].includes(scope);
             if (read && signal?.aborted)
                 throw new AdmissionRefused("ABORTED");
             const result = await work(tx);
@@ -37,7 +44,7 @@ export async function withBookingDb<T>(db: PrismaClient, scope: keyof typeof poo
                 throw new AdmissionRefused("ABORTED");
             return result;
         }, {
-            isolationLevel: scope === "READ" || scope === "PREFLIGHT" ? Prisma.TransactionIsolationLevel.RepeatableRead : Prisma.TransactionIsolationLevel.ReadCommitted, maxWait: 2000, timeout: 15000
+            isolationLevel: ["READ","PREFLIGHT","RECOVERY_LOOKUP","MANAGEMENT_READ","MANAGEMENT_EXCHANGE"].includes(scope) ? Prisma.TransactionIsolationLevel.RepeatableRead : Prisma.TransactionIsolationLevel.ReadCommitted, maxWait: 2000, timeout: 15000
         });
     }
     finally {

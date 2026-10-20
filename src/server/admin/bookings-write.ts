@@ -94,21 +94,19 @@ async function releaseOccupancy(
   });
 }
 
-// Releases bay days the booking no longer covers (move: days before the new day; decline: all).
+// LE P1-04 I3: moving a visit releases every physical/dated bay assignment, as decline does.
 async function releaseBays(
   tx: StaffTx,
   actor: StaffActor,
   bookingId: string,
   rev: number,
-  before?: string,
 ): Promise<void> {
   const occupancy = await tx.bayOccupancy.findUnique({ where: { bookingId } });
-  if (occupancy && (!before || isoDay(occupancy.date) < before))
+  if (occupancy)
     await releaseOccupancy(tx, actor, bookingId, rev);
   const rows = await tx.bookingBayAssignment.findMany({
     where: {
       bookingId,
-      ...(before ? { date: { lt: dateCarrier(before) } } : {}),
     },
   });
   for (const a of rows) {
@@ -321,20 +319,6 @@ export async function moveBooking(
     if (b.status !== "PENDING" && b.status !== "CONFIRMED")
       return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
     await checkTarget(tx, bookingId, v.toQueueCode, v.toDate, today(options));
-    const retained = await tx.bookingBayAssignment.findMany({
-      where: { bookingId, date: { gte: dateCarrier(v.toDate) } },
-      include: { bay: true },
-    });
-    const targetType = await tx.bayTypeQueue.findUnique({
-      where: { queueCode: v.toQueueCode },
-    });
-    if (retained.some((a) => a.bay.bayType !== targetType?.bayType))
-      return conflict(
-        tx,
-        "SCHEDULE_CONFLICT",
-        bookingId,
-        "Unassign incompatible bays before moving queues.",
-      );
     const { _max } = await tx.booking.aggregate({
       where: { bookingDate: dateCarrier(v.toDate), queueCode: v.toQueueCode },
       _max: { queuePosition: true },
@@ -346,7 +330,7 @@ export async function moveBooking(
       queueCode: v.toQueueCode,
       queuePosition: (_max.queuePosition ?? 0) + 1,
     });
-    await releaseBays(tx, actor, bookingId, v.expectedRevision, v.toDate);
+    await releaseBays(tx, actor, bookingId, v.expectedRevision);
     const revs = {
       fromRevision: v.expectedRevision,
       toRevision: v.expectedRevision + 1,

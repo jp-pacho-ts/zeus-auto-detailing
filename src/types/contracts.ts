@@ -219,4 +219,23 @@ export interface PublicDay { date: LocalDate; state: PublicDayState }
 export interface DayAvailabilityData { timezone: "Asia/Manila"; days: PublicDay[]; nextAvailableDay: LocalDate | null; searchedThrough: LocalDate; generatedAt: ISOInstant; quote: import("./catalog-contracts").BookingQuote; onlineBookingStatus: "OPEN" | "PAUSED" }
 export interface DayBookingView { id: UUID; referenceCode: string; status: BookingStatus; revision: number; bookingDate: LocalDate; timezone: "Asia/Manila"; vehicleCategoryId: UUID; vehicleCategoryName: string; lines: { serviceId: UUID; name: string; quantity: number; priceStatus: "PRICED" | "FOR_QUOTE"; subtotalCentavos: number | null; referenceSubtotalCentavos: number | null }[]; totalPriceCentavos: number; estimatedTotalCentavos: number | null; currency: "PHP" }
 export type DayBookingResponse = import("./catalog-contracts").LifecycleResult<{ booking: DayBookingView; managementAccess: { accessToken: string; expiresAt: ISOInstant } | null; commitState: "COMMITTED"; replayed: boolean }>;
+
+// P1-04 stable session/API boundary for P1-05 and P1-18. Progress/checklist is deferred.
+export interface ManagedDayBookingView extends DayBookingView {
+ vehicleModel:string;
+ vehiclePlate:string|null;
+ selfServiceAllowed:boolean;
+ selfServiceCutoff:ISOInstant;
+}
+export interface CancelManagedBookingRequest {bookingId:UUID;idempotencyKey:UUID;expectedRevision:number}
+export interface RescheduleManagedBookingRequest extends CancelManagedBookingRequest {bookingDate:LocalDate}
+export type RecoverBookingOperationRequest =
+ | {operationKind:"CREATE";bookingId:null;idempotencyKey:UUID}
+ | {operationKind:"CANCEL"|"RESCHEDULE";bookingId:UUID;idempotencyKey:UUID};
+export type ManagementAccessGrant={accessToken:string;expiresAt:ISOInstant};
+export type RecoveredBookingOperation =
+ | {state:"COMMITTED";operationKind:"CREATE"|"CANCEL"|"RESCHEDULE";booking:ManagedDayBookingView;managementAccess:ManagementAccessGrant|null}
+ | {state:"NOT_COMMITTED";operationKind:"CREATE"|"CANCEL"|"RESCHEDULE";reason:"REJECTED"|"CLOSED_WITHOUT_COMMIT";rejectionCode:import("./catalog-contracts").LifecycleErrorCode|null};
+export type ManagementMutationData={operationKind:"CANCEL"|"RESCHEDULE";booking:ManagedDayBookingView;replayed:boolean;noChange:boolean};
+export interface ManagedDayAvailabilityData {bookingId:UUID;bookingRevision:number;timezone:"Asia/Manila";days:PublicDay[];nextAvailableDay:LocalDate|null;searchedThrough:LocalDate;quote:null}
 export type DayAvailabilityResponse = import("./catalog-contracts").LifecycleResult<DayAvailabilityData>;

@@ -784,6 +784,7 @@ model BookingOperation {
   id                String               @id @default(uuid())
   keyHash           String               @unique
   kind              String
+  noChange          Boolean? // P1-04 immutable management no-op receipt; old/CREATE rows stay NULL
   bookingId         String?
   booking           Booking?             @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   requestHash       String?
