@@ -11,11 +11,16 @@ test("new-effect budgets enforce six rolling daily commits and expire at the hal
     const old = { committed: rows(6, 86400000), anonymous: [] };
     assert.equal(newEffectBudget(old, clientHash, 100, now), null);
 });
-test("daily shop threshold is configured independently of caps and hourly burst remains five", () => {
+test("daily shop threshold is configured independently of caps with no shop hourly burst", () => {
     const c = { committed: rows(4, 2 * 3600000, "other"), anonymous: [] };
     assert.equal(newEffectBudget(c, clientHash, 4, now)?.code, "ONLINE_BOOKING_UNAVAILABLE");
     assert.equal(newEffectBudget(c, clientHash, 8, now), null);
-    assert.equal(newEffectBudget({ committed: rows(5, 1000, "other"), anonymous: [] }, clientHash, 100, now)?.code, "ONLINE_BOOKING_UNAVAILABLE");
+    // LE 2026-10-20 / ADR-005 Amendment 4 item 6 replaces the former five/hour refusal.
+    for (const count of [5, 10, 59]) {
+        const committed = rows(count, 1000, "other").map((row, i) => ({ ...row, clientHash: "other-" + i }));
+        assert.equal(newEffectBudget({ committed, anonymous: [] }, clientHash, 60, now), null);
+    }
+    assert.equal(newEffectBudget({ committed: rows(60, 1000, "other"), anonymous: [] }, clientHash, 60, now)?.retryAfterSeconds, 86399, "the remaining limit is the 24h budget");
 });
 
 test("default shop daily budget is sixty with a rolling half-open 24h window",()=>{

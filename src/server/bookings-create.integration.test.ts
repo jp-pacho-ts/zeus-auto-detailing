@@ -219,7 +219,7 @@ test("rejected quote is durable and exact retries stay rejected; invalid challen
     assert.equal(proofs.length, calls);
     assert.equal(await f.db.bookingOperation.count(), 1);
 });
-test("phone cap includes IN_PROGRESS, client and shop burst budgets are exact, and same proof cannot make two effects", { skip }, async () => {
+test("phone cap and per-client budgets stay exact, sixth shop booking succeeds, and same proof cannot make two effects", { skip }, async () => {
     const f = await fixture("budgets");
     const sameClient = headers();
     for (let i = 0; i < 2; i++)
@@ -235,9 +235,12 @@ test("phone cap includes IN_PROGRESS, client and shop burst budgets are exact, a
     for (let i = 0; i < 2; i++)
         assert.equal(code(await f.create({ ...await f.request(["basic-wash"], day(7 + i)), customerPhone: "+63917000000" + (5 + i) })), "OK");
     const calls = proofs.length;
-    assert.equal(code(await f.create({ ...await f.request(["basic-wash"], day(9)), customerPhone: "+639170000009" })), "ONLINE_BOOKING_UNAVAILABLE");
-    assert.equal(proofs.length, calls);
-    assert.equal(await f.db.booking.count(), 5);
+    // LE 2026-10-20 / ADR-005 Amendment 4 item 6: replace the shop burst refusal with admission.
+    const sixth = { ...await f.request(["basic-wash"], day(9)), customerPhone: "+639170000009" };
+    assert.equal(code(await f.create(sixth)), "OK");
+    assert.equal(proofs.length, calls + 1, "sixth booking still verifies its challenge");
+    assert.equal(await f.db.booking.count(), 6);
+    assert.equal(await f.db.bookingOperation.count({ where: { kind: "CREATE", outcome: "COMMITTED" } }), 6);
 });
 test("HTTP boundary rejects CSRF/old slots/unknown body fields; success is no-store and creates a bounded HttpOnly cookie", { skip }, async () => {
     const f = await fixture("http"), r = await f.request();
