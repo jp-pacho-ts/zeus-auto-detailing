@@ -193,7 +193,7 @@ export function BookingDetail({
                 {b.revision}
               </p>
               <p>
-                {b.vehicleModel} · {plateLabel(b.vehiclePlate)} {b.vehiclePlate}{" "}
+                {b.vehicleModel} · {plateLabel(b.vehiclePlate)}{" "}
                 · {b.sizeCode ?? "Legacy"}
               </p>
               <p>{totalLabel(b.totals)}</p>

@@ -6,6 +6,9 @@ DO $$ DECLARE bad text; BEGIN
  IF bad IS NOT NULL THEN RAISE EXCEPTION 'Incompatible bay assignment booking IDs: %',bad; END IF;
  SELECT string_agg(x."bookingId", ', ') INTO bad FROM (SELECT a."bookingId" FROM booking_bay_assignments a JOIN bookings b ON b.id=a."bookingId" WHERE b.status IN ('PENDING','CONFIRMED','IN_PROGRESS') GROUP BY a."bookingId" HAVING count(DISTINCT a."bayId")>1) x;
  IF bad IS NOT NULL THEN RAISE EXCEPTION 'Ambiguous open assignment booking IDs: %',bad; END IF;
+ -- One physical occupant per bay: never guess which open car keeps a shared bay.
+ SELECT string_agg(x."bayId"||' (bookings '||x.bookings||')', '; ' ORDER BY x."bayId") INTO bad FROM (SELECT a."bayId", string_agg(DISTINCT a."bookingId", ', ' ORDER BY a."bookingId") AS bookings FROM booking_bay_assignments a JOIN bookings b ON b.id=a."bookingId" WHERE b.status IN ('PENDING','CONFIRMED','IN_PROGRESS') GROUP BY a."bayId" HAVING count(DISTINCT a."bookingId")>1) x;
+ IF bad IS NOT NULL THEN RAISE EXCEPTION 'Shared open bay IDs: %',bad; END IF;
  END $$;
 BEGIN;
 -- ADR-005 Amendment 4: typed physical bays and persistent, exclusive occupancy.
@@ -33,6 +36,7 @@ ALTER TABLE booking_audit_events ADD COLUMN "targetStaffId" TEXT, ADD COLUMN "pr
  ADD CONSTRAINT "booking_audit_events_targetStaffId_fkey" FOREIGN KEY ("targetStaffId") REFERENCES staff(id) ON DELETE RESTRICT ON UPDATE CASCADE;
 -- Retain every historical row. Multiple distinct bays for an open job need explicit classification.
 DO $$ DECLARE bad text; BEGIN SELECT string_agg(x."bookingId", ', ') INTO bad FROM (SELECT a."bookingId" FROM booking_bay_assignments a JOIN bookings b ON b.id=a."bookingId" WHERE b.status IN ('PENDING','CONFIRMED','IN_PROGRESS') GROUP BY a."bookingId" HAVING count(DISTINCT a."bayId")>1) x; IF bad IS NOT NULL THEN RAISE EXCEPTION 'Ambiguous open bay assignments: %',bad; END IF; END $$;
+DO $$ DECLARE bad text; BEGIN SELECT string_agg(x."bayId"||' (bookings '||x.bookings||')', '; ' ORDER BY x."bayId") INTO bad FROM (SELECT a."bayId", string_agg(DISTINCT a."bookingId", ', ' ORDER BY a."bookingId") AS bookings FROM booking_bay_assignments a JOIN bookings b ON b.id=a."bookingId" WHERE b.status IN ('PENDING','CONFIRMED','IN_PROGRESS') GROUP BY a."bayId" HAVING count(DISTINCT a."bookingId")>1) x; IF bad IS NOT NULL THEN RAISE EXCEPTION 'Shared open bay IDs: %',bad; END IF; END $$;
 INSERT INTO bay_occupancies SELECT DISTINCT ON (a."bookingId") a."bookingId",a."bayId",a.date,a."assignedAt",a."assignedByStaffId" FROM booking_bay_assignments a JOIN bookings b ON b.id=a."bookingId" WHERE b.status IN ('PENDING','CONFIRMED','IN_PROGRESS') ORDER BY a."bookingId",a.date DESC;
 -- Every relevant writer takes the existing shop lock, including direct SQL/maintenance paths.
 CREATE FUNCTION lock_bay_board() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$ BEGIN PERFORM pg_advisory_xact_lock(746001,1); RETURN COALESCE(NEW,OLD); END $$;
