@@ -1,9 +1,16 @@
 // Admin queue and booking API contracts (P1-07; ADR-005 §§13a-18, Amendment 1 A3/A4).
 // Staff-side only: no customer route serializes any of these types. The P1-06 login and
 // session routes keep their narrower envelope in src/server/auth/types.ts (PM decision D1).
-import type { BookingStatus, ErrorCode, ISOInstant, LocalDate, UUID } from "./contracts";
+import type {
+  BookingStatus,
+  ErrorCode,
+  ISOInstant,
+  LocalDate,
+  UUID,
+} from "./contracts";
 
-export type AdminErrorCode = ErrorCode | "BOOKING_NOT_MANAGEABLE" | "CATALOG_UPDATED";
+export type AdminErrorCode =
+  ErrorCode | "BOOKING_NOT_MANAGEABLE" | "CATALOG_UPDATED";
 export type LineWorkStatus = "WAITING" | "IN_PROGRESS" | "DONE";
 export type AdminSnapshot = "QUEUE_V3" | "LEGACY";
 
@@ -33,7 +40,20 @@ export interface AdminTotals {
   forQuoteCount: number; // active lines still without a price
 }
 
-export interface AdminBay { id: UUID; name: string; sortOrder: number; isActive: boolean; updatedAt: ISOInstant }
+export type BayType = "WASH" | "DETAILING" | "PAINT";
+export interface AdminWorker {
+  staffId: UUID;
+  name: string;
+  isActive: boolean;
+}
+export interface AdminBay {
+  bayType: BayType;
+  id: UUID;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  updatedAt: ISOInstant;
+}
 
 export interface AdminQueueBooking {
   id: UUID;
@@ -68,6 +88,8 @@ export interface AdminAuditEntry {
 }
 
 export interface AdminBookingDetail extends AdminQueueBooking {
+  assignedWorkers: AdminWorker[];
+  occupancy: { date: LocalDate; bay: { id: UUID; name: string } } | null;
   customerPhone: string;
   customerEmail: string | null;
   notes: string | null;
@@ -85,13 +107,14 @@ export interface AdminError {
   commitState: "NOT_COMMITTED" | "UNKNOWN" | "NOT_APPLICABLE";
   currentBooking: AdminBookingDetail | null;
 }
-export type AdminResult<T> = { ok: true; data: T } | { ok: false; error: AdminError };
+export type AdminResult<T> =
+  { ok: true; data: T } | { ok: false; error: AdminError };
 
 export interface AdminQueueDay {
   code: string;
   name: string;
   isActive: boolean;
-  effectiveCap: number | null; // null: not configured, so the day is full
+  effectiveCap: number | null; // null: unlimited
   committed: number; // non-cancelled day bookings
   bookings: AdminQueueBooking[]; // by position; cancelled last
 }
@@ -103,10 +126,19 @@ export interface AdminDayQueues {
 }
 
 export type AdminListSort = "DAY_ASC" | "CREATED_AT_DESC";
-export interface AdminBookingList { items: AdminQueueBooking[]; nextCursor: string | null }
-export interface AdminBookingSearchResult extends AdminBookingList { searchMode: "REFERENCE" | "PHONE" | "PHONE_SUFFIX" | "NAME" }
+export interface AdminBookingList {
+  items: AdminQueueBooking[];
+  nextCursor: string | null;
+}
+export interface AdminBookingSearchResult extends AdminBookingList {
+  searchMode: "REFERENCE" | "PHONE" | "PHONE_SUFFIX" | "NAME";
+}
 
-export interface AdminCapDay { date: LocalDate; dailyCap: number; revision: number }
+export interface AdminCapDay {
+  date: LocalDate;
+  dailyCap: number;
+  revision: number;
+}
 export interface AdminQueueCaps {
   code: string;
   name: string;
@@ -117,8 +149,13 @@ export interface AdminQueueCaps {
   committed: { date: LocalDate; count: number }[];
 }
 
-export interface AdminWriteResult { booking: AdminBookingDetail; noChange: boolean }
-export interface AdminNotifyResult extends AdminWriteResult { notice: "SENT" | "NOT_SENT" | "NO_EMAIL" }
+export interface AdminWriteResult {
+  booking: AdminBookingDetail;
+  noChange: boolean;
+}
+export interface AdminNotifyResult extends AdminWriteResult {
+  notice: "SENT" | "NOT_SENT" | "NO_EMAIL";
+}
 
 export interface AdminHistoryItem {
   id: UUID;
@@ -130,4 +167,36 @@ export interface AdminHistoryItem {
   services: string[];
   totals: AdminTotals;
 }
-export interface AdminCustomerHistory { bookings: AdminHistoryItem[]; truncated: boolean }
+export interface AdminCustomerHistory {
+  bookings: AdminHistoryItem[];
+  truncated: boolean;
+}
+
+export interface AdminBoardCard {
+  id: UUID;
+  referenceCode: string;
+  revision: number;
+  bookingDate: LocalDate;
+  queueCode: string;
+  queuePosition: number;
+  vehicleModel: string;
+  vehiclePlate: string | null;
+  sizeCode: string;
+  status: BookingStatus;
+  assignedBayId: UUID | null;
+  lines: { id: UUID; name: string; workStatus: LineWorkStatus }[];
+  assignedWorkers: AdminWorker[];
+  progress: { done: number; total: number };
+}
+export interface AdminDayBoard {
+  date: LocalDate;
+  closed: { reason: string } | null;
+  workers: AdminWorker[];
+  queues: {
+    code: string;
+    name: string;
+    bayType: BayType;
+    waiting: AdminBoardCard[];
+  }[];
+  bays: (AdminBay & { cards: AdminBoardCard[] })[];
+}

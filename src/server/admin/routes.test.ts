@@ -15,6 +15,9 @@ const ID = "0b8b3b3e-2b1a-4e5c-9f00-000000000001";
 
 type Handler = (request: NextRequest, context: { params: Promise<Record<string, string>> }) => Promise<Response>;
 const routes: [string, string, () => Promise<Record<string, unknown>>, Record<string, string>][] = [
+  ["GET", "/api/admin/board?date=2027-03-01", () => import("@/app/api/admin/board/route"), {}],
+  ["PUT", `/api/admin/bookings/${ID}/workers/${ID}`, () => import("@/app/api/admin/bookings/[id]/workers/[staffId]/route"), { id: ID, staffId: ID }],
+  ["DELETE", `/api/admin/bookings/${ID}/workers/${ID}`, () => import("@/app/api/admin/bookings/[id]/workers/[staffId]/route"), { id: ID, staffId: ID }],
   ["GET", "/api/admin/queues?date=2027-03-01", () => import("@/app/api/admin/queues/route"), {}],
   ["POST", "/api/admin/queues/WASH/days/2027-03-01/order", () => import("@/app/api/admin/queues/[code]/days/[date]/order/route"), { code: "WASH", date: "2027-03-01" }],
   ["GET", "/api/admin/bookings", () => import("@/app/api/admin/bookings/route"), {}],

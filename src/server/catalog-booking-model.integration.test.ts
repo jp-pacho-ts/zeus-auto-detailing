@@ -272,7 +272,7 @@ test("legacy and catalog-v2 rows keep every P1-01 rule; legacy rows take no line
 
 async function newBay(name: string, active = true): Promise<string> {
   const id = randomUUID();
-  await insert(db, "bays", { id, name, nameKey: name.trim().toLowerCase(), sortOrder: ++seq, isActive: active, updatedAt: new Date().toISOString() });
+  await insert(db, "bays", { id, bayType: "WASH", name, nameKey: name.trim().toLowerCase(), sortOrder: ++seq, isActive: active, updatedAt: new Date().toISOString() });
   return id;
 }
 
@@ -432,7 +432,7 @@ test("bays: STAFF-side assignments for day bookings only, on or after the booked
   await assign(bay, "2027-05-12");
   await assign(bay, "2027-05-13"); // a later day of a multi-day job
   await rejects(newBay("bay 1"), /"nameKey"\)=\(bay 1\) already exists/, "case-insensitive duplicate");
-  await rejects(insert(db, "bays", { id: randomUUID(), name: "Bay 2", nameKey: "BAY 2", sortOrder: 99, updatedAt: new Date().toISOString() }), /bay_name_key/, "nameKey not canonical");
+  await rejects(insert(db, "bays", { id: randomUUID(), bayType: "WASH", name: "Bay 2", nameKey: "BAY 2", sortOrder: 99, updatedAt: new Date().toISOString() }), /bay_name_key/, "nameKey not canonical");
 });
 
 test("publication: every service needs an active queue; the mapping is release data that a new release changes", { skip }, async () => {
