@@ -3,6 +3,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import type {
   AdminBay,
+  AdminDayBoard,
   AdminBookingDetail,
   AdminDayQueues,
   AdminWriteResult,
@@ -18,6 +19,8 @@ import {
   statusLabel,
   totalLabel,
 } from "./model";
+import { boardProgress, plateLabel, writeFeedback } from "./board-model";
+import { shopDate } from "./model";
 import { fieldClass, LoadState, useAdminResource } from "./use-admin-resource";
 
 export function BookingDetail({
@@ -45,6 +48,9 @@ export function BookingDetail({
     catalog = useAdminResource<BookingCatalog>(
       role === "ADMIN" ? "/api/catalog" : null,
     );
+  const workers = useAdminResource<AdminDayBoard>(
+    role === "ADMIN" ? "/api/admin/board?date=" + shopDate() : null,
+  );
   const [busy, setBusy] = React.useState(false),
     [uncertain, setUncertain] = React.useState(false),
     [error, setError] = React.useState<string | null>(null),
@@ -94,19 +100,10 @@ export function BookingDetail({
           window.location.replace("/admin/login");
           return;
         }
-        if (e.status === 409 && e.currentBooking) setConflict(e.currentBooking);
+        if (e.detail.code === "VERSION_CONFLICT" && e.currentBooking)
+          setConflict(e.currentBooking);
         if (e.commitState === "UNKNOWN") setUncertain(true);
-        setError(
-          [
-            e.message,
-            ...Object.values(e.fieldErrors).flat(),
-            ...(e.commitState === "UNKNOWN"
-              ? [
-                  "The outcome is uncertain. Refresh before trying another change.",
-                ]
-              : []),
-          ].join(" "),
-        );
+        setError(writeFeedback(e.detail).message);
       } else {
         setUncertain(true);
         setError(
@@ -196,7 +193,8 @@ export function BookingDetail({
                 {b.revision}
               </p>
               <p>
-                {b.vehicleModel} {b.vehiclePlate} · {b.sizeCode ?? "Legacy"}
+                {b.vehicleModel} · {plateLabel(b.vehiclePlate)}{" "}
+                · {b.sizeCode ?? "Legacy"}
               </p>
               <p>{totalLabel(b.totals)}</p>
               <p>
@@ -368,9 +366,82 @@ export function BookingDetail({
                 <Button disabled={disabled}>Move booking</Button>
               </form>
             )}
+          <section aria-label="Assigned staff" className="space-y-3">
+            <h3 className="font-bold">Assigned staff</h3>
+            <p className="break-words text-sm">
+              {b.assignedWorkers
+                ?.map((w) => w.name + (w.isActive ? "" : " (inactive)"))
+                .join(", ") || "Unassigned"}
+            </p>
+            {admin && open && b.snapshot === "QUEUE_V3" && (
+              <>
+                <LoadState
+                  loading={workers.loading}
+                  error={workers.error}
+                  retry={workers.reload}
+                />
+                <form
+                  className="flex flex-wrap items-end gap-3"
+                  onSubmit={(e) =>
+                    submit(
+                      e,
+                      (f) =>
+                        void write(
+                          "/workers/" + String(f.get("worker")),
+                          {},
+                          "PUT",
+                        ),
+                    )
+                  }
+                >
+                  <label className="min-w-0 flex-1 text-xs">
+                    Add assigned worker
+                    <select
+                      name="worker"
+                      className={fieldClass}
+                      required
+                      disabled={disabled}
+                      defaultValue=""
+                    >
+                      <option value="" disabled>
+                        Choose an active worker
+                      </option>
+                      {workers.data?.workers
+                        .filter(
+                          (w) =>
+                            !b.assignedWorkers.some(
+                              (a) => a.staffId === w.staffId,
+                            ),
+                        )
+                        .map((w) => (
+                          <option key={w.staffId} value={w.staffId}>
+                            {w.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <Button disabled={disabled}>Assign worker</Button>
+                </form>
+                {b.assignedWorkers.map((w) => (
+                  <Button
+                    key={w.staffId}
+                    variant="outline"
+                    disabled={disabled}
+                    onClick={() =>
+                      void write("/workers/" + w.staffId, {}, "DELETE")
+                    }
+                  >
+                    Remove {w.name}
+                  </Button>
+                ))}
+              </>
+            )}
+          </section>
           <div className="space-y-3">
             <h3 className="font-bold">
-              Services {b.snapshot === "LEGACY" && "· Legacy receipt"}
+              Services · {boardProgress(b.lines).done}/
+              {boardProgress(b.lines).total} done{" "}
+              {b.snapshot === "LEGACY" && "· Legacy receipt"}
             </h3>
             {b.lines.map((line) => (
               <div
@@ -395,6 +466,10 @@ export function BookingDetail({
                           (workStatus) => (
                             <Button
                               key={workStatus}
+                              aria-label={
+                                line.name + ": " + statusLabel(workStatus)
+                              }
+                              aria-pressed={line.workStatus === workStatus}
                               variant="outline"
                               disabled={
                                 disabled || line.workStatus === workStatus
@@ -557,7 +632,7 @@ export function BookingDetail({
               )}
             </>
           )}
-          {open && b.snapshot === "QUEUE_V3" && (
+          {admin && open && b.snapshot === "QUEUE_V3" && (
             <>
               <LoadState
                 loading={bays.loading}
@@ -589,7 +664,9 @@ export function BookingDetail({
                       type="date"
                       required
                       min={b.bookingDate}
-                      defaultValue={b.bookingDate}
+                      defaultValue={
+                        b.bookingDate > shopDate() ? b.bookingDate : shopDate()
+                      }
                       className={fieldClass}
                     />
                   </label>
@@ -597,7 +674,7 @@ export function BookingDetail({
                     Assign bay
                     <select
                       name="bay"
-                      defaultValue={b.bay?.id ?? ""}
+                      defaultValue={b.occupancy?.bay.id ?? ""}
                       className={fieldClass}
                     >
                       <option value="">Unassigned</option>

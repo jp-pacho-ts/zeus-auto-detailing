@@ -9,3 +9,6 @@ export {
 export { createBay, updateBay, setDefaultCap, setCapOverride, deleteCapOverride } from "./settings-write";
 export { lookupCustomerHistory } from "./history";
 export type { StaffActor, AdminOptions } from "./context";
+
+export { getDayBoard } from "./board";
+export { assignWorker, unassignWorker } from "./workers-write";

@@ -1,4 +1,4 @@
-﻿/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-require-imports */
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { createElement } from "react";
@@ -91,7 +91,7 @@ test("queue headers distinguish no limit, zero and set limits; optional controls
   assert.equal(off.includes("fully booked"), false);
   assert.ok(render("ADMIN", 0).html.includes("2 committed · Limit 0"));
   assert.ok(render("ADMIN", 8).html.includes("2 committed · Limit 8"));
-  const staff = render("DETAILER").html;
+  const staff = render("STAFF").html;
   assert.ok(staff.includes("no limit"));
   assert.equal(staff.includes("Save default limit"), false);
 });

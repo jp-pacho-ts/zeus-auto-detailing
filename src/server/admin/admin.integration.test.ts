@@ -149,8 +149,8 @@ test("W2 decline and D5 reinstate: ADMIN only, reason required, fixed decline ki
 
 test("W3 move: ADMIN, cap-checked target, closed days, range, new position and window; earlier bay days released", { skip }, async () => {
   const id = await book(select("S", "basic-wash"), "2027-03-04");
-  const bay = await s.createBay(ADMIN, { name: "Move Bay", sortOrder: 1 }, opts());
-  await s.setBay(STAFF, id, { expectedRevision: 1, date: "2027-03-04", bayId: bay.id }, opts());
+  const bay = await s.createBay(ADMIN, { name: "Move Bay", sortOrder: 1, bayType: "WASH" }, opts());
+  await s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-04", bayId: bay.id }, opts());
   await refused(s.moveBooking(STAFF, id, { expectedRevision: 2, toDate: "2027-03-05", toQueueCode: "WASH" }, opts()), "FORBIDDEN", "STAFF move");
   for (let i = 0; i < 5; i++) await book(select("S", "basic-wash"), "2027-03-06");
   await refused(s.moveBooking(ADMIN, id, { expectedRevision: 2, toDate: "2027-03-06", toQueueCode: "WASH" }, opts()), "SCHEDULE_CONFLICT", "full target",
@@ -218,23 +218,23 @@ test("W5-W8 lines: add from the head release, composition rules, soft removal, A
   await refused(s.removeLine(ADMIN, id, coating.id, { expectedRevision: 8 }, opts()), "VALIDATION_ERROR", "last base");
 });
 
-test("W9 bays and W10/W11 bay list: STAFF assigns, ADMIN manages, versions and names checked", { skip }, async () => {
+test("W9 bays and W10/W11 bay list: ADMIN assigns and manages (LE Amendment 4), versions and names checked", { skip }, async () => {
   const id = await book(select("S", "basic-wash"), "2027-03-10");
-  await refused(s.createBay(STAFF, { name: "Bay X", sortOrder: 1 }, opts()), "FORBIDDEN", "STAFF bay list");
-  const bay = await s.createBay(ADMIN, { name: "Bay 1", sortOrder: 1 }, opts());
-  await refused(s.createBay(ADMIN, { name: " bay 1 ", sortOrder: 2 }, opts()), "VALIDATION_ERROR", "duplicate name");
-  const other = await s.createBay(ADMIN, { name: "Bay 2", sortOrder: 2 }, opts());
-  await refused(s.setBay(STAFF, id, { expectedRevision: 1, date: "2027-03-09", bayId: bay.id }, opts()), "VALIDATION_ERROR", "before the day");
-  const a1 = await s.setBay(STAFF, id, { expectedRevision: 1, date: "2027-03-10", bayId: bay.id }, opts());
+  await refused(s.createBay(STAFF, { name: "Bay X", sortOrder: 1, bayType: "WASH" }, opts()), "FORBIDDEN", "STAFF bay list");
+  const bay = await s.createBay(ADMIN, { name: "Bay 1", sortOrder: 1, bayType: "WASH" }, opts());
+  await refused(s.createBay(ADMIN, { name: " bay 1 ", sortOrder: 2, bayType: "WASH" }, opts()), "VALIDATION_ERROR", "duplicate name");
+  const other = await s.createBay(ADMIN, { name: "Bay 2", sortOrder: 2, bayType: "WASH" }, opts());
+  await refused(s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-09", bayId: bay.id }, opts()), "VALIDATION_ERROR", "before the day");
+  const a1 = await s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-10", bayId: bay.id }, opts());
   assert.deepEqual(a1.booking.bay, { id: bay.id, name: "Bay 1" });
-  assert.equal((await s.setBay(STAFF, id, { expectedRevision: 2, date: "2027-03-10", bayId: bay.id }, opts())).noChange, true);
-  await s.setBay(STAFF, id, { expectedRevision: 2, date: "2027-03-10", bayId: other.id }, opts());
-  const cleared = await s.setBay(STAFF, id, { expectedRevision: 3, date: "2027-03-10", bayId: null }, opts());
+  assert.equal((await s.setBay(ADMIN, id, { expectedRevision: 2, date: "2027-03-10", bayId: bay.id }, opts())).noChange, true);
+  await s.setBay(ADMIN, id, { expectedRevision: 2, date: "2027-03-10", bayId: other.id }, opts());
+  const cleared = await s.setBay(ADMIN, id, { expectedRevision: 3, date: "2027-03-10", bayId: null }, opts());
   assert.equal(cleared.booking.bay, null);
   await refused(s.updateBay(ADMIN, other.id, { expectedUpdatedAt: "2020-01-01T00:00:00.000Z", isActive: false }, opts()), "VERSION_CONFLICT", "stale bay");
   const off = await s.updateBay(ADMIN, other.id, { expectedUpdatedAt: other.updatedAt, isActive: false }, opts());
   assert.equal(off.isActive, false);
-  await refused(s.setBay(STAFF, id, { expectedRevision: 4, date: "2027-03-10", bayId: other.id }, opts()), "VALIDATION_ERROR", "inactive bay");
+  await refused(s.setBay(ADMIN, id, { expectedRevision: 4, date: "2027-03-10", bayId: other.id }, opts()), "VALIDATION_ERROR", "inactive bay");
   assert.deepEqual((await db.bookingAuditEvent.findMany({ where: { bayId: bay.id, bookingId: null } })).map((a) => a.action), ["BAY_LIST_CHANGED"]);
 });
 
@@ -342,7 +342,7 @@ test("legacy bookings: status and decline only; queue, line and bay writes are n
   await db.$executeRawUnsafe(`INSERT INTO bookings (id,"referenceCode","customerName","customerPhone","vehicleModel","vehicleCategoryId","serviceId","bookingDate","startTime","endTime","startsAt","endsAt","durationMinutes","priceSnapshot","serviceNameSnapshot","vehicleCategoryNameSnapshot","idempotencyKey","requestHash","updatedAt")
     VALUES (${lit(id)},'ZEUS-LEG001','Legacy','+639000000001','Synthetic',${lit(size.id)},${lit(bySlug(r0(), "basic-wash").id)},'2027-03-15','08:00','08:30','2027-03-15T00:00:00Z','2027-03-15T00:30:00Z',30,180,'Legacy wash',${lit(size.name)},${lit(randomUUID())},'legacy',now())`);
   await refused(s.moveBooking(ADMIN, id, { expectedRevision: 1, toDate: "2027-03-16", toQueueCode: "WASH" }, opts()), "BOOKING_NOT_MANAGEABLE", "legacy move");
-  await refused(s.setBay(STAFF, id, { expectedRevision: 1, date: "2027-03-15", bayId: null }, opts()), "BOOKING_NOT_MANAGEABLE", "legacy bay");
+  await refused(s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-15", bayId: null }, opts()), "BOOKING_NOT_MANAGEABLE", "legacy bay");
   const confirmed = await s.setBookingStatus(ADMIN, id, { expectedRevision: 1, status: "CONFIRMED" }, opts());
   assert.deepEqual([confirmed.booking.snapshot, confirmed.booking.status], ["LEGACY", "CONFIRMED"]);
   assert.ok((await s.getDayQueues(STAFF, { date: "2027-03-15" }, opts())).legacy.some((x) => x.id === id));
@@ -568,4 +568,654 @@ test("D2 NULL settings: removing an override on an occupied day falls back to un
   await s.deleteCapOverride(ADMIN, "WASH", day, { expectedRevision: override.revision }, opts());
   assert.equal(await db.queueCapOverride.count({ where: { queueCode: "WASH", date: new Date(day + "T00:00:00Z") } }), 0);
   assert.equal((await detail(id)).status, "PENDING");
+});
+
+// LE 2026-10-20 Amendment 4: physical occupancy, not a per-day reservation.
+test(
+  "P1-17 database: typed bays and read-only queue mappings",
+  { skip },
+  async () => {
+    const mappings = await db.$queryRawUnsafe<
+      { queueCode: string; bayType: string }[]
+    >('SELECT * FROM bay_type_queues ORDER BY "queueCode"');
+    assert.deepEqual(mappings, [
+      { queueCode: "DETAILING_COATING", bayType: "DETAILING" },
+      { queueCode: "REPAINT", bayType: "PAINT" },
+      { queueCode: "TINT_PPF", bayType: "DETAILING" },
+      { queueCode: "WASH", bayType: "WASH" },
+    ]);
+    await assert.rejects(
+      db.$executeRawUnsafe(
+        'INSERT INTO bays(id,name,"nameKey","sortOrder","updatedAt") VALUES (gen_random_uuid(),\'Untyped\',\'untyped\',0,now())',
+      ),
+    );
+    await assert.rejects(
+      db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL ROLE zeus_app");
+        await tx.$executeRawUnsafe(
+          "DELETE FROM bay_type_queues WHERE \"queueCode\"='WASH'",
+        );
+      }),
+    );
+  },
+);
+
+test(
+  "P1-17 database: incompatible history and occupancy, duplicate bay, missing audit and terminal occupancy are refused",
+  { skip },
+  async () => {
+    const id = await book(select("S", "basic-wash"), "2027-06-01");
+    const bayId = randomUUID(),
+      wrongId = randomUUID();
+    await db.$executeRawUnsafe(
+      "INSERT INTO bays(id,name,\"nameKey\",\"sortOrder\",\"updatedAt\",\"bayType\") VALUES ($1,'Guard wash','guard wash',99,now(),'WASH'),($2,'Guard paint','guard paint',100,now(),'PAINT')",
+      bayId,
+      wrongId,
+    );
+    const tryHistory = (target: string) =>
+      db.$executeRawUnsafe(
+        'INSERT INTO booking_bay_assignments("bookingId",date,"bayId","assignedAt","assignedByStaffId") VALUES ($1,\'2027-06-01\',$2,now(),$3)',
+        id,
+        target,
+        ADMIN.staffId,
+      );
+    await assert.rejects(tryHistory(wrongId), /queue|type/i);
+    // Even a compatible occupancy cannot bypass the revision + same-transaction audit contract.
+    await assert.rejects(
+      db.$executeRawUnsafe(
+        'INSERT INTO bay_occupancies("bookingId","bayId",date,"assignedByStaffId") VALUES ($1,$2,\'2027-06-01\',$3)',
+        id,
+        bayId,
+        ADMIN.staffId,
+      ),
+      /revision|audit/i,
+    );
+    await assert.rejects(
+      db.$executeRawUnsafe(
+        'INSERT INTO booking_worker_assignments("bookingId","staffId","assignedByStaffId") VALUES ($1,$2,$3)',
+        id,
+        STAFF.staffId,
+        ADMIN.staffId,
+      ),
+      /revision|audit/i,
+    );
+  },
+);
+
+test(
+  "P1-17 services: ADMIN-only persistent occupancy, busy/type refusals, races, checklist completion and carry-over board",
+  { skip },
+  async () => {
+    const day = "2027-06-02";
+    const a = await book(select("S", "basic-wash"), day, {
+      vehiclePlate: "TEST123",
+    });
+    const b = await book(select("S", "basic-wash"), "2027-06-03");
+    const bay = await s.createBay(
+      ADMIN,
+      { name: "Exclusive wash", sortOrder: 110, bayType: "WASH" },
+      opts(),
+    );
+    const paint = await s.createBay(
+      ADMIN,
+      { name: "Exclusive paint", sortOrder: 111, bayType: "PAINT" },
+      opts(),
+    );
+    await refused(
+      s.setBay(
+        STAFF,
+        a,
+        { expectedRevision: 1, date: day, bayId: bay.id },
+        opts(),
+      ),
+      "FORBIDDEN",
+      "LE ADMIN-only move",
+    );
+    await refused(
+      s.setBay(
+        ADMIN,
+        a,
+        { expectedRevision: 1, date: day, bayId: paint.id },
+        opts(),
+      ),
+      "SCHEDULE_CONFLICT",
+      "wrong type",
+    );
+    const assigned = await s.setBay(
+      ADMIN,
+      a,
+      { expectedRevision: 1, date: day, bayId: bay.id },
+      opts(),
+    );
+    assert.equal(assigned.booking.occupancy?.bay.id, bay.id);
+    await refused(
+      s.setBay(
+        ADMIN,
+        b,
+        { expectedRevision: 1, date: "2027-06-03", bayId: bay.id },
+        opts(),
+      ),
+      "SCHEDULE_CONFLICT",
+      "busy across days",
+    );
+    await refused(
+      s.assignWorker(STAFF, a, STAFF.staffId, { expectedRevision: 2 }, opts()),
+      "FORBIDDEN",
+      "STAFF worker write",
+    );
+    const worker = await s.assignWorker(
+      ADMIN,
+      a,
+      STAFF.staffId,
+      { expectedRevision: 2 },
+      opts(),
+    );
+    assert.equal(worker.booking.assignedWorkers[0].staffId, STAFF.staffId);
+    assert.equal(
+      (
+        await s.assignWorker(
+          ADMIN,
+          a,
+          STAFF.staffId,
+          { expectedRevision: 3 },
+          opts(),
+        )
+      ).noChange,
+      true,
+    );
+    await refused(
+      s.unassignWorker(
+        ADMIN,
+        a,
+        STAFF.staffId,
+        { expectedRevision: 2 },
+        opts(),
+      ),
+      "VERSION_CONFLICT",
+      "stale worker",
+    );
+    const board = await s.getDayBoard(STAFF, { date: "2027-06-04" }, opts());
+    assert.equal(board.bays.find((x) => x.id === bay.id)?.cards[0].id, a);
+    assert.ok(
+      board.queues
+        .find((x) => x.code === "WASH")
+        ?.waiting.some((x) => x.id === b),
+    );
+    const card = board.bays.find((x) => x.id === bay.id)!.cards[0];
+    assert.deepEqual(card.progress, { done: 0, total: 1 });
+    assert.equal(card.vehiclePlate, "TEST123");
+    for (const key of [
+      "customerPhone",
+      "customerEmail",
+      "notes",
+      "passwordHash",
+    ])
+      assert.equal(JSON.stringify(board).includes(key), false);
+    const outcomes = await Promise.allSettled([
+      s.unassignWorker(
+        ADMIN,
+        a,
+        STAFF.staffId,
+        { expectedRevision: 3 },
+        opts(),
+      ),
+      s.setLineStatus(
+        STAFF,
+        a,
+        (await lineIds(a))[0],
+        { expectedRevision: 3, workStatus: "DONE" },
+        opts(),
+      ),
+    ]);
+    assert.deepEqual(outcomes.map((x) => x.status).sort(), [
+      "fulfilled",
+      "rejected",
+    ]);
+    let current = await detail(a);
+    if (current.lines[0].workStatus !== "DONE")
+      current = (
+        await s.setLineStatus(
+          STAFF,
+          a,
+          current.lines[0].id,
+          { expectedRevision: current.revision, workStatus: "DONE" },
+          opts(),
+        )
+      ).booking;
+    const done = await s.setBookingStatus(
+      STAFF,
+      a,
+      { expectedRevision: current.revision, status: "COMPLETED" },
+      opts(),
+    );
+    assert.equal(done.booking.occupancy, null);
+    await s.setBay(
+      ADMIN,
+      b,
+      { expectedRevision: 1, date: "2027-06-03", bayId: bay.id },
+      opts(),
+    );
+    assert.ok(
+      !(await s.getDayBoard(STAFF, { date: "2027-06-04" }, opts())).bays
+        .flatMap((x) => x.cards)
+        .some((x) => x.id === a),
+    );
+  },
+);
+
+test(
+  "P1-17 DB bypass: full queue/type matrix and indirect mapping/bay/booking changes",
+  { skip },
+  async () => {
+    const day = "2027-06-05";
+    const jobs = await Promise.all([
+      book(select("S", "basic-wash"), day),
+      book(select("S", "arcane-graphene"), day),
+      book(select("S", "regular-tint"), day),
+      book(select("S", ["panel-repaint", 1]), day),
+    ]);
+    const types = ["WASH", "DETAILING", "PAINT"] as const,
+      expected = ["WASH", "DETAILING", "DETAILING", "PAINT"];
+    const bays = [];
+    for (const type of types)
+      bays.push(
+        await s.createBay(
+          ADMIN,
+          {
+            name: "Matrix " + type,
+            sortOrder: 120 + types.indexOf(type),
+            bayType: type,
+          },
+          opts(),
+        ),
+      );
+    for (const [i, id] of jobs.entries())
+      for (const bay of bays) {
+        const write = () =>
+          db.$transaction(async (tx) => {
+            await tx.$executeRawUnsafe("SET LOCAL ROLE zeus_app");
+            await tx.bookingBayAssignment.upsert({
+              where: { bookingId_date: { bookingId: id, date: new Date(day) } },
+              create: {
+                bookingId: id,
+                date: new Date(day),
+                bayId: bay.id,
+                assignedAt: new Date(),
+                assignedByStaffId: ADMIN.staffId,
+              },
+              update: {
+                bayId: bay.id,
+                assignedAt: new Date(),
+                assignedByStaffId: ADMIN.staffId,
+              },
+            });
+          });
+        if (bay.bayType === expected[i]) await write();
+        else await assert.rejects(write(), /queue|type/i);
+      }
+    const wash = bays[0];
+    await assert.rejects(
+      db.$executeRawUnsafe(
+        "UPDATE bays SET \"bayType\"='PAINT' WHERE id=$1",
+        wash.id,
+      ),
+      /queue|type/i,
+    );
+    await assert.rejects(
+      db.$executeRawUnsafe(
+        "UPDATE bay_type_queues SET \"bayType\"='PAINT' WHERE \"queueCode\"='WASH'",
+      ),
+      /queue|type/i,
+    );
+    await assert.rejects(
+      db.$executeRawUnsafe(
+        "DELETE FROM bay_type_queues WHERE \"queueCode\"='WASH'",
+      ),
+      /queue|type/i,
+    );
+    await assert.rejects(
+      db.$transaction(async (tx) => {
+        await tx.booking.update({
+          where: { id: jobs[0] },
+          data: { queueCode: "REPAINT", revision: 2 },
+        });
+      }),
+      /queue|type/i,
+    );
+    const missing = await book(select("S", "basic-wash"), "2027-06-06");
+    await assert.rejects(
+      db.$transaction(async (tx) => {
+        await tx.bayOccupancy.create({
+          data: {
+            bookingId: missing,
+            bayId: wash.id,
+            date: new Date("2027-06-06"),
+            assignedByStaffId: STAFF.staffId,
+          },
+        });
+      }),
+      /ADMIN/i,
+    );
+  },
+);
+
+test(
+  "P1-17 races: competing cars, same-car drags and worker audit integrity",
+  { skip },
+  async () => {
+    const day = "2027-06-07",
+      a = await book(select("S", "basic-wash"), day),
+      b = await book(select("S", "basic-wash"), day);
+    const bay = await s.createBay(
+      ADMIN,
+      { name: "Race bay", sortOrder: 130, bayType: "WASH" },
+      opts(),
+    );
+    const outcomes = await Promise.allSettled(
+      [a, b].map((id) =>
+        s.setBay(
+          ADMIN,
+          id,
+          { date: day, expectedRevision: 1, bayId: bay.id },
+          opts(),
+        ),
+      ),
+    );
+    assert.deepEqual(outcomes.map((x) => x.status).sort(), [
+      "fulfilled",
+      "rejected",
+    ]);
+    assert.equal(
+      (outcomes.find((x) => x.status === "rejected") as PromiseRejectedResult)
+        .reason.code,
+      "SCHEDULE_CONFLICT",
+    );
+    const winner = (
+      outcomes.find((x) => x.status === "fulfilled") as PromiseFulfilledResult<
+        Awaited<ReturnType<typeof s.setBay>>
+      >
+    ).value.booking;
+    const other = await s.createBay(
+      ADMIN,
+      { name: "Race alternative", sortOrder: 131, bayType: "WASH" },
+      opts(),
+    );
+    const moves = await Promise.allSettled(
+      [other.id, null].map((bayId) =>
+        s.setBay(
+          ADMIN,
+          winner.id,
+          { date: day, expectedRevision: 2, bayId },
+          opts(),
+        ),
+      ),
+    );
+    assert.deepEqual(moves.map((x) => x.status).sort(), [
+      "fulfilled",
+      "rejected",
+    ]);
+    assert.equal(
+      (moves.find((x) => x.status === "rejected") as PromiseRejectedResult)
+        .reason.code,
+      "VERSION_CONFLICT",
+    );
+    const before = await detail(b);
+    const bad = async (
+      target: string,
+      actor: string,
+      revision: boolean,
+      auditTarget: string | null,
+    ) =>
+      db.$transaction(async (tx) => {
+        if (revision)
+          await tx.booking.update({
+            where: { id: b },
+            data: { revision: before.revision + 1 },
+          });
+        await tx.$executeRawUnsafe("SET LOCAL ROLE zeus_app");
+        await tx.bookingWorkerAssignment.create({
+          data: {
+            bookingId: b,
+            staffId: target,
+            assignedByStaffId: ADMIN.staffId,
+            assignedAt: new Date("2000-01-01"),
+          },
+        });
+        if (auditTarget)
+          await tx.bookingAuditEvent.create({
+            data: {
+              action: "WORKER_ASSIGNED",
+              bookingId: b,
+              targetStaffId: auditTarget,
+              actorStaffId: actor,
+              fromRevision: before.revision,
+              toRevision: before.revision + 1,
+            },
+          });
+      });
+    await assert.rejects(
+      bad(STAFF.staffId, ADMIN.staffId, false, STAFF.staffId),
+      /revision|audit/i,
+    );
+    await assert.rejects(
+      bad(STAFF.staffId, ADMIN.staffId, true, null),
+      /audit/i,
+    );
+    await assert.rejects(
+      bad(STAFF.staffId, ADMIN.staffId, true, ADMIN.staffId),
+      /audit/i,
+    );
+    await assert.rejects(
+      bad(STAFF.staffId, STAFF.staffId, true, STAFF.staffId),
+      /audit/i,
+    );
+    await bad(STAFF.staffId, ADMIN.staffId, true, STAFF.staffId);
+    const worker = await db.bookingWorkerAssignment.findUniqueOrThrow({
+      where: { bookingId_staffId: { bookingId: b, staffId: STAFF.staffId } },
+    });
+    assert.ok(worker.assignedAt.getFullYear() > 2000, "DB stamps timestamp");
+    await assert.rejects(
+      db.$executeRawUnsafe(
+        'UPDATE booking_worker_assignments SET "assignedAt"=now() WHERE "bookingId"=$1',
+        b,
+      ),
+      /insert\/delete/i,
+    );
+    await assert.rejects(
+      db.bookingWorkerAssignment.delete({
+        where: { bookingId_staffId: { bookingId: b, staffId: STAFF.staffId } },
+      }),
+      /revision|audit/i,
+    );
+    const inactive = await db.staff.create({
+      data: {
+        email: "inactive117@example.test",
+        name: "Inactive",
+        phone: "",
+        role: "DETAILER",
+        isActive: false,
+      },
+    });
+    await refused(
+      s.assignWorker(
+        ADMIN,
+        b,
+        inactive.id,
+        { expectedRevision: before.revision + 1 },
+        opts(),
+      ),
+      "SCHEDULE_CONFLICT",
+      "inactive worker",
+    );
+    await s.unassignWorker(
+      ADMIN,
+      b,
+      STAFF.staffId,
+      { expectedRevision: before.revision + 1 },
+      opts(),
+    );
+    assert.equal(
+      await db.bookingWorkerAssignment.count({ where: { bookingId: b } }),
+      0,
+    );
+  },
+);
+
+test(
+  "P1-17 regression: STAFF cannot forge completion to release an open car; occupancy audit actor/date must match",
+  { skip },
+  async () => {
+    const day = "2027-06-15",
+      id = await book(select("S", "basic-wash"), day);
+    const bay = await s.createBay(
+      ADMIN,
+      { name: "Audit-bound bay", sortOrder: 150, bayType: "WASH" },
+      opts(),
+    );
+    await s.setBay(
+      ADMIN,
+      id,
+      { expectedRevision: 1, date: day, bayId: bay.id },
+      opts(),
+    );
+    await assert.rejects(
+      db.$transaction(async (tx) => {
+        await tx.booking.update({ where: { id }, data: { revision: 3 } });
+        await tx.bayOccupancy.delete({ where: { bookingId: id } });
+        await tx.bookingAuditEvent.create({
+          data: {
+            action: "BAY_UNASSIGNED",
+            bookingId: id,
+            bayId: bay.id,
+            fromDate: new Date(day),
+            fromRevision: 2,
+            toRevision: 3,
+            actorStaffId: STAFF.staffId,
+          },
+        });
+        await tx.bookingAuditEvent.create({
+          data: {
+            action: "STATUS_CHANGED",
+            bookingId: id,
+            fromStatus: "PENDING",
+            toStatus: "COMPLETED",
+            fromRevision: 2,
+            toRevision: 3,
+            actorStaffId: STAFF.staffId,
+          },
+        });
+      }),
+      /audit|completion/i,
+    );
+    const other = await book(select("S", "basic-wash"), day);
+    for (const [actor, date] of [
+      [MANAGER.staffId, day],
+      [ADMIN.staffId, "2027-06-16"],
+    ]) {
+      const target = await s.createBay(
+        ADMIN,
+        {
+          name: "Audit target " + date + actor.slice(0, 4),
+          sortOrder: 151,
+          bayType: "WASH",
+        },
+        opts(),
+      );
+      await assert.rejects(
+        db.$transaction(async (tx) => {
+          await tx.booking.update({
+            where: { id: other },
+            data: { revision: 2 },
+          });
+          await tx.bayOccupancy.create({
+            data: {
+              bookingId: other,
+              bayId: target.id,
+              date: new Date(day),
+              assignedByStaffId: ADMIN.staffId,
+            },
+          });
+          await tx.bookingAuditEvent.create({
+            data: {
+              action: "BAY_ASSIGNED",
+              bookingId: other,
+              bayId: target.id,
+              toDate: new Date(date),
+              fromRevision: 1,
+              toRevision: 2,
+              actorStaffId: actor,
+            },
+          });
+        }),
+        /audit/i,
+      );
+    }
+  },
+);
+
+test("P1-17 regression: ADMIN can release a bay after a visit carries beyond 365 days", { skip }, async () => {
+  const id=await book(select("S","basic-wash"),"2027-06-20");
+  const bay=await s.createBay(ADMIN,{name:"Long carry-over",sortOrder:170,bayType:"WASH"},opts());
+  await s.setBay(ADMIN,id,{expectedRevision:1,date:"2027-06-20",bayId:bay.id},opts());
+  const board=await s.getDayBoard(STAFF,{date:"2028-07-21"},opts());assert.ok(board.bays.find(b=>b.id===bay.id)?.cards.some(c=>c.id===id));
+  const released=await s.setBay(ADMIN,id,{expectedRevision:2,date:"2028-07-21",bayId:null},opts());assert.equal(released.booking.occupancy,null);
+});
+
+test("P1-17 board: large days are complete, future waiting excluded, inactive occupied bays and retained worker history", { skip }, async () => {
+  const day = "2027-06-22";
+  await s.setCapOverride(ADMIN, "WASH", day, { expectedRevision: null, dailyCap: 200 }, opts());
+  const ids: string[] = [];
+  for (let i = 0; i < 105; i++) ids.push(await book(select("S", "basic-wash"), day));
+  const future = await book(select("S", "basic-wash"), "2027-06-23");
+  let board = await s.getDayBoard(STAFF, { date: day }, opts());
+  const own = board.queues.find(q => q.code === "WASH")!.waiting.filter(c => ids.includes(c.id));
+  assert.equal(own.length, 105, "No list endpoint's 25/100-card limit may truncate the board");
+  assert.deepEqual(own.map(c => c.queuePosition), Array.from({ length: 105 }, (_, i) => i + 1));
+  assert.ok(!board.queues.flatMap(q => q.waiting).some(c => c.id === future));
+  const bay = await s.createBay(ADMIN, { name: "Retired occupied bay", bayType: "WASH", sortOrder: 180 }, opts());
+  await s.setBay(ADMIN, ids[0], { expectedRevision: 1, date: day, bayId: bay.id }, opts());
+  await s.updateBay(ADMIN, bay.id, { expectedUpdatedAt: bay.updatedAt, isActive: false }, opts());
+  board = await s.getDayBoard(STAFF, { date: day }, opts());
+  assert.equal(board.bays.find(b => b.id === bay.id)?.cards[0].id, ids[0]);
+  const all = [...board.queues.flatMap(q => q.waiting), ...board.bays.flatMap(b => b.cards)];
+  assert.equal(new Set(all.map(c => c.id)).size, all.length, "One operational projection per car");
+  await s.setBay(ADMIN, ids[0], { expectedRevision: 2, date: day, bayId: null }, opts());
+  assert.ok(!(await s.getDayBoard(STAFF, { date: day }, opts())).bays.some(b => b.id === bay.id));
+  const worker = await db.staff.create({ data: { name: "Retained inactive worker", email: "retained117@example.test", phone: "", role: "DETAILER" } });
+  await s.assignWorker(ADMIN, ids[1], worker.id, { expectedRevision: 1 }, opts());
+  await db.staff.update({ where: { id: worker.id }, data: { isActive: false } });
+  assert.deepEqual((await detail(ids[1])).assignedWorkers, [{ staffId: worker.id, name: worker.name, isActive: false }]);
+  await s.unassignWorker(ADMIN, ids[1], worker.id, { expectedRevision: 2 }, opts());
+  await refused(s.assignWorker(ADMIN, ids[1], worker.id, { expectedRevision: 3 }, opts()), "SCHEDULE_CONFLICT", "inactive reassign");
+  await refused(s.assignWorker(ADMIN, ids[3], randomUUID(), { expectedRevision: 1 }, opts()), "NOT_FOUND", "unknown worker");
+  await s.assignWorker(ADMIN, ids[2], ADMIN.staffId, { expectedRevision: 1 }, opts());
+  await s.setLineStatus(STAFF, ids[2], (await lineIds(ids[2]))[0], { expectedRevision: 2, workStatus: "DONE" }, opts());
+  const done = await s.setBookingStatus(STAFF, ids[2], { expectedRevision: 3, status: "COMPLETED" }, opts());
+  assert.equal(done.booking.assignedWorkers[0].staffId, ADMIN.staffId);
+  await refused(s.unassignWorker(ADMIN, ids[2], ADMIN.staffId, { expectedRevision: 4 }, opts()), "BOOKING_NOT_MANAGEABLE", "completed history stays assigned");
+  assert.ok(!(await s.getDayBoard(STAFF, { date: day }, opts())).queues.flatMap(q => q.waiting).some(c => c.id === ids[2]));
+});
+
+test("P1-17 DB retention: even an audited ADMIN delete cannot erase completed worker history", { skip }, async () => {
+  const id = await book(select("S", "basic-wash"), "2027-06-24");
+  await s.assignWorker(ADMIN, id, STAFF.staffId, { expectedRevision: 1 }, opts());
+  await s.setLineStatus(STAFF, id, (await lineIds(id))[0], { expectedRevision: 2, workStatus: "DONE" }, opts());
+  await s.setBookingStatus(STAFF, id, { expectedRevision: 3, status: "COMPLETED" }, opts());
+  const rollback = new Error("Rollback accepted forbidden deletion");
+  let accepted = false;
+  try {
+    await db.$transaction(async tx => {
+      await tx.booking.update({ where: { id }, data: { revision: 5 } });
+      await tx.bookingWorkerAssignment.delete({ where: { bookingId_staffId: { bookingId: id, staffId: STAFF.staffId } } });
+      await tx.bookingAuditEvent.create({ data: { action: "WORKER_UNASSIGNED", bookingId: id, targetStaffId: STAFF.staffId, actorStaffId: ADMIN.staffId, fromRevision: 4, toRevision: 5 } });
+      await tx.$executeRawUnsafe("SET CONSTRAINTS ALL IMMEDIATE");
+      accepted = true;
+      throw rollback; // Preserve fixture history even when demonstrating the missing guard.
+    });
+  } catch (error) {
+    if (error !== rollback) assert.match((error as Error).message, /closed worker history/i);
+  }
+  assert.equal(accepted, false, "DB must retain closed-job worker history, not only rely on the API");
+  assert.equal(await db.bookingWorkerAssignment.count({ where: { bookingId: id } }), 1);
+  assert.equal((await detail(id)).revision, 4);
 });

@@ -23,6 +23,7 @@ import {
   useAdminResource,
 } from "./bookings/use-admin-resource";
 import { BookingDetail } from "./bookings/booking-detail";
+import { BayBoard } from "./bookings/bay-board";
 import { CapSettings } from "./bookings/cap-settings";
 
 function BookingRows({
@@ -147,7 +148,7 @@ function BookingRows({
   );
 }
 
-export function BookingsTab({
+function BookingsList({
   role,
   showCaps = false,
 }: {
@@ -378,7 +379,10 @@ export function BookingsTab({
             <div className="border-y border-border bg-[#18181b] p-4">
               <h2 className="text-sm font-bold">{q.name}</h2>
               <p className="text-xs text-muted-foreground">
-                {q.committed} committed · {q.effectiveCap === null ? "no limit" : `Limit ${q.effectiveCap}`}
+                {q.committed} committed ·{" "}
+                {q.effectiveCap === null
+                  ? "no limit"
+                  : `Limit ${q.effectiveCap}`}
                 {!q.isActive ? " · Inactive" : ""}
               </p>
             </div>
@@ -571,6 +575,43 @@ export function BookingsTab({
       )}
       {showCaps && role === "ADMIN" && (
         <CapSettings key={date} date={date} onChanged={day.reload} />
+      )}
+    </div>
+  );
+}
+
+// Keep Calendar's existing list/cap view. Bookings opens on the operational board.
+export function BookingsTab({
+  role,
+  showCaps = false,
+}: {
+  role: UserRole;
+  showCaps?: boolean;
+}) {
+  const [view, setView] = React.useState<"BOARD" | "LIST">("BOARD");
+  if (showCaps) return <BookingsList role={role} showCaps />;
+  return (
+    <div className="min-w-0 space-y-4">
+      <div role="group" aria-label="Bookings view" className="flex gap-2">
+        <Button
+          variant={view === "BOARD" ? "default" : "outline"}
+          aria-pressed={view === "BOARD"}
+          onClick={() => setView("BOARD")}
+        >
+          Board
+        </Button>
+        <Button
+          variant={view === "LIST" ? "default" : "outline"}
+          aria-pressed={view === "LIST"}
+          onClick={() => setView("LIST")}
+        >
+          List / history
+        </Button>
+      </div>
+      {view === "BOARD" ? (
+        <BayBoard role={role} />
+      ) : (
+        <BookingsList role={role} />
       )}
     </div>
   );

@@ -62,7 +62,10 @@ export function statusActions(
   if (
     b.status === "IN_PROGRESS" &&
     (b.snapshot === "LEGACY" ||
-      b.lines.filter((l) => !l.removed).every((l) => l.workStatus === "DONE"))
+      (b.lines.some((l) => !l.removed) &&
+        b.lines
+          .filter((l) => !l.removed)
+          .every((l) => l.workStatus === "DONE")))
   )
     return ["COMPLETED"];
   return [];
