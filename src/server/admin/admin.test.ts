@@ -129,3 +129,15 @@ test("Codex F3: cursor tuples validate dates, timestamps, UUIDs and exact arity 
   }
   assert.deepEqual(decodeCursor(encodeCursor({ s: "CREATED_AT_DESC", f, k: [instant, uuid] }), "CREATED_AT_DESC", f), [instant, uuid]);
 });
+
+test("D3 loadForWrite takes unique sorted source and target date locks after the revision check", async () => {
+  const { createHash } = await import("node:crypto");
+  const { loadForWrite } = await import("./mutation");
+  const calls: unknown[][] = [];
+  const tx = {
+    booking: { async findUnique() { return { id, snapshotVersion: "QUEUE_V3", revision: 1, bookingDate: new Date("2027-03-04T00:00:00Z") }; } },
+    async $executeRawUnsafe(...args: unknown[]) { calls.push(args); return 1; },
+  };
+  await loadForWrite(tx as never, id, 1, { dates: ["2027-03-06", "2027-03-02", "2027-03-04"] });
+  assert.deepEqual(calls.map(args => args.slice(1)), ["2027-03-02", "2027-03-04", "2027-03-06"].map(day => [746002, createHash("sha256").update(day).digest().readInt32BE(0)]));
+});

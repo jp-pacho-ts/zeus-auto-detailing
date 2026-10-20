@@ -42,7 +42,7 @@ export function parseHistoryKeyRing(env: Record<string, string | undefined> = pr
   return { activeKid: active, keys };
 }
 
-// Validated on first use and cached; a refusal stays a refusal (D7: fail closed until startup wiring).
+// Startup validates the ring (D7); first use repeats validation and caches a fail-closed result.
 let processRing: HistoryKeyRing | HistoryKeyRingError | undefined;
 export function historyKeyRing(): HistoryKeyRing | null {
   if (processRing === undefined) {
