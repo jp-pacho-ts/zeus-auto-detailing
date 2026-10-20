@@ -66,7 +66,7 @@ export async function setDefaultCap(actor: StaffActor, code: unknown, input: unk
     if (queue.revision !== v.expectedRevision) throw new AdminServiceError("VERSION_CONFLICT", "Someone else changed this cap. Reload and try again.");
     if (queue.dailyCap === v.dailyCap) return { code: queueCode, dailyCap: queue.dailyCap, revision: queue.revision };
     const overridden = new Set((await tx.queueCapOverride.findMany({ where: { queueCode }, select: { date: true } })).map((o) => o.date.toISOString().slice(0, 10)));
-    const over = (await futureCommitted(tx, queueCode, today(options))).find((d) => !overridden.has(d.date) && d.count > (v.dailyCap ?? 0));
+    const over = (await futureCommitted(tx, queueCode, today(options))).find((d) => !overridden.has(d.date) && d.count > (v.dailyCap ?? Infinity));
     if (over) throw capConflict(over.date);
     const updated = await tx.bookingQueue.update({ where: { code: queueCode }, data: { dailyCap: v.dailyCap, revision: queue.revision + 1, updatedAt: new Date(), updatedByStaffId: actor.staffId } });
     await audit(tx, actor, { action: "CAP_CHANGED", queueCode, previousCap: queue.dailyCap, newCap: v.dailyCap });
@@ -110,7 +110,7 @@ export async function deleteCapOverride(actor: StaffActor, code: unknown, date: 
     if (existing.revision !== v.expectedRevision) throw new AdminServiceError("VERSION_CONFLICT", "Someone else changed this day's cap. Reload and try again.");
     if (day >= today(options)) {
       const [count] = await futureCommitted(tx, queueCode, day, day);
-      if (count && count.count > (queue.dailyCap ?? 0)) throw capConflict(day);
+      if (count && count.count > (queue.dailyCap ?? Infinity)) throw capConflict(day);
     }
     await tx.queueCapOverride.delete({ where: key });
     await audit(tx, actor, { action: "CAP_CHANGED", queueCode, capDate: dateCarrier(day), previousCap: existing.dailyCap, newCap: null });

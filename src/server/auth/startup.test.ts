@@ -47,6 +47,7 @@ const baseEnv = () => Object.fromEntries(Object.entries(process.env).filter(([ke
 // No global test-process key: catalog's missing-key regression remains meaningful.
 const bookingStartupFixture = () => ({
  NODE_ENV: "production" as const,
+ HISTORY_LOOKUP_KEYS:"h:"+randomBytes(48).toString("base64url"), HISTORY_LOOKUP_ACTIVE_KID:"h",
  BOOKING_QUOTE_KEYS:"q:"+randomBytes(48).toString("base64url"), BOOKING_QUOTE_ACTIVE_KID:"q",
  MANAGEMENT_GRANT_KEYS:"g:"+randomBytes(48).toString("base64url"), MANAGEMENT_GRANT_ACTIVE_KID:"g",
  MANAGEMENT_SESSION_KEYS:"s:"+randomBytes(48).toString("base64url"), MANAGEMENT_SESSION_ACTIVE_KID:"s",
@@ -78,4 +79,15 @@ test("src/instrumentation.ts register() refuses a bad production configuration a
   const edge = runRegister({ NODE_ENV: "production", NEXT_RUNTIME: "edge" });
   assert.equal(edge.status, 0, edge.stderr);
   assert.match(edge.stdout, /REGISTERED/);
+});
+
+
+test("D7 real startup refuses a missing or invalid history key ring without leaking its value", () => {
+  for (const raw of [undefined, "h:PRIVATE-HISTORY-CANARY"]) {
+    const run = runRegister({ ...env({}), NEXT_RUNTIME: "nodejs", HISTORY_LOOKUP_KEYS: raw, HISTORY_LOOKUP_ACTIVE_KID: "h" });
+    assert.notEqual(run.status, 0);
+    assert.doesNotMatch(run.stdout, /REGISTERED/);
+    assert.match(run.stdout + run.stderr, /admin\.config_invalid/);
+    assert.doesNotMatch(run.stdout + run.stderr, /PRIVATE-HISTORY-CANARY/);
+  }
 });

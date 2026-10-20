@@ -7,6 +7,7 @@ import { lockShop, type AdminOptions, type StaffActor } from "./context";
 import { AdminServiceError, isGuardViolation } from "./errors";
 import { adminEvent } from "./log";
 import { loadDetail } from "./views";
+import { lockBookingDates } from "@/server/bookings-locks";
 
 // One STAFF_MUTATION permit and one READ COMMITTED transaction (ARCHITECTURE T-019 staff
 // mutation algorithm). The shop lock is the first statement (ADR-005 §10, D3). Deferred P1-02
@@ -40,11 +41,13 @@ export async function conflict(tx: StaffTx, code: "VERSION_CONFLICT" | "BOOKING_
 
 // Steps 3-4: read the booking (404), refuse legacy rows where the day-queue model is needed,
 // then the revision check before any legality or role check.
-export async function loadForWrite(tx: StaffTx, bookingId: string, expectedRevision: number, opts: { v3?: boolean } = {}): Promise<BookingWithLines> {
+export async function loadForWrite(tx: StaffTx, bookingId: string, expectedRevision: number, opts: { v3?: boolean; dates?: readonly string[] } = {}): Promise<BookingWithLines> {
   const booking = await tx.booking.findUnique({ where: { id: bookingId }, include: { lineItems: { orderBy: { order: "asc" } } } });
   if (!booking) throw new AdminServiceError("NOT_FOUND");
   if (opts.v3 && booking.snapshotVersion !== "QUEUE_V3") await conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId, "This is a legacy booking. Only its status can change.");
   if (booking.revision !== expectedRevision) await conflict(tx, "VERSION_CONFLICT", bookingId);
+  // mutate() already holds the shop lock; take every source/target date together in sorted order.
+  await lockBookingDates(tx, [booking.bookingDate.toISOString().slice(0, 10), ...(opts.dates ?? [])]);
   return booking;
 }
 

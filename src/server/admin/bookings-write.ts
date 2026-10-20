@@ -17,6 +17,7 @@ import { audit, bump, conflict, detailOrThrow, loadForWrite, mutate } from "./mu
 import { canPerform, type AdminOp } from "./roles";
 import { unavailableSender } from "./notice";
 import { bookingInclude, toQueueBooking } from "./views";
+import { lockBookingDates } from "@/server/bookings-locks";
 
 const OPEN: BookingStatus[] = ["PENDING", "CONFIRMED", "IN_PROGRESS"];
 const today = (o: AdminOptions) => manilaDate(o.now?.() ?? new Date());
@@ -79,7 +80,7 @@ export async function setBookingStatus(actor: StaffActor, id: unknown, input: un
 async function fits(tx: StaffTx, bookingId: string, queueCode: string, day: string): Promise<void> {
   if (await closedDay(tx, day)) await conflict(tx, "SCHEDULE_CONFLICT", bookingId, "The shop is closed that day.", { toDate: ["The shop is closed that day."] });
   const cap = await effectiveCap(tx, queueCode, day);
-  if (cap === null || (await committed(tx, queueCode, day, bookingId)) >= cap) {
+  if (cap !== null && (await committed(tx, queueCode, day, bookingId)) >= cap) {
     await conflict(tx, "SCHEDULE_CONFLICT", bookingId, "That day is full for this queue.", { toDate: ["That day is full for this queue."] });
   }
 }
@@ -116,7 +117,7 @@ export async function moveBooking(actor: StaffActor, id: unknown, input: unknown
   const bookingId = parse(AdminIdSchema, id);
   const v = parse(MoveSchema, input);
   return mutate(options, "move", async (tx) => {
-    const b = await loadForWrite(tx, bookingId, v.expectedRevision, { v3: true });
+    const b = await loadForWrite(tx, bookingId, v.expectedRevision, { v3: true, dates: [v.toDate] });
     const fromDay = isoDay(b.bookingDate);
     if (fromDay === v.toDate && b.queueCode === v.toQueueCode) return result(tx, bookingId, true);
     if (b.status !== "PENDING" && b.status !== "CONFIRMED") return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
@@ -141,6 +142,7 @@ export async function reorderQueueDay(actor: StaffActor, code: unknown, date: un
   const day = parse(AdminDaySchema, date);
   const v = parse(ReorderSchema, input);
   return mutate(options, "reorder", async (tx) => {
+    await lockBookingDates(tx, [day]);
     const queue = await tx.bookingQueue.findUnique({ where: { code: queueCode } });
     if (!queue) throw new AdminServiceError("NOT_FOUND");
     const where = { bookingDate: dateCarrier(day), queueCode, snapshotVersion: "QUEUE_V3" as const };
@@ -292,7 +294,7 @@ export async function setBay(actor: StaffActor, id: unknown, input: unknown, opt
   const bookingId = parse(AdminIdSchema, id);
   const v = parse(BayAssignSchema, input);
   return mutate(options, "bay", async (tx) => {
-    const b = await loadForWrite(tx, bookingId, v.expectedRevision, { v3: true });
+    const b = await loadForWrite(tx, bookingId, v.expectedRevision, { v3: true, dates: [v.date] });
     if (!OPEN.includes(b.status)) return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
     const first = isoDay(b.bookingDate);
     if (v.date < first || v.date > addDays(first, 365)) throw fieldError("date", "Assign a bay on the booked day or a later day of the job.");

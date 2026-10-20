@@ -348,21 +348,62 @@ test("legacy bookings: status and decline only; queue, line and bay writes are n
   assert.ok((await s.getDayQueues(STAFF, { date: "2027-03-15" }, opts())).legacy.some((x) => x.id === id));
 });
 
-test("races: two staff on one booking, and a staff move against a customer create for the last unit (interim raw-SQL customer writer, D2)", { skip }, async () => {
+test("races: two staff on one booking, and a staff move against real P1-03 create for the last unit (D2)", { skip }, async () => {
   const id = await book(select("L", "basic-wash"), "2027-03-17");
   const results = await Promise.allSettled([s.setBookingStatus(ADMIN, id, { expectedRevision: 1, status: "CONFIRMED" }, opts()),
     s.declineBooking(ADMIN, id, { expectedRevision: 1, reason: "Duplicate" }, opts())]);
   assert.deepEqual(results.map((r) => r.status).sort(), ["fulfilled", "rejected"]);
   assert.equal(((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason as { code: string }).code, "VERSION_CONFLICT");
-  // Last unit of a day: 4 booked of 5; one staff move and one customer create race for the fifth.
-  const target = "2027-03-18";
-  for (let i = 0; i < 4; i++) await book(select("L", "basic-wash"), target);
-  const mover = await book(select("L", "basic-wash"), "2027-03-19");
-  const race = await Promise.allSettled([s.moveBooking(ADMIN, mover, { expectedRevision: 1, toDate: target, toQueueCode: "WASH" }, opts()),
-    book(select("L", "basic-wash"), target)]);
-  assert.deepEqual(race.map((r) => r.status).sort(), ["fulfilled", "rejected"]);
-  const committed = await db.booking.count({ where: { bookingDate: new Date(target + "T00:00:00Z"), queueCode: "WASH", status: { not: "CANCELLED" } } });
-  assert.equal(committed, 5);
+
+  const { createServer } = await import("node:http");
+  const { createDayBooking } = await import("../bookings-create");
+  const { parseBookingConfiguration } = await import("../bookings-credentials");
+  const { getBookingQuote } = await import("../catalog-quote");
+  const config = parseBookingConfiguration({
+    BOOKING_QUOTE_KEYS: "q:" + secret(10), BOOKING_QUOTE_ACTIVE_KID: "q",
+    MANAGEMENT_GRANT_KEYS: "g:" + secret(11), MANAGEMENT_GRANT_ACTIVE_KID: "g",
+    MANAGEMENT_SESSION_KEYS: "m:" + secret(12), MANAGEMENT_SESSION_ACTIVE_KID: "m",
+    ONLINE_BOOKING_MODE: "OPEN", APP_ORIGIN: "http://localhost:3000", NODE_ENV: "test",
+    TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA", NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+    TURNSTILE_ALLOWED_HOSTNAMES: "localhost", CLIENT_IP_SOURCE: "PROXY_HOPS", TRUSTED_PROXY_HOPS: "1",
+  });
+  // Real HTTP challenge verification against a loopback stand-in, never Cloudflare.
+  const challenge = createServer((req, res) => {
+    req.resume();
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ success: true, hostname: "localhost", action: "booking_create" }));
+  });
+  await new Promise<void>(resolve => challenge.listen(0, "127.0.0.1", resolve));
+  try {
+    const target = new Date(Date.now() + 8 * 3600000 + 2 * 86400000).toISOString().slice(0, 10);
+    const source = new Date(Date.parse(target) + 86400000).toISOString().slice(0, 10);
+    await db.scheduleConfig.create({ data: { effectiveDate: new Date("2000-01-01") } });
+    await db.timeSlot.createMany({ data: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, startTime: "08:00", endTime: "18:00", maxVehicleCapacity: 2 })) });
+    for (let i = 0; i < 4; i++) await book(select("L", "basic-wash"), target);
+    const mover = await book(select("L", "basic-wash"), source);
+    const selection = select("L", "basic-wash");
+    const quoted = await getBookingQuote(selection, { db, ring: config.quote });
+    assert.ok(quoted.ok);
+    if (!quoted.ok) throw Error("Synthetic quote refused");
+    const create = createDayBooking({ contractVersion: 4, idempotencyKey: randomUUID(), ...selection, bookingDate: target,
+      acceptedQuote: quoted.data.quote, turnstileToken: randomUUID(), customerName: "Race Customer", customerPhone: "+639170000099", vehicleModel: "Synthetic Car" }, {
+      db, config, headers: new Headers({ origin: config.origin, "x-zeus-booking": "1", "content-type": "application/json", "x-forwarded-for": "192.0.2.199" }),
+      turnstileEndpoint: "http://127.0.0.1:" + (challenge.address() as { port: number }).port + "/siteverify",
+    });
+    const race = await Promise.allSettled([
+      s.moveBooking(ADMIN, mover, { expectedRevision: 1, toDate: target, toQueueCode: "WASH" }, opts({ now: () => new Date() })),
+      create.then(r => { if (!r.result.ok) throw Object.assign(new Error("Customer create refused"), { code: r.result.error.code }); return r; }),
+    ]);
+    assert.deepEqual(race.map(r => r.status).sort(), ["fulfilled", "rejected"]);
+    const loser = (race.find(r => r.status === "rejected") as PromiseRejectedResult).reason as { code: string };
+    assert.ok(["SCHEDULE_CONFLICT", "FULLY_BOOKED"].includes(loser.code), loser.code);
+    assert.equal(await db.booking.count({ where: { bookingDate: new Date(target + "T00:00:00Z"), queueCode: "WASH", status: { not: "CANCELLED" } } }), 5);
+    assert.equal(await db.bookingOperation.count({ where: { kind: "CREATE", outcome: "COMMITTED" } }), race[1].status === "fulfilled" ? 1 : 0);
+    assert.equal((await audits(mover)).filter(a => a.action === "RESCHEDULED").length, race[0].status === "fulfilled" ? 1 : 0);
+  } finally {
+    challenge.closeAllConnections();
+    await new Promise<void>(resolve => challenge.close(() => resolve()));
+  }
 });
 
 test("Codex F1: only eligible SHOP_DECLINED bookings can be reinstated, with target checks and no partial writes", { skip }, async (t) => {
@@ -458,4 +499,73 @@ test("Codex F4: unknown and malformed history use equivalent query work, fixed e
   const { historyDigest } = await import("./history-key-ring");
   assert.deepEqual(lookups.map((a) => [a.phoneDigest, a.resultCount]), [[historyDigest(ring, "+639000000998"), 0], [historyDigest(ring, null, "not a phone"), 0]]);
   assert.equal(JSON.stringify(events).includes("not a phone"), false);
+});
+
+test("D2 NULL caps: move and reinstate are unlimited; zero and reached set caps still refuse", { skip }, async () => {
+  await s.setDefaultCap(ADMIN, "WASH", { expectedRevision: (await db.bookingQueue.findUniqueOrThrow({ where: { code: "WASH" } })).revision, dailyCap: null }, opts());
+  const mover = await book(select("S", "basic-wash"), "2027-03-26");
+  const moved = await s.moveBooking(ADMIN, mover, { expectedRevision: 1, toDate: "2027-03-27", toQueueCode: "WASH" }, opts());
+  assert.deepEqual([moved.booking.bookingDate, moved.booking.revision], ["2027-03-27", 2]);
+  const declined = await book(select("S", "basic-wash"), "2027-03-27");
+  await s.declineBooking(ADMIN, declined, { expectedRevision: 1, reason: "Synthetic mistake" }, opts());
+  const restored = await s.setBookingStatus(ADMIN, declined, { expectedRevision: 2, status: "PENDING", reason: "Restore" }, opts());
+  assert.deepEqual([restored.booking.status, restored.booking.revision], ["PENDING", 3]);
+  assert.deepEqual((await audits(mover)).map(a => a.action), ["RESCHEDULED"]);
+  assert.equal((await audits(declined)).length, 2);
+  for (const [date, cap] of [["2027-04-02", 0], ["2027-04-03", 1]] as const) {
+    await s.setCapOverride(ADMIN, "WASH", date, { expectedRevision: null, dailyCap: cap }, opts());
+    if (cap) await book(select("S", "basic-wash"), date);
+    await refused(s.moveBooking(ADMIN, mover, { expectedRevision: 2, toDate: date, toQueueCode: "WASH" }, opts()), "SCHEDULE_CONFLICT", "configured cap", e => assert.equal(e.currentBooking?.revision, 2));
+  }
+  await s.declineBooking(ADMIN, declined, { expectedRevision: 3, reason: "Synthetic retry" }, opts());
+  await s.setCapOverride(ADMIN, "WASH", "2027-03-27", { expectedRevision: null, dailyCap: 1 }, opts());
+  await refused(s.setBookingStatus(ADMIN, declined, { expectedRevision: 4, status: "PENDING", reason: "Restore" }, opts()), "SCHEDULE_CONFLICT", "reinstatement set cap");
+  assert.equal((await detail(declined)).revision, 4);
+  assert.equal((await audits(declined)).length, 3);
+});
+
+test("D2 notification adapter sends via loopback SMTP only after the audited admin action commits", { skip }, async () => {
+  const { smtpSimulation } = await import("../notifications/smtp.fixture");
+  const notice = await import("./notice");
+  const smtp = await smtpSimulation();
+  try {
+    const id = await book(select("S", "basic-wash"), "2027-03-28", { customerEmail: "turn@example.test" });
+    const sender = notice.bookingTurnNoticeSender({ db, notification: smtp.config });
+    const response = await s.notifyCustomer(STAFF, id, { expectedRevision: 1 }, opts({ sender: { async send(bookingId: string) {
+      assert.equal(await db.bookingAuditEvent.count({ where: { bookingId, action: "CUSTOMER_NOTIFIED" } }), 1, "audit is visible from a separate connection before SMTP");
+      return sender.send(bookingId);
+    } } }));
+    assert.equal(response.notice, "SENT");
+    assert.equal(smtp.attempts.length, 1);
+    assert.equal(smtp.attempts[0].to, "turn@example.test");
+    await refused(s.notifyCustomer(STAFF, id, { expectedRevision: 1 }, opts({ sender })), "RATE_LIMITED", "second attempt");
+    assert.equal(smtp.attempts.length, 1);
+    const noEmail = await book(select("S", "basic-wash"), "2027-03-28");
+    assert.equal((await s.notifyCustomer(STAFF, noEmail, { expectedRevision: 1 }, opts({ sender }))).notice, "NO_EMAIL");
+    assert.equal((await audits(noEmail)).length, 0);
+    const failed = await book(select("S", "basic-wash"), "2027-03-28", { customerEmail: "failure@example.test" });
+    smtp.setRejected(true);
+    assert.equal((await s.notifyCustomer(STAFF, failed, { expectedRevision: 1 }, opts({ sender }))).notice, "NOT_SENT");
+    assert.equal((await audits(failed)).filter(a => a.action === "CUSTOMER_NOTIFIED").length, 1);
+  } finally { await smtp.close(); }
+});
+
+
+test("D2 NULL settings: disabling a default limit preserves occupied days and their bookings", { skip }, async () => {
+  const id = await book(select("S", ["panel-repaint", 1]), "2027-04-10");
+  const queue = await db.bookingQueue.findUniqueOrThrow({ where: { code: "REPAINT" } });
+  const result = await s.setDefaultCap(ADMIN, "REPAINT", { expectedRevision: queue.revision, dailyCap: null }, opts());
+  assert.deepEqual([result.dailyCap, result.revision], [null, queue.revision + 1]);
+  assert.equal((await detail(id)).status, "PENDING");
+  assert.equal(await db.bookingAuditEvent.count({ where: { action: "CAP_CHANGED", queueCode: "REPAINT", previousCap: queue.dailyCap, newCap: null } }), 1);
+});
+
+test("D2 NULL settings: removing an override on an occupied day falls back to unlimited", { skip }, async () => {
+  // Explicit synthetic setup isolates override removal from default-limit editing.
+  await db.$executeRawUnsafe('UPDATE booking_queues SET "dailyCap"=NULL,revision=revision+1,"updatedAt"=now() WHERE code=\'WASH\'');
+  const day = "2027-04-11", id = await book(select("S", "basic-wash"), day);
+  const override = await s.setCapOverride(ADMIN, "WASH", day, { expectedRevision: null, dailyCap: 2 }, opts());
+  await s.deleteCapOverride(ADMIN, "WASH", day, { expectedRevision: override.revision }, opts());
+  assert.equal(await db.queueCapOverride.count({ where: { queueCode: "WASH", date: new Date(day + "T00:00:00Z") } }), 0);
+  assert.equal((await detail(id)).status, "PENDING");
 });
