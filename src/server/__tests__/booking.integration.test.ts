@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import { PrismaClient } from "@prisma/client";
 
@@ -11,6 +11,7 @@ if (url) {
   assert.ok(["127.0.0.1", "localhost"].includes(parsed.hostname) && parsed.pathname.startsWith("/zeus_t007_"), "Use only an isolated local T-007 test database");
 }
 const db = new PrismaClient({ datasources: { db: { url: url || "postgresql://unused@localhost/zeus_t007_unused" } } });
+let legacyRequest: ReturnType<typeof payload>;
 const categoryId = randomUUID(), serviceId = randomUUID(), shortServiceId = randomUUID();
 function businessDate(weeks = 0) {
   const day = new Date(Date.now() + 8 * 3600000);
@@ -33,6 +34,14 @@ before(async () => {
   ] });
   await db.scheduleConfig.create({ data: { effectiveDate: carrier("2000-01-01") } });
   await db.timeSlot.createMany({ data: Array.from({ length: 6 }, (_, day) => Array.from({ length: 18 }, (_, i) => ({ dayOfWeek: day + 1, startTime: String(8 + Math.floor(i / 2)).padStart(2, "0") + ":" + (i % 2 ? "30" : "00"), endTime: String(8 + Math.floor((i + 1) / 2)).padStart(2, "0") + ":" + ((i + 1) % 2 ? "30" : "00"), maxVehicleCapacity: 1 }))).flat() });
+
+  // Approved cutover fixture: a historical row, never a fresh slot-service write.
+  const { CreateBookingSchema } = await import("@/lib/validation");
+  const { legacyRequestHash } = await import("../bookings-hash");
+  legacyRequest = payload(); const r = CreateBookingSchema.parse(legacyRequest);
+  await db.booking.create({ data: { referenceCode: "ZEUS-HIST01", customerName:r.customerName, customerPhone:r.customerPhone, customerEmail:r.customerEmail??null, vehicleModel:r.vehicleModel, vehiclePlate:r.vehiclePlate??null, notes:r.specialRequests??null, vehicleCategoryId:categoryId, serviceId, bookingDate:carrier(r.bookingDate), startTime:"09:00", endTime:"11:00", startsAt:new Date(r.bookingDate+"T09:00:00+08:00"), endsAt:new Date(r.bookingDate+"T11:00:00+08:00"), durationMinutes:120, priceSnapshot:"2070", serviceNameSnapshot:"Two hour service", vehicleCategoryNameSnapshot:"Test Sedan", idempotencyKey:r.idempotencyKey, requestHash:legacyRequestHash(r) } });
+  for(const [name,kid] of [["BOOKING_QUOTE","q"],["MANAGEMENT_GRANT","g"],["MANAGEMENT_SESSION","s"]]){process.env[name+"_KEYS"]=kid+":"+randomBytes(32).toString("base64url");process.env[name+"_ACTIVE_KID"]=kid;}
+  Object.assign(process.env,{APP_ORIGIN:"http://localhost",ONLINE_BOOKING_MODE:"OPEN",TURNSTILE_SECRET_KEY:"1x0000000000000000000000000000000AA",NEXT_PUBLIC_TURNSTILE_SITE_KEY:"1x00000000000000000000AA",TURNSTILE_ALLOWED_HOSTNAMES:"localhost"});
 });
 after(async () => { await db.$disconnect(); });
 async function reservation(input: unknown) {
@@ -41,22 +50,11 @@ async function reservation(input: unknown) {
   return feature.reserveBooking(input, db);
 }
 
-test("simultaneous last-bay requests commit one PENDING reservation and persist normalized snapshots", { skip: !enabled }, async () => {
-  const a = payload(), b = payload();
-  const results = await Promise.all([reservation(a), reservation(b)]);
-  assert.equal(results.filter(r => r.ok).length, 1);
-  const rejected = results.find(r => !r.ok); assert.equal(rejected && !rejected.ok && rejected.error.code, "SLOT_UNAVAILABLE");
-  const rows = await db.booking.findMany({ where: { bookingDate: carrier(a.bookingDate) } });
-  assert.equal(rows.length, 1); const row = rows[0];
-  assert.equal(row.status, "PENDING"); assert.equal(row.customerPhone, "+639171234567");
-  assert.equal(row.vehiclePlate, "ABC 123"); assert.equal(row.customerEmail, null);
-  assert.equal(row.priceSnapshot.toString(), "2070"); assert.equal(row.serviceNameSnapshot, "Two hour service");
-  assert.equal(row.durationMinutes, 120); assert.equal(row.endsAt.toISOString().slice(11, 16), "03:00");
-  assert.match(row.referenceCode, /^ZEUS-[A-Z0-9]{6}$/);
-  const original = row.idempotencyKey === a.idempotencyKey ? a : b;
-  const replay = await reservation(original); assert.ok(replay.ok); assert.equal(replay.data.id, row.id);
-  const conflict = await reservation({ ...original, customerName: "Different Person" });
-  assert.equal(!conflict.ok && conflict.error.code, "IDEMPOTENCY_CONFLICT");
+test("fresh slot writes are retired; exact historical retries preserve normalized snapshots and conflicts", {skip:!enabled},async()=>{
+ const refused=await reservation(payload());assert.equal(refused.ok,false);
+ const replay=await reservation(legacyRequest);assert.ok(replay.ok);
+ assert.equal(replay.data.totalPriceCentavos,207000);assert.equal(replay.data.customerPhone,"+639171234567");assert.equal(replay.data.vehiclePlate,"ABC 123");assert.equal(replay.data.customerEmail,null);assert.equal(replay.data.durationMinutes,120);assert.equal(replay.data.endTime,"11:00");assert.equal(replay.data.serviceName,"Two hour service");assert.equal(replay.data.status,"PENDING");
+ const conflict=await reservation({...legacyRequest,customerName:"Different Person"});assert.equal(!conflict.ok&&conflict.error.code,"IDEMPOTENCY_CONFLICT");assert.equal(await db.booking.count(),1);
 });
 test("database-backed duration reservations consume four intervals and preserve the exact endpoint", { skip: !enabled }, async () => {
   const feature = await import("../availability");
@@ -75,12 +73,16 @@ test("strict validation and contextual rejection never create a booking", { skip
 test("partial blocks and date overrides are authoritative inside reservation transactions", { skip: !enabled }, async () => {
   const date = businessDate(2);
   await db.blockedDate.create({ data: { date: carrier(date), isFullDay: false, startTime: "10:00", endTime: "11:00", reason: "Maintenance" } });
-  const blocked = await reservation(payload(date)); assert.equal(!blocked.ok && blocked.error.code, "SLOT_UNAVAILABLE");
-  const atEnd = await reservation({ ...payload(date), startTime: "11:00" }); assert.equal(atEnd.ok, true);
+  const blocked = await reservation(payload(date)); assert.equal(!blocked.ok && blocked.error.code, "VALIDATION_ERROR");
+  const atEnd = await reservation({ ...payload(date), startTime: "11:00" }); assert.equal(atEnd.ok,false);
+ const {getAvailableSlots}=await import("../availability");
+ const historical=await getAvailableSlots({date,vehicleCategoryId:categoryId,serviceId});
+ assert.ok(historical.ok);assert.equal(historical.data.slots.find(s=>s.startTime==="09:00")?.selectable,false);assert.equal(historical.data.slots.find(s=>s.startTime==="11:00")?.selectable,true);
   const otherDate = businessDate(3);
   const slot = await db.timeSlot.findFirstOrThrow({ where: { dayOfWeek: 1, startTime: "10:30" } });
   await db.slotCapacityOverride.create({ data: { date: carrier(otherDate), timeSlotId: slot.id, maxVehicleCapacity: 0 } });
-  const full = await reservation(payload(otherDate)); assert.equal(!full.ok && full.error.code, "SLOT_UNAVAILABLE");
+  const full = await reservation(payload(otherDate)); assert.equal(!full.ok&&full.error.code,"VALIDATION_ERROR");
+ const overridden=await getAvailableSlots({date:otherDate,vehicleCategoryId:categoryId,serviceId});assert.ok(overridden.ok);assert.equal(overridden.data.slots.find(s=>s.startTime==="09:00")?.selectable,false);
 });
 
 
@@ -90,8 +92,8 @@ test("HTTP availability rejects unknown/duplicate query keys and catalog DTOs co
   const catalogRoute = await import("../../app/api/catalog/route");
   const query = new URLSearchParams({ date: businessDate(), vehicleCategoryId: categoryId, serviceId: shortServiceId });
   const valid = await availabilityRoute.GET(new NextRequest("http://localhost/api/availability?" + query));
-  assert.equal(valid.status, 200); assert.equal(valid.headers.get("cache-control"), "no-store");
-  const publicBody = await valid.json(); assert.equal(publicBody.ok, true); assert.equal(JSON.stringify(publicBody).includes("Test Customer"), false);
+  assert.equal(valid.status, 400); assert.equal(valid.headers.get("cache-control"), "no-store");
+  const publicBody = await valid.json(); assert.equal(publicBody.ok, false); assert.equal(JSON.stringify(publicBody).includes("Test Customer"), false);
   for (const suffix of ["&date=2026-10-19", "&price=1"]) {
     const rejected = await availabilityRoute.GET(new NextRequest("http://localhost/api/availability?" + query + suffix));
     assert.equal(rejected.status, 400);
@@ -105,15 +107,15 @@ test("HTTP availability rejects unknown/duplicate query keys and catalog DTOs co
   const catalog = JSON.parse(catalogText); assert.equal(catalog.ok, false); assert.equal(catalog.error.code, "RETRYABLE_ERROR");
   for (const leaked of [categoryId, serviceId, shortServiceId, "sizeMultiplier", "bayCapacityRequired", "customerPhone"]) assert.equal(catalogText.includes(leaked), false, leaked);
 });
-test("HTTP booking adapter persists once, returns 201/200 for create/replay and rejects malformed or oversized bodies", { skip: !enabled }, async () => {
+test("HTTP cutover refuses fresh slots, replays committed history and rejects malformed or oversized bodies", { skip: !enabled }, async () => {
   const { NextRequest } = await import("next/server");
   const { POST } = await import("../../app/api/bookings/route");
-  const request = (body: string) => new NextRequest("http://localhost/api/bookings", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "test-adapter" }, body });
+  const request = (body: string) => new NextRequest("http://localhost/api/bookings", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "test-adapter",origin:"http://localhost","x-zeus-booking":"1" }, body });
   const input = payload(businessDate(4));
-  const created = await POST(request(JSON.stringify(input))); assert.equal(created.status, 201);
-  const body = await created.json(); assert.equal(body.ok, true);
-  const replay = await POST(request(JSON.stringify(input))); assert.equal(replay.status, 200);
-  assert.equal((await replay.json()).data.id, body.data.id);
+  const created = await POST(request(JSON.stringify(input))); assert.equal(created.status, 400);
+  const body = await created.json(); assert.equal(body.ok, false);
+  const replay = await POST(request(JSON.stringify(legacyRequest))); assert.equal(replay.status, 200);
+  assert.equal((await replay.json()).data.referenceCode,"ZEUS-HIST01");
   assert.equal((await POST(request("{broken"))).status, 400);
   assert.equal((await POST(request(JSON.stringify({ ...input, specialRequests: "x".repeat(17000) })))).status, 400);
 });
