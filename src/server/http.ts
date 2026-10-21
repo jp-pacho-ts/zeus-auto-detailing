@@ -1,19 +1,21 @@
 import "server-only";
 import { clientIdentityConfig, trustedClientKey } from "./auth/client-identity";
+import { createLoginLimiter } from "./auth/rate-limit";
 import { createHash } from "node:crypto";
 import { DomainError } from "./errors";
 import type { ContractError, ErrorCode } from "@/types/contracts";
 
-const windows = new Map<string, { count: number; until: number }>();
+// limit per client a minute, one bounded key table per scope (P1-10 M3, F1: a full table never
+// resets a live count; it refuses only new clients, for at most a minute).
+const limiters = new Map<string, ReturnType<typeof createLoginLimiter>>();
 export function rateLimit(headers: Headers, scope: string, limit: number): void {
-  const now = Date.now();
-  for (const [key, value] of windows) if (value.until <= now) windows.delete(key);
+  let limiter = limiters.get(scope);
+  if (!limiter) limiters.set(scope, limiter = createLoginLimiter({ perKeyPerMinute: limit, perKeyPerDay: null, maxConcurrentPerKey: Number.MAX_SAFE_INTEGER }));
   // The deployment ingress must overwrite client-supplied forwarding headers.
   const address = trustedClientKey(headers, clientIdentityConfig());
-  const key = scope + createHash("sha256").update(address).digest("hex");
-  const current = windows.get(key) || { count: 0, until: now + 60000 };
-  if (current.count >= limit || (!windows.has(key) && windows.size >= 5000)) throw new DomainError("RATE_LIMITED", "Too many requests. Please wait a minute before retrying.", {}, true);
-  current.count++; windows.set(key, current);
+  const entry = limiter.enter(createHash("sha256").update(address).digest("hex"));
+  if (!entry.ok) throw new DomainError("RATE_LIMITED", "Too many requests. Please wait a minute before retrying.", {}, true);
+  entry.leave();
 }
 export function httpStatus(error: ContractError): number {
   const codes: Record<ErrorCode, number> = { VALIDATION_ERROR: 400, NOT_FOUND: 404, SLOT_UNAVAILABLE: 409, SCHEDULE_CONFLICT: 409, VERSION_CONFLICT: 409, IDEMPOTENCY_CONFLICT: 409, UNAUTHENTICATED: 401, FORBIDDEN: 403, RATE_LIMITED: 429, RETRYABLE_ERROR: 503, INTERNAL_ERROR: 500 };

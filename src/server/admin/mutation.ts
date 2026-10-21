@@ -1,8 +1,10 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import type { AdminBookingDetail } from "@/types/admin-contracts";
-import { withStaffPermit, type StaffTx } from "@/server/auth/db-admission";
+import { withStaffPermit, type StaffDbPermit, type StaffTx } from "@/server/auth/db-admission";
 import { StaffAuthError } from "@/server/auth/errors";
+import { prisma } from "@/server/db";
+import { auditPrivilegeGate } from "./audit-privilege";
 import { lockShop, type AdminOptions, type StaffActor } from "./context";
 import { AdminServiceError, isGuardViolation } from "./errors";
 import { adminEvent } from "./log";
@@ -13,24 +15,31 @@ import { lockBookingDates } from "@/server/bookings-locks";
 // mutation algorithm). The shop lock is the first statement (ADR-005 §10, D3). Deferred P1-02
 // guards are forced to run before the work returns, so a guard that fires is caught here and
 // reported as a service defect (500 + admin.guard_violation), never as a user outcome. No
-// external call ever runs inside.
+// external call ever runs inside. The S-06 audit-privilege gate runs first, under the same
+// permit (P1-10 M1).
 export async function mutate<T>(options: AdminOptions, action: string, work: (tx: StaffTx) => Promise<T>): Promise<T> {
-  return withStaffPermit("STAFF_MUTATION", (permit) => permit.write(async (tx) => {
-    try {
-      await lockShop(tx);
-      const result = await work(tx);
-      await tx.$executeRawUnsafe("SET CONSTRAINTS ALL IMMEDIATE");
-      return result;
-    } catch (error) {
-      if (error instanceof StaffAuthError) throw error;
-      if (isGuardViolation(error)) {
-        adminEvent("admin.guard_violation", { action });
-        throw new AdminServiceError("INTERNAL_ERROR");
+  return withStaffPermit("STAFF_MUTATION", async (permit) => {
+    await auditGate(permit, options);
+    return permit.write(async (tx) => {
+      try {
+        await lockShop(tx);
+        const result = await work(tx);
+        await tx.$executeRawUnsafe("SET CONSTRAINTS ALL IMMEDIATE");
+        return result;
+      } catch (error) {
+        if (error instanceof StaffAuthError) throw error;
+        if (isGuardViolation(error)) {
+          adminEvent("admin.guard_violation", { action });
+          throw new AdminServiceError("INTERNAL_ERROR");
+        }
+        throw error;
       }
-      throw error;
-    }
-  }), { db: options.db });
+    });
+  }, { db: options.db });
 }
+
+export const auditGate = (permit: StaffDbPermit, options: AdminOptions) =>
+  auditPrivilegeGate(permit, options.db ?? prisma, options.enforceAuditPrivileges ?? process.env.NODE_ENV === "production");
 
 type BookingWithLines = Prisma.BookingGetPayload<{ include: { lineItems: true } }>;
 

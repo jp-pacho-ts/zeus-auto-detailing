@@ -3,25 +3,27 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { AdmissionRefused, createSemaphore } from "./auth/semaphore";
 import { createLoginLimiter } from "./auth/rate-limit";
 import { BookingFailure, bookingError, unavailable } from "./bookings-errors";
-export const createAdmission = createLoginLimiter({
-    perKeyPerMinute: 15, perKeyPerDay: 10000, maxConcurrentPerKey: 1
-});
-export const publicReadAdmission = createLoginLimiter({
-    perKeyPerMinute: 60, perKeyPerDay: 10000, maxConcurrentPerKey: 2
-});
+// Per-client request admission. Only the minute window and concurrency limit these routes; the
+// durable per-client and shop budgets live in the booking ledger (P1-10 M3).
+export const CREATE_ADMISSION_POLICY = {
+    perKeyPerMinute: 15, perKeyPerDay: null, maxConcurrentPerKey: 1
+} as const;
+export const PUBLIC_READ_ADMISSION_POLICY = {
+    perKeyPerMinute: 60, perKeyPerDay: null, maxConcurrentPerKey: 2
+} as const;
+export const createAdmission = createLoginLimiter(CREATE_ADMISSION_POLICY);
+export const publicReadAdmission = createLoginLimiter(PUBLIC_READ_ADMISSION_POLICY);
+export const BOOKING_POOL_POLICY = {
+    PREFLIGHT: { maxActive: 2, maxQueued: 10, maxWaitMs: 1000 },
+    CREATE: { maxActive: 2, maxQueued: 20, maxWaitMs: 3000 },
+    READ: { maxActive: 2, maxQueued: 10, maxWaitMs: 1000 },
+    NOTIFICATION: { maxActive: 1, maxQueued: 4, maxWaitMs: 1000 },
+} as const;
 const pools = {
-    PREFLIGHT: createSemaphore({
-        maxActive: 2, maxQueued: 10, maxWaitMs: 1000
-    }),
-    CREATE: createSemaphore({
-        maxActive: 2, maxQueued: 20, maxWaitMs: 3000
-    }),
-    READ: createSemaphore({
-        maxActive: 2, maxQueued: 10, maxWaitMs: 1000
-    }),
-    NOTIFICATION: createSemaphore({
-        maxActive: 1, maxQueued: 4, maxWaitMs: 1000
-    }),
+    PREFLIGHT: createSemaphore(BOOKING_POOL_POLICY.PREFLIGHT),
+    CREATE: createSemaphore(BOOKING_POOL_POLICY.CREATE),
+    READ: createSemaphore(BOOKING_POOL_POLICY.READ),
+    NOTIFICATION: createSemaphore(BOOKING_POOL_POLICY.NOTIFICATION),
 };
 export async function withBookingDb<T>(db: PrismaClient, scope: keyof typeof pools, work: (tx: Prisma.TransactionClient) => Promise<T>, signal?: AbortSignal): Promise<T> {
     let release: (() => void) | undefined;

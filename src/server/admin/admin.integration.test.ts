@@ -9,7 +9,7 @@ import { PrismaClient } from "@prisma/client";
 import type { CatalogSelection } from "@/types/catalog-contracts";
 import type { AdminBookingDetail } from "@/types/admin-contracts";
 import { bySlug, readManifest, releaseFromManifest, sizeId } from "../catalog.fixture";
-import { createAndMigrate, mapPublisher, publish, siblingDatabaseUrl } from "../catalog-db.fixture";
+import { createAndMigrate, mapPublisher, publish, serviceClient, siblingDatabaseUrl } from "../catalog-db.fixture";
 import type { StaffActor } from "./context";
 
 const url = process.env.T007_TEST_DATABASE_URL;
@@ -17,6 +17,7 @@ const skip = !url;
 const adminUrl = url ? siblingDatabaseUrl(url, "admin") : "postgresql://unused@localhost/zeus_t007_unused_admin";
 const root = new PrismaClient({ datasources: { db: { url: url || "postgresql://unused@localhost/zeus_t007_unused" } } });
 const db = new PrismaClient({ datasources: { db: { url: adminUrl } } });
+let app = db; // service calls; zeus_app under T007_SERVICE_ROLE (P1-10 M1)
 
 type Services = typeof import("./index");
 let s: Services;
@@ -29,7 +30,7 @@ const secret = (seed: number) => Buffer.from(Array.from({ length: 32 }, (_, i) =
 let ring: import("./history-key-ring").HistoryKeyRing;
 let seq = 0;
 const NOW = new Date("2027-03-01T02:00:00.000Z"); // 10:00 Manila on 2027-03-01
-const opts = (extra: Record<string, unknown> = {}) => ({ db, now: () => NOW, ...extra });
+const opts = (extra: Record<string, unknown> = {}) => ({ db: app, now: () => NOW, ...extra });
 
 const lit = (x: unknown): string => x === null || x === undefined ? "NULL" : typeof x === "number" ? String(x) : `'${String(x).replace(/'/g, "''")}'`;
 async function insert(tx: { $executeRawUnsafe(q: string): Promise<number> }, table: string, row: Record<string, unknown>) {
@@ -83,6 +84,7 @@ const lineIds = async (bookingId: string) => (await db.bookingLineItem.findMany(
 before(async () => {
   if (skip) return;
   await createAndMigrate(root, adminUrl);
+  app = await serviceClient(adminUrl, db);
   pricing = await import("../catalog-pricing");
   s = await import("./index");
   (await import("./log")).setAdminEventSink((event, fields) => events.push({ event, fields }));
@@ -98,7 +100,7 @@ before(async () => {
   await db.$executeRawUnsafe(`UPDATE booking_queues SET "dailyCap"=5, revision=revision+1, "updatedAt"=now()`);
   ring = (await import("./history-key-ring")).parseHistoryKeyRing({ HISTORY_LOOKUP_KEYS: `h-1:${secret(4)}`, HISTORY_LOOKUP_ACTIVE_KID: "h-1" });
 });
-after(async () => { await db.$disconnect(); await root.$disconnect(); });
+after(async () => { if (app !== db) await app.$disconnect(); await db.$disconnect(); await root.$disconnect(); });
 
 test("W1 status: ADMIN confirms; STAFF cannot; stale revision, no-op policy, completion and terminal fields", { skip }, async () => {
   const id = await book(select("S", "basic-wash"), "2027-03-02");
@@ -382,12 +384,12 @@ test("races: two staff on one booking, and a staff move against real P1-03 creat
     for (let i = 0; i < 4; i++) await book(select("L", "basic-wash"), target);
     const mover = await book(select("L", "basic-wash"), source);
     const selection = select("L", "basic-wash");
-    const quoted = await getBookingQuote(selection, { db, ring: config.quote });
+    const quoted = await getBookingQuote(selection, { db: app, ring: config.quote });
     assert.ok(quoted.ok);
     if (!quoted.ok) throw Error("Synthetic quote refused");
     const create = createDayBooking({ contractVersion: 4, idempotencyKey: randomUUID(), ...selection, bookingDate: target,
       acceptedQuote: quoted.data.quote, turnstileToken: randomUUID(), customerName: "Race Customer", customerPhone: "+639170000099", vehicleModel: "Synthetic Car" }, {
-      db, config, headers: new Headers({ origin: config.origin, "x-zeus-booking": "1", "content-type": "application/json", "x-forwarded-for": "192.0.2.199" }),
+      db: app, config, headers: new Headers({ origin: config.origin, "x-zeus-booking": "1", "content-type": "application/json", "x-forwarded-for": "192.0.2.199" }),
       turnstileEndpoint: "http://127.0.0.1:" + (challenge.address() as { port: number }).port + "/siteverify",
     });
     const race = await Promise.allSettled([
@@ -530,7 +532,7 @@ test("D2 notification adapter sends via loopback SMTP only after the audited adm
   const smtp = await smtpSimulation();
   try {
     const id = await book(select("S", "basic-wash"), "2027-03-28", { customerEmail: "turn@example.test" });
-    const sender = notice.bookingTurnNoticeSender({ db, notification: smtp.config });
+    const sender = notice.bookingTurnNoticeSender({ db: app, notification: smtp.config });
     const response = await s.notifyCustomer(STAFF, id, { expectedRevision: 1 }, opts({ sender: { async send(bookingId: string) {
       assert.equal(await db.bookingAuditEvent.count({ where: { bookingId, action: "CUSTOMER_NOTIFIED" } }), 1, "audit is visible from a separate connection before SMTP");
       return sender.send(bookingId);

@@ -8,6 +8,7 @@ import { authorize, isoDay, parse, type AdminOptions, type StaffActor } from "./
 import { AdminServiceError } from "./errors";
 import { historyDigest, historyKeyRing } from "./history-key-ring";
 import { adminEvent } from "./log";
+import { auditGate } from "./mutation";
 import { toQueueBooking } from "./views";
 
 // W16: one customer's bookings by phone, for ADMIN only (ADR-005 §16a). No customer account is
@@ -34,7 +35,8 @@ export async function lookupCustomerHistory(actor: StaffActor, input: unknown, o
   perDay.record(actor.sessionId);
   const normalized = CustomerPhoneSchema.safeParse(phone);
   const digest = historyDigest(ring, normalized.success ? normalized.data : null, phone);
-  const result = await withStaffPermit("STAFF_MUTATION", (permit) => permit.write(async (tx) => {
+  // The lookup writes an audit row, so the S-06 gate applies (P1-10 M1).
+  const result = await withStaffPermit("STAFF_MUTATION", async (permit) => { await auditGate(permit, options); return permit.write(async (tx) => {
     // D8: both empty-result classes perform the same indexed read before their audit. The
     // sentinel cannot be a normalized PH phone; raw malformed input never becomes a selector.
     const found = await tx.booking.findMany({ where: { customerPhone: normalized.success ? normalized.data : "" }, orderBy: [{ bookingDate: "desc" }, { createdAt: "desc" }], take: LIMIT + 1,
@@ -42,7 +44,7 @@ export async function lookupCustomerHistory(actor: StaffActor, input: unknown, o
     const rows = normalized.success ? found : [];
     await tx.bookingAuditEvent.create({ data: { action: "HISTORY_LOOKUP", actorStaffId: actor.staffId, phoneDigest: digest, resultCount: Math.min(rows.length, LIMIT) } });
     return rows;
-  }), { db: options.db });
+  }); }, { db: options.db });
   adminEvent("admin.history.lookup", { actorStaffId: actor.staffId, resultCount: Math.min(result.length, LIMIT) });
   if (result.length === 0) return EMPTY;
   return {

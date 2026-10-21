@@ -29,3 +29,13 @@ In this Windows sandbox, tsx could not read os.userInfo. The successful npm exec
 Coverage: full-duration bottlenecks; four half-hour intervals for a two-hour reservation; exact half-open endpoints; partial final intervals; all noncancelled statuses; full and partial closures; capacity overrides; closing-time limits; malformed schedules; Manila horizon/past times; simultaneous final-bay submissions; normalized snapshot persistence; replay/conflict semantics; strict validation; uncached/public HTTP DTOs; malformed and oversized request bodies.
 
 Browser smoke check: live catalog UUIDs → live arrival options → strict customer form → real Server Action → committed PENDING voucher. Confirmed synthetic reference ZEUS-DLOC8I against PostgreSQL (two hours, PHP 2,070). After reloading, its four half-hour intervals were Sold Out and 10:00 was available at the exact endpoint. Also verified Step 3 Continue opens an empty Step 4 without triggering validation; explicit submission still uses the form/action flow. Screenshots: booking-e2e.png and booking-navigation.png. They contain synthetic test details only.
+
+## Runtime role (P1-10)
+
+`npm test` includes `src/server/admin/runtime-role.integration.test.ts`. It provisions `zeus_app` with `prisma/sql/runtime-role.sql` and checks idempotency, both provisioning orders (on the empty database before `migrate deploy`, and after it; exact ACLs compared), refusal when `zeus_app` owns the `public` schema or the database, the ADR-003 deny list, the S-06 check and the production gate. It creates the extra sibling database `<T007 name>_runtime_role_early`. The loopback cluster must let `zeus_app` log in without a password (trust for 127.0.0.1); a deployed role gets one interactively.
+
+After `npm test`, with the same two URLs, rerun the admin, create and auth suites with every service call as `zeus_app` (about 10 minutes; separate because it overloads the full parallel run):
+
+```powershell
+node --require ./src/server/__tests__/register.cjs --test src/server/runtime-role-suites.check.ts
+```
