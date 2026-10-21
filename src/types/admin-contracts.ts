@@ -3,6 +3,7 @@
 // session routes keep their narrower envelope in src/server/auth/types.ts (PM decision D1).
 import type {
   BookingStatus,
+  DepositStatus,
   ErrorCode,
   ISOInstant,
   LocalDate,
@@ -69,6 +70,7 @@ export interface AdminQueueBooking {
   vehiclePlate: string | null;
   sizeCode: string | null;
   serviceName: string; // primary service at create
+  depositStatus: DepositStatus; // P1-18
   bay: { id: UUID; name: string } | null; // for bookingDate
   lines: AdminLine[];
   totals: AdminTotals;
@@ -98,6 +100,17 @@ export interface AdminBookingDetail extends AdminQueueBooking {
   bays: { date: LocalDate; bay: { id: UUID; name: string } }[];
   createdAt: ISOInstant;
   history: AdminAuditEntry[]; // newest first, at most 50
+  depositProofs: AdminDepositProof[]; // oldest first, at most 3; images via the proof route
+}
+// P1-18: metadata only; the image is read from
+// GET /api/admin/bookings/{bookingId}/deposit-proofs/{id} with a staff session.
+export interface AdminDepositProof {
+  id: UUID;
+  createdAt: ISOInstant;
+  contentType: "image/jpeg" | "image/png" | "image/webp";
+  byteSize: number;
+  width: number;
+  height: number;
 }
 
 export interface AdminError {
@@ -188,6 +201,7 @@ export interface AdminBoardCard {
   lines: { id: UUID; name: string; workStatus: LineWorkStatus }[];
   assignedWorkers: AdminWorker[];
   progress: { done: number; total: number };
+  depositStatus: DepositStatus; // P1-18 badge
 }
 export interface AdminDayBoard {
   date: LocalDate;

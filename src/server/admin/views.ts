@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import type {
   AdminAuditEntry,
   AdminBookingDetail,
+  AdminDepositProof,
   AdminLine,
   AdminQueueBooking,
 } from "@/types/admin-contracts";
@@ -82,6 +83,7 @@ export function toQueueBooking(
     vehiclePlate: b.vehiclePlate,
     sizeCode: b.vehicleSizeCodeSnapshot,
     serviceName: b.serviceNameSnapshot,
+    depositStatus: b.depositStatus,
     bay: bay && { id: bay.id, name: bay.name },
     lines,
     totals:
@@ -125,6 +127,8 @@ const AUDIT_DETAIL_FIELDS = [
   "targetStaffId",
   "previousBayType",
   "newBayType",
+  "fromDepositStatus",
+  "toDepositStatus",
 ] as const;
 
 export async function loadDetail(
@@ -199,6 +203,28 @@ export async function loadDetail(
       details: {},
     })),
   );
+  // P1-18: proofs are listed without their bytes (staff fetch each image from its own route);
+  // each committed upload is a customer history entry. At most 3 per booking.
+  const proofs = await tx.bookingDepositProof.findMany({
+    where: { bookingId: id },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true, createdAt: true, contentType: true, byteSize: true, width: true, height: true },
+  });
+  history.push(
+    ...proofs.map((p): AdminAuditEntry => ({
+      id: p.id,
+      source: "CUSTOMER",
+      action: "DEPOSIT_PROOF_SENT",
+      actorStaffId: null,
+      actorName: null,
+      createdAt: p.createdAt.toISOString(),
+      fromRevision: null,
+      toRevision: null,
+      lineId: null,
+      reason: null,
+      details: {},
+    })),
+  );
   history.sort(
     (a, b) =>
       b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
@@ -223,5 +249,13 @@ export async function loadDetail(
     })),
     createdAt: b.createdAt.toISOString(),
     history: history.slice(0, 50),
+    depositProofs: proofs.map((p) => ({
+      id: p.id,
+      createdAt: p.createdAt.toISOString(),
+      contentType: p.contentType as AdminDepositProof["contentType"],
+      byteSize: p.byteSize,
+      width: p.width,
+      height: p.height,
+    })),
   };
 }

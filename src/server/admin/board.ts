@@ -25,7 +25,7 @@ export async function getDayBoard(
         SELECT b.id,b."queueCode",o."bayId",b."bookingDate",b."queuePosition",jsonb_build_object(
           'id',b.id,'referenceCode',b."referenceCode",'revision',b.revision,'bookingDate',b."bookingDate"::text,
           'queueCode',b."queueCode",'queuePosition',b."queuePosition",'vehicleModel',b."vehicleModel",'vehiclePlate',b."vehiclePlate",
-          'sizeCode',b."vehicleSizeCodeSnapshot",'status',b.status,'assignedBayId',o."bayId",
+          'sizeCode',b."vehicleSizeCodeSnapshot",'status',b.status,'assignedBayId',o."bayId",'depositStatus',b."depositStatus",
           'lines',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',l.id,'name',l."nameSnapshot",'workStatus',l."workStatus") ORDER BY l."order") FROM booking_line_items l WHERE l."bookingId"=b.id AND l."removedAt" IS NULL),'[]'),
           'assignedWorkers',COALESCE((SELECT jsonb_agg(jsonb_build_object('staffId',s.id,'name',s.name,'isActive',s."isActive") ORDER BY s.name,s.id) FROM booking_worker_assignments w JOIN staff s ON s.id=w."staffId" WHERE w."bookingId"=b.id),'[]'),
           'progress',(SELECT jsonb_build_object('done',count(*) FILTER(WHERE l."workStatus"='DONE'),'total',count(*)) FROM booking_line_items l WHERE l."bookingId"=b.id AND l."removedAt" IS NULL)) AS card

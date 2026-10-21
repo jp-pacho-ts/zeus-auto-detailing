@@ -12,6 +12,7 @@ import { fieldClass, LoadState, useAdminResource } from "./use-admin-resource";
 import { shopDate, statusLabel } from "./model";
 import { bayPayload, canDrop, plateLabel, writeFeedback } from "./board-model";
 import { BookingDetail } from "./booking-detail";
+import { DepositBadge } from "./deposit-badge";
 
 export function BayBoard({ role }: { role: UserRole }) {
   const [date, setDate] = React.useState(shopDate),
@@ -197,6 +198,7 @@ export function BayBoard({ role }: { role: UserRole }) {
         <p className="text-xs" aria-label="Service progress">
           {card.progress.done}/{card.progress.total} done
         </p>
+        <DepositBadge status={card.depositStatus} />
         {role === "ADMIN" && (
           <>
             <button

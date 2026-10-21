@@ -30,6 +30,8 @@ const detail = (vehicleModel: string, vehiclePlate: string | null) => ({
   bays: [],
   createdAt: "2026-10-20T00:00:00.000Z",
   history: [],
+  depositStatus: "NONE",
+  depositProofs: [],
 });
 
 // The car line of the rendered dialog, as plain text.
@@ -60,4 +62,49 @@ test("detail shows the car model and plate once, then the size", () => {
 test("detail shows 'No plate' for a blank plate", () => {
   assert.equal(carLine("Honda City", null), "Honda City · No plate · S");
   assert.equal(carLine("Honda City", "  "), "Honda City · No plate · S");
+});
+
+// P1-18: staff see the proofs through the staff route; only ADMIN gets the decision buttons.
+function depositHtml(role: "ADMIN" | "STAFF", depositStatus: string, proofs: number) {
+  const resources = require("./use-admin-resource");
+  const data = {
+    ...detail("Toyota Vios", "QA 101"),
+    depositStatus,
+    depositProofs: Array.from({ length: proofs }, (_, i) => ({
+      id: "proof-" + i, createdAt: "2026-10-21T01:00:00.000Z", contentType: "image/png", byteSize: 100, width: 20, height: 10,
+    })),
+  };
+  mock.method(resources, "useAdminResource", (url: string | null) => ({
+    data: url === "/api/admin/bookings/booking" ? data : null, loading: false, error: null, reload: () => {}, setData: () => {},
+  }));
+  try {
+    return renderToStaticMarkup(
+      createElement(require("./booking-detail").BookingDetail, { id: "booking", role, queues: [], onChanged: () => {}, onClose: () => {} }),
+    );
+  } finally {
+    mock.restoreAll();
+  }
+}
+
+test("deposit section: proofs load from the staff route; ADMIN alone gets the decision buttons", () => {
+  const admin = depositHtml("ADMIN", "PROOF_SENT", 2);
+  assert.match(admin, /Deposit proof to check/);
+  assert.equal((admin.match(/src="\/api\/admin\/bookings\/booking\/deposit-proofs\/proof-\d"/g) ?? []).length, 2);
+  assert.match(admin, />Mark deposit received</);
+  assert.match(admin, />Mark deposit rejected</);
+  const staff = depositHtml("STAFF", "PROOF_SENT", 1);
+  assert.match(staff, /deposit-proofs\/proof-0/);
+  assert.doesNotMatch(staff, /Mark deposit/);
+  const none = depositHtml("ADMIN", "NONE", 0);
+  assert.match(none, /The customer has not sent a deposit screenshot\./);
+  assert.match(none, /<button[^>]*disabled=""[^>]*>Mark deposit rejected/, "nothing to reject without a proof");
+});
+
+test("board badge: nothing for NONE; a label for each decision state", () => {
+  const { DepositBadge } = require("./deposit-badge");
+  const badge = (status: string) => renderToStaticMarkup(createElement(DepositBadge, { status }));
+  assert.equal(badge("NONE"), "");
+  assert.match(badge("PROOF_SENT"), />Deposit proof to check</);
+  assert.match(badge("RECEIVED"), />Deposit received</);
+  assert.match(badge("REJECTED"), />Deposit rejected</);
 });

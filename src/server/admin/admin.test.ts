@@ -42,7 +42,7 @@ test("schemas are strict, bounded and lowercase IDs; list GET refuses q (T-019 S
 test("the role matrix follows ADR-005 §15, A3 and PM decisions D4/D5", () => {
   const staff: AdminOp[] = ["READ", "LINE_STATUS", "STATUS_IN_PROGRESS", "STATUS_COMPLETED", "NOTIFY"];
   const adminOnly: AdminOp[] = ["BAY_ASSIGN", "WORKER_ASSIGN", "STATUS_CONFIRMED", "STATUS_REINSTATE", "DECLINE", "MOVE", "REORDER", "LINE_ADD", "LINE_REMOVE",
-    "LINE_PRICE", "BAY_LIST", "CAPS", "HISTORY_LOOKUP"];
+    "LINE_PRICE", "BAY_LIST", "CAPS", "HISTORY_LOOKUP", "DEPOSIT_STATUS"];
   assert.deepEqual([...staff, ...adminOnly].sort(), [...ADMIN_OPS].sort(), "every operation is classified");
   for (const op of staff) assert.deepEqual([canPerform(op, "STAFF"), canPerform(op, "ADMIN")], [true, true], op);
   for (const op of adminOnly) assert.deepEqual([canPerform(op, "STAFF"), canPerform(op, "ADMIN")], [false, true], op);

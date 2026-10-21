@@ -223,6 +223,66 @@ export async function drainShopNotifications(
       );
   }
 }
+// P1-18: the shop hears that a deposit proof arrived for a reference code. No image, no file
+// details and no customer fields; staff open the booking to see the proof.
+export function depositNoticeMessage(
+  referenceCode: string,
+  bookingId: string,
+  origin: string,
+): { subject: string; text: string } {
+  return {
+    subject: "Deposit proof sent for " + referenceCode,
+    text: [
+      referenceCode,
+      "The customer sent a deposit proof. Check it against the shop account, then mark the deposit received or rejected.",
+      origin + "/admin/bookings?bookingId=" + encodeURIComponent(bookingId),
+    ].join("\n"),
+  };
+}
+// The same claim/send/finalize lease as drainShopNotifications, on each proof row's delivery
+// state (one email per committed proof, at most 3 attempts).
+export async function drainDepositNotices(options: Options = {}): Promise<void> {
+  const config = options.notification ?? notificationConfiguration(),
+    db = options.db ?? prisma;
+  if (!config) {
+    console.warn(JSON.stringify({ event: "booking.notification_unconfigured" }));
+    return;
+  }
+  for (let n = 0; n < 5; n++) {
+    const item = await withBookingDb(db, "NOTIFICATION", async (tx) => {
+      const now = await bookingDbNow(tx);
+      const rows = await tx.$queryRaw<{ id: string; attempts: number; referenceCode: string; bookingId: string }[]>`SELECT p.id, p."notifyAttempts" AS attempts, b."referenceCode", b.id AS "bookingId" FROM booking_deposit_proofs p JOIN bookings b ON b.id=p."bookingId" WHERE p."notifyState" IN ('PENDING','SENDING') AND p."notifyAttempts"<3 AND p."notifyNextAttemptAt"<=${now} AND (${options.bookingId ?? null}::text IS NULL OR p."bookingId"=${options.bookingId ?? null}) ORDER BY p."createdAt",p.id LIMIT 1 FOR UPDATE OF p SKIP LOCKED`;
+      if (!rows.length) return null;
+      await tx.bookingDepositProof.update({
+        where: { id: rows[0].id },
+        data: { notifyState: "SENDING", notifyAttempts: { increment: 1 }, notifyNextAttemptAt: new Date(now.getTime() + 30000) },
+        select: { id: true },
+      });
+      return { ...rows[0], attempts: rows[0].attempts + 1 };
+    });
+    if (!item) return;
+    const sent = await sendSmtpMessage(
+      config,
+      config.shopEmail,
+      depositNoticeMessage(item.referenceCode, item.bookingId, config.origin),
+      `<booking-deposit.${item.id}@${new URL(config.origin).hostname}>`,
+    );
+    await withBookingDb(db, "NOTIFICATION", async (tx) => {
+      const now = await bookingDbNow(tx);
+      await tx.bookingDepositProof.update({
+        where: { id: item.id },
+        data: {
+          notifyState: sent ? "SENT" : item.attempts >= 3 ? "FAILED" : "PENDING",
+          notifySentAt: sent ? now : null,
+          notifyNextAttemptAt: new Date(now.getTime() + 30000),
+        },
+        select: { id: true },
+      });
+    });
+    if (!sent)
+      console.warn(JSON.stringify({ event: "booking.deposit_notice_not_sent", proofId: item.id, exhausted: item.attempts >= 3 }));
+  }
+}
 // Authorization, audit and the per-booking attempt limit belong to P1-07's action.
 // This server-only adapter matches TurnNoticeSender; it exposes no customer HTTP route.
 export async function sendTurnNotice(
@@ -273,6 +333,9 @@ export function startBookingNotifications(): void {
   timer = setInterval(() => {
     void drainShopNotifications().catch(() =>
       console.warn(JSON.stringify({ event: "booking.notification_deferred" })),
+    );
+    void drainDepositNotices().catch(() =>
+      console.warn(JSON.stringify({ event: "booking.deposit_notice_deferred" })),
     );
   }, 30000);
   timer.unref();
