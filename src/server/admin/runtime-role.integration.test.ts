@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import { PrismaClient } from "@prisma/client";
-import { createAndMigrate, provisionRuntimeRole, runtimeRoleUrl, siblingDatabaseUrl } from "../catalog-db.fixture";
+import { createAndMigrate, createDatabase, migrateDatabase, provisionRuntimeRole, runRuntimeRoleScript, runtimeRoleUrl, siblingDatabaseUrl } from "../catalog-db.fixture";
 import { checkAuditPrivileges } from "./audit-privilege";
 import type { StaffActor } from "./context";
 import { AdminServiceError } from "./errors";
@@ -32,9 +32,10 @@ after(async () => {
   await root.$disconnect();
 });
 
-// Everything zeus_app holds in this database, plus its role attributes and memberships.
-async function snapshot() {
-  function q<T>(sql: string) { return owner.$queryRawUnsafe<T[]>(sql); }
+// Everything zeus_app holds in this database, plus its role attributes and memberships, and the
+// exact ACL of every table, sequence and function in public.
+async function snapshot(db: PrismaClient = owner) {
+  function q<T>(sql: string) { return db.$queryRawUnsafe<T[]>(sql); }
   return {
     tables: await q<{ t: string; p: string }>(`SELECT table_name AS t, string_agg(privilege_type, ',' ORDER BY privilege_type) AS p FROM information_schema.role_table_grants WHERE grantee='zeus_app' AND table_schema='public' GROUP BY 1 ORDER BY 1`),
     columns: await q<{ t: string; c: string; p: string }>(`SELECT table_name AS t, column_name AS c, string_agg(privilege_type, ',' ORDER BY privilege_type) AS p FROM information_schema.column_privileges WHERE grantee='zeus_app' AND table_schema='public' AND (table_name, privilege_type) NOT IN (SELECT table_name, privilege_type FROM information_schema.role_table_grants WHERE grantee='zeus_app') GROUP BY 1, 2 ORDER BY 1, 2`),
@@ -42,6 +43,10 @@ async function snapshot() {
     role: await q<Record<string, boolean>>(`SELECT rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls, rolcanlogin, rolinherit FROM pg_roles WHERE rolname='zeus_app'`),
     memberOf: await q<{ r: string }>(`SELECT g.rolname AS r FROM pg_auth_members a JOIN pg_roles g ON g.oid=a.roleid JOIN pg_roles u ON u.oid=a.member WHERE u.rolname='zeus_app'`),
     schema: await q<Record<string, boolean>>(`SELECT has_schema_privilege('zeus_app','public','USAGE') AS usage, has_schema_privilege('zeus_app','public','CREATE') AS create`),
+    acls: await q<{ name: string; acl: string | null }>(`SELECT c.relname AS name, c.relacl::text AS acl FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','S') ORDER BY 1`),
+    columnAcls: await q<{ name: string; acl: string }>(`SELECT c.relname || '.' || a.attname AS name, a.attacl::text AS acl FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND a.attacl IS NOT NULL ORDER BY 1`),
+    functions: await q<{ name: string; acl: string | null }>(`SELECT p.oid::regprocedure::text AS name, p.proacl::text AS acl FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' ORDER BY 1`),
+    schemaAcl: await q<{ acl: string | null }>(`SELECT nspacl::text AS acl FROM pg_namespace WHERE nspname='public'`),
   };
 }
 
@@ -57,6 +62,65 @@ test("runtime-role.sql is idempotent and repairs drift: the same privileges whic
   await root.$executeRawUnsafe("ALTER ROLE zeus_app CREATEDB");
   provisionRuntimeRole(ownerUrl);
   assert.deepEqual(await snapshot(), first, "the script restores exactly its own list");
+});
+
+// Codex F2 (PM ruling 2026-10-21): the operator may run the script on the empty database before
+// the first migrate deploy, so the migrations' conditional grants see the role. Either supported
+// order ends, after the run that follows every migrate deploy, with the same exact ACLs.
+test("runtime-role.sql runs on an empty database; provision, migrate, provision ends with the same ACLs as migrate, provision; reruns change nothing", { skip }, async () => {
+  const earlyUrl = siblingDatabaseUrl(parent!, "runtime_role_early");
+  await createDatabase(root, earlyUrl);
+  provisionRuntimeRole(earlyUrl); // empty: creates the role, grants nothing
+  provisionRuntimeRole(earlyUrl); // and again
+  migrateDatabase(earlyUrl);
+  provisionRuntimeRole(earlyUrl);
+  const early = new PrismaClient({ datasources: { db: { url: earlyUrl } } });
+  try {
+    provisionRuntimeRole(ownerUrl);
+    const expected = await snapshot(owner); // migrate deploy, then the script
+    assert.deepEqual(await snapshot(early), expected);
+    provisionRuntimeRole(earlyUrl);
+    assert.deepEqual(await snapshot(early), expected, "a rerun after provision-first changes nothing");
+    // After migrations, a listed table that is missing is an error, never silently skipped.
+    await early.$executeRawUnsafe("ALTER TABLE booking_turnstile_uses RENAME TO p110_renamed");
+    try {
+      const run = runRuntimeRoleScript(earlyUrl);
+      assert.notEqual(run.status, 0);
+      assert.match(run.output, /booking_turnstile_uses/);
+    } finally { await early.$executeRawUnsafe("ALTER TABLE p110_renamed RENAME TO booking_turnstile_uses"); }
+    assert.deepEqual(await snapshot(early), expected, "the refused run changed nothing");
+  } finally { await early.$disconnect(); }
+});
+
+// Codex F3 (PM ruling 2026-10-21): an owner keeps owner authority whatever its grants say, so
+// provisioning refuses a zeus_app that owns the public schema or the database. Separate from
+// the ordinary ACL drift that the script repairs.
+async function asOwnerOf(target: "schema" | "database", work: () => Promise<void>) {
+  const name = new URL(ownerUrl).pathname.slice(1);
+  const [{ previous }] = target === "schema"
+    ? await owner.$queryRawUnsafe<{ previous: string }[]>(`SELECT nspowner::regrole::text AS previous FROM pg_namespace WHERE nspname='public'`)
+    : await owner.$queryRawUnsafe<{ previous: string }[]>(`SELECT datdba::regrole::text AS previous FROM pg_database WHERE datname=current_database()`);
+  const alter = (role: string) => target === "schema" ? `ALTER SCHEMA public OWNER TO ${role}` : `ALTER DATABASE "${name}" OWNER TO ${role}`;
+  await owner.$executeRawUnsafe(alter("zeus_app"));
+  try { await work(); } finally { await owner.$executeRawUnsafe(alter(previous)); }
+}
+
+test("provisioning fails closed when zeus_app owns the public schema", { skip }, async () => {
+  await asOwnerOf("schema", async () => {
+    const run = runRuntimeRoleScript(ownerUrl);
+    assert.notEqual(run.status, 0);
+    assert.match(run.output, /zeus_app owns schema public/);
+  });
+  provisionRuntimeRole(ownerUrl);
+});
+
+test("provisioning fails closed when zeus_app owns the database", { skip }, async () => {
+  await asOwnerOf("database", async () => {
+    const run = runRuntimeRoleScript(ownerUrl);
+    assert.notEqual(run.status, 0);
+    assert.match(run.output, /zeus_app owns the database/);
+  });
+  provisionRuntimeRole(ownerUrl);
 });
 
 test("zeus_app has the ADR-003 attributes, owns nothing and has no access outside its list", { skip }, async () => {
@@ -149,6 +213,24 @@ test("in production a failed check refuses staff mutations before any write (503
     assert.equal(events.filter((e) => e.event === "admin.audit_privilege_violation").length, 1);
   } finally {
     setAdminEventSink((event, fields) => console.info(JSON.stringify({ event, ...fields })));
+  }
+});
+
+test("S-06 check and production gate refuse a zeus_app that owns the public schema or the database, before any write", { skip }, async () => {
+  const s = await import("./index");
+  const admin = await owner.staff.create({ data: { name: "Runtime Role Owner Probe", phone: "", email: `rr-${randomUUID()}@example.test`, role: "ADMIN" } });
+  const ADMIN: StaffActor = { staffId: admin.id, role: "ADMIN", sessionId: randomUUID() };
+  for (const [target, problem] of [["schema", "schema_owner"], ["database", "database_owner"]] as const) {
+    await asOwnerOf(target, async () => {
+      const probe = new PrismaClient({ datasources: { db: { url: runtimeRoleUrl(ownerUrl) } } }); // a new client: no cached pass
+      try {
+        assert.ok((await probe.$transaction((tx) => checkAuditPrivileges(tx))).includes(problem), target);
+        const queue = await owner.bookingQueue.findUniqueOrThrow({ where: { code: "WASH" } });
+        await assert.rejects(s.setDefaultCap(ADMIN, "WASH", { expectedRevision: queue.revision, dailyCap: 9 }, { db: probe, enforceAuditPrivileges: true }), (e: unknown) =>
+          e instanceof AdminServiceError && e.adminCode === "RETRYABLE_ERROR" && e.toEnvelope().commitState === "NOT_COMMITTED");
+        assert.equal((await owner.bookingQueue.findUniqueOrThrow({ where: { code: "WASH" } })).revision, queue.revision, "nothing was written");
+      } finally { await probe.$disconnect(); }
+    });
   }
 });
 

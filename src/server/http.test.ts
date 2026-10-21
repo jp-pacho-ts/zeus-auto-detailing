@@ -23,3 +23,11 @@ test("rateLimit never locks out a new client after 10,000+ distinct clients", ()
   }
   assert.equal(limited(() => rateLimit(from("192.0.2.200"), "catalog", 60)), false);
 });
+
+// Codex F1 (PM ruling 2026-10-21): other clients can never reset a client's count.
+test("rateLimit: a limited client stays limited through a flood of 100,000 other clients", () => {
+  for (let i = 0; i < 60; i++) assert.equal(limited(() => rateLimit(from("198.51.100.9"), "catalog-flood", 60)), false);
+  assert.equal(limited(() => rateLimit(from("198.51.100.9"), "catalog-flood", 60)), true);
+  for (let i = 0; i < 100_000; i++) limited(() => rateLimit(from(`10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`), "catalog-flood", 60));
+  assert.equal(limited(() => rateLimit(from("198.51.100.9"), "catalog-flood", 60)), true, "the victim's count survived");
+});

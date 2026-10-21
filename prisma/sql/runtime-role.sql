@@ -7,15 +7,18 @@
 -- Then set the password interactively (psql: \password zeus_app). The application's
 -- DATABASE_URL uses zeus_app; the owner URL never sits in the app's environment.
 --
--- Every zeus_app privilege in this database is replaced by exactly the list below, so running it
--- again, before or after the migrations' own conditional grants, gives the same result. Changing
--- what the services touch means changing this list (and its test,
--- src/server/admin/runtime-role.integration.test.ts).
+-- It may also run once on the empty database before the first migrate deploy (Codex F2): it then
+-- creates the role and grants nothing, so the migrations' conditional grants see the role. The
+-- run after migrate deploy is always required. Every zeus_app privilege in this database is
+-- replaced by exactly the list below, so either order ends with the same privileges. On a
+-- migrated database a listed object that is missing is an error. Changing what the services
+-- touch means changing this list (and its test, src/server/admin/runtime-role.integration.test.ts).
 
 BEGIN;
 
 -- The role: LOGIN, not superuser, no BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION, member of
--- no role (in particular not the owner), owns nothing.
+-- no role (in particular not the owner), owns nothing: no object in public, not the public schema
+-- and not the database (an owner keeps owner authority whatever its grants say; Codex F3).
 DO $$
 DECLARE m record;
 BEGIN
@@ -31,6 +34,12 @@ BEGIN
     WHERE u.rolname = 'zeus_app' LOOP
     EXECUTE format('REVOKE %I FROM zeus_app', m.rolname);
   END LOOP;
+  IF EXISTS (SELECT 1 FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = current_database() AND r.rolname = 'zeus_app') THEN
+    RAISE EXCEPTION 'zeus_app owns the database; reassign it to the owner first (ALTER DATABASE ... OWNER TO ...)';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_namespace n JOIN pg_roles r ON r.oid = n.nspowner WHERE n.nspname = 'public' AND r.rolname = 'zeus_app') THEN
+    RAISE EXCEPTION 'zeus_app owns schema public; reassign it to the owner first (ALTER SCHEMA public OWNER TO ...)';
+  END IF;
   IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_roles r ON r.oid = c.relowner
     WHERE n.nspname = 'public' AND r.rolname = 'zeus_app') THEN
     RAISE EXCEPTION 'zeus_app owns objects in schema public; reassign them to the owner first';
@@ -46,51 +55,72 @@ GRANT USAGE ON SCHEMA public TO zeus_app;
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM zeus_app;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM zeus_app;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM zeus_app;
-REVOKE ALL ON FUNCTION publish_catalog(text, text, text, text) FROM PUBLIC;
 
--- Catalog and schedule: read only.
-GRANT SELECT ON catalog_releases, catalog_head, catalog_service_versions, service_size_offers, service_work_plans,
-  add_on_compatibility, vehicle_categories, services, schedule_configs, time_slots, blocked_dates, bay_type_queues TO zeus_app;
+-- The exact list, one table per line. Before the first migration (no _prisma_migrations) a
+-- missing object is skipped; after it, a missing object stops the script.
+DO $$
+DECLARE
+  migrated boolean := to_regclass('public._prisma_migrations') IS NOT NULL;
+  g text[];
+BEGIN
+  IF to_regprocedure('public.publish_catalog(text, text, text, text)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION publish_catalog(text, text, text, text) FROM PUBLIC;
+  ELSIF migrated THEN
+    RAISE EXCEPTION 'publish_catalog(text, text, text, text) is missing: run this after prisma migrate deploy completes';
+  END IF;
+  FOREACH g SLICE 1 IN ARRAY ARRAY[
+    -- Catalog and schedule: read only.
+    ['catalog_releases', 'SELECT'], ['catalog_head', 'SELECT'], ['catalog_service_versions', 'SELECT'],
+    ['service_size_offers', 'SELECT'], ['service_work_plans', 'SELECT'], ['add_on_compatibility', 'SELECT'],
+    ['vehicle_categories', 'SELECT'], ['services', 'SELECT'], ['schedule_configs', 'SELECT'], ['time_slots', 'SELECT'],
+    ['blocked_dates', 'SELECT'], ['bay_type_queues', 'SELECT'],
 
--- Queues, caps and bays (ADMIN settings).
-GRANT SELECT ON booking_queues TO zeus_app;
-GRANT UPDATE ("dailyCap", revision, "updatedAt", "updatedByStaffId") ON booking_queues TO zeus_app;
-GRANT SELECT, INSERT, DELETE ON queue_cap_overrides TO zeus_app;
-GRANT UPDATE ("dailyCap", revision, "updatedAt", "updatedByStaffId") ON queue_cap_overrides TO zeus_app;
-GRANT SELECT, INSERT ON bays TO zeus_app;
-GRANT UPDATE (name, "nameKey", "sortOrder", "isActive", "updatedAt", "bayType") ON bays TO zeus_app;
+    -- Queues, caps and bays (ADMIN settings).
+    ['booking_queues', 'SELECT'],
+    ['booking_queues', 'UPDATE ("dailyCap", revision, "updatedAt", "updatedByStaffId")'],
+    ['queue_cap_overrides', 'SELECT, INSERT, DELETE'],
+    ['queue_cap_overrides', 'UPDATE ("dailyCap", revision, "updatedAt", "updatedByStaffId")'],
+    ['bays', 'SELECT, INSERT'],
+    ['bays', 'UPDATE (name, "nameKey", "sortOrder", "isActive", "updatedAt", "bayType")'],
 
--- Bookings: customer create inserts; staff mutations change only status, day, queue and
--- position. The receipt, customer fields and snapshots are never updated.
-GRANT SELECT, INSERT ON bookings TO zeus_app;
-GRANT UPDATE (status, "terminalAt", "cancellationKind", "bookingDate", "startsAt", "endsAt", "queueCode", "queuePosition",
-  revision, "updatedAt") ON bookings TO zeus_app;
-GRANT SELECT, INSERT ON booking_line_items TO zeus_app;
-GRANT UPDATE ("workStatus", "workStatusChangedAt", "staffPriceCentavos", "staffPriceSetAt", "staffPriceSetByStaffId",
-  "removedAt", "removedByStaffId") ON booking_line_items TO zeus_app;
+    -- Bookings: customer create inserts; staff mutations change only status, day, queue and
+    -- position. The receipt, customer fields and snapshots are never updated.
+    ['bookings', 'SELECT, INSERT'],
+    ['bookings', 'UPDATE (status, "terminalAt", "cancellationKind", "bookingDate", "startsAt", "endsAt", "queueCode", "queuePosition", revision, "updatedAt")'],
+    ['booking_line_items', 'SELECT, INSERT'],
+    ['booking_line_items', 'UPDATE ("workStatus", "workStatusChangedAt", "staffPriceCentavos", "staffPriceSetAt", "staffPriceSetByStaffId", "removedAt", "removedByStaffId")'],
 
--- Bay board: assignments, occupancy and assigned workers.
-GRANT SELECT, INSERT, DELETE ON booking_bay_assignments TO zeus_app;
-GRANT UPDATE ("bayId", "assignedAt", "assignedByStaffId") ON booking_bay_assignments TO zeus_app;
-GRANT SELECT, INSERT, DELETE ON bay_occupancies, booking_worker_assignments TO zeus_app;
+    -- Bay board: assignments, occupancy and assigned workers.
+    ['booking_bay_assignments', 'SELECT, INSERT, DELETE'],
+    ['booking_bay_assignments', 'UPDATE ("bayId", "assignedAt", "assignedByStaffId")'],
+    ['bay_occupancies', 'SELECT, INSERT, DELETE'], ['booking_worker_assignments', 'SELECT, INSERT, DELETE'],
 
--- Audit trail: SELECT and INSERT only (S-06). The owner-owned triggers reject UPDATE, DELETE
--- and TRUNCATE as well.
-GRANT SELECT, INSERT ON booking_audit_events TO zeus_app;
+    -- Audit trail: SELECT and INSERT only (S-06). The owner-owned triggers reject UPDATE, DELETE
+    -- and TRUNCATE as well.
+    ['booking_audit_events', 'SELECT, INSERT'],
 
--- Customer create ledger and its single-use challenge record: append only.
-GRANT SELECT, INSERT ON booking_operations, booking_turnstile_uses TO zeus_app;
-GRANT SELECT, INSERT ON booking_management_grants, booking_management_sessions, booking_notification_outbox TO zeus_app;
-GRANT UPDATE ("revokedAt") ON booking_management_grants, booking_management_sessions TO zeus_app;
-GRANT UPDATE (state, attempts, "nextAttemptAt", "sentAt") ON booking_notification_outbox TO zeus_app;
+    -- Customer create ledger and its single-use challenge record: append only.
+    ['booking_operations', 'SELECT, INSERT'], ['booking_turnstile_uses', 'SELECT, INSERT'],
+    ['booking_management_grants', 'SELECT, INSERT'], ['booking_management_sessions', 'SELECT, INSERT'],
+    ['booking_notification_outbox', 'SELECT, INSERT'],
+    ['booking_management_grants', 'UPDATE ("revokedAt")'], ['booking_management_sessions', 'UPDATE ("revokedAt")'],
+    ['booking_notification_outbox', 'UPDATE (state, attempts, "nextAttemptAt", "sentAt")'],
 
--- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
--- owner URL, never by the app; the app reads no staff phone numbers.
-GRANT SELECT (id, email, name, role, "isActive") ON staff TO zeus_app;
-GRANT SELECT ON staff_credentials TO zeus_app;
-GRANT UPDATE ("passwordHash", "failedLoginCount", "lockedUntil", "updatedAt") ON staff_credentials TO zeus_app;
-GRANT SELECT, INSERT ON staff_sessions TO zeus_app;
-GRANT UPDATE ("revokedAt", "revokedReason", "lastSeenAt", "idleExpiresAt") ON staff_sessions TO zeus_app;
+    -- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
+    -- owner URL, never by the app; the app reads no staff phone numbers.
+    ['staff', 'SELECT (id, email, name, role, "isActive")'],
+    ['staff_credentials', 'SELECT'],
+    ['staff_credentials', 'UPDATE ("passwordHash", "failedLoginCount", "lockedUntil", "updatedAt")'],
+    ['staff_sessions', 'SELECT, INSERT'],
+    ['staff_sessions', 'UPDATE ("revokedAt", "revokedReason", "lastSeenAt", "idleExpiresAt")']
+  ] LOOP
+    IF to_regclass(format('public.%I', g[1])) IS NOT NULL THEN
+      EXECUTE format('GRANT %s ON public.%I TO zeus_app', g[2], g[1]);
+    ELSIF migrated THEN
+      RAISE EXCEPTION 'table % is missing: run this after prisma migrate deploy completes', g[1];
+    END IF;
+  END LOOP;
+END $$;
 
 -- No privileges at all: _prisma_migrations, catalog_publishers, catalog_publication_events,
 -- catalog_hold_segments, booking_assignments, slot_capacity_overrides, commission_payouts,

@@ -52,6 +52,15 @@ export function createStaffLogin(deps: LoginDeps = {}) {
 
   return async function loginStaff(input: unknown, ctx: LoginContext): Promise<LoginOutcome> {
     const digest = clientKeyDigest(ctx.clientKey);
+    // Step 3 runs before step 2 (Codex F1, PM ruling 2026-10-21): input only, no account lookup
+    // or hashing, so malformed attempts never take a place in the limiter's table.
+    const parsed = StaffLoginSchema.safeParse(input);
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string[]> = {};
+      for (const issue of parsed.error.issues) (fieldErrors[issue.path.join(".") || "form"] ??= []).push(issue.message);
+      return { ok: false, error: new StaffAuthError("VALIDATION_ERROR", "Enter your staff email and password.", null, fieldErrors) };
+    }
+    const { email, password } = parsed.data;
     // Step 2: per-client admission before any account lookup; refusals depend only on the client.
     const entry = limiter.enter(ctx.clientKey);
     if (!entry.ok) {
@@ -59,14 +68,6 @@ export function createStaffLogin(deps: LoginDeps = {}) {
       return { ok: false, error: new StaffAuthError("RATE_LIMITED", undefined, entry.retryAfterSeconds) };
     }
     try {
-      // Step 3: input only.
-      const parsed = StaffLoginSchema.safeParse(input);
-      if (!parsed.success) {
-        const fieldErrors: Record<string, string[]> = {};
-        for (const issue of parsed.error.issues) (fieldErrors[issue.path.join(".") || "form"] ??= []).push(issue.message);
-        return { ok: false, error: new StaffAuthError("VALIDATION_ERROR", "Enter your staff email and password.", null, fieldErrors) };
-      }
-      const { email, password } = parsed.data;
 
       // Step 4: lockless snapshot under a STAFF_LOGIN_DB permit, released before hashing.
       // A read: a client abort cancels it, and nothing has been verified yet.

@@ -7,7 +7,7 @@ import { auditPrivilegeGate } from "./audit-privilege";
 import { AdminServiceError } from "./errors";
 import { setAdminEventSink } from "./log";
 
-const GOOD = { superuser: false, bypassrls: false, owner: false, insert: true, select: true, update: false, delete: false, truncate: false, references: false, trigger: false, triggers: 2 };
+const GOOD = { superuser: false, bypassrls: false, owner: false, schemaOwner: false, databaseOwner: false, insert: true, select: true, update: false, delete: false, truncate: false, references: false, trigger: false, triggers: 2 };
 function fake(row: Record<string, unknown>) {
   const counter = { checks: 0 };
   const permit = {
@@ -52,4 +52,15 @@ test("each check reports every problem class: missing INSERT/SELECT, BYPASSRLS, 
   const f = fake({ ...GOOD, bypassrls: true, insert: false, select: false, references: true, trigger: true, truncate: true });
   await auditPrivilegeGate(f.permit, f.db, false, () => 0);
   assert.equal(events[0].problems, "bypassrls,insert,select,truncate,references,trigger");
+});
+
+// Codex F3: owning the schema or the database gives owner authority whatever the table grants say.
+test("enforced: a role that owns the public schema or the database is refused with 503 before any write", async () => {
+  events.length = 0;
+  for (const [row, problems] of [[{ schemaOwner: true }, "schema_owner"], [{ databaseOwner: true }, "database_owner"]] as const) {
+    const f = fake({ ...GOOD, ...row });
+    await assert.rejects(auditPrivilegeGate(f.permit, f.db, true, () => 0), (e: unknown) =>
+      e instanceof AdminServiceError && e.adminCode === "RETRYABLE_ERROR" && e.toEnvelope().commitState === "NOT_COMMITTED");
+    assert.deepEqual(events.pop(), { event: "admin.audit_privilege_violation", problems, enforced: true });
+  }
 });

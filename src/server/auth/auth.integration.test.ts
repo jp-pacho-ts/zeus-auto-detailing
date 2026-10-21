@@ -379,6 +379,21 @@ test("per-client throttle: 10 a minute per trusted key, and a spoofed X-Forwarde
   assert.ok(events.some((e) => e.event === "auth.login_refused" && e.fields.status === 429));
 });
 
+// Codex F1 (PM ruling 2026-10-21): input is checked before the per-client limiter, so malformed
+// attempts from any number of keys never take a place in its table or use up a client's count.
+test("malformed sign-in input is refused before the per-client limiter and never fills its table", { skip }, async () => {
+  const limiter = m.rateLimit.createLoginLimiter({ perKeyPerMinute: 10, perKeyPerDay: 100, maxConcurrentPerKey: 1 });
+  const login = serviceLogin({ limiter, failureFloorMs: 0 });
+  const malformed = [null, "x", { email: "not-an-email", password: PASSWORD }, { email: email() }, { email: email(), password: "" }];
+  for (let i = 0; i < 50; i++) {
+    const outcome = await login(malformed[i % malformed.length], { ...ctx(), clientKey: "malformed-" + (i % 2 ? i : 0) });
+    assert.equal(!outcome.ok && outcome.error.status, 400);
+  }
+  assert.equal(limiter.size(), 0, "no malformed attempt took a place in the table");
+  const staff = await createStaff();
+  assert.equal((await login({ email: staff.email, password: PASSWORD }, { ...ctx(), clientKey: "malformed-0" })).ok, true, "and none used the client's count");
+});
+
 test("hashing overload returns 503 with Retry-After 10 and holds no database permit", { skip }, async () => {
   const hashSlots = m.semaphore.createSemaphore({ maxActive: 2, maxQueued: 10, maxWaitMs: 2000 });
   const held = [await hashSlots.acquire(), await hashSlots.acquire()];

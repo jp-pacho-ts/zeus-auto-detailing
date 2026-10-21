@@ -15,10 +15,16 @@ export function siblingDatabaseUrl(t007Url: string, suffix: string): string {
 }
 
 export async function createAndMigrate(admin: PrismaClient, url: string): Promise<void> {
+  await createDatabase(admin, url);
+  migrateDatabase(url);
+}
+export async function createDatabase(admin: PrismaClient, url: string): Promise<void> {
   const name = new URL(url).pathname.slice(1);
   await admin.$executeRawUnsafe(`CREATE DATABASE "${name}"`).catch((error: unknown) => {
     throw new Error(`Could not create ${name} (use a fresh T007 database; the role needs CREATEDB): ${(error as Error).message}`);
   });
+}
+export function migrateDatabase(url: string): void {
   const migrate = spawnSync(process.execPath, [path.join(process.cwd(), "node_modules", "prisma", "build", "index.js"), "migrate", "deploy"],
     { cwd: process.cwd(), env: { ...process.env, DATABASE_URL: url }, encoding: "utf8" });
   assert.equal(migrate.status, 0, migrate.stdout + migrate.stderr);
@@ -28,9 +34,14 @@ export async function createAndMigrate(admin: PrismaClient, url: string): Promis
 // owner running prisma/sql/runtime-role.sql. The loopback test cluster lets zeus_app log in
 // without a password; a deployed role gets one interactively.
 export function provisionRuntimeRole(ownerUrl: string): void {
+  const run = runRuntimeRoleScript(ownerUrl);
+  assert.equal(run.status, 0, run.output);
+}
+// The same run, returning its exit status and output, for the cases where it must refuse.
+export function runRuntimeRoleScript(ownerUrl: string): { status: number | null; output: string } {
   const run = spawnSync(process.execPath, [path.join(process.cwd(), "node_modules", "prisma", "build", "index.js"), "db", "execute",
     "--file", path.join(process.cwd(), "prisma", "sql", "runtime-role.sql"), "--url", ownerUrl], { cwd: process.cwd(), encoding: "utf8" });
-  assert.equal(run.status, 0, run.stdout + run.stderr);
+  return { status: run.status, output: run.stdout + run.stderr };
 }
 export function runtimeRoleUrl(ownerUrl: string): string {
   const parsed = new URL(ownerUrl);

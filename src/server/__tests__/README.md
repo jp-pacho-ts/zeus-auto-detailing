@@ -32,7 +32,7 @@ Browser smoke check: live catalog UUIDs → live arrival options → strict cust
 
 ## Runtime role (P1-10)
 
-`npm test` includes `src/server/admin/runtime-role.integration.test.ts`. It provisions `zeus_app` with `prisma/sql/runtime-role.sql` and checks idempotency, the ADR-003 deny list, the S-06 check and the production gate. The loopback cluster must let `zeus_app` log in without a password (trust for 127.0.0.1); a deployed role gets one interactively.
+`npm test` includes `src/server/admin/runtime-role.integration.test.ts`. It provisions `zeus_app` with `prisma/sql/runtime-role.sql` and checks idempotency, both provisioning orders (on the empty database before `migrate deploy`, and after it; exact ACLs compared), refusal when `zeus_app` owns the `public` schema or the database, the ADR-003 deny list, the S-06 check and the production gate. It creates the extra sibling database `<T007 name>_runtime_role_early`. The loopback cluster must let `zeus_app` log in without a password (trust for 127.0.0.1); a deployed role gets one interactively.
 
 After `npm test`, with the same two URLs, rerun the admin, create and auth suites with every service call as `zeus_app` (about 10 minutes; separate because it overloads the full parallel run):
 

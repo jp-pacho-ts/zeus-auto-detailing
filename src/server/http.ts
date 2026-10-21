@@ -5,7 +5,8 @@ import { createHash } from "node:crypto";
 import { DomainError } from "./errors";
 import type { ContractError, ErrorCode } from "@/types/contracts";
 
-// limit per client a minute, one bounded key table per scope (P1-10 M3: no lockout when full).
+// limit per client a minute, one bounded key table per scope (P1-10 M3, F1: a full table never
+// resets a live count; it refuses only new clients, for at most a minute).
 const limiters = new Map<string, ReturnType<typeof createLoginLimiter>>();
 export function rateLimit(headers: Headers, scope: string, limit: number): void {
   let limiter = limiters.get(scope);
