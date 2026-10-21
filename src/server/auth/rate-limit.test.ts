@@ -152,3 +152,40 @@ test("unknown-session counter: counts survive a full-table flood; a new key is b
   assert.equal(counter.blocked("flood-5"), false);
   assert.ok(counter.size() <= FLOOD);
 });
+
+
+test("null day window keeps minute and concurrency limits but releases expired keys after 10,000 clients", () => {
+  let now = 0;
+  const limiter = createLoginLimiter({ perKeyPerMinute: 1, perKeyPerDay: null, maxConcurrentPerKey: 1 }, () => now);
+  for (let i = 0; i < 10_000; i++) {
+    const entry = limiter.enter(String(i));
+    assert.ok(entry.ok);
+    entry.leave();
+  }
+  assert.equal(limiter.enter("0").ok, false);
+  now += 60_000;
+  const next = limiter.enter("10000");
+  assert.ok(next.ok, "expired minute-only keys must not occupy the table for a day");
+  assert.equal(limiter.enter("10000").ok, false);
+  next.leave();
+  const unlimitedDay = createLoginLimiter({ perKeyPerMinute: 20_000, perKeyPerDay: null, maxConcurrentPerKey: 1 }, () => now);
+  for (let i = 0; i < 10_001; i++) {
+    const entry = unlimitedDay.enter("frequent");
+    assert.ok(entry.ok, "there is no synthetic 10,000/day cap");
+    entry.leave();
+  }
+});
+
+
+test("null day window cannot prune an in-flight key after its minute expires", () => {
+  let now = 0;
+  const limiter = createLoginLimiter({ perKeyPerMinute: 1, perKeyPerDay: null, maxConcurrentPerKey: 1 }, () => now, 1);
+  const held = limiter.enter("held");
+  assert.ok(held.ok);
+  now += 60_000;
+  assert.equal(limiter.enter("new").ok, false);
+  assert.equal(limiter.enter("held").ok, false);
+  held.leave();
+  now += 60_000;
+  assert.ok(limiter.enter("new").ok);
+});

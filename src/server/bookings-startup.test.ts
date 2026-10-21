@@ -9,15 +9,18 @@ test("real Next register refuses bad booking configuration before serving and ac
     const run = (override: Record<string, string | undefined>) => spawnSync(process.execPath, ["--require", "./src/server/__tests__/register.cjs", "-e", 'require("./src/instrumentation.ts").register().then(()=>console.log("REGISTERED"))'], {
         env: {
             ...process.env, ...good(), ...override
-        }, encoding: "utf8", timeout: 15000
+        }, // Child startup competes with parallel Prisma migrations in plain npm test.
+        encoding: "utf8", timeout: 120_000
     });
     const accepted = run({});
+    assert.ifError(accepted.error);
     assert.equal(accepted.status, 0, accepted.stderr);
     assert.match(accepted.stdout, /REGISTERED/);
     for (const override of [
         { MANAGEMENT_GRANT_KEYS: "" }, { MANAGEMENT_SESSION_KEYS: "" }, { BOOKING_QUOTE_KEYS: "" }, { TURNSTILE_SECRET_KEY: "" }, { TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA" }, { ONLINE_BOOKING_MODE: "unknown" }, { APP_ORIGIN: "http://zeus.test.invalid" }
     ]) {
         const refused = run(override);
+        assert.ifError(refused.error);
         assert.notEqual(refused.status, 0);
         assert.doesNotMatch(refused.stdout, /REGISTERED/);
         assert.match(refused.stderr, /booking.config_invalid/);

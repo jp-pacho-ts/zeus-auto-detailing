@@ -84,3 +84,15 @@ export const CreateDayBookingSchema = CreateBookingSchema.omit({ serviceId: true
  if (r.vehicleCategoryId !== r.acceptedQuote.vehicleCategoryId || r.lines.length !== r.acceptedQuote.lines.length || r.lines.some((l, i) => l.serviceId !== r.acceptedQuote.lines[i].serviceId || l.quantity !== r.acceptedQuote.lines[i].quantity)) ctx.addIssue({ code: "custom", path: ["acceptedQuote"], message: "Selection must match the accepted quote" });
 });
 export const DayAvailabilitySchema = CatalogSelectionSchema.extend({ fromDate: LocalDateSchema, days: z.number().int().min(1).max(31).default(14) }).strict();
+
+// P1-04: private authority is never a reference or phone number.
+const PrivateKeySchema = z.string().uuid().refine(s => s[14] === "4").transform(s => s.toLowerCase());
+const ManagedBookingId = UUIDSchema.transform(s => s.toLowerCase());
+export const CancelManagedBookingSchema = z.object({bookingId:ManagedBookingId,idempotencyKey:PrivateKeySchema,expectedRevision:z.number().int().min(1).max(Number.MAX_SAFE_INTEGER)}).strict();
+export const RescheduleManagedBookingSchema = CancelManagedBookingSchema.extend({bookingDate:LocalDateSchema}).strict();
+export const RecoverBookingOperationSchema = z.discriminatedUnion("operationKind",[
+ z.object({operationKind:z.literal("CREATE"),idempotencyKey:PrivateKeySchema,bookingId:z.null()}).strict(),
+ z.object({operationKind:z.enum(["CANCEL","RESCHEDULE"]),idempotencyKey:PrivateKeySchema,bookingId:ManagedBookingId}).strict(),
+]);
+export const ExchangeManagementAccessSchema = z.object({accessToken:z.string().min(1).max(4096)}).strict();
+export const ManagedDayAvailabilitySchema = z.object({bookingId:ManagedBookingId,fromDate:LocalDateSchema,days:z.number().int().min(1).max(31).default(14)}).strict();

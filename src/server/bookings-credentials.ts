@@ -51,7 +51,7 @@ const Claims = z.object({
   bookingId: z.string().uuid(), credentialVersion: z.number().int().min(1),
   issuedAt: z.string().datetime({ precision: 3 }), expiresAt: z.string().datetime({ precision: 3 }),
 }).strict();
-export type ManagementClaims = z.infer<typeof Claims> & { id?: string; grantKid: string };
+export type ManagementClaims = z.infer<typeof Claims> & { id?: string; kid?: string; grantKid: string };
 type Purpose = "BOOKING_MANAGEMENT" | "BOOKING_MANAGEMENT_SESSION";
 const Kid = z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/);
 const mac = (key: Buffer, body: string) => createHmac("sha256", key).update(body).digest();
@@ -77,6 +77,6 @@ export function verifyManagementToken(token:string,purpose:Purpose,config:Bookin
     if(!key||tag.length!==32||!timingSafeEqual(tag,mac(key,parts[0]))||JSON.stringify(parsed)!==raw||!config.grant.keys.has(grantKid))return null;
     const issued=Date.parse(parsed.issuedAt),expires=Date.parse(parsed.expiresAt),max=purpose==="BOOKING_MANAGEMENT"?30*86400000:86400000;
     if(issued>now.getTime()+60000||expires<=now.getTime()||expires<=issued||expires-issued>max)return null;
-    return {...Claims.parse({bookingId:parsed.bookingId,credentialVersion:parsed.credentialVersion,issuedAt:parsed.issuedAt,expiresAt:parsed.expiresAt}),grantKid};
+    return {...Claims.parse({bookingId:parsed.bookingId,credentialVersion:parsed.credentialVersion,issuedAt:parsed.issuedAt,expiresAt:parsed.expiresAt}),kid:parsed.kid,grantKid};
   }catch{return null;}
 }

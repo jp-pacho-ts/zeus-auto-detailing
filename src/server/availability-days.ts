@@ -6,13 +6,13 @@ export const addDays = (day: string, n: number) => new Date(dateCarrier(day).get
 export const dayWindow = (day: string) => ({ startsAt: new Date(day + "T00:00:00+08:00"), endsAt: new Date(Date.parse(day + "T00:00:00+08:00") + 86400000) });
 export function validDay(day: string, now: Date): boolean { const today = manilaToday(now); return day >= today && day <= addDays(today, 90); }
 // Private capacity inputs terminate here. Only date/state leaves this function.
-export async function readDayStates(tx: Prisma.TransactionClient, queueCode: string, from: string, through: string): Promise<PublicDay[]> {
+export async function readDayStates(tx: Prisma.TransactionClient, queueCode: string, from: string, through: string, excludeBookingId?:string): Promise<PublicDay[]> {
     const [queue, overrides, occupancy, blocks, weekdays, priorConfig, configs] = await Promise.all([
         tx.bookingQueue.findUnique({ where: { code: queueCode }, select: { dailyCap: true, isActive: true } }),
         tx.queueCapOverride.findMany({ where: { queueCode, date: { gte: dateCarrier(from), lte: dateCarrier(through) } }, select: { date: true, dailyCap: true } }),
         tx.booking.groupBy({
             by: ["bookingDate"], where: {
-                queueCode, bookingDate: { gte: dateCarrier(from), lte: dateCarrier(through) }, status: { not: "CANCELLED" }
+                queueCode, bookingDate: { gte: dateCarrier(from), lte: dateCarrier(through) }, status: { not: "CANCELLED" },...(excludeBookingId?{id:{not:excludeBookingId}}:{})
             }, _count: { _all: true }
         }),
         tx.blockedDate.findMany({ where: { date: { gte: dateCarrier(from), lte: dateCarrier(through) }, isFullDay: true }, select: { date: true } }),

@@ -181,8 +181,8 @@ export type BookingQuote = z.infer<typeof BookingQuoteSchema>;
 export const selectionOfQuote = (q: Pick<BookingQuote, "vehicleCategoryId" | "lines">): CatalogSelection =>
   ({ vehicleCategoryId: q.vehicleCategoryId, lines: q.lines.map((l) => ({ serviceId: l.serviceId, quantity: l.quantity })) });
 
-// T-013 lifecycle envelope, with the ADR-004 codes. currentBooking stays null until the
-// managed booking view exists (P1-04 widens it).
+// Lifecycle envelope: managed conflicts carry only an authorized, PII-free day view.
+// Public/create errors leave currentBooking null.
 export type LifecycleErrorCode = ErrorCode
   | "CLIENT_UPGRADE_REQUIRED" | "CATALOG_UPDATED" | "QUOTE_EXPIRED"
   | "OPERATION_CLOSED" | "RECOVERY_EXPIRED" | "RECOVERY_UNAVAILABLE"
@@ -196,7 +196,7 @@ export interface LifecycleError {
   retryable: boolean;
   commitState: "NOT_COMMITTED" | "UNKNOWN" | "NOT_APPLICABLE";
   currentQuote: BookingQuote | null;
-  currentBooking: null;
+  currentBooking: import("./contracts").ManagedDayBookingView | null;
   retryAfterSeconds: number | null; // integer >= 1 with 429/503; else null
 }
 export type LifecycleResult<T> = { ok: true; data: T } | { ok: false; error: LifecycleError };

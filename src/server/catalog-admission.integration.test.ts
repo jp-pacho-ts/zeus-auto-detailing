@@ -64,6 +64,8 @@ test("customer permits, QUOTE included, stay inside the 27-connection customer b
   assert.ok(quote.maxActive >= 2 && quote.maxActive <= 4, "QUOTE holds 2-4 active permits");
   assert.ok(quote.maxQueued > 0 && quote.maxWaitMs > 0 && quote.maxWaitMs <= 2000, "bounded queue and wait");
   const total = Object.values(BOOKING_POOL_POLICY).reduce((n, p) => n + p.maxActive, 0) + quote.maxActive;
+  assert.deepEqual(Object.keys(BOOKING_POOL_POLICY).sort(), ["CREATE", "MANAGEMENT_EXCHANGE", "MANAGEMENT_MUTATION", "MANAGEMENT_READ", "NOTIFICATION", "PREFLIGHT", "READ", "RECOVERY_FENCE", "RECOVERY_LOOKUP"]);
+  assert.equal(total, 20, "all nine booking pools plus QUOTE are counted");
   assert.ok(total <= CUSTOMER_DB_PERMITS, `${total} customer permits`);
 });
 

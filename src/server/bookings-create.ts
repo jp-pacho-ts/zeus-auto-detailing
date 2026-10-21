@@ -128,6 +128,8 @@ async function credentials(tx: Prisma.TransactionClient, b: Booking, now: Date, 
                 ...claims, id: session.id, issuedAt: session.issuedAt.toISOString(), expiresAt: session.expiresAt.toISOString()
             }, c.session), expiresAt: session.expiresAt.toISOString() } };
 }
+// Recovery uses the same persisted provenance and non-extending issuance policy as create.
+export { credentials as issueBookingCredentials };
 type Replay = BookingCommit | {
     refresh: true;
 } | null;

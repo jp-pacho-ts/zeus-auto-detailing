@@ -144,6 +144,7 @@ export async function loadDetail(
   });
   const history: AdminAuditEntry[] = audit.map((a) => ({
     id: a.id,
+    source: "STAFF",
     action: a.action,
     actorStaffId: a.actorStaffId,
     actorName: a.actor.name,
@@ -162,6 +163,46 @@ export async function loadDetail(
       }),
     ),
   }));
+  // Only immutable, committed effects belong in staff history. Never project receipt hashes,
+  // recovery authority, client identifiers, rejection payloads or customer contact data.
+  const operations = await tx.bookingOperation.findMany({
+    where: {
+      bookingId: id,
+      kind: { in: ["CANCEL", "RESCHEDULE"] },
+      outcome: "COMMITTED",
+      noChange: false,
+      committedAt: { not: null },
+    },
+    orderBy: [{ committedAt: "desc" }, { id: "desc" }],
+    take: 50,
+    select: {
+      id: true,
+      kind: true,
+      committedAt: true,
+      resultingRevision: true,
+    },
+  });
+  history.push(
+    ...operations.map((op): AdminAuditEntry => ({
+      id: op.id,
+      source: "CUSTOMER",
+      action:
+        op.kind === "CANCEL" ? "CUSTOMER_CANCELLED" : "CUSTOMER_RESCHEDULED",
+      actorStaffId: null,
+      actorName: null,
+      createdAt: op.committedAt!.toISOString(),
+      fromRevision:
+        op.resultingRevision === null ? null : op.resultingRevision - 1,
+      toRevision: op.resultingRevision,
+      lineId: null,
+      reason: null,
+      details: {},
+    })),
+  );
+  history.sort(
+    (a, b) =>
+      b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
+  );
   return {
     ...toQueueBooking(b),
     assignedWorkers: b.workerAssignments.map((a) => ({
@@ -181,6 +222,6 @@ export async function loadDetail(
       bay: { id: a.bay.id, name: a.bay.name },
     })),
     createdAt: b.createdAt.toISOString(),
-    history,
+    history: history.slice(0, 50),
   };
 }
