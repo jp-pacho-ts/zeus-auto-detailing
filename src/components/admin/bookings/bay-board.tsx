@@ -198,7 +198,11 @@ export function BayBoard({ role }: { role: UserRole }) {
         <p className="text-xs" aria-label="Service progress">
           {card.progress.done}/{card.progress.total} done
         </p>
-        <DepositBadge status={card.depositStatus} />
+        {card.depositStatus !== "NONE" && (
+          <p>
+            <DepositBadge status={card.depositStatus} />
+          </p>
+        )}
         {role === "ADMIN" && (
           <>
             <button
