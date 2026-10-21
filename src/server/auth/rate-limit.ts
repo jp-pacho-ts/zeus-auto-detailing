@@ -11,7 +11,7 @@ export type LimitEntry = { ok: true; leave: () => void } | { ok: false; retryAft
 interface LoginKeyState { minuteStart: number; minuteCount: number; dayStart: number; dayCount: number; inFlight: number }
 
 export function createLoginLimiter(
-  policy: { perKeyPerMinute: number; perKeyPerDay: number; maxConcurrentPerKey: number },
+  policy: { perKeyPerMinute: number; perKeyPerDay: number | null; maxConcurrentPerKey: number },
   now: () => number = Date.now,
   maxKeys = MAX_KEYS,
 ) {
@@ -19,7 +19,7 @@ export function createLoginLimiter(
   const window = (start: number, length: number, t: number) => Math.ceil((start + length - t) / 1000);
 
   function prune(t: number) {
-    for (const [k, s] of keys) if (s.inFlight === 0 && s.dayStart + DAY_MS <= t) keys.delete(k);
+    for (const [k, s] of keys) if (s.inFlight === 0 && s.minuteStart + MINUTE_MS <= t && (policy.perKeyPerDay === null || s.dayStart + DAY_MS <= t)) keys.delete(k);
   }
 
   return {
@@ -34,7 +34,7 @@ export function createLoginLimiter(
       }
       if (state.minuteStart + MINUTE_MS <= t) { state.minuteStart = t; state.minuteCount = 0; }
       if (state.dayStart + DAY_MS <= t) { state.dayStart = t; state.dayCount = 0; }
-      if (state.dayCount >= policy.perKeyPerDay) return { ok: false, retryAfterSeconds: window(state.dayStart, DAY_MS, t) };
+      if (policy.perKeyPerDay !== null && state.dayCount >= policy.perKeyPerDay) return { ok: false, retryAfterSeconds: window(state.dayStart, DAY_MS, t) };
       if (state.minuteCount >= policy.perKeyPerMinute) return { ok: false, retryAfterSeconds: window(state.minuteStart, MINUTE_MS, t) };
       if (state.inFlight >= policy.maxConcurrentPerKey) return { ok: false, retryAfterSeconds: 1 };
       state.minuteCount++; state.dayCount++; state.inFlight++;

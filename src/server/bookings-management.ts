@@ -64,7 +64,7 @@ export type ManagementOptions = CreateDayBookingOptions;
 type Tx = Prisma.TransactionClient;
 const include = { lineItems: true, occupancy: true } as const;
 type Booking = Prisma.BookingGetPayload<{ include: typeof include }>;
-const clientLimit = (minute: number, day = 10000) =>
+const clientLimit = (minute: number, day: number | null = null) =>
   createLoginLimiter({
     perKeyPerMinute: minute,
     perKeyPerDay: day,

@@ -76,9 +76,10 @@ export interface AdminQueueBooking {
 
 export interface AdminAuditEntry {
   id: UUID;
+  source: "STAFF" | "CUSTOMER";
   action: string;
-  actorStaffId: UUID;
-  actorName: string;
+  actorStaffId: UUID | null;
+  actorName: string | null;
   createdAt: ISOInstant;
   fromRevision: number | null;
   toRevision: number | null;

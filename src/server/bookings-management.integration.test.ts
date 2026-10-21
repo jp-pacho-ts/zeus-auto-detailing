@@ -200,6 +200,116 @@ const noPrivate = (r: unknown) => {
 };
 
 test(
+  "P1-04 staff history merges customer effects, excludes no-ops/rejections/replays and receipt secrets",
+  { skip },
+  async () => {
+    const a = await fresh();
+    const move = {
+      bookingId: a.id,
+      idempotencyKey: randomUUID(),
+      expectedRevision: 1,
+      bookingDate: day(7),
+    };
+    success(await management.rescheduleManagedBooking(move, options(a.token)));
+    success(
+      await management.rescheduleManagedBooking(
+        { ...move, idempotencyKey: randomUUID(), expectedRevision: 2 },
+        options(a.token),
+      ),
+    );
+    assert.equal(
+      code(
+        await management.rescheduleManagedBooking(
+          { ...move, idempotencyKey: randomUUID(), bookingDate: day(8) },
+          options(a.token),
+        ),
+      ),
+      "VERSION_CONFLICT",
+    );
+    const cancel = {
+      bookingId: a.id,
+      idempotencyKey: randomUUID(),
+      expectedRevision: 2,
+    };
+    success(await management.cancelManagedBooking(cancel, options(a.token)));
+    success(await management.cancelManagedBooking(cancel, options(a.token)));
+    const result = await admin.getBookingDetail(actor(), a.id, { db });
+    const history = result.history;
+    assert.deepEqual(
+      history.map((h) => h.action),
+      ["CUSTOMER_CANCELLED", "CUSTOMER_RESCHEDULED"],
+    );
+    assert.deepEqual(
+      history.map((h) => h.toRevision),
+      [3, 2],
+    );
+    assert.deepEqual(
+      history.map((h) => h.fromRevision),
+      [2, 1],
+    );
+    for (const h of history) {
+      assert.equal(h.source, "CUSTOMER");
+      assert.equal(h.actorStaffId, null);
+      assert.equal(h.actorName, null);
+      assert.equal(h.reason, null);
+      assert.equal(h.lineId, null);
+      assert.deepEqual(h.details, {});
+    }
+    // The database stamps one timestamp for this batch; ties use id and the cap is global.
+    await db.bookingAuditEvent.createMany({
+      data: Array.from({ length: 51 }, () => ({
+        id: randomUUID(),
+        bookingId: a.id,
+        actorStaffId: actorId,
+        action: "STATUS_CHANGED" as const,
+        fromStatus: "PENDING" as const,
+        toStatus: "CONFIRMED" as const,
+        fromRevision: 1,
+        toRevision: 2,
+      })),
+    });
+    const bounded = (await admin.getBookingDetail(actor(), a.id, { db }))
+      .history;
+    const expected = [
+      ...(
+        await db.bookingAuditEvent.findMany({ where: { bookingId: a.id } })
+      ).map((h) => ({ id: h.id, createdAt: h.createdAt.toISOString() })),
+      ...history,
+    ]
+      .sort(
+        (a, b) =>
+          b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
+      )
+      .slice(0, 50)
+      .map((h) => h.id);
+    assert.equal(bounded.length, 50);
+    assert.deepEqual(
+      bounded.map((h) => h.id),
+      expected,
+    );
+    for (const h of bounded.filter((h) => h.source === "STAFF")) {
+      assert.equal(h.actorStaffId, actorId);
+      assert.equal(h.actorName, "Catalog Test Admin");
+    }
+    const serialized = JSON.stringify(history);
+    for (const secret of [
+      a.token,
+      a.grant,
+      move.idempotencyKey,
+      cancel.idempotencyKey,
+      "Private customer",
+      "PRIVATE NOTES",
+      "PRIVATE PLATE",
+      "keyHash",
+      "requestHash",
+      "clientHash",
+      "credentialVersion",
+    ])
+      assert.equal(serialized.includes(secret), false, secret);
+  },
+);
+
+test(
   "P1-04 exchange/read: persisted provenance, cross-booking, grant retirement/revocation and minimal projection",
   { skip },
   async () => {
@@ -437,6 +547,11 @@ test(
     const receipt = await db.bookingOperation.findUniqueOrThrow({
       where: { keyHash: sha256(input.idempotencyKey) },
     });
+    const detail = await admin.getBookingDetail(actor(), a.id, { db });
+    assert.deepEqual(
+      detail.history.map((h) => h.action),
+      ["CUSTOMER_CANCELLED"],
+    );
     assert.equal(receipt.outcome, "COMMITTED");
     assert.equal(receipt.resultingRevision, 2);
     assert.equal(receipt.credentialVersion, 1);
