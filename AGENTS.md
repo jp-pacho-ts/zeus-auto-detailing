@@ -81,11 +81,11 @@ Follow AGENTIC_WORKFLOW §2 (explore, plan, implement, verify, review, commit) w
 - Money is integer centavos. The shop timezone is Asia/Manila. Brand text, contact details and currency come from `src/config/brand.ts`.
 - Import with the `@/` alias. Reuse `src/components/ui` and the existing Tailwind tokens.
 - Customers never see bay counts or staff-entered block reasons.
-- **Design (LE 2026-10-21): the design lock is removed.** Visual and design changes no longer need LE approval. Reuse `src/components/ui` and the Tailwind tokens by default, keep changes consistent across pages, and attach before/after screenshots to the handoff. Skills and plugins may be used for design work.
+- **The design is locked (LE 2026-10-17):** preserve colors, fonts, spacing, layout, header, footer and hero. Any visual change needs explicit LE approval with before/after screenshots. Skills and plugins never authorize a redesign.
 
 ## Safety
 
-- **Explicit LE approval is required for:** every push, every merge to `main`, production deployment, any live Railway operation, and any destructive action (history rewrite, reset, revert, branch or worktree deletion, dropping databases). Never revert or reset automatically.
+- **Explicit LE approval is required for:** every push, every merge to `main`, production deployment, any live Railway operation, any visual or design change, and any destructive action (history rewrite, reset, revert, branch or worktree deletion, dropping databases). Never revert or reset automatically.
 - Never print, copy or commit `.env`, credentials or customer PII. Never copy `.env` into a worktree.
 - Use synthetic data on loopback databases only. Never run the historical demo seed.
 - Build security tests into every task. P1-12 is the dedicated integrated security review; there is no per-task security gate.
@@ -98,7 +98,7 @@ Statuses are TODO, DOING, REVIEW, BLOCKED and DONE; PASS/FAIL is a verdict. A ta
 
 1. On the final SHA, typecheck, lint, `npm test` and build exit 0, plus the applicable DB suites, with real output recorded.
 2. No test was deleted, skipped or weakened to pass, and new behavior and bugs have tests.
-3. The diff contains only task-scoped changes.
+3. The diff contains only task-scoped changes, and the design is unchanged unless the LE approved a change.
 4. The opposite provider reviewed the final SHA: PASS.
 5. Codex merged it into `dev` and re-verified, and the opposite provider's integrated QA is PASS.
 6. PM recorded completion. A `dev` merge alone is not DONE.
