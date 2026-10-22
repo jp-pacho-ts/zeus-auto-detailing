@@ -224,7 +224,14 @@ export type DayBookingResponse = import("./catalog-contracts").LifecycleResult<{
 export interface ManagedDayBookingView extends DayBookingView {
  selfServiceAllowed:boolean;
  selfServiceCutoff:ISOInstant;
+ deposit:ManagedDepositView;
 }
+// P1-18 optional deposit proof. The customer sees the status and counts only; a rejected proof
+// shows fixed wording, never the staff reason. Files can be sent, never read back.
+export type DepositStatus = "NONE" | "PROOF_SENT" | "RECEIVED" | "REJECTED";
+export interface ManagedDepositView {status:DepositStatus;proofsSent:number;proofsAllowed:number;message:string|null}
+export interface UploadDepositProofRequest {bookingId:UUID;idempotencyKey:UUID;image:string} // image: standard base64 of a JPEG, PNG or WebP, at most 5 MB decoded
+export type DepositProofUploadData = {booking:ManagedDayBookingView;replayed:boolean};
 export interface CancelManagedBookingRequest {bookingId:UUID;idempotencyKey:UUID;expectedRevision:number}
 export interface RescheduleManagedBookingRequest extends CancelManagedBookingRequest {bookingDate:LocalDate}
 export type RecoverBookingOperationRequest =

@@ -179,6 +179,8 @@ model Booking {
   workerAssignments           BookingWorkerAssignment[]
   bayAssignments              BookingBayAssignment[]
   auditEvents                 BookingAuditEvent[]
+  depositStatus               DepositStatus              @default(NONE)
+  depositProofs               BookingDepositProof[]
 
   @@unique([bookingDate, queueCode, queuePosition])
   @@index([bookingDate, status, startTime, endTime])
@@ -426,6 +428,15 @@ enum BookingAuditAction {
   CAP_CHANGED
   CUSTOMER_NOTIFIED
   HISTORY_LOOKUP
+  DEPOSIT_STATUS_CHANGED
+}
+
+// P1-18: the system records proof and status only; it never computes or moves money.
+enum DepositStatus {
+  NONE
+  PROOF_SENT
+  RECEIVED
+  REJECTED
 }
 
 model CatalogRelease {
@@ -769,6 +780,8 @@ model BookingAuditEvent {
   newCap                Int?
   phoneDigest           String?
   resultCount           Int?
+  fromDepositStatus     DepositStatus?
+  toDepositStatus       DepositStatus?
   reason                String?
   requestId             String?
   txId                  BigInt             @default(dbgenerated("txid_current()"))
@@ -862,4 +875,31 @@ model BookingNotificationOutbox {
 
   @@index([state, nextAttemptAt])
   @@map("booking_notification_outbox")
+}
+
+// P1-18 deposit proof: a sanitized image (metadata removed) stored in the database, never under
+// a public path. No file name is kept. Rows are immutable apart from the shop-email delivery
+// state; they go with their booking.
+model BookingDepositProof {
+  id                  String    @id @default(uuid())
+  bookingId           String
+  booking             Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  keyHash             String    @unique // sha256 of the customer's idempotency key
+  contentHash         String // sha256 of the uploaded bytes (replay check)
+  clientHash          String
+  contentType         String // image/jpeg, image/png or image/webp, derived from the content
+  byteSize            Int
+  width               Int
+  height              Int
+  data                Bytes
+  createdAt           DateTime  @default(now()) @db.Timestamptz(3)
+  createdTxId         BigInt    @default(dbgenerated("txid_current()"))
+  notifyState         String    @default("PENDING")
+  notifyAttempts      Int       @default(0)
+  notifyNextAttemptAt DateTime  @default(now()) @db.Timestamptz(3)
+  notifySentAt        DateTime? @db.Timestamptz(3)
+
+  @@index([bookingId, createdAt])
+  @@index([notifyState, notifyNextAttemptAt])
+  @@map("booking_deposit_proofs")
 }

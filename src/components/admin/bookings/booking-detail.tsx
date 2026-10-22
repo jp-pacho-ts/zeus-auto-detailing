@@ -22,6 +22,10 @@ import {
 import { boardProgress, plateLabel, writeFeedback } from "./board-model";
 import { shopDate } from "./model";
 import { fieldClass, LoadState, useAdminResource } from "./use-admin-resource";
+import { DepositBadge } from "./deposit-badge";
+
+const sentAt = (iso: string) =>
+  new Date(iso).toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" });
 
 export function BookingDetail({
   id,
@@ -366,6 +370,92 @@ export function BookingDetail({
                 <Button disabled={disabled}>Move booking</Button>
               </form>
             )}
+          <section aria-label="Deposit" className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-bold">Deposit</h3>
+              <DepositBadge status={b.depositStatus} showNone />
+            </div>
+            {b.depositProofs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                The customer has not sent a deposit screenshot.
+              </p>
+            ) : (
+              <ul className="grid gap-3 sm:grid-cols-3">
+                {b.depositProofs.map((p, i) => {
+                  const src = `/api/admin/bookings/${b.id}/deposit-proofs/${p.id}`;
+                  return (
+                    <li key={p.id} className="space-y-1">
+                      <a
+                        href={src}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block rounded border border-border bg-black focus-visible:ring-2 focus-visible:ring-primary"
+                      >
+                        {/* A private, staff-only image: next/image would route it through the public optimizer. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={src}
+                          alt={`Deposit screenshot ${i + 1}, sent ${sentAt(p.createdAt)}`}
+                          width={p.width}
+                          height={p.height}
+                          loading="lazy"
+                          className="h-40 w-full object-contain"
+                        />
+                      </a>
+                      <p className="text-xs text-muted-foreground">
+                        Screenshot {i + 1} · {sentAt(p.createdAt)}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {admin && b.snapshot === "QUEUE_V3" && (
+              <form
+                className="space-y-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  // The clicked button carries the decision.
+                  const f = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+                  const reason = String(f.get("depositReason") ?? "").trim();
+                  void write("/deposit", {
+                    status: String(f.get("depositStatus")),
+                    ...(reason ? { reason } : {}),
+                  });
+                }}
+              >
+                <label className="block text-sm">
+                  Note for the shop record (optional, staff only)
+                  <input
+                    name="depositReason"
+                    maxLength={500}
+                    className={fieldClass}
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    name="depositStatus"
+                    value="RECEIVED"
+                    disabled={disabled || b.depositStatus === "RECEIVED"}
+                  >
+                    Mark deposit received
+                  </Button>
+                  <Button
+                    name="depositStatus"
+                    value="REJECTED"
+                    variant="outline"
+                    disabled={
+                      disabled ||
+                      b.depositStatus === "REJECTED" ||
+                      b.depositProofs.length === 0
+                    }
+                  >
+                    Mark deposit rejected
+                  </Button>
+                </div>
+              </form>
+            )}
+          </section>
           <section aria-label="Assigned staff" className="space-y-3">
             <h3 className="font-bold">Assigned staff</h3>
             <p className="break-words text-sm">
