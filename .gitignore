@@ -32,3 +32,6 @@ PLAN.md
 prompts/
 config/ai-team.json
 skills-lock.json
+
+# Client originals (payment account details): local only, never committed (P1-12 I3)
+/docs/client/
