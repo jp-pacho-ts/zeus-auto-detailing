@@ -953,7 +953,7 @@ export function BookingWizard({
                         maxLength={32}
                         value={form.customerPhone}
                         onChange={(e) => setForm((prev) => ({ ...prev, customerPhone: formatPhilippinePhone(e.target.value) }))}
-                        placeholder="0930 016 2234"
+                        placeholder="0917 000 0000"
                         aria-invalid={Boolean(errorFor("customerPhone"))}
                         aria-describedby={errorFor("customerPhone") ? "customerPhone-error" : "customerPhone-help"}
                         className={`${control} ${errorFor("customerPhone") ? "border-destructive ring-1 ring-destructive" : ""}`}
