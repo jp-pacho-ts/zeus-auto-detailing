@@ -217,6 +217,8 @@ test("F2: a malformed booking read shows a retryable error, never a blank or hal
 // unconfirmed outcome with the same-key retry kept, and the real child components (rendered here with
 // react-dom/server) are never handed the bad day.
 const page = (h: { tree: () => React.ReactNode }) => renderToStaticMarkup(h.tree());
+// A failure names only the expected text: the page holds the shop's payment details, which stay out of logs.
+const shows = (h: { tree: () => React.ReactNode }, text: RegExp) => text.test(page(h));
 const shownDay = (h: ReturnType<typeof mountHooks>) => (h.child(ManagedBookingDetails)!.props.view as ManagedDayBookingView).bookingDate;
 
 test("F2: a cancel reply with an impossible date keeps the same-key retry; the page still renders", async () => {
@@ -229,7 +231,7 @@ test("F2: a cancel reply with an impossible date keeps the same-key retry; the p
   h.button("Yes, cancel my booking")!.props.onClick();
   await h.settle();
   for (let round = 0; round < 2; round++) {
-    assert.match(page(h), /Retry cancelling/, "round " + round);
+    assert.ok(shows(h, /Retry cancelling/), "same-key retry offered, round " + round);
     assert.equal(shownDay(h), "2026-11-03");
     h.button("Retry cancelling")!.props.onClick();
     await h.settle();
@@ -237,7 +239,7 @@ test("F2: a cancel reply with an impossible date keeps the same-key retry; the p
   const sent = postsTo(calls, "/api/bookings/manage/cancellation");
   assert.equal(sent.length, 3);
   assert.equal(new Set(sent.map((c) => c.body)).size, 1, "identical body and key on every attempt");
-  assert.match(page(h), /Your booking is cancelled\./);
+  assert.ok(shows(h, /Your booking is cancelled\./), "cancelled after the confirmed retry");
 });
 
 test("F2: an upload reply with an impossible date keeps the same screenshot retry; the page keeps its view", async () => {
@@ -254,7 +256,7 @@ test("F2: an upload reply with an impossible date keeps the same screenshot retr
   await h.settle();
   assert.ok(section.button("Retry the same screenshot"), "same-key retry offered");
   assert.equal(shownDay(h), "2026-11-03");
-  assert.doesNotMatch(page(h), /Deposit screenshot sent/);
+  assert.ok(!shows(h, /Deposit screenshot sent/), "no sent state before a confirmed reply");
   section.button("Retry the same screenshot")!.props.onClick();
   await section.settle();
   await h.settle();
@@ -296,7 +298,7 @@ test("F2: a booking read with an impossible date shows a retryable error", async
   stubFetch({ "GET /api/bookings/manage": [() => json({ ok: true, data: view({ bookingDate: "2026-02-30" }) })], "GET /api/catalog": [() => json({ ok: false })] });
   const h = mountHooks(ManageBooking, {});
   await h.settle();
-  assert.match(page(h), /Your booking could not be opened right now\./);
+  assert.ok(shows(h, /Your booking could not be opened right now\./), "retryable read error");
   assert.ok(h.button("Try again"));
   assert.equal(h.child(ManagedBookingDetails), null);
 });
