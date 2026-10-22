@@ -11,8 +11,10 @@ export class BookingFailure extends Error {
 export const unavailable = (seconds = 10) => bookingError("RETRYABLE_ERROR", "We could not confirm the outcome. Check this submission before trying another booking.", { retryable: true, retryAfterSeconds: seconds });
 export const paused = (seconds: number) => bookingError("ONLINE_BOOKING_UNAVAILABLE", "Online booking is unavailable right now. Please call the shop.", { retryable: true, retryAfterSeconds: seconds });
 export function lifecycleHttpStatus(e: LifecycleError): number {
-    if (["VALIDATION_ERROR", "CLIENT_UPGRADE_REQUIRED", "CHALLENGE_FAILED", "SERVICE_NOT_OFFERED"].includes(e.code))
+    if (["VALIDATION_ERROR", "CLIENT_UPGRADE_REQUIRED", "CHALLENGE_FAILED", "SERVICE_NOT_OFFERED", "UNSUPPORTED_FILE"].includes(e.code))
         return 400;
+    if (e.code === "FILE_TOO_LARGE")
+        return 413;
     if (["UNAUTHENTICATED", "RECOVERY_EXPIRED"].includes(e.code))
         return 401;
     if (e.code === "FORBIDDEN")

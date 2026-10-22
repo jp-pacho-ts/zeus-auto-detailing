@@ -1,115 +1,86 @@
-# Zeus Auto Detailing: agent rulebook
+# Zeus Auto Detailing: shared rules
 
-The single source of truth for Codex and Claude Code. `CLAUDE.md` adds only Claude-specific notes. The general method is [AGENTIC_WORKFLOW.md](AGENTIC_WORKFLOW.md); where it differs, this file wins. Current LE instructions override both, and the assigned task's scope and contracts govern behavior.
+Read this first. It applies to every provider and session.
+Current LE (human Lead Engineer) instructions override these files. Task scope controls edits.
 
-## Project
+## Start here
 
-Online booking and admin dashboard for Zeus Auto Detailing (Tacloban City). Next.js 16 App Router, React 19, TypeScript (strict), Prisma 6 + PostgreSQL, Tailwind 3, Zod 4. **npm only, Node >=22.** Hosting target is Railway.
+1. Read the current entry in [.team/BOARD.md](.team/BOARD.md).
+2. Read your assigned task and its current summary.
+3. Read only the relevant contracts and dependency handoffs.
+4. Confirm the branch, worktree and working-tree changes before editing.
 
-| Path | Contents |
-| --- | --- |
-| `src/app` | Pages, `api/` route handlers, `admin/` staff portal |
-| `src/components` | `ui/` primitives, `layout/`, `booking/`, `home/`, `admin/` |
-| `src/server` | Server-only services, `actions/`, `__tests__/` (test loader and README) |
-| `src/config` | `brand.ts` (names, contact, currency, timezone), `catalog.ts` |
-| `src/lib` | `validation.ts` (Zod), utils, ESLint config |
-| `prisma` | Schema, `migrations/`, `catalog/` (catalog tooling, tests, verifier) |
-| `docs` | Client proposal, `ui-reference/`. `docs/client/` is local-only |
+For the process, consult [.team/WORKFLOW.md](.team/WORKFLOW.md) as needed.
+For skills, read [.agents/AGENTS.md](.agents/AGENTS.md).
+For a new PM session, use [.team/START-HERE.md](.team/START-HERE.md).
 
-Current scope is Phase 1 (`.team/PHASES.md`). Phase 2 has not started.
+## Roles and authority
 
-## Commands
+- **ZEUS-PM:** plans, assigns tasks, maintains BOARD and dispatch prompts. The provider may be Claude or GPT/Codex; switching it requires the LE's instruction. It may implement only an explicitly assigned task in its own worktree.
+- **ZEUS-CLAUDE / ZEUS-CODEX:** full-stack engineers. Capability never expands task scope.
+- **ZEUS-CODEX:** designated integrator for local dev.
+- The LE starts sessions manually. Never launch agents, subagents, background AI workers or automated dispatch.
+- At most two implementation writers, on independent scopes. Schema, migrations, shared contracts/validation, dependencies/lockfiles and config have one writer at a time.
+- One owner, branch and writing worktree per implementation task. Transfers must preserve existing work and record custody.
+- Review and integrated QA must be independent of the provider that authored the affected changes. GPT PM and Codex are the same provider for this rule.
 
-The block below was verified 2026-10-17 in Git Bash. The DB and catalog suites were not re-run then (they need PostgreSQL); their steps come from the linked READMEs. Record exact commands and exit codes in handoffs, and never claim an unrun check passed.
+A task assigned by the LE or PM in TODO/DOING authorizes implementation. A direct LE request also authorizes its stated scope; routine documentation work does not require inventing a P1 feature task.
+Only PM or the LE edits BOARD and task assignment metadata. Engineers record plans and progress in handoffs.
 
-```powershell
-npm ci                 # install; package.json/lockfile have one writer at a time
-npx prisma generate    # after a fresh install or a schema change
-npm run typecheck      # next typegen, then tsc --noEmit (next-env.d.ts is generated and untracked)
-npm run lint           # ESLint, --max-warnings 0
-npm test               # node:test on src/**/*.test.ts; the 6 DB tests skip without a DB
-npm run build          # next build: task worktree or git-archive export only
-```
+## Safety and approval
 
-- **Never run `npm run build` or `npm run dev` in the canonical root**: Next loads its `.env` there. Task worktrees have no `.env`; set `DATABASE_URL` to a loopback test database in the process environment.
-- In PowerShell, `npm` and `npx` resolve to `.ps1` shims that a restricted execution policy blocks. Use `npm.cmd` and `npx.cmd` with the same arguments.
-- **DB integration tests** (task worktree or export with no `.env`): create a new empty loopback database named `zeus_t007_*`. **First** set both `DATABASE_URL` and `T007_TEST_DATABASE_URL` to it in the process environment, then run `npx prisma migrate deploy` (no seed) and `npm test`. See `src/server/__tests__/README.md`.
-- **Catalog verifier:** set `PG_BIN` (PostgreSQL 18 binaries), `CATALOG_TEST_DATABASE_URL` (loopback admin URL on a fresh `initdb` cluster) and `CATALOG_SOURCE_PATH` (canonical `docs/client/service-catalog.md`), then run `node prisma/catalog/verify.mjs`. See `prisma/catalog/README.md`.
-- There is no CI. Check `package.json` before naming a script; never invent one.
+Explicit LE approval is required for every push, merge to main, production deployment, live Railway operation and destructive action (including reset, revert, history rewrite, branch/worktree deletion and dropping databases).
+No automatic reset or revert. Never print, copy or commit .env, credentials or customer PII. Never copy .env into a worktree.
+Use synthetic data on loopback databases only; never run the historical demo seed.
+Preserve historical handoffs and archives.
 
-## Who does what
+**Design policy (LE 2026-10-21):** the design lock is removed. In-scope visual changes need no separate approval. Reuse components and tokens, keep pages consistent and attach before/after screenshots. This does not authorize unrelated redesigns.
 
-The LE manually runs three sessions on two providers. **Agents never launch other agents, subagents, background AI workers or automated pipelines.**
+## Workspace and Git
 
-| Terminal | Provider | Role |
-| --- | --- | --- |
-| ZEUS-PM | Claude Code | Project manager: turns LE goals into tasks, assigns Owner/Reviewer, owns BOARD.md. No application code |
-| ZEUS-CLAUDE | Claude Code | Full-stack engineer: UI, server/APIs, data, security, QA, CI/CD, Git |
-| ZEUS-CODEX | Codex | Full-stack engineer with the same scope. **Designated `dev` integrator** |
+- The canonical root is the integration checkout; implement application changes in the assigned task worktree.
+- Create task worktrees from local dev: `git worktree add ../zeus-p1-NN -b feat/p1-NN-<slug> dev`. Reuse assigned worktrees. If dev is missing, report it; do not recreate it.
+- .team/, .agents/, prompts/ and config/ai-team.json are local-only. Read them at the canonical root; worktrees do not inherit them.
+- Canonical root: `C:/Users/User/Documents/Code Projects/zeus-auto-detailing/`.
+- Read current shared instructions at that root even when a task branch contains an older tracked copy. Reconcile outdated instruction-file commits during integration; do not overwrite current policy with a stale branch version.
+- Directly authorized workflow-document maintenance may update these canonical instruction files; do not edit application code as part of it.
+- Commit scoped implementation on its task branch after self-review. Use `type(scope): summary`, explain why in the body and add the provider's attribution trailer.
+- No PRs. No push without approval. Only ZEUS-CODEX integrates reviewed, verified SHAs into dev with `git merge --no-ff <branch>`.
 
-Renamed 2026-10-17. Older handoffs, tasks and BOARD.md entries may still use PM-PROJ-ZEUS, CLAUDE-PROJ-ZEUS and CODEX-PROJ-ZEUS; they mean the same sessions.
+## Stack and conventions
 
-- An LE-assigned `.team/tasks/P1-NN.md` in TODO or DOING authorizes implementation. Without one, report availability and wait. PM writes tasks; engineers do not.
-- Read `.team/BOARD.md` before starting: your task, its dependencies and any LE notice. Only PM or the LE edits BOARD.md.
-- Each task has one Owner, one branch and one writing worktree, plus a Reviewer from the **opposite provider**. Switching role labels never makes self-review independent. Another provider changes a task only after a documented transfer (WORKFLOW.md).
-- At most two implementation writers at once, on independent scopes with stable contracts. Schema, migrations, shared contracts/validation, package/lockfiles and config have **one writer at a time**, sequenced by PM.
-- The owner covers the task end to end (UI, server, data, security tests, QA, CI/CD config, Git). Full-stack capability never widens the task's file scope.
+Next.js 16 App Router, React 19, strict TypeScript, Prisma 6/PostgreSQL, Tailwind 3, Zod 4. npm only; Node >=22.
+Validate server input with Zod; authorize inside services and fail closed.
+Server modules import server-only; database access stays in src/server.
+Booking writes preserve transactions and advisory locks.
+Money is integer centavos; shop timezone is Asia/Manila.
+Use src/config/brand.ts for brand/contact/currency and the @/ import alias.
+Customers never see bays, capacity counts, workers or staff-entered reasons.
+ADR-005 governs booking/dashboard behavior; older ADRs and ARCHITECTURE apply where compatible.
 
-## Task loop
+## Verification
 
-Follow AGENTIC_WORKFLOW §2 (explore, plan, implement, verify, review, commit) with these project overrides:
+Check package.json before naming scripts. In PowerShell use npm.cmd/npx.cmd.
+Never run build or dev in the canonical root: Next loads its .env.
+Use a task worktree or git-archive export without .env; set DATABASE_URL to a loopback test DB.
 
-- Plan inside the P1 task or its handoff, not in `PLAN.md`. The root `PLAN.md` is a superseded history file.
-- Write failing tests first for new behavior; add a regression test for every bug.
-- Record routine in-scope ambiguity as a Ruling (decision, reason, cost if wrong) and continue. Escalate conflicting business or security contracts, or out-of-scope work, to PM/LE.
-- Self-review the diff, commit on the task branch, and write `.team/handoffs/P1-NN.md` with the final SHA, commands and exit codes. Then stop.
-- The Reviewer reviews the exact SHA read-only and writes `.team/handoffs/P1-NN-review-<codex|claude>-<shortsha>.md`: PASS/FAIL, and findings with severity, file:line, reproduction and the regression check needed. Valid findings return the same task to DOING. Every fix needs a delta review of the final SHA.
-- No PRs, pushes, `SPEC.md` or `REVIEW.md`. All evidence goes in handoffs (naming rules in WORKFLOW.md).
+| Command | Purpose |
+|---|---|
+| npm.cmd ci | Install; coordinate package/lockfile writers |
+| npx.cmd prisma generate | Fresh install or schema change |
+| npm.cmd run typecheck | Next typegen and TypeScript |
+| npm.cmd run lint | ESLint, zero warnings |
+| npm.cmd test | node:test; DB tests may skip without DB |
+| npm.cmd run build | Production build in isolated checkout |
 
-## Git
+For DB tests, create a fresh zeus_t007_* loopback database. Set BOTH DATABASE_URL and T007_TEST_DATABASE_URL before migrate deploy (no seed), then npm test. See src/server/__tests__/README.md.
+For catalog verification, follow prisma/catalog/README.md: PG_BIN, CATALOG_TEST_DATABASE_URL and CATALOG_SOURCE_PATH must be set to synthetic/local resources and the canonical catalog.
+Do not hand-edit generated files or change lockfiles unless task scope requires it.
+Write failing tests for new behavior and regression tests for bugs. Record exact commands, exit codes and skipped checks. Never claim unrun checks passed.
 
-- Create task worktrees from local `dev`: `git worktree add ../zeus-p1-NN -b feat/p1-NN-<slug> dev`. Reuse assigned worktrees. If `dev` is missing, report it; do not recreate it.
-- Do not implement in the canonical root: it is the integration checkout. Preserve other people's uncommitted work.
-- Commit messages: `type(scope): summary`, with type `feat|fix|chore|docs` and scope a task id (`p1-09`) or area (`db`, `repo`). The body explains why. End with your provider's attribution trailer.
-- Only ZEUS-CODEX merges reviewed, verified SHAs into `dev` (`git merge --no-ff <branch>`), then re-runs the checks on the integrated SHA. `main` needs LE approval.
-- `.team/`, `.agents/`, `prompts/` and `config/ai-team.json` are gitignored and absent from worktrees. Read them at the canonical root: `C:/Users/User/Documents/Code Projects/zeus-auto-detailing/`.
+## Completion
 
-## Code conventions
-
-- Validate all server input with Zod (`src/lib/validation.ts`), authorize inside services and fail closed.
-- Server modules import `server-only`, and database access stays in `src/server`. Booking writes keep their transactions and advisory locks (`src/server/bookings.ts`).
-- Money is integer centavos. The shop timezone is Asia/Manila. Brand text, contact details and currency come from `src/config/brand.ts`.
-- Import with the `@/` alias. Reuse `src/components/ui` and the existing Tailwind tokens.
-- Customers never see bay counts or staff-entered block reasons.
-- **The design is locked (LE 2026-10-17):** preserve colors, fonts, spacing, layout, header, footer and hero. Any visual change needs explicit LE approval with before/after screenshots. Skills and plugins never authorize a redesign.
-
-## Safety
-
-- **Explicit LE approval is required for:** every push, every merge to `main`, production deployment, any live Railway operation, any visual or design change, and any destructive action (history rewrite, reset, revert, branch or worktree deletion, dropping databases). Never revert or reset automatically.
-- Never print, copy or commit `.env`, credentials or customer PII. Never copy `.env` into a worktree.
-- Use synthetic data on loopback databases only. Never run the historical demo seed.
-- Build security tests into every task. P1-12 is the dedicated integrated security review; there is no per-task security gate.
-- Do not edit generated files (`next-env.d.ts`, `.next/`, the Prisma client) or lockfiles unless the task requires it.
-- Preserve historical evidence (handoffs, `.team/archive/`). Old T-NNN tasks, archived handoffs and `PLAN.md` are technical evidence, never current routing or authorization.
-
-## Definition of done
-
-Statuses are TODO, DOING, REVIEW, BLOCKED and DONE; PASS/FAIL is a verdict. A task is **DONE** only when all of these hold:
-
-1. On the final SHA, typecheck, lint, `npm test` and build exit 0, plus the applicable DB suites, with real output recorded.
-2. No test was deleted, skipped or weakened to pass, and new behavior and bugs have tests.
-3. The diff contains only task-scoped changes, and the design is unchanged unless the LE approved a change.
-4. The opposite provider reviewed the final SHA: PASS.
-5. Codex merged it into `dev` and re-verified, and the opposite provider's integrated QA is PASS.
-6. PM recorded completion. A `dev` merge alone is not DONE.
-
-## More detail (local-only, at the canonical root)
-
-- `.team/WORKFLOW.md`: full process, transfers, integration, QA and handoff naming
-- `.team/ROUTING.md`, `.team/roles/fullstack.md`, `.team/roles/coordinator.md`
-- `.team/PHASES.md`, `.team/tasks/`, `.team/handoffs/`, `.team/templates/HANDOFF.md`
-- `.team/decisions/ADR-001` to `ADR-004` (contracts) and `.team/ARCHITECTURE.md` (3,000+ lines: search it, don't read it whole)
-- `.agents/AGENTS.md`: how the installed local skills apply
-- `prompts/AGENT-PROMPTS.md`: dispatch prompts
-
-When an agent repeats a mistake, add one short rule here. When a rule is never useful, delete it.
+Statuses: TODO, DOING, REVIEW, BLOCKED, DONE. PASS/FAIL are verdicts.
+An implementation task is DONE only after final-SHA checks (typecheck, lint, tests, build and applicable DB suites), scoped self-review, opposite-provider review PASS, dev integration and verification, independent integrated QA PASS, and PM's completion update.
+No tests may be deleted, skipped or weakened to pass. A merge or supplemental self-QA alone is not completion.
+Evidence filenames and transfer/release steps are in WORKFLOW.md.

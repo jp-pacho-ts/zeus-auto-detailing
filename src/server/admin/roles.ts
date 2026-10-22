@@ -23,6 +23,7 @@ export const ADMIN_OPS = [
   "BAY_LIST",
   "CAPS",
   "HISTORY_LOOKUP",
+  "DEPOSIT_STATUS", // P1-18: ADMIN only; STAFF reads proofs through READ
 ] as const;
 export type AdminOp = (typeof ADMIN_OPS)[number];
 

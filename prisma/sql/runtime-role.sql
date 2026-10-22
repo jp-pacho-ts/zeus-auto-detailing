@@ -86,7 +86,7 @@ BEGIN
     -- Bookings: customer create inserts; staff mutations change only status, day, queue and
     -- position. The receipt, customer fields and snapshots are never updated.
     ['bookings', 'SELECT, INSERT'],
-    ['bookings', 'UPDATE (status, "terminalAt", "cancellationKind", "bookingDate", "startsAt", "endsAt", "queueCode", "queuePosition", revision, "updatedAt")'],
+    ['bookings', 'UPDATE (status, "terminalAt", "cancellationKind", "bookingDate", "startsAt", "endsAt", "queueCode", "queuePosition", revision, "updatedAt", "depositStatus")'],
     ['booking_line_items', 'SELECT, INSERT'],
     ['booking_line_items', 'UPDATE ("workStatus", "workStatusChangedAt", "staffPriceCentavos", "staffPriceSetAt", "staffPriceSetByStaffId", "removedAt", "removedByStaffId")'],
 
@@ -105,6 +105,11 @@ BEGIN
     ['booking_notification_outbox', 'SELECT, INSERT'],
     ['booking_management_grants', 'UPDATE ("revokedAt")'], ['booking_management_sessions', 'UPDATE ("revokedAt")'],
     ['booking_notification_outbox', 'UPDATE (state, attempts, "nextAttemptAt", "sentAt")'],
+
+    -- Deposit proofs (P1-18): customers insert, staff read, the shop-email drain moves only the
+    -- delivery state. The image is never updated or deleted by the app.
+    ['booking_deposit_proofs', 'SELECT, INSERT'],
+    ['booking_deposit_proofs', 'UPDATE ("notifyState", "notifyAttempts", "notifyNextAttemptAt", "notifySentAt")'],
 
     -- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
     -- owner URL, never by the app; the app reads no staff phone numbers.

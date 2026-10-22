@@ -39,3 +39,7 @@ After `npm test`, with the same two URLs, rerun the admin, create and auth suite
 ```powershell
 node --require ./src/server/__tests__/register.cjs --test src/server/runtime-role-suites.check.ts
 ```
+
+## Deposit proof (P1-18)
+
+`src/server/deposit-image.test.ts` checks the content-based image check (JPEG, PNG and WebP by structure; metadata and trailing bytes removed; size and dimension bounds) with synthetic images from `deposit-image.fixture.ts`. `src/server/deposit-proofs.integration.test.ts` creates the sibling database `<T007 name>_deposit`, provisions `zeus_app` there and runs every upload, staff read and ADMIN decision as `zeus_app`: wrong and disguised types, oversize, the 3-file limit (also racing in SQL), missing, tampered, expired and revoked sessions, another customer's booking, origin and CSRF checks, replay, cancelled bookings, STAFF refused, upload racing an ADMIN decision, URL guessing, a stored-file canary and the shop email.

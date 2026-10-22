@@ -96,3 +96,6 @@ export const RecoverBookingOperationSchema = z.discriminatedUnion("operationKind
 ]);
 export const ExchangeManagementAccessSchema = z.object({accessToken:z.string().min(1).max(4096)}).strict();
 export const ManagedDayAvailabilitySchema = z.object({bookingId:ManagedBookingId,fromDate:LocalDateSchema,days:z.number().int().min(1).max(31).default(14)}).strict();
+// P1-18: the image travels as standard base64 inside the usual JSON envelope; its size and type
+// are checked after decoding (deposit-image.ts). No file name or declared type is accepted.
+export const UploadDepositProofSchema = z.object({bookingId:ManagedBookingId,idempotencyKey:PrivateKeySchema,image:z.string().min(4).regex(/^[A-Za-z0-9+/]+={0,2}$/).refine(s => s.length % 4 === 0)}).strict();

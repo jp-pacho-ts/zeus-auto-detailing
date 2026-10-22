@@ -10,6 +10,7 @@ import {
 } from "@/lib/validation";
 import type {
   ManagedDayBookingView,
+  ManagedDepositView,
   ManagementMutationData,
   RecoveredBookingOperation,
   ManagedDayAvailabilityData,
@@ -63,8 +64,13 @@ export interface ManagementCommit<T> {
 }
 export type ManagementOptions = CreateDayBookingOptions;
 type Tx = Prisma.TransactionClient;
-const include = { lineItems: true, occupancy: true } as const;
-type Booking = Prisma.BookingGetPayload<{ include: typeof include }>;
+const include = {
+  lineItems: true,
+  occupancy: true,
+  _count: { select: { depositProofs: true } },
+} as const;
+export type ManagedBooking = Prisma.BookingGetPayload<{ include: typeof include }>;
+type Booking = ManagedBooking;
 const exchangeLimit = createLoginLimiter(
     MANAGEMENT_ADMISSION_POLICIES.exchange,
   ),
@@ -118,6 +124,10 @@ function cookieToken(headers: Headers): string {
     .filter((p) => p.startsWith(managementCookieName() + "="));
   if (values.length !== 1) throw auth();
   return values[0].slice(managementCookieName().length + 1);
+}
+// Stateless cookie MAC/purpose/expiry check (no DB); P1-18 runs it before reading an upload body.
+export function managementSessionClaims(c: BookingConfiguration, h: Headers): ManagementClaims {
+  return claims(c, h);
 }
 function claims(c: BookingConfiguration, h: Headers): ManagementClaims {
   const verified = verifyManagementToken(
@@ -186,6 +196,19 @@ function eligible(b: Booking, now: Date) {
     beforeCustomerCutoff(b.bookingDate.toISOString().slice(0, 10), now)
   );
 }
+// P1-18: proof count and status only; a rejection shows fixed wording, never the staff reason.
+export const MAX_PROOFS_PER_BOOKING = 3;
+function depositView(b: Booking): ManagedDepositView {
+  return {
+    status: b.depositStatus,
+    proofsSent: b._count.depositProofs,
+    proofsAllowed: MAX_PROOFS_PER_BOOKING,
+    message: b.depositStatus === "REJECTED" ? "Please contact the shop." : null,
+  };
+}
+export function managedBookingView(b: Booking, now: Date): ManagedDayBookingView {
+  return view(b, now);
+}
 function view(b: Booking, now: Date): ManagedDayBookingView {
   if (b.snapshotVersion !== "QUEUE_V3")
     throw new BookingFailure(
@@ -201,6 +224,7 @@ function view(b: Booking, now: Date): ManagedDayBookingView {
     selfServiceCutoff: customerCutoff(
       b.bookingDate.toISOString().slice(0, 10),
     ).toISOString(),
+    deposit: depositView(b),
   };
 }
 async function run<T>(

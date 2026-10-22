@@ -119,6 +119,10 @@ export const LineStatusSchema = z
 export const LinePriceSchema = z
   .object({ expectedRevision: Revision, priceCentavos: Money, reason: Reason })
   .strict();
+// P1-18: ADMIN decides on a deposit; PROOF_SENT comes only from a customer upload.
+export const DepositStatusSchema = z
+  .object({ expectedRevision: Revision, status: z.enum(["RECEIVED", "REJECTED"]), reason: Reason.optional() })
+  .strict();
 export const BayAssignSchema = z
   .object({
     expectedRevision: Revision,
