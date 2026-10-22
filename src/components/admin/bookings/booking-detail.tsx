@@ -796,8 +796,9 @@ export function BookingDetail({
             <ul className="space-y-2 text-xs text-muted-foreground">
               {b.history.map((h) => (
                 <li key={h.id}>
-                  {h.createdAt} · {h.action} · {h.actorName}
-                  {h.reason && ` · ${h.reason}`}
+                  {[h.createdAt, h.action, h.actorName ?? (h.source === "CUSTOMER" ? "Customer" : null), h.reason]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </li>
               ))}
             </ul>

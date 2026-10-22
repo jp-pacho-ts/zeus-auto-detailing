@@ -72,6 +72,14 @@ export function selectionLines(catalog: BookingCatalog, sizeId: string, picks: S
   return [...bases, ...addOns].map((p) => line(p, byId.get(p.serviceId)!));
 }
 
+// A priced line reads as its price; a for-quote line as "For quote", with its estimate if any.
+export const lineAmount = (l: { priceStatus: "PRICED" | "FOR_QUOTE"; subtotalCentavos: number | null; referenceSubtotalCentavos: number | null }) =>
+  l.priceStatus === "PRICED" && l.subtotalCentavos !== null
+    ? money(l.subtotalCentavos)
+    : l.referenceSubtotalCentavos === null
+      ? "For quote"
+      : "For quote · est. " + money(l.referenceSubtotalCentavos);
+
 type Totals = Pick<BookingQuote, "totalPriceCentavos" | "estimatedTotalCentavos"> & { lines: { priceStatus: "PRICED" | "FOR_QUOTE" }[] };
 
 export function quoteTotal(q: Totals) {

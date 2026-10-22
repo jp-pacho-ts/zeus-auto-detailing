@@ -112,3 +112,37 @@ test("board badge: nothing for NONE; a label for each decision state", () => {
   assert.match(badge("RECEIVED"), />Deposit received</);
   assert.match(badge("REJECTED"), />Deposit rejected</);
 });
+
+// P1-05 second pass (small fix): a customer entry has no staff actor; its history line must not
+// end in a dangling separator, and says who acted.
+test("history: customer entries read 'Customer' with no trailing separator", () => {
+  const resources = require("./use-admin-resource");
+  const entry = (id: string, source: string, action: string, actorName: string | null, reason: string | null) => ({
+    id, source, action, actorStaffId: null, actorName, createdAt: "2026-10-21T01:00:00.000Z", fromRevision: 1, toRevision: 2, lineId: null, details: {}, reason,
+  });
+  const data = {
+    ...detail("Toyota Vios", "QA 101"),
+    history: [
+      entry("h1", "CUSTOMER", "CUSTOMER_CANCELLED", null, null),
+      entry("h2", "STAFF", "STATUS_CHANGED", "Synthetic Admin", "called ahead"),
+      entry("h3", "STAFF", "STATUS_CHANGED", "Synthetic Admin", null),
+    ],
+  };
+  mock.method(resources, "useAdminResource", (url: string | null) => ({
+    data: url === "/api/admin/bookings/booking" ? data : null, loading: false, error: null, reload: () => {}, setData: () => {},
+  }));
+  try {
+    const html = renderToStaticMarkup(
+      createElement(require("./booking-detail").BookingDetail, { id: "booking", role: "ADMIN", queues: [], onChanged: () => {}, onClose: () => {} }),
+    );
+    const items = [...html.matchAll(/<li>([^<]*(?:<!-- -->[^<]*)*)<\/li>/g)].map((m) => m[1].replace(/<!-- -->/g, ""));
+    const lines = items.filter((s) => s.startsWith("2026-10-21T01:00:00.000Z"));
+    assert.deepEqual(lines, [
+      "2026-10-21T01:00:00.000Z · CUSTOMER_CANCELLED · Customer",
+      "2026-10-21T01:00:00.000Z · STATUS_CHANGED · Synthetic Admin · called ahead",
+      "2026-10-21T01:00:00.000Z · STATUS_CHANGED · Synthetic Admin",
+    ]);
+  } finally {
+    mock.restoreAll();
+  }
+});
