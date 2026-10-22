@@ -114,9 +114,12 @@ function jpeg(b: Buffer): InspectedImage {
   return { ok: true, contentType: "image/jpeg", data: Buffer.concat(out), width, height };
 }
 
-// WebP: RIFF chunks; keep image, alpha and animation chunks; drop ICCP, EXIF, XMP and unknown
-// chunks; clear the VP8X metadata flags and rewrite the RIFF size.
-const WEBP_KEEP = new Set(["VP8 ", "VP8L", "VP8X", "ALPH", "ANIM", "ANMF"]);
+// WebP: RIFF chunks; keep image and alpha chunks; drop ICCP, EXIF, XMP and unknown chunks; clear
+// the VP8X metadata flags and rewrite the RIFF size. A screenshot is one still image: animation
+// (the VP8X flag, ANIM or ANMF, whether or not they agree) is refused, because each ANMF frame
+// carries its own subchunks that this top-level walk cannot clean (P1-12 F1).
+const WEBP_KEEP = new Set(["VP8 ", "VP8L", "VP8X", "ALPH"]);
+const WEBP_ANIMATION_FLAG = 0x02;
 function webp(b: Buffer): InspectedImage {
   const size = b.readUInt32LE(4);
   need(size >= 4 && size + 8 <= b.length);
@@ -128,8 +131,9 @@ function webp(b: Buffer): InspectedImage {
     need(/^[\x20-\x7e]{4}$/.test(fourcc) && len <= end - at - 8);
     const data = b.subarray(at + 8, at + 8 + len), padded = len + (len % 2);
     need(at + 8 + padded <= end);
+    need(fourcc !== "ANIM" && fourcc !== "ANMF");
     if (fourcc === "VP8X") {
-      need(first && len >= 10);
+      need(first && len >= 10 && (data[0] & WEBP_ANIMATION_FLAG) === 0);
       width = data.readUIntLE(4, 3) + 1;
       height = data.readUIntLE(7, 3) + 1;
       const copy = Buffer.from(b.subarray(at, at + 8 + padded));
@@ -140,7 +144,6 @@ function webp(b: Buffer): InspectedImage {
       image = true;
       out.push(b.subarray(at, at + 8 + padded));
     } else if (WEBP_KEEP.has(fourcc)) {
-      if (fourcc === "ANMF") image = true;
       need(!first);
       out.push(b.subarray(at, at + 8 + padded));
     }

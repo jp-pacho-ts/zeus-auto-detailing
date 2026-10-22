@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import sharp from "sharp";
 import { inspectDepositImage, MAX_PROOF_BYTES, MAX_PROOF_DIMENSION } from "./deposit-image";
-import { app0Segments, chunk, jpeg, le32, png, riff, seg, vp8l, wchunk, webpExtended, withApp0Thumbnails } from "./deposit-image.fixture";
+import { animatedWebp, app0Segments, chunk, jpeg, le32, png, riff, seg, vp8l, wchunk, webpChunks, webpExtended, withAnimationFlag, withApp0Thumbnails } from "./deposit-image.fixture";
 
 // P1-18: the canaries stand in for camera metadata (EXIF GPS, PNG text, WebP XMP) that must
 // never be stored or served.
@@ -90,6 +90,29 @@ test("JPEG APP0 thumbnails and payloads are removed; only a minimal JFIF header 
   assert.ok(after.data.equals(before), "same pixels after cleaning");
   // No JFIF header in, none out.
   assert.deepEqual(app0Segments(ok(base).data), []);
+});
+
+// P1-12 F1 (Codex review): ANMF frames carry their own subchunks, which a top-level strip cannot
+// clean, so animated WebP is refused outright, whichever way the file declares the animation.
+test("animated WebP is refused: real two-frame file with frame metadata, ANIM/ANMF chunks or the VP8X animation flag", async () => {
+  const animated = await animatedWebp(CANARY);
+  // The fixture is a genuine animation: two decodable frames, the canary inside each ANMF frame.
+  assert.equal((await sharp(animated, { animated: true }).metadata()).pages, 2);
+  const frames = webpChunks(animated).filter((c) => c.fourcc === "ANMF");
+  assert.equal(frames.length, 2);
+  assert.ok(frames.every((f) => has(f.data, CANARY)), "canary inside each frame");
+  assert.ok(webpChunks(animated).some((c) => c.fourcc === "ANIM"));
+  refused(animated, "TYPE");
+  // The animation flag and the chunks disagree, either way round.
+  refused(withAnimationFlag(animated, false), "TYPE");
+  const still = webpExtended([]);
+  ok(still);
+  refused(withAnimationFlag(still, true), "TYPE");
+  // Frame chunks without any VP8X header.
+  refused(riff([vp8l(), ...webpChunks(animated).filter((c) => c.fourcc !== "VP8X").map((c) => wchunk(c.fourcc, c.data))]), "TYPE");
+  refused(riff([vp8l(), wchunk("ANIM", Buffer.alloc(6))]), "TYPE");
+  // A single still frame stays accepted, with or without the extended header.
+  ok(riff([vp8l(3, 3)]));
 });
 
 test("size and dimension bounds", () => {

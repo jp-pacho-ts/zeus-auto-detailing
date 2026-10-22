@@ -42,6 +42,16 @@ const clientLimit = createLoginLimiter(DEPOSIT_UPLOAD_POLICIES.client),
   bookingLimit = createLoginLimiter(DEPOSIT_UPLOAD_POLICIES.booking);
 // At most two upload bodies are held in memory at once (about 7 MB of JSON and 5 MB decoded each).
 const bodies = createSemaphore({ maxActive: 2, maxQueued: 4, maxWaitMs: 2000 });
+// P1-12 F2: an admitted body must arrive within this time, or a slow or stalled client would keep
+// one of the two body permits. Past it, or once the client has gone, reading stops and the permit
+// is released before any database work. Tests pass their own timer.
+export const UPLOAD_BODY_DEADLINE_MS = 15_000;
+export type UploadTimer = (ms: number, onTimeout: () => void) => () => void;
+const realTimer: UploadTimer = (ms, onTimeout) => {
+  const t = setTimeout(onTimeout, ms);
+  return () => clearTimeout(t);
+};
+export type UploadOptions = ManagementOptions & { bodyTimer?: UploadTimer };
 const OPEN = ["PENDING", "CONFIRMED", "IN_PROGRESS"];
 
 const failure = (code: LifecycleError["code"], message: string, commitState: LifecycleError["commitState"], fieldErrors: Record<string, string[]> = {}) =>
@@ -50,10 +60,38 @@ const tooLarge = () => failure("FILE_TOO_LARGE", "The image is too large. Send a
 const unsupported = () => failure("UNSUPPORTED_FILE", "Send a JPEG, PNG or WebP screenshot.", "NOT_APPLICABLE", { image: ["Send a JPEG, PNG or WebP image."] });
 const invalid = () => failure("VALIDATION_ERROR", "Check the upload details.", "NOT_APPLICABLE");
 const auth = () => failure("UNAUTHENTICATED", "Open your saved management code or contact the shop.", "NOT_APPLICABLE");
+// Reading stopped (deadline or client gone): nothing was written, but as with any transport
+// failure the client keeps its frozen request and retries the same key.
+const bodyStopped = () => new BookingFailure(bookingError("RETRYABLE_ERROR", "The upload did not finish in time. Retry to send the same screenshot.", { retryable: true }));
+
+// Reads the body under the deadline. Resolves only with the whole body; when the deadline passes
+// or the request is aborted it rejects at once, even if `body` ignores the signal.
+async function readBody(body: (signal: AbortSignal) => Promise<unknown>, options: UploadOptions): Promise<unknown> {
+  const deadline = new AbortController();
+  const signal = options.signal ? AbortSignal.any([deadline.signal, options.signal]) : deadline.signal;
+  const cancelTimer = (options.bodyTimer ?? realTimer)(UPLOAD_BODY_DEADLINE_MS, () => deadline.abort());
+  let onStop: (() => void) | undefined;
+  try {
+    const reading = body(signal);
+    reading.catch(() => {}); // settles later, after a stop; its outcome no longer matters
+    return await new Promise((resolve, reject) => {
+      onStop = () => {
+        console.warn(JSON.stringify({ event: "booking.deposit_upload_body_stopped", reason: deadline.signal.aborted ? "DEADLINE" : "ABORTED" }));
+        reject(bodyStopped());
+      };
+      if (signal.aborted) return onStop();
+      signal.addEventListener("abort", onStop, { once: true });
+      reading.then(resolve, reject);
+    });
+  } finally {
+    if (onStop) signal.removeEventListener("abort", onStop);
+    cancelTimer();
+  }
+}
 
 export async function uploadDepositProof(
-  body: () => Promise<unknown>,
-  options: ManagementOptions = {},
+  body: (signal: AbortSignal) => Promise<unknown>,
+  options: UploadOptions = {},
 ): Promise<ManagementCommit<DepositProofUploadData>> {
   let leaveClient: (() => void) | undefined, leaveBooking: (() => void) | undefined, releaseBody: (() => void) | undefined;
   let committed: DepositProofUploadData | null = null;
@@ -65,7 +103,7 @@ export async function uploadDepositProof(
     const token = managementSessionClaims(c, h);
     leaveBooking = enterBooking(bookingLimit, token.bookingId);
     releaseBody = await bodies.acquire(options.signal);
-    const input = await body();
+    const input = await readBody(body, options);
     const image = input && typeof input === "object" ? (input as { image?: unknown }).image : undefined;
     if (typeof image === "string" && image.length > MAX_IMAGE_BASE64) throw tooLarge();
     const parsed = UploadDepositProofSchema.safeParse(input);
@@ -123,14 +161,19 @@ export async function uploadDepositProof(
 }
 
 // Streams the JSON body and stops reading at the cap, so a large body is refused without
-// being buffered. The upload is the only customer write allowed past the usual 16 KiB.
-async function readUploadJson(request: Request): Promise<unknown> {
+// being buffered. The upload is the only customer write allowed past the usual 16 KiB. When the
+// signal fires (deadline or client gone) the stream is cancelled without waiting on the client.
+async function readUploadJson(request: Request, signal: AbortSignal): Promise<unknown> {
   const reader = request.body?.getReader();
   if (!reader) throw invalid();
+  const stop = () => void reader.cancel().catch(() => {});
+  if (signal.aborted) stop();
+  signal.addEventListener("abort", stop, { once: true });
   const chunks: Uint8Array[] = [];
   let bytes = 0;
   try {
     for (;;) {
+      if (signal.aborted) throw invalid();
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
@@ -145,18 +188,19 @@ async function readUploadJson(request: Request): Promise<unknown> {
     if (error instanceof BookingFailure) throw error;
     throw invalid();
   } finally {
-    reader.releaseLock();
+    signal.removeEventListener("abort", stop);
+    try { reader.releaseLock(); } catch { /* a read still pending after a stop */ }
   }
 }
 
-export async function depositProofHttp(request: Request, options: ManagementOptions = {}): Promise<Response> {
+export async function depositProofHttp(request: Request, options: UploadOptions = {}): Promise<Response> {
   const refuse = (e: LifecycleError) => bookingJson({ ok: false, error: e }, lifecycleHttpStatus(e), e.retryAfterSeconds);
   try {
     const config = options.config ?? parseBookingConfiguration();
     if (request.method !== "POST") return bookingJson({ ok: false, error: bookingError("VALIDATION_ERROR", "Use the expected request method.", { commitState: "NOT_APPLICABLE" }) }, 405);
     if (new URL(request.url).search) return refuse(bookingError("VALIDATION_ERROR", "Upload requests do not accept URL parameters.", { commitState: "NOT_APPLICABLE" }));
     if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return refuse(invalid().error);
-    const result = await uploadDepositProof(() => readUploadJson(request), { ...options, config, headers: request.headers, signal: request.signal });
+    const result = await uploadDepositProof((signal) => readUploadJson(request, signal), { ...options, config, headers: request.headers, signal: request.signal });
     return result.result.ok ? bookingJson(result.result, 200) : refuse(result.result.error);
   } catch (cause) {
     console.warn(JSON.stringify({ event: "booking.deposit_upload_failed", kind: cause instanceof Error ? cause.name : typeof cause }));

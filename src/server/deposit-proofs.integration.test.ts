@@ -19,7 +19,7 @@ import { proofImageResponse } from "./admin/deposit";
 import { depositProofHttp, uploadDepositProof, MAX_PROOFS_PER_BOOKING } from "./deposit-proofs";
 import { drainDepositNotices } from "./notifications/bookings";
 import { smtpSimulation } from "./notifications/smtp.fixture";
-import { chunk, jpeg, png, seg, wchunk, webpExtended, withApp0Thumbnails } from "./deposit-image.fixture";
+import { animatedWebp, chunk, jpeg, png, seg, wchunk, webpExtended, withAnimationFlag, withApp0Thumbnails } from "./deposit-image.fixture";
 
 // P1-18 security cases, test-first. Every service call runs as the provisioned zeus_app role on
 // an isolated sibling database; fixtures use the owner. Synthetic images and customers only.
@@ -146,6 +146,34 @@ test("JPEG APP0 thumbnails are gone from storage and from the staff copy, which 
   const served = Buffer.from(await proofImageResponse(await admin.readDepositProof(STAFF(), a.id, row.id, { db })).arrayBuffer());
   assert.equal(served.includes(canary), false, "thumbnail served to staff");
   assert.ok((await sharp(served).raw().toBuffer()).equals(pixels), "the staff copy decodes to the same pixels");
+});
+
+// P1-12 F1 (Codex review): a real two-frame WebP whose ANMF frames carry a canary is refused; no
+// file, status, revision or staff-visible copy results, through the service or the HTTP route.
+test("animated WebP proofs are refused with nothing stored or served", { skip }, async () => {
+  const a = await fresh();
+  const canary = "P112-ANMF-FRAME-CANARY";
+  const animated = await animatedWebp(canary);
+  const before = await revision(a.id);
+  for (const image of [animated, withAnimationFlag(animated, false)]) {
+    const r = await upload(a.token, proofBody(a.id, image));
+    assert.equal(code(r), "UNSUPPORTED_FILE");
+    assert.equal(!r.result.ok && r.result.error.commitState, "NOT_APPLICABLE");
+  }
+  const http = await depositProofHttp(new NextRequest("http://localhost:3000/api/bookings/manage/deposit-proofs", {
+    method: "POST", headers: headers(a.token), body: JSON.stringify(proofBody(a.id, animated)),
+  }), { db, config: c });
+  assert.equal(http.status, 400);
+  assert.equal((await http.clone().json()).error.code, "UNSUPPORTED_FILE");
+  assert.equal((await http.text()).includes(canary), false);
+  assert.equal(await proofCount(a.id), 0);
+  assert.equal((await owner.bookingDepositProof.count({ where: { data: { equals: animated } } })), 0);
+  const booking = await owner.booking.findUniqueOrThrow({ where: { id: a.id } });
+  assert.deepEqual([booking.depositStatus, booking.revision], ["NONE", before]);
+  const detail = await admin.getBookingDetail(STAFF(), a.id, { db });
+  assert.deepEqual(detail.depositProofs, []);
+  assert.equal(JSON.stringify(detail).includes(canary), false);
+  assert.deepEqual(success(await management.readManagedBooking(options(a.token))).deposit, { status: "NONE", proofsSent: 0, proofsAllowed: 3, message: null });
 });
 
 test("wrong and disguised types are refused with nothing stored (HTML, SVG, script, GIF, PDF, signature + markup)", { skip }, async () => {

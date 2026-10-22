@@ -57,6 +57,35 @@ export function vp8l(w = 2, h = 2): Buffer {
   const bits = ((w - 1) & 0x3fff) | (((h - 1) & 0x3fff) << 14);
   return wchunk("VP8L", Buffer.concat([Buffer.from([0x2f]), le32(bits >>> 0), Buffer.from([0, 0, 0])]));
 }
+// The top-level RIFF chunks of a WebP file, in order.
+export function webpChunks(b: Buffer): { fourcc: string; data: Buffer }[] {
+  const out: { fourcc: string; data: Buffer }[] = [];
+  for (let at = 12; at + 8 <= b.length; ) {
+    const len = b.readUInt32LE(at + 4);
+    out.push({ fourcc: b.toString("latin1", at, at + 4), data: b.subarray(at + 8, at + 8 + len) });
+    at += 8 + len + (len % 2);
+  }
+  return out;
+}
+// P1-12 F1: a real, decodable two-frame animated WebP (two different colours), with the canary in
+// an unknown subchunk inside each ANMF frame, which the WebP container allows.
+export async function animatedWebp(canary: string, w = 2, h = 2): Promise<Buffer> {
+  const sharp = (await import("sharp")).default;
+  const frame = (rgb: number[]) => Buffer.concat(Array.from({ length: w * h }, () => Buffer.from(rgb)));
+  const encoded = await sharp(Buffer.concat([frame([220, 40, 40]), frame([40, 40, 220])]), { raw: { width: w, height: h * 2, channels: 3, pageHeight: h } })
+    .webp({ lossless: true, loop: 0, delay: [100, 100] }).toBuffer();
+  return riff(webpChunks(encoded).map((c) =>
+    c.fourcc === "ANMF" ? wchunk("ANMF", Buffer.concat([c.data, wchunk("PRIV", Buffer.from(canary, "latin1"))])) : wchunk(c.fourcc, c.data)));
+}
+// The same file with the VP8X animation flag set or cleared, so the flag and the chunks disagree.
+export function withAnimationFlag(b: Buffer, on: boolean): Buffer {
+  return riff(webpChunks(b).map((c) => {
+    if (c.fourcc !== "VP8X") return wchunk(c.fourcc, c.data);
+    const flags = Buffer.from(c.data);
+    flags[0] = on ? flags[0] | 0x02 : flags[0] & ~0x02;
+    return wchunk("VP8X", flags);
+  }));
+}
 // Extended WebP with the ICC, EXIF and XMP flags set in VP8X.
 export function webpExtended(extra: Buffer[], w = 2, h = 2): Buffer {
   const canvas = Buffer.alloc(10);
