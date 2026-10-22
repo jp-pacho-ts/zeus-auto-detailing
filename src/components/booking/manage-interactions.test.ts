@@ -3,6 +3,8 @@
 // per attempt; an unconfirmed outcome is retried with the identical body.
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
+import type * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { ManagedDayBookingView } from "@/types/contracts";
 import { deferred, mountHooks } from "./render-hooks.fixture";
 import { DepositProofSection } from "./deposit-proof";
@@ -209,4 +211,92 @@ test("F2: a malformed booking read shows a retryable error, never a blank or hal
   await h.settle();
   assert.match(h.text(), /Your booking could not be opened right now\./);
   assert.ok(h.button("Try again"));
+});
+
+// Review F2 (Codex delta, ceacff0): complete replies carrying an impossible calendar date. Each is an
+// unconfirmed outcome with the same-key retry kept, and the real child components (rendered here with
+// react-dom/server) are never handed the bad day.
+const page = (h: { tree: () => React.ReactNode }) => renderToStaticMarkup(h.tree());
+const shownDay = (h: ReturnType<typeof mountHooks>) => (h.child(ManagedBookingDetails)!.props.view as ManagedDayBookingView).bookingDate;
+
+test("F2: a cancel reply with an impossible date keeps the same-key retry; the page still renders", async () => {
+  const cancelled = (bookingDate: string) => ({ operationKind: "CANCEL", booking: view({ status: "CANCELLED", selfServiceAllowed: false, revision: 2, bookingDate }), replayed: true, noChange: false });
+  const { h, calls } = await openBooking({
+    "POST /api/bookings/manage/cancellation": [() => json({ ok: true, data: cancelled("2026-13-01") }), () => json({ ok: true, data: cancelled("2026-02-30") }), () => json({ ok: true, data: cancelled("2026-11-03") })],
+  });
+  h.child(ManagedBookingDetails)!.props.onCancel();
+  await h.settle(1);
+  h.button("Yes, cancel my booking")!.props.onClick();
+  await h.settle();
+  for (let round = 0; round < 2; round++) {
+    assert.match(page(h), /Retry cancelling/, "round " + round);
+    assert.equal(shownDay(h), "2026-11-03");
+    h.button("Retry cancelling")!.props.onClick();
+    await h.settle();
+  }
+  const sent = postsTo(calls, "/api/bookings/manage/cancellation");
+  assert.equal(sent.length, 3);
+  assert.equal(new Set(sent.map((c) => c.body)).size, 1, "identical body and key on every attempt");
+  assert.match(page(h), /Your booking is cancelled\./);
+});
+
+test("F2: an upload reply with an impossible date keeps the same screenshot retry; the page keeps its view", async () => {
+  const sent = (bookingDate: string) => ({ booking: view({ bookingDate, deposit: { status: "PROOF_SENT", proofsSent: 1, proofsAllowed: 3, message: null } }), replayed: false });
+  const { h, calls } = await openBooking({
+    "POST /api/bookings/manage/deposit-proofs": [() => json({ ok: true, data: sent("2026-04-31") }), () => json({ ok: true, data: sent("2026-11-03") })],
+  });
+  // The upload section wired to the real page's callbacks.
+  const section = mountHooks(DepositProofSection, h.child(DepositProofSection)!.props as unknown as Parameters<typeof DepositProofSection>[0]);
+  section.all().find((el) => el.props.id === "deposit-file")!.props.onChange({ target: { files: [{ type: "image/png", size: PNG.length, arrayBuffer: async () => PNG.buffer.slice(0) }] } });
+  await section.settle(1);
+  section.button("Send screenshot")!.props.onClick();
+  await section.settle();
+  await h.settle();
+  assert.ok(section.button("Retry the same screenshot"), "same-key retry offered");
+  assert.equal(shownDay(h), "2026-11-03");
+  assert.doesNotMatch(page(h), /Deposit screenshot sent/);
+  section.button("Retry the same screenshot")!.props.onClick();
+  await section.settle();
+  await h.settle();
+  const posts = postsTo(calls, "/api/bookings/manage/deposit-proofs");
+  assert.equal(posts.length, 2);
+  assert.equal(new Set(posts.map((c) => c.body)).size, 1, "identical body and key on every attempt");
+  assert.equal((h.child(ManagedBookingDetails)!.props.view as ManagedDayBookingView).deposit.status, "PROOF_SENT");
+  page(h);
+});
+
+test("F2: availability with an impossible date shows a retryable error; the day picker never gets it", async () => {
+  const reply = (days: { date: string; state: string }[], nextAvailableDay: string | null) => () =>
+    json({ ok: true, data: { bookingId: view().id, bookingRevision: 1, timezone: "Asia/Manila", days, nextAvailableDay, searchedThrough: "2027-01-31", quote: null } });
+  const { h, calls } = await openBooking({
+    "POST /api/bookings/manage/availability": [
+      reply([{ date: "2026-11-04", state: "AVAILABLE" }, { date: "2026-13-01", state: "AVAILABLE" }], "2026-11-04"),
+      reply([{ date: "2026-11-04", state: "AVAILABLE" }], "2026-02-30"),
+      reply([{ date: "2026-11-04", state: "AVAILABLE" }, { date: "2026-11-05", state: "AVAILABLE" }], "2026-11-04"),
+    ],
+  });
+  h.child(ManagedBookingDetails)!.props.onChangeDay();
+  await h.settle();
+  for (let round = 0; round < 2; round++) {
+    const picker = h.child(DayPicker)!;
+    assert.equal(picker.props.data, null, "round " + round);
+    assert.match(String(picker.props.error), /Could not load the days\./);
+    page(h);
+    (picker.props.onRetry as () => void)();
+    await h.settle();
+  }
+  assert.equal((h.child(DayPicker)!.props.data as { days: unknown[] }).days.length, 2);
+  page(h);
+  const asked = postsTo(calls, "/api/bookings/manage/availability");
+  assert.equal(asked.length, 3);
+  assert.equal(new Set(asked.map((c) => c.body)).size, 1);
+});
+
+test("F2: a booking read with an impossible date shows a retryable error", async () => {
+  stubFetch({ "GET /api/bookings/manage": [() => json({ ok: true, data: view({ bookingDate: "2026-02-30" }) })], "GET /api/catalog": [() => json({ ok: false })] });
+  const h = mountHooks(ManageBooking, {});
+  await h.settle();
+  assert.match(page(h), /Your booking could not be opened right now\./);
+  assert.ok(h.button("Try again"));
+  assert.equal(h.child(ManagedBookingDetails), null);
 });

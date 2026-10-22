@@ -285,3 +285,55 @@ test("F2: a known error is trusted and normalized; a well-formed success passes 
   assert.equal(parseLifecycle({ ok: true, data: view() }, isManagedView).ok, true);
   assert.equal(parseLifecycle({ ok: true, data: {} }, isManagedView).ok, false);
 });
+
+// Review F2 (Codex delta, ceacff0): a day must be a real calendar date. A well-shaped but impossible
+// date (month 13, Feb 30, Apr 31, a non-leap Feb 29) would crash the date labels, so a reply carrying
+// one is an unconfirmed outcome and the frozen request (same bytes, same key) is kept.
+const IMPOSSIBLE = ["2026-13-01", "2026-00-10", "2026-02-30", "2026-04-31", "2025-02-29", "2026-11-00", "2026-11-32"];
+test("F2: impossible calendar dates fail every booking and availability check; real ones pass", () => {
+  for (const day of ["2026-11-03", "2028-02-29", "2026-12-31", "2027-01-01"]) {
+    assert.equal(isManagedView(view({ bookingDate: day })), true, day);
+    assert.equal(isAvailabilityData({ days: [{ date: day, state: "AVAILABLE" }], nextAvailableDay: day }), true, day);
+  }
+  for (const day of IMPOSSIBLE) {
+    assert.equal(isManagedView(view({ bookingDate: day })), false, day);
+    assert.equal(isAvailabilityData({ days: [{ date: "2026-11-04", state: "AVAILABLE" }, { date: day, state: "CLOSED" }], nextAvailableDay: null }), false, day);
+    assert.equal(isAvailabilityData({ days: [{ date: "2026-11-04", state: "AVAILABLE" }], nextAvailableDay: day }), false, day);
+  }
+});
+
+test("F2: a complete reply with an impossible date is unconfirmed and keeps the frozen request", async () => {
+  const frozen = freezeRequest("/api/bookings/manage/cancellation", { bookingId: "b", expectedRevision: 1, idempotencyKey: "k-cal" });
+  const bodies: unknown[] = [];
+  const reply = (body: unknown) =>
+    (async (_url: string, init: RequestInit) => {
+      bodies.push(init.body);
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as unknown as typeof fetch;
+  for (const day of IMPOSSIBLE) {
+    const booking = view({ bookingDate: day });
+    for (const [data, check] of [
+      [{ operationKind: "CANCEL", booking, replayed: false, noChange: false }, isMutationData],
+      [{ booking, replayed: false }, isUploadData],
+      [{ booking, sessionExpiresAt: "2026-11-04T00:00:00.000Z" }, isSessionData],
+      [{ days: [{ date: day, state: "AVAILABLE" }], nextAvailableDay: null }, isAvailabilityData],
+      [{ days: [], nextAvailableDay: day }, isAvailabilityData],
+    ] as const) {
+      const result = await sendFrozen(reply({ ok: true, data }), frozen, check as (v: unknown) => v is unknown);
+      assert.equal(result.ok, false, day);
+      if (!result.ok) {
+        assert.equal(result.error.commitState, "UNKNOWN", day);
+        assert.equal(manageActionError(result.error).retrySame, true, day);
+      }
+    }
+    // A conflict error's current booking with an impossible date is dropped, not shown.
+    const conflict = await sendFrozen(
+      reply({ ok: false, error: { code: "VERSION_CONFLICT", message: "x", commitState: "NOT_COMMITTED", fieldErrors: {}, currentBooking: booking, retryAfterSeconds: null } }),
+      frozen,
+      isMutationData,
+    );
+    assert.equal(!conflict.ok && conflict.error.currentBooking, null, day);
+  }
+  assert.equal(new Set(bodies).size, 1, "every attempt sends the identical body and key");
+  assert.equal(JSON.parse(String(bodies[0])).idempotencyKey, "k-cal");
+});

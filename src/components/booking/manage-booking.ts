@@ -39,7 +39,13 @@ const unconfirmed = (): LifecycleError => ({
 type Check<T> = (data: unknown) => data is T;
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isInt = (v: unknown, min = 0) => Number.isSafeInteger(v) && (v as number) >= min;
-const isDay = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+// A real calendar day (review F2): the shape, then a round trip through UTC, so month 13, Feb 30,
+// Apr 31 or a non-leap Feb 29 is refused rather than crashing a date label or rolling into another day.
+const isDay = (v: unknown): v is string => {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const time = Date.parse(v + "T00:00:00Z");
+  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === v;
+};
 const oneOf = <T extends string>(values: readonly T[]) => (v: unknown): v is T => typeof v === "string" && (values as readonly string[]).includes(v);
 const CODES: Record<LifecycleErrorCode, true> = {
   VALIDATION_ERROR: true, NOT_FOUND: true, SLOT_UNAVAILABLE: true, SCHEDULE_CONFLICT: true, VERSION_CONFLICT: true,

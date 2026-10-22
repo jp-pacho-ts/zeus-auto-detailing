@@ -116,6 +116,8 @@ export function mountHooks<P>(component: (props: P) => Node, initialProps: P) {
       render();
     },
     all: () => elements(tree),
+    // The current output, for rendering the real child components (renderToStaticMarkup).
+    tree: () => tree,
     text: () => textOf(tree),
     // A host button by its visible text (exact, trimmed).
     button(label: string) {
