@@ -13,8 +13,14 @@ import {
   codeFromText,
   depositWords,
   freezeRequest,
+  isAvailabilityData,
+  isManagedView,
+  isMutationData,
+  isSessionData,
+  isUploadData,
   manageActionError,
   managementCodeFile,
+  parseLifecycle,
   proofUploadError,
   selfServiceNotice,
   sendFrozen,
@@ -56,8 +62,8 @@ test("a frozen request resends the same bytes and the same idempotency key", asy
     calls.push({ url, init });
     return new Response(JSON.stringify({ ok: false, error: error("RETRYABLE_ERROR", { commitState: "UNKNOWN" }) }), { status: 503 });
   };
-  const first = await sendFrozen(fake as typeof fetch, frozen);
-  const second = await sendFrozen(fake as typeof fetch, frozen);
+  const first = await sendFrozen(fake as typeof fetch, frozen, isMutationData);
+  const second = await sendFrozen(fake as typeof fetch, frozen, isMutationData);
   assert.equal(first.ok, false);
   assert.equal(second.ok, false);
   assert.equal(calls.length, 2);
@@ -76,7 +82,7 @@ test("a frozen request resends the same bytes and the same idempotency key", asy
 
 test("a non-JSON reply reads as an unconfirmed outcome", async () => {
   const frozen = freezeRequest("/api/bookings/manage/rescheduling", { k: 1 });
-  const result = await sendFrozen((async () => new Response("<html>", { status: 502 })) as typeof fetch, frozen);
+  const result = await sendFrozen((async () => new Response("<html>", { status: 502 })) as typeof fetch, frozen, isMutationData);
   assert.equal(result.ok, false);
   if (!result.ok) {
     assert.equal(result.error.code, "RETRYABLE_ERROR");
@@ -212,4 +218,70 @@ test("file bytes become standard base64 with no data: prefix", () => {
   const bytes = new Uint8Array(70000).map((_, i) => (i * 37) % 256);
   assert.equal(toBase64(bytes), Buffer.from(bytes).toString("base64"));
   assert.equal(toBase64(new Uint8Array([0x89, 0x50, 0x4e, 0x47])), "iVBORw==");
+});
+
+// Review F2 (Codex, 87728c8): only a well-formed success or a known, well-formed error is trusted.
+// Anything else is an unconfirmed outcome, so the frozen request (same bytes, same key) is retried.
+test("F2: malformed envelopes and unusable success data read as unconfirmed; the handlers never throw", async () => {
+  const frozen = freezeRequest("/api/bookings/manage/deposit-proofs", { bookingId: "b", idempotencyKey: "k-9", image: "iVBORw==" });
+  const replies: [number, unknown][] = [
+    [502, { ok: false }],
+    [200, { ok: false, error: null }],
+    [409, { ok: false, error: { code: "DEPOSIT_PROOF_LIMIT" } }],
+    [409, { ok: false, error: { code: 42, message: "x", commitState: "NOT_COMMITTED" } }],
+    [409, { ok: false, error: { code: "NOT_A_CODE", message: "x", commitState: "NOT_COMMITTED" } }],
+    [409, { ok: false, error: { code: "DEPOSIT_PROOF_LIMIT", message: "x", commitState: "MAYBE" } }],
+    [200, { ok: true }],
+    [200, { ok: true, data: null }],
+    [200, { ok: true, data: { replayed: false } }],
+    [200, { ok: true, data: { booking: { id: "b" }, replayed: false } }],
+    [200, { ok: "yes", data: {} }],
+    [200, []],
+    [200, null],
+  ];
+  const bodies: unknown[] = [];
+  for (const [status, body] of replies) {
+    const fake = async (_url: string, init: RequestInit) => {
+      bodies.push(init.body);
+      return new Response(JSON.stringify(body), { status });
+    };
+    const result = await sendFrozen(fake as typeof fetch, frozen, isUploadData);
+    assert.equal(result.ok, false, JSON.stringify(body));
+    if (result.ok) continue;
+    assert.equal(result.error.code, "RETRYABLE_ERROR", JSON.stringify(body));
+    assert.equal(result.error.commitState, "UNKNOWN", JSON.stringify(body));
+    assert.equal(proofUploadError(result.error).retrySame, true);
+    assert.equal(manageActionError(result.error).retrySame, true);
+  }
+  assert.equal(new Set(bodies).size, 1, "every attempt sends the identical body and key");
+});
+
+test("F2: a known error is trusted and normalized; a well-formed success passes its data check", async () => {
+  const frozen = freezeRequest("/api/bookings/manage/deposit-proofs", { k: 1 });
+  const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+  const known = await sendFrozen(reply(409, { ok: false, error: { code: "DEPOSIT_PROOF_LIMIT", message: "x", commitState: "NOT_COMMITTED", currentBooking: { id: "half" }, retryAfterSeconds: "soon" } }), frozen, isUploadData);
+  assert.equal(known.ok, false);
+  if (!known.ok) {
+    assert.equal(known.error.code, "DEPOSIT_PROOF_LIMIT");
+    assert.equal(known.error.commitState, "NOT_COMMITTED");
+    assert.deepEqual(known.error.fieldErrors, {});
+    assert.equal(known.error.currentBooking, null, "an unusable current booking is dropped");
+    assert.equal(known.error.retryAfterSeconds, null);
+    assert.equal(proofUploadError(known.error).retrySame, false);
+  }
+  const conflict = await sendFrozen(reply(409, { ok: false, error: { code: "VERSION_CONFLICT", message: "x", commitState: "NOT_COMMITTED", fieldErrors: {}, currentBooking: view({ revision: 3 }), retryAfterSeconds: null } }), frozen, isMutationData);
+  assert.equal(!conflict.ok && conflict.error.currentBooking?.revision, 3);
+  const good = await sendFrozen(reply(200, { ok: true, data: { booking: view(), replayed: true } }), frozen, isUploadData);
+  assert.equal(good.ok && good.data.replayed, true);
+  assert.equal(isManagedView(view()), true);
+  assert.equal(isManagedView({ ...view(), deposit: null }), false);
+  assert.equal(isManagedView({ ...view(), status: "LOST" }), false);
+  assert.equal(isMutationData({ operationKind: "CANCEL", booking: view(), replayed: false, noChange: false }), true);
+  assert.equal(isMutationData({ operationKind: "CANCEL", booking: view(), replayed: false }), false);
+  assert.equal(isAvailabilityData({ days: [{ date: "2026-11-04", state: "AVAILABLE" }], nextAvailableDay: "2026-11-04" }), true);
+  assert.equal(isAvailabilityData({ days: [{ date: "2026-11-04", state: "OPEN" }], nextAvailableDay: null }), false);
+  assert.equal(isSessionData({ booking: view(), sessionExpiresAt: "2026-11-04T00:00:00.000Z" }), true);
+  assert.equal(isSessionData({ booking: view() }), false);
+  assert.equal(parseLifecycle({ ok: true, data: view() }, isManagedView).ok, true);
+  assert.equal(parseLifecycle({ ok: true, data: {} }, isManagedView).ok, false);
 });

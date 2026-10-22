@@ -8,16 +8,19 @@ import {
   checkProofFile,
   depositWords,
   freezeRequest,
+  isUploadData,
   proofUploadError,
   sendFrozen,
   toBase64,
   type FrozenRequest,
 } from "@/components/booking/manage-booking";
-import type { DepositProofUploadData, ManagedDayBookingView } from "@/types/contracts";
+import type { ManagedDayBookingView } from "@/types/contracts";
 
 // P1-18: an optional screenshot of the customer's deposit payment, sent through the management
 // session (POST /api/bookings/manage/deposit-proofs). One screenshot per request; files are never
 // shown back. An unconfirmed send is retried with the same key and image, so it is stored once.
+// One tap is one operation (review F1): a synchronous guard is taken and pending shown before the
+// file is read, and the operation's key is fixed before that first await.
 export function DepositProofSection({
   view,
   onUpdated,
@@ -33,6 +36,10 @@ export function DepositProofSection({
   const [sent, setSent] = React.useState("");
   const [pending, setPending] = React.useState(false);
   const [retry, setRetry] = React.useState<FrozenRequest | null>(null);
+  // Set and cleared synchronously: handlers from one render cannot both pass a state check.
+  const busy = React.useRef(false);
+  // The unconfirmed upload, if any: only its own retry may run until it settles.
+  const unconfirmed = React.useRef<FrozenRequest | null>(null);
   const { deposit } = view;
   const open = canSendProof(view);
 
@@ -42,12 +49,12 @@ export function DepositProofSection({
     setFile(chosen && !checkProofFile(chosen, deposit) ? chosen : null);
   };
 
+  // Callers hold the guard; it is released when this attempt settles.
   const send = async (request: FrozenRequest) => {
-    setPending(true);
-    setError("");
     try {
-      const result = await sendFrozen<DepositProofUploadData>(fetch, request);
+      const result = await sendFrozen(fetch, request, isUploadData);
       if (result.ok) {
+        unconfirmed.current = null;
         setRetry(null);
         setFile(null);
         setInputKey((k) => k + 1);
@@ -56,24 +63,41 @@ export function DepositProofSection({
         return;
       }
       const shown = proofUploadError(result.error);
+      unconfirmed.current = shown.retrySame ? request : null;
       if (shown.signedOut) return onSignedOut(shown.message);
       setRetry(shown.retrySame ? request : null);
       setError(shown.message);
     } finally {
+      busy.current = false;
       setPending(false);
     }
   };
+  const begin = () => {
+    if (busy.current) return false;
+    busy.current = true;
+    setPending(true);
+    setError("");
+    setSent("");
+    return true;
+  };
 
   const start = async () => {
-    if (!file || pending) return;
+    if (!file || unconfirmed.current || !begin()) return;
+    const idempotencyKey = crypto.randomUUID();
     let image: string;
     try {
       image = toBase64(new Uint8Array(await file.arrayBuffer()));
     } catch {
+      busy.current = false;
+      setPending(false);
       setError("This file could not be read. Choose it again.");
       return;
     }
-    await send(freezeRequest("/api/bookings/manage/deposit-proofs", { bookingId: view.id, idempotencyKey: crypto.randomUUID(), image }));
+    await send(freezeRequest("/api/bookings/manage/deposit-proofs", { bookingId: view.id, idempotencyKey, image }));
+  };
+  const resend = async () => {
+    const request = unconfirmed.current;
+    if (request && begin()) await send(request);
   };
 
   return (
@@ -115,7 +139,7 @@ export function DepositProofSection({
             {retry ? (
               <button
                 type="button"
-                onClick={() => void send(retry)}
+                onClick={() => void resend()}
                 disabled={pending}
                 className="inline-flex min-h-[48px] items-center gap-2 rounded bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
               >

@@ -1,8 +1,15 @@
 // Pure rules for the private booking page (P1-04 management API, ADR-002 code handling) and the
 // optional deposit screenshot (P1-18). Customers see status only: no bay, worker, position or
 // per-line progress, and never a staff-entered reason.
-import type { LifecycleError, LifecycleResult } from "@/types/catalog-contracts";
-import type { BookingStatus, ManagedDayBookingView, ManagedDepositView } from "@/types/contracts";
+import type { LifecycleError, LifecycleErrorCode, LifecycleResult } from "@/types/catalog-contracts";
+import type {
+  BookingStatus,
+  DepositProofUploadData,
+  ManagedDayAvailabilityData,
+  ManagedDayBookingView,
+  ManagedDepositView,
+  ManagementMutationData,
+} from "@/types/contracts";
 
 export const MANAGE_HEADERS = { "content-type": "application/json", "x-zeus-booking": "1" };
 export const MAX_PROOF_BYTES = 5 * 1024 * 1024;
@@ -26,8 +33,95 @@ const unconfirmed = (): LifecycleError => ({
   retryAfterSeconds: null,
 });
 
-// Network failures and non-JSON replies are unconfirmed outcomes, never failures.
-export async function sendFrozen<T>(fetchImpl: typeof fetch, request: FrozenRequest): Promise<LifecycleResult<T>> {
+// Only a well-formed reply is trusted (review F2): a success whose data passes the caller's check, or
+// a known error code with a message and a valid commit state. Anything else (a proxy's 502 body, a
+// missing error, unusable data) is an unconfirmed outcome, so the caller keeps its frozen request.
+type Check<T> = (data: unknown) => data is T;
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isInt = (v: unknown, min = 0) => Number.isSafeInteger(v) && (v as number) >= min;
+const isDay = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const oneOf = <T extends string>(values: readonly T[]) => (v: unknown): v is T => typeof v === "string" && (values as readonly string[]).includes(v);
+const CODES: Record<LifecycleErrorCode, true> = {
+  VALIDATION_ERROR: true, NOT_FOUND: true, SLOT_UNAVAILABLE: true, SCHEDULE_CONFLICT: true, VERSION_CONFLICT: true,
+  IDEMPOTENCY_CONFLICT: true, UNAUTHENTICATED: true, FORBIDDEN: true, RATE_LIMITED: true, RETRYABLE_ERROR: true,
+  INTERNAL_ERROR: true, CLIENT_UPGRADE_REQUIRED: true, CATALOG_UPDATED: true, QUOTE_EXPIRED: true, OPERATION_CLOSED: true,
+  RECOVERY_EXPIRED: true, RECOVERY_UNAVAILABLE: true, BOOKING_NOT_MANAGEABLE: true, CUTOFF_PASSED: true,
+  CHALLENGE_FAILED: true, ONLINE_BOOKING_UNAVAILABLE: true, BOOKING_LIMIT_REACHED: true, SERVICE_NOT_OFFERED: true,
+  QUOTE_REQUIRED: true, FULLY_BOOKED: true, DAY_CLOSED: true, UNSUPPORTED_FILE: true, FILE_TOO_LARGE: true,
+  DEPOSIT_PROOF_LIMIT: true,
+};
+const isCode = (v: unknown): v is LifecycleErrorCode => typeof v === "string" && Object.prototype.hasOwnProperty.call(CODES, v);
+const isCommitState = oneOf(["NOT_COMMITTED", "UNKNOWN", "NOT_APPLICABLE"] as const);
+const isStatus = oneOf(["PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"] as const);
+const isDepositStatus = oneOf(["NONE", "PROOF_SENT", "RECEIVED", "REJECTED"] as const);
+const isDayState = oneOf(["AVAILABLE", "FULLY_BOOKED", "CLOSED"] as const);
+
+// Every field the customer screens read from a booking view.
+export function isManagedView(v: unknown): v is ManagedDayBookingView {
+  if (!isObject(v) || !isObject(v.deposit) || !Array.isArray(v.lines)) return false;
+  const d = v.deposit;
+  return (
+    typeof v.id === "string" &&
+    typeof v.referenceCode === "string" &&
+    isStatus(v.status) &&
+    isInt(v.revision, 1) &&
+    isDay(v.bookingDate) &&
+    typeof v.timezone === "string" &&
+    typeof v.vehicleCategoryName === "string" &&
+    isInt(v.totalPriceCentavos) &&
+    (v.estimatedTotalCentavos === null || isInt(v.estimatedTotalCentavos)) &&
+    typeof v.selfServiceAllowed === "boolean" &&
+    typeof v.selfServiceCutoff === "string" &&
+    !Number.isNaN(Date.parse(v.selfServiceCutoff)) &&
+    v.lines.every(
+      (l) =>
+        isObject(l) &&
+        typeof l.serviceId === "string" &&
+        typeof l.name === "string" &&
+        isInt(l.quantity, 1) &&
+        (l.priceStatus === "PRICED" || l.priceStatus === "FOR_QUOTE") &&
+        (l.subtotalCentavos === null || isInt(l.subtotalCentavos)) &&
+        (l.referenceSubtotalCentavos === null || isInt(l.referenceSubtotalCentavos)),
+    ) &&
+    isDepositStatus(d.status) &&
+    isInt(d.proofsSent) &&
+    isInt(d.proofsAllowed) &&
+    (d.message === null || typeof d.message === "string")
+  );
+}
+export const isUploadData = (v: unknown): v is DepositProofUploadData =>
+  isObject(v) && isManagedView(v.booking) && typeof v.replayed === "boolean";
+export const isMutationData = (v: unknown): v is ManagementMutationData =>
+  isObject(v) && (v.operationKind === "CANCEL" || v.operationKind === "RESCHEDULE") && isManagedView(v.booking) && typeof v.replayed === "boolean" && typeof v.noChange === "boolean";
+export const isAvailabilityData = (v: unknown): v is ManagedDayAvailabilityData =>
+  isObject(v) && Array.isArray(v.days) && v.days.every((d) => isObject(d) && isDay(d.date) && isDayState(d.state)) && (v.nextAvailableDay === null || isDay(v.nextAvailableDay));
+export const isSessionData = (v: unknown): v is { booking: ManagedDayBookingView; sessionExpiresAt: string } =>
+  isObject(v) && isManagedView(v.booking) && typeof v.sessionExpiresAt === "string";
+
+export function parseLifecycle<T>(value: unknown, isData: Check<T>): LifecycleResult<T> {
+  if (isObject(value) && value.ok === true && isData(value.data)) return { ok: true, data: value.data };
+  if (isObject(value) && value.ok === false && isObject(value.error)) {
+    const e = value.error;
+    if (isCode(e.code) && typeof e.message === "string" && isCommitState(e.commitState))
+      return {
+        ok: false,
+        error: {
+          code: e.code,
+          message: e.message,
+          fieldErrors: isObject(e.fieldErrors) ? (e.fieldErrors as Record<string, string[]>) : {},
+          retryable: e.retryable === true,
+          commitState: e.commitState,
+          currentQuote: null, // never read by these screens
+          currentBooking: isManagedView(e.currentBooking) ? e.currentBooking : null,
+          retryAfterSeconds: isInt(e.retryAfterSeconds, 1) ? (e.retryAfterSeconds as number) : null,
+        },
+      };
+  }
+  return { ok: false, error: unconfirmed() };
+}
+
+// Network failures and non-JSON or malformed replies are unconfirmed outcomes, never failures.
+export async function sendFrozen<T>(fetchImpl: typeof fetch, request: FrozenRequest, isData: Check<T>): Promise<LifecycleResult<T>> {
   try {
     const response = await fetchImpl(request.path, {
       method: "POST",
@@ -36,8 +130,7 @@ export async function sendFrozen<T>(fetchImpl: typeof fetch, request: FrozenRequ
       cache: "no-store",
       credentials: "same-origin",
     });
-    const result = (await response.json()) as LifecycleResult<T>;
-    return result && typeof result === "object" && "ok" in result ? result : { ok: false, error: unconfirmed() };
+    return parseLifecycle(await response.json(), isData);
   } catch {
     return { ok: false, error: unconfirmed() };
   }

@@ -14,12 +14,17 @@ import {
   canSendProof,
   codeFromText,
   freezeRequest,
+  isAvailabilityData,
+  isManagedView,
+  isMutationData,
+  isSessionData,
   manageActionError,
+  parseLifecycle,
   sendFrozen,
   type FrozenRequest,
 } from "@/components/booking/manage-booking";
-import type { BookingCatalogResponse, LifecycleResult } from "@/types/catalog-contracts";
-import type { ManagedDayAvailabilityData, ManagedDayBookingView, ManagementMutationData } from "@/types/contracts";
+import type { BookingCatalogResponse } from "@/types/catalog-contracts";
+import type { ManagedDayAvailabilityData, ManagedDayBookingView } from "@/types/contracts";
 
 // P1-05 second pass: the private booking page (ADR-002, P1-04 contract). No URL parameters: the
 // saved code is exchanged once for the HttpOnly session cookie, and every later call relies on that
@@ -57,8 +62,15 @@ export function ManageBooking() {
   const [daysVersion, setDaysVersion] = React.useState(0);
   const [day, setDay] = React.useState("");
   const alertRef = React.useRef<HTMLDivElement>(null);
+  // Synchronous guards (review F1): handlers from one render cannot both pass a state check, so a
+  // rapid repeat tap is refused here, before any key is minted or request sent.
+  const actionBusy = React.useRef(false);
+  const codeBusy = React.useRef(false);
+  // The unconfirmed change, if any: only its own retry may run until it settles (same key).
+  const unconfirmedAction = React.useRef<Action | null>(null);
 
   const toCode = React.useCallback((notice: string) => {
+    unconfirmedAction.current = null;
     setView(null);
     setMode("view");
     setAction(null);
@@ -74,7 +86,7 @@ export function ManageBooking() {
     const controller = new AbortController();
     fetch("/api/bookings/manage", { cache: "no-store", credentials: "same-origin", signal: controller.signal })
       .then(async (response) => {
-        const result: LifecycleResult<ManagedDayBookingView> = await response.json();
+        const result = parseLifecycle(await response.json(), isManagedView);
         if (controller.signal.aborted) return;
         if (result.ok) {
           setView(result.data);
@@ -115,7 +127,7 @@ export function ManageBooking() {
   React.useEffect(() => {
     if (mode !== "day" || !bookingId) return;
     let active = true;
-    sendFrozen<ManagedDayAvailabilityData>(fetch, freezeRequest("/api/bookings/manage/availability", { bookingId, fromDate, days: 14 })).then((result) => {
+    sendFrozen(fetch, freezeRequest("/api/bookings/manage/availability", { bookingId, fromDate, days: 14 }), isAvailabilityData).then((result) => {
       if (!active) return;
       if (result.ok) return setDays({ key: daysKey, data: result.data, error: "" });
       const shown = manageActionError(result.error);
@@ -137,20 +149,18 @@ export function ManageBooking() {
 
   const openCode = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (codePending) return;
+    if (codeBusy.current) return;
     setCodeNotice("");
     const accessToken = codeFromText(code);
     if (!accessToken) {
       setCodeError("Enter your full booking code. It is long: paste it, or open the code file you saved.");
       return;
     }
+    codeBusy.current = true;
     setCodePending(true);
     setCodeError("");
     try {
-      const result = await sendFrozen<{ booking: ManagedDayBookingView; sessionExpiresAt: string }>(
-        fetch,
-        freezeRequest("/api/bookings/manage/session", { accessToken }),
-      );
+      const result = await sendFrozen(fetch, freezeRequest("/api/bookings/manage/session", { accessToken }), isSessionData);
       if (result.ok) {
         setCode("");
         setView(result.data.booking);
@@ -168,6 +178,7 @@ export function ManageBooking() {
               : "Your booking could not be opened right now. Try again.",
       );
     } finally {
+      codeBusy.current = false;
       setCodePending(false);
     }
   };
@@ -182,6 +193,8 @@ export function ManageBooking() {
   };
 
   const signOut = async () => {
+    if (actionBusy.current) return;
+    actionBusy.current = true;
     setPending(true);
     try {
       const response = await fetch("/api/bookings/manage/session", { method: "DELETE", headers: MANAGE_HEADERS, cache: "no-store", credentials: "same-origin" });
@@ -190,19 +203,25 @@ export function ManageBooking() {
     } catch {
       setActionError("You could not be signed out. Check your connection and try again.");
     } finally {
+      actionBusy.current = false;
       setPending(false);
     }
   };
 
-  const run = async (next: Action) => {
-    if (pending) return;
+  // The action (and its key) is built only after the guard is taken; a retry passes the frozen one.
+  const run = async (make: () => Action | null) => {
+    if (actionBusy.current) return;
+    const next = make();
+    if (!next || (unconfirmedAction.current && next !== unconfirmedAction.current)) return;
+    actionBusy.current = true;
     setPending(true);
     setActionError("");
     setDone("");
     setAction(next);
     try {
-      const result = await sendFrozen<ManagementMutationData>(fetch, next.request);
+      const result = await sendFrozen(fetch, next.request, isMutationData);
       if (result.ok) {
+        unconfirmedAction.current = null;
         setView(result.data.booking);
         setAction(null);
         setRetryable(false);
@@ -216,6 +235,7 @@ export function ManageBooking() {
         return;
       }
       const shown = manageActionError(result.error);
+      unconfirmedAction.current = shown.retrySame ? next : null;
       if (shown.signedOut) return toCode(shown.message);
       setActionError(shown.message);
       setRetryable(shown.retrySame);
@@ -231,29 +251,35 @@ export function ManageBooking() {
         setMode("view");
       }
     } finally {
+      actionBusy.current = false;
       setPending(false);
     }
   };
 
   const cancelBooking = () =>
-    view &&
-    run({
-      kind: "cancel",
-      request: freezeRequest("/api/bookings/manage/cancellation", { bookingId: view.id, idempotencyKey: crypto.randomUUID(), expectedRevision: view.revision }),
-    });
+    run(() =>
+      view
+        ? {
+            kind: "cancel",
+            request: freezeRequest("/api/bookings/manage/cancellation", { bookingId: view.id, idempotencyKey: crypto.randomUUID(), expectedRevision: view.revision }),
+          }
+        : null,
+    );
   const moveBooking = () =>
-    view &&
-    day &&
-    run({
-      kind: "reschedule",
-      bookingDate: day,
-      request: freezeRequest("/api/bookings/manage/rescheduling", {
-        bookingId: view.id,
-        idempotencyKey: crypto.randomUUID(),
-        expectedRevision: view.revision,
-        bookingDate: day,
-      }),
-    });
+    run(() =>
+      view && day
+        ? {
+            kind: "reschedule",
+            bookingDate: day,
+            request: freezeRequest("/api/bookings/manage/rescheduling", {
+              bookingId: view.id,
+              idempotencyKey: crypto.randomUUID(),
+              expectedRevision: view.revision,
+              bookingDate: day,
+            }),
+          }
+        : null,
+    );
   const leaveMode = () => {
     setMode("view");
     setDay("");
@@ -378,7 +404,7 @@ export function ManageBooking() {
                 <div ref={alertRef} tabIndex={-1} role="alert" className="rounded border border-destructive p-4 text-sm text-destructive">
                   <p className="font-semibold">{actionError}</p>
                   {retryable && action && (
-                    <button type="button" onClick={() => void run(action)} disabled={pending} className={primary + " mt-3"}>
+                    <button type="button" onClick={() => void run(() => unconfirmedAction.current)} disabled={pending} className={primary + " mt-3"}>
                       <RefreshCw className="h-4 w-4" aria-hidden="true" />
                       {pending ? "Retrying…" : action.kind === "cancel" ? "Retry cancelling" : "Retry the day change"}
                     </button>
