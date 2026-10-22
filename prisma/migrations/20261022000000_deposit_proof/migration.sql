@@ -66,6 +66,7 @@ DECLARE cur int; start text; BEGIN
  SELECT revision INTO cur FROM public.bookings WHERE id=NEW.id;
  start:=current_setting('zeus_rev.b'||replace(NEW.id,'-','_'),true);
  IF coalesce(start,'')='' OR cur<=start::int THEN RAISE EXCEPTION 'A deposit status change needs a new revision'; END IF;
+ IF NEW."depositStatus"::text='REJECTED' AND NOT EXISTS(SELECT 1 FROM public.booking_deposit_proofs WHERE "bookingId"=NEW.id) THEN RAISE EXCEPTION 'REJECTED needs a deposit proof'; END IF;
  IF NEW."depositStatus"::text='PROOF_SENT' THEN
   IF NOT EXISTS(SELECT 1 FROM public.booking_deposit_proofs WHERE "bookingId"=NEW.id AND "createdTxId"=txid_current()) THEN RAISE EXCEPTION 'PROOF_SENT needs a new deposit proof'; END IF;
  ELSIF NOT EXISTS(SELECT 1 FROM public.booking_audit_events e JOIN public.staff s ON s.id=e."actorStaffId"

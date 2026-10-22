@@ -447,7 +447,7 @@ export function BookingDetail({
                     disabled={
                       disabled ||
                       b.depositStatus === "REJECTED" ||
-                      b.depositStatus === "NONE"
+                      b.depositProofs.length === 0
                     }
                   >
                     Mark deposit rejected

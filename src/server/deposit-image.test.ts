@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import sharp from "sharp";
 import { inspectDepositImage, MAX_PROOF_BYTES, MAX_PROOF_DIMENSION } from "./deposit-image";
-import { chunk, jpeg, le32, png, riff, seg, vp8l, wchunk, webpExtended } from "./deposit-image.fixture";
+import { app0Segments, chunk, jpeg, le32, png, riff, seg, vp8l, wchunk, webpExtended, withApp0Thumbnails } from "./deposit-image.fixture";
 
 // P1-18: the canaries stand in for camera metadata (EXIF GPS, PNG text, WebP XMP) that must
 // never be stored or served.
@@ -69,6 +70,26 @@ test("metadata and trailing bytes are removed before storage (EXIF, text, XMP, I
   assert.equal(has(w.data, CANARY), false);
   assert.equal(w.data.readUInt32LE(4), w.data.length - 8, "RIFF size rewritten");
   assert.equal(w.data[20] & (0x20 | 0x08 | 0x04), 0, "VP8X metadata flags cleared");
+});
+
+// Review F1: thumbnails live in APP0 too (JFIF and JFXX). sharp (installed with Next) encodes a
+// real JPEG and decodes before and after, so the cleaned copy must give the same pixels.
+test("JPEG APP0 thumbnails and payloads are removed; only a minimal JFIF header remains and the image still decodes", async () => {
+  const base = await sharp({ create: { width: 4, height: 3, channels: 3, background: { r: 30, g: 140, b: 220 } } }).jpeg().toBuffer();
+  const input = withApp0Thumbnails(base, CANARY);
+  const before = await sharp(input).raw().toBuffer();
+  const j = ok(input);
+  assert.deepEqual([j.contentType, j.width, j.height], ["image/jpeg", 4, 3]);
+  assert.equal(has(j.data, CANARY), false);
+  assert.equal(has(j.data, "JFXX"), false);
+  assert.equal(has(j.data, "AVI1"), false);
+  assert.deepEqual(app0Segments(j.data).map((s) => s.toString("hex")), ["ffe000104a46494600010100000100010000"]);
+  assert.ok(j.data.subarray(2, 20).equals(app0Segments(j.data)[0]), "JFIF header directly after SOI");
+  const after = await sharp(j.data).raw().toBuffer({ resolveWithObject: true });
+  assert.deepEqual([after.info.width, after.info.height], [4, 3]);
+  assert.ok(after.data.equals(before), "same pixels after cleaning");
+  // No JFIF header in, none out.
+  assert.deepEqual(app0Segments(ok(base).data), []);
 });
 
 test("size and dimension bounds", () => {

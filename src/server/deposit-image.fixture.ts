@@ -31,7 +31,23 @@ export function jpeg(w = 2, h = 2, extra: Buffer[] = [], trailing = Buffer.alloc
     trailing,
   ]);
 }
-export const wchunk = (fourcc: string, data: Buffer): Buffer =>
+// APP0 metadata right after SOI, each piece carrying the canary in its thumbnail or payload: a
+// JFIF header with an embedded RGB thumbnail, a JFXX RGB thumbnail and an unknown APP0 segment.
+export function withApp0Thumbnails(jpegBytes: Buffer, canary: string): Buffer {
+  const thumb = () => { const px = Buffer.alloc(8 * 4 * 3, 0x40); px.write(canary, "latin1"); return px; };
+  const jfif = seg(0xe0, Buffer.concat([Buffer.from("4a46494600010201004800480804", "hex"), thumb()]));
+  const jfxx = seg(0xe0, Buffer.concat([Buffer.from("4a46585800130804", "hex"), thumb()]));
+  const other = seg(0xe0, Buffer.from("AVI1\0" + canary, "latin1"));
+  return Buffer.concat([jpegBytes.subarray(0, 2), jfif, jfxx, other, jpegBytes.subarray(2)]);
+}
+// The APP0 segments (marker included) before the first scan.
+export function app0Segments(b: Buffer): Buffer[] {
+  const out: Buffer[] = [];
+  for (let at = 2; at + 4 <= b.length && b[at + 1] !== 0xda; at += 2 + b.readUInt16BE(at + 2))
+    if (b[at + 1] === 0xe0) out.push(b.subarray(at, at + 2 + b.readUInt16BE(at + 2)));
+  return out;
+}
+export const wchunk =(fourcc: string, data: Buffer): Buffer =>
   Buffer.concat([Buffer.from(fourcc, "latin1"), le32(data.length), data, data.length % 2 ? Buffer.from([0]) : Buffer.alloc(0)]);
 export function riff(chunks: Buffer[], trailing = Buffer.alloc(0)): Buffer {
   const body = Buffer.concat([Buffer.from("WEBP"), ...chunks]);

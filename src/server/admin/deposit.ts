@@ -13,14 +13,15 @@ import { audit, bump, conflict, detailOrThrow, loadForWrite, mutate } from "./mu
 
 // P1-18 deposit decisions and proof reads. ADMIN alone marks a deposit RECEIVED or REJECTED:
 // revision first, one audit row per change (its reason is staff-only), 409 with currentBooking.
-// RECEIVED needs no proof (paid at the shop); REJECTED needs one. STAFF and ADMIN read proofs.
+// RECEIVED needs no proof (paid at the shop); REJECTED needs a stored proof, counted, since a
+// RECEIVED status says nothing about proofs. STAFF and ADMIN read proofs.
 export async function setDepositStatus(actor: StaffActor, id: unknown, input: unknown, options: AdminOptions = {}): Promise<AdminWriteResult> {
   authorize(actor, "DEPOSIT_STATUS");
   const bookingId = parse(AdminIdSchema, id), v = parse(DepositStatusSchema, input);
   return mutate(options, "deposit_status", async (tx) => {
     const b = await loadForWrite(tx, bookingId, v.expectedRevision, { v3: true });
     if (b.depositStatus === v.status) return { booking: await detailOrThrow(tx, bookingId), noChange: true };
-    if (v.status === "REJECTED" && b.depositStatus === "NONE")
+    if (v.status === "REJECTED" && (await tx.bookingDepositProof.count({ where: { bookingId } })) === 0)
       return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId, "There is no deposit proof to reject.");
     await bump(tx, bookingId, v.expectedRevision, { depositStatus: v.status });
     await audit(tx, actor, {

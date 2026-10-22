@@ -3,8 +3,9 @@ import { crc32 } from "node:zlib";
 
 // P1-18 deposit proof images. The type comes from the content only (magic bytes and a full
 // structural walk), never from a file name or a declared type. The stored copy is rebuilt from
-// the image structure alone: camera metadata (EXIF, XMP, text chunks, comments, ICC profiles)
-// and anything after the end of the image are dropped, so nothing but pixels is ever served.
+// the image structure alone: camera metadata (EXIF, XMP, thumbnails, text chunks, comments,
+// ICC profiles) and anything after the end of the image are dropped, so nothing but pixels is
+// ever served.
 // Nothing here decodes pixels; staff browsers do, so dimensions are bounded.
 export const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 export const MAX_PROOF_DIMENSION = 10_000;
@@ -60,11 +61,13 @@ function png(b: Buffer): InspectedImage {
   return { ok: true, contentType: "image/png", data: Buffer.concat(out), width, height };
 }
 
-// JPEG: walk the marker segments; keep frame, tables, scans and JFIF; drop APP1-APP15 (EXIF,
-// XMP, ICC, maker notes) and comments; stop at EOI.
+// JPEG: walk the marker segments; keep frame, tables and scans; drop every application segment
+// (APP0 JFIF/JFXX thumbnails, EXIF, XMP, ICC, maker notes) and comments; stop at EOI. A source
+// JFIF header is replaced by a fixed minimal one (version 1.01, 1:1 aspect, no thumbnail).
+const MINIMAL_JFIF = Buffer.from("ffe000104a46494600010100000100010000", "hex");
 function jpeg(b: Buffer): InspectedImage {
   const out: Buffer[] = [b.subarray(0, 2)];
-  let at = 2, width = 0, height = 0, frame = false, scans = 0;
+  let at = 2, width = 0, height = 0, frame = false, scans = 0, jfif = false;
   for (;;) {
     need(at < b.length && b[at] === 0xff);
     while (at < b.length && b[at] === 0xff) at++; // fill bytes
@@ -84,10 +87,11 @@ function jpeg(b: Buffer): InspectedImage {
       need(inBounds(width, height));
       frame = true;
       out.push(Buffer.from([0xff, marker]), b.subarray(at, at + len));
-    } else if (marker === 0xe0 || marker === 0xdb || marker === 0xc4 || marker === 0xdd || marker === 0xcc) {
+    } else if (marker === 0xdb || marker === 0xc4 || marker === 0xdd || marker === 0xcc) {
       out.push(segment);
-    } else if ((marker >= 0xe1 && marker <= 0xef) || marker === 0xfe) {
-      // metadata: dropped
+    } else if ((marker >= 0xe0 && marker <= 0xef) || marker === 0xfe) {
+      // metadata: dropped; only the fact that the source declared JFIF is kept
+      if (marker === 0xe0 && len >= 7 && b.toString("latin1", at + 2, at + 7) === "JFIF\0") jfif = true;
     } else if (marker === 0xda) {
       need(frame);
       out.push(segment);
@@ -106,6 +110,7 @@ function jpeg(b: Buffer): InspectedImage {
     at += len;
   }
   need(frame && scans > 0);
+  if (jfif) out.splice(1, 0, MINIMAL_JFIF);
   return { ok: true, contentType: "image/jpeg", data: Buffer.concat(out), width, height };
 }
 

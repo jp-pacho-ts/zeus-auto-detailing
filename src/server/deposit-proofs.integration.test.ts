@@ -6,6 +6,7 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { PrismaClient } from "@prisma/client";
 import { NextRequest } from "next/server";
+import sharp from "sharp";
 import { createAndMigrate, mapPublisher, provisionRuntimeRole, publish, runtimeRoleUrl, siblingDatabaseUrl } from "./catalog-db.fixture";
 import { bySlug, readManifest, releaseFromManifest, sizeId } from "./catalog.fixture";
 import { getBookingQuote } from "./catalog-quote";
@@ -14,10 +15,11 @@ import { parseBookingConfiguration, signManagementToken } from "./bookings-crede
 import * as management from "./bookings-management";
 import { managementHttp } from "./bookings-management-http";
 import * as admin from "./admin";
+import { proofImageResponse } from "./admin/deposit";
 import { depositProofHttp, uploadDepositProof, MAX_PROOFS_PER_BOOKING } from "./deposit-proofs";
 import { drainDepositNotices } from "./notifications/bookings";
 import { smtpSimulation } from "./notifications/smtp.fixture";
-import { chunk, jpeg, png, seg, wchunk, webpExtended } from "./deposit-image.fixture";
+import { chunk, jpeg, png, seg, wchunk, webpExtended, withApp0Thumbnails } from "./deposit-image.fixture";
 
 // P1-18 security cases, test-first. Every service call runs as the provisioned zeus_app role on
 // an isolated sibling database; fixtures use the owner. Synthetic images and customers only.
@@ -129,6 +131,21 @@ test("a customer sends PNG, JPEG and WebP proofs through the management session;
   assert.deepEqual(detail.depositProofs.map((p) => Object.keys(p).sort().join()), Array(3).fill("byteSize,contentType,createdAt,height,id,width"));
   assert.equal(JSON.stringify(detail).includes(b64(Buffer.from(rows[0].data)).slice(0, 40)), false, "detail carries no image bytes");
   assert.deepEqual(detail.history.filter((h) => h.source === "CUSTOMER").map((h) => [h.action, h.actorStaffId, h.reason]), Array(3).fill(["DEPOSIT_PROOF_SENT", null, null]));
+});
+
+// Review F1: a real, decodable JPEG whose APP0 thumbnails (JFIF and JFXX) carry the canary.
+test("JPEG APP0 thumbnails are gone from storage and from the staff copy, which still decodes to the same pixels", { skip }, async () => {
+  const a = await fresh();
+  const canary = "P118-JFXX-THUMBNAIL-CANARY";
+  const input = withApp0Thumbnails(await sharp({ create: { width: 5, height: 4, channels: 3, background: { r: 200, g: 60, b: 20 } } }).jpeg().toBuffer(), canary);
+  const pixels = await sharp(input).raw().toBuffer();
+  success(await upload(a.token, proofBody(a.id, input)));
+  const row = await owner.bookingDepositProof.findFirstOrThrow({ where: { bookingId: a.id } });
+  assert.deepEqual([row.contentType, row.width, row.height], ["image/jpeg", 5, 4]);
+  assert.equal(Buffer.from(row.data).includes(canary), false, "thumbnail stored");
+  const served = Buffer.from(await proofImageResponse(await admin.readDepositProof(STAFF(), a.id, row.id, { db })).arrayBuffer());
+  assert.equal(served.includes(canary), false, "thumbnail served to staff");
+  assert.ok((await sharp(served).raw().toBuffer()).equals(pixels), "the staff copy decodes to the same pixels");
 });
 
 test("wrong and disguised types are refused with nothing stored (HTML, SVG, script, GIF, PDF, signature + markup)", { skip }, async () => {
@@ -270,10 +287,18 @@ test("ADMIN alone marks RECEIVED or REJECTED with the revision and one audit row
   assert.equal(received.booking.depositStatus, "RECEIVED");
   const board = await admin.getDayBoard(STAFF(), { date: day(4) }, { db });
   assert.equal(board.queues.flatMap((q) => q.waiting).find((card) => card.id === a.id)?.depositStatus, "RECEIVED");
-  // REJECTED needs a proof; RECEIVED without one is allowed (paid at the shop).
-  const b = await fresh();
-  await assert.rejects(admin.setDepositStatus(ADMIN(), b.id, { expectedRevision: await revision(b.id), status: "REJECTED" }, { db }), (e: { code?: string }) => e.code === "BOOKING_NOT_MANAGEABLE");
-  assert.equal((await admin.setDepositStatus(ADMIN(), b.id, { expectedRevision: await revision(b.id), status: "RECEIVED" }, { db })).booking.depositStatus, "RECEIVED");
+  // REJECTED needs an actual proof; RECEIVED without one is allowed (paid at the shop) and does
+  // not open the way to a rejection (review F2: NONE -> RECEIVED -> REJECTED is refused).
+  const b = await fresh(), r = await revision(b.id);
+  const notManageable = (rev: number, status: string) => (e: { code?: string; status?: number; currentBooking?: { revision: number; depositStatus: string } }) =>
+    e.code === "BOOKING_NOT_MANAGEABLE" && e.status === 409 && e.currentBooking?.revision === rev && e.currentBooking?.depositStatus === status;
+  await assert.rejects(admin.setDepositStatus(ADMIN(), b.id, { expectedRevision: r, status: "REJECTED" }, { db }), notManageable(r, "NONE"));
+  assert.equal((await admin.setDepositStatus(ADMIN(), b.id, { expectedRevision: r, status: "RECEIVED" }, { db })).booking.depositStatus, "RECEIVED");
+  await assert.rejects(admin.setDepositStatus(ADMIN(), b.id, { expectedRevision: r + 1, status: "REJECTED", reason: "P118 no proof" }, { db }), notManageable(r + 1, "RECEIVED"));
+  const unchanged = await owner.booking.findUniqueOrThrow({ where: { id: b.id } });
+  assert.deepEqual([unchanged.depositStatus, unchanged.revision, await proofCount(b.id)], ["RECEIVED", r + 1, 0]);
+  const history = await owner.bookingAuditEvent.findMany({ where: { bookingId: b.id, action: "DEPOSIT_STATUS_CHANGED" } });
+  assert.deepEqual(history.map((x) => [x.fromDepositStatus, x.toDepositStatus, x.fromRevision, x.toRevision]), [["NONE", "RECEIVED", r, r + 1]]);
 });
 
 test("the database refuses a deposit status change without its cause (no audit, no proof, back to NONE)", { skip }, async () => {
@@ -287,6 +312,14 @@ test("the database refuses a deposit status change without its cause (no audit, 
   await assert.rejects(owner.$executeRawUnsafe(`UPDATE booking_deposit_proofs SET data='\\x00' WHERE "bookingId"=$1`, a.id), /immutable/);
   await assert.rejects(db.$executeRawUnsafe(`DELETE FROM booking_deposit_proofs WHERE "bookingId"=$1`, a.id), /permission denied/);
   await assert.rejects(db.$executeRawUnsafe(`UPDATE booking_deposit_proofs SET "contentType"='text/html' WHERE "bookingId"=$1`, a.id), /permission denied/);
+  // REJECTED needs a stored proof even with a well-formed ADMIN audit row in the same transaction.
+  const n = await fresh(), r = await revision(n.id);
+  await assert.rejects(owner.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(746001,1)");
+    await tx.bookingAuditEvent.create({ data: { action: "DEPOSIT_STATUS_CHANGED", bookingId: n.id, actorStaffId: adminId, fromDepositStatus: "NONE", toDepositStatus: "REJECTED", fromRevision: r, toRevision: r + 1 } });
+    await tx.$executeRawUnsafe(`UPDATE bookings SET "depositStatus"='REJECTED', revision=revision+1 WHERE id=$1`, n.id);
+  }), /REJECTED needs a deposit proof/);
+  assert.equal((await owner.booking.findUniqueOrThrow({ where: { id: n.id } })).depositStatus, "NONE");
 });
 
 test("concurrent upload and ADMIN status change serialize: a decision on the older revision never hides a newer proof", { skip }, async () => {

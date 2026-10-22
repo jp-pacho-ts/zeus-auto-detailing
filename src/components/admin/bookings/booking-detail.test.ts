@@ -98,6 +98,10 @@ test("deposit section: proofs load from the staff route; ADMIN alone gets the de
   const none = depositHtml("ADMIN", "NONE", 0);
   assert.match(none, /The customer has not sent a deposit screenshot\./);
   assert.match(none, /<button[^>]*disabled=""[^>]*>Mark deposit rejected/, "nothing to reject without a proof");
+  // Review F2: the proof count decides, not the status (RECEIVED can be paid at the shop).
+  const paidAtShop = depositHtml("ADMIN", "RECEIVED", 0);
+  assert.match(paidAtShop, /<button[^>]*disabled=""[^>]*>Mark deposit rejected/, "RECEIVED without a proof: still nothing to reject");
+  assert.doesNotMatch(depositHtml("ADMIN", "RECEIVED", 1), /<button[^>]*disabled=""[^>]*>Mark deposit rejected/);
 });
 
 test("board badge: nothing for NONE; a label for each decision state", () => {
