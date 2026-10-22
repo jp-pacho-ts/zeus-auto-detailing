@@ -33,6 +33,26 @@ export const brandConfig = {
   bayCapacity: 2,
   locale: "en-PH",
   logoUrl: "/images/logo.png",
+  // P1-18 optional deposit: the shop's own accounts (LE-supplied). Customers pay outside the system
+  // and may send a screenshot; nothing here computes or moves money.
+  payment: {
+    accounts: [
+      {
+        provider: "GCash",
+        accountName: "Junel Colinayo",
+        numberLabel: "GCash number",
+        number: "09300162234",
+        qrImage: "/images/payment/gcash-qr.png",
+      },
+      {
+        provider: "GoTyme Bank",
+        accountName: "Junel Colinayo",
+        numberLabel: "Account number",
+        number: "013659818218",
+        qrImage: "/images/payment/gotyme-qr.png",
+      },
+    ],
+  },
   theme: {
     colors: {
       background: "#09090b",

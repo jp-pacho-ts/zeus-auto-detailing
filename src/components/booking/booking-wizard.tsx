@@ -6,7 +6,6 @@ import {
   AlertCircle,
   ArrowRight,
   Bike,
-  CalendarDays,
   Car,
   CarFront,
   Check,
@@ -25,12 +24,14 @@ import {
 import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
 import { TurnstileChallenge } from "@/components/booking/turnstile";
+import { DayPicker, DAYS_PER_PAGE, dateLabel, todayInManila } from "@/components/booking/day-picker";
+import { ManagementCode } from "@/components/booking/management-code";
+import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import {
   availableAddOns,
   createDayRequest,
-  dayStateLabel,
   isMultiDay,
-  money,
+  lineAmount,
   offerLabel,
   publicCreateError,
   quoteTotal,
@@ -52,6 +53,7 @@ import type {
   DayAvailabilityResponse,
   DayBookingResponse,
   DayBookingView,
+  ManagementAccessGrant,
 } from "@/types/contracts";
 
 function getVehicleCategoryIcon(code: string) {
@@ -68,18 +70,6 @@ function getServiceDisciplineIcon(category: string) {
   return ShieldCheck;
 }
 
-const DAYS_PER_PAGE = 14;
-const todayInManila = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
-const addDays = (day: string, n: number) =>
-  new Date(new Date(day + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
-const dateLabel = (date: string) =>
-  new Intl.DateTimeFormat(brandConfig.locale, { dateStyle: "full", timeZone: "Asia/Manila" }).format(
-    new Date(date + "T00:00:00+08:00"),
-  );
-const shortDayLabel = (date: string) =>
-  new Intl.DateTimeFormat(brandConfig.locale, { weekday: "short", month: "short", day: "numeric", timeZone: "Asia/Manila" }).format(
-    new Date(date + "T00:00:00+08:00"),
-  );
 const linesQuery = (lines: ServicePick[]) => lines.map((l) => l.serviceId + ":" + l.quantity).join(",");
 const BOOKING_HEADERS = { "content-type": "application/json", "x-zeus-booking": "1" };
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
@@ -107,14 +97,6 @@ function formatPhilippinePhone(raw: string): string {
   if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
   return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
 }
-
-// A priced line reads as its price; a for-quote line as "For quote", with its estimate if any.
-const lineAmount = (l: { priceStatus: "PRICED" | "FOR_QUOTE"; subtotalCentavos: number | null; referenceSubtotalCentavos: number | null }) =>
-  l.priceStatus === "PRICED" && l.subtotalCentavos !== null
-    ? money(l.subtotalCentavos)
-    : l.referenceSubtotalCentavos === null
-      ? "For quote"
-      : "For quote · est. " + money(l.referenceSubtotalCentavos);
 
 export function BookingWizard({
   initialServiceId,
@@ -150,7 +132,8 @@ export function BookingWizard({
   const [message, setMessage] = React.useState("");
   const [pending, setPending] = React.useState(false);
   const [uncertain, setUncertain] = React.useState(false);
-  const [booking, setBooking] = React.useState<{ view: DayBookingView; vehicleModel: string; vehiclePlate: string | null; customerName: string; customerPhone: string; multiDay: boolean } | null>(null);
+  // The management code stays in memory only (ADR-002): never in the URL or browser storage.
+  const [booking, setBooking] = React.useState<{ view: DayBookingView; access: ManagementAccessGrant | null; vehicleModel: string; vehiclePlate: string | null; customerName: string; customerPhone: string; multiDay: boolean } | null>(null);
 
   const submitting = React.useRef(false);
   const attempt = React.useRef<CreateDayBookingRequest | null>(null);
@@ -176,7 +159,6 @@ export function BookingWizard({
   const selectionKey = vehicleId + "|" + linesQuery(lines);
   const daysKey = selectionKey + "|" + fromDate;
   const liveDays = days?.key === daysKey ? days : null;
-  const lastDay = addDays(todayInManila(), 90);
   // The newest signed quote for this selection: the day list carries a fresh one too.
   const quote: BookingQuote | null =
     (liveDays?.data?.quote && quoteState?.key === selectionKey && quoteState.quote
@@ -366,6 +348,7 @@ export function BookingWizard({
         const sent = attempt.current;
         setBooking({
           view: result.data.booking,
+          access: result.data.managementAccess,
           vehicleModel: sent.vehicleModel,
           vehiclePlate: sent.vehiclePlate ?? null,
           customerName: sent.customerName,
@@ -790,112 +773,16 @@ export function BookingWizard({
 
               {/* Step 3: Day picker (no times, counts or positions) */}
               {step === 3 && (
-                <section id="booking-days" aria-labelledby="days-title" aria-busy={!liveDays} className={panel}>
-                  <div className="flex items-baseline justify-between border-b border-border pb-3">
-                    <div>
-                      <h2 id="days-title" className="text-lg font-bold text-foreground">
-                        {multiDay ? "Available drop-off days" : "Available days"}
-                      </h2>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {shortDayLabel(fromDate)} – {shortDayLabel(addDays(fromDate, DAYS_PER_PAGE - 1))}
-                      </p>
-                    </div>
-                    <span className="rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">Live availability</span>
-                  </div>
-
-                  {!liveDays && (
-                    <div role="status" className="mt-6 grid grid-cols-2 gap-3">
-                      <span className="sr-only">Loading days</span>
-                      {[0, 1, 2, 3].map((i) => (
-                        <div key={i} className="h-16 rounded bg-muted motion-safe:animate-pulse" />
-                      ))}
-                    </div>
-                  )}
-
-                  {liveDays?.error && (
-                    <div role="alert" className="mt-4">
-                      <p className="text-sm text-destructive">{liveDays.error}</p>
-                      <button type="button" onClick={() => setDaysVersion((v) => v + 1)} className="mt-2 min-h-[44px] text-xs underline">
-                        Retry days
-                      </button>
-                    </div>
-                  )}
-
-                  {liveDays?.data && (
-                    <>
-                      <p role="status" aria-live="polite" className="my-3 text-xs text-zinc-400">
-                        {liveDays.data.onlineBookingStatus === "PAUSED"
-                          ? `Online booking is paused right now. Please call the shop at ${brandConfig.displayPhone}.`
-                          : liveDays.data.nextAvailableDay
-                            ? `Next available day: ${dateLabel(liveDays.data.nextAvailableDay)}.`
-                            : `No available day was found. Please call the shop at ${brandConfig.displayPhone}.`}
-                      </p>
-                      <fieldset className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <legend className="sr-only">Days</legend>
-                        {liveDays.data.days.map((d) => {
-                          const selectable = d.state === "AVAILABLE";
-                          // A day that stopped being available is shown, but no longer chosen.
-                          const selected = selectable && day === d.date;
-                          return (
-                            <label
-                              key={d.date}
-                              className={`flex min-h-[64px] items-center justify-between gap-3 rounded border px-4 py-3 transition-colors ${
-                                !selectable
-                                  ? "cursor-not-allowed border-border opacity-50 bg-[#121214]/60"
-                                  : selected
-                                    ? "border-primary bg-primary/10 shadow-sm"
-                                    : "cursor-pointer border-input bg-card hover:border-zinc-500"
-                              }`}
-                            >
-                              <div>
-                                <span className="block font-semibold text-foreground">{shortDayLabel(d.date)}</span>
-                                <span className="block text-xs text-muted-foreground">{dayStateLabel(d.state)}</span>
-                              </div>
-                              <input
-                                type="radio"
-                                name="booking-day"
-                                aria-label={`${dateLabel(d.date)} — ${dayStateLabel(d.state)}`}
-                                checked={selected}
-                                disabled={!selectable}
-                                onChange={() => setDay(d.date)}
-                                className="h-5 w-5 shrink-0 accent-primary"
-                              />
-                            </label>
-                          );
-                        })}
-                      </fieldset>
-                    </>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setFromDate((f) => (addDays(f, -DAYS_PER_PAGE) < todayInManila() ? todayInManila() : addDays(f, -DAYS_PER_PAGE)))}
-                      disabled={fromDate <= todayInManila()}
-                      className="inline-flex min-h-[44px] items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                      Earlier days
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFromDate((f) => addDays(f, DAYS_PER_PAGE))}
-                      disabled={addDays(fromDate, DAYS_PER_PAGE) > lastDay}
-                      className="inline-flex min-h-[44px] items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                      Later days
-                    </button>
-                  </div>
-
-                  <div className="mt-4 flex items-start gap-2.5 rounded border border-border/60 bg-[#121214] p-3 text-xs text-zinc-400">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                    <p>
-                      <strong className="text-foreground">Availability Notice:</strong> Choosing a day does not hold a place. Your place in that day&apos;s queue is set when your booking request is submitted.
-                      {multiDay && " This job takes more than one day: the chosen day is your drop-off day."}
-                    </p>
-                  </div>
-                </section>
+                <DayPicker
+                  data={liveDays?.data ?? null}
+                  error={liveDays?.error ?? ""}
+                  onRetry={() => setDaysVersion((v) => v + 1)}
+                  selected={day}
+                  onSelect={setDay}
+                  fromDate={fromDate}
+                  onPage={setFromDate}
+                  multiDay={multiDay}
+                />
               )}
 
               {/* Step 4: Customer Details Form */}
@@ -1358,11 +1245,15 @@ export function BookingWizard({
               </div>
             </section>
 
+            <ManagementCode referenceCode={booking.view.referenceCode} bookingDate={booking.view.bookingDate} access={booking.access} />
+
+            <PaymentInstructions />
+
             {/* Post-Booking Assistance: Contact Shop Card */}
             <div className={`${panel} no-print`}>
               <h3 className="text-base font-bold text-foreground">Contact Shop About This Booking</h3>
               <p className="mt-1 text-xs text-zinc-400">
-                Have questions or need to change your day? Reach out directly to Zeus Auto Detailing with reference code{" "}
+                Have a question about your booking? Contact Zeus Auto Detailing with reference code{" "}
                 <span className="font-mono font-semibold text-primary">{booking.view.referenceCode}</span>.
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
