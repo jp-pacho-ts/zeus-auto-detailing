@@ -15,7 +15,7 @@ export const MANAGE_HEADERS = { "content-type": "application/json", "x-zeus-book
 export const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 export const PROOF_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const CONTACT_SHOP = "Please contact the shop.";
-const SIGNED_OUT = "Your booking page closed. Enter your booking code again.";
+const SIGNED_OUT = "Your booking page closed. Enter your private code again.";
 
 // An unsafe request is frozen once (path and exact body, including its idempotency key), so a retry
 // after an unconfirmed outcome sends the same bytes and the server replays instead of acting twice.
@@ -142,10 +142,11 @@ export async function sendFrozen<T>(fetchImpl: typeof fetch, request: FrozenRequ
   }
 }
 
+// P1-19 W11: one status vocabulary for the confirmation and the booking page.
 const STATUS: Record<BookingStatus, string> = {
-  PENDING: "Waiting for the shop to confirm",
+  PENDING: "Waiting for confirmation",
   CONFIRMED: "Confirmed",
-  IN_PROGRESS: "In progress at the shop",
+  IN_PROGRESS: "In progress",
   COMPLETED: "Done",
   CANCELLED: "Cancelled",
 };
@@ -156,7 +157,7 @@ export function selfServiceNotice(view: ManagedDayBookingView): string | null {
   if (view.selfServiceAllowed) return null;
   if (view.status === "CANCELLED") return "This booking is cancelled.";
   if (view.status === "COMPLETED") return "This booking is done.";
-  return "To change or cancel this booking, please contact the shop.";
+  return "Online changes for this booking are closed. To change or cancel it, please contact the shop.";
 }
 
 const DEPOSIT: Record<ManagedDepositView["status"], string> = {

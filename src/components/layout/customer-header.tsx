@@ -5,7 +5,8 @@ import Link from "next/link";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 
-export function CustomerHeader() {
+// P1-19 W2: the booking call to action comes from the page (it dials the shop while booking is paused).
+export function CustomerHeader({ bookHref = "/book", bookLabel = "Book an Appointment" }: { bookHref?: string; bookLabel?: string } = {}) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   return (
@@ -37,10 +38,10 @@ export function CustomerHeader() {
         {/* Action Button: Strictly no admin button */}
         <div className="hidden items-center gap-4 md:flex">
           <Link
-            href="/book"
+            href={bookHref}
             className="inline-flex min-h-[44px] items-center gap-2 rounded bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
-            Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            {bookLabel} <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
 
@@ -76,11 +77,11 @@ export function CustomerHeader() {
             </a>
             <div className="pt-2">
               <Link
-                href="/book"
+                href={bookHref}
                 onClick={() => setMobileMenuOpen(false)}
                 className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary-hover"
               >
-                Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                {bookLabel} <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
           </nav>

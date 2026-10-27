@@ -45,7 +45,9 @@ test("confirmation: the management code is shown with Copy, Download and Print a
   const markup = html(ManagementCode, { referenceCode: "ZEUS-TEST01", bookingDate: "2026-11-03", access: { accessToken: TOKEN, expiresAt: "2026-11-04T16:00:00.000Z" } });
   const t = text(markup);
   assert.ok(t.includes(TOKEN), "the code itself is visible");
-  assert.match(t, /Save this code\. You need it to change or cancel your booking\./);
+  // P1-19 W6 (Ruling R1): a "private code", explained honestly (this browser stays signed in for 24 hours).
+  assert.match(t, /Your private code/);
+  assert.match(t, /Save the private code to open it on another phone or later\./);
   assert.match(t, /Copy code/);
   assert.match(t, /Download code/);
   assert.match(t, /Print code/);
@@ -63,7 +65,7 @@ test("confirmation without a code says to contact the shop instead", () => {
 
 test("payment instructions: both accounts from brand.ts with their QR copies; optional; no amounts", () => {
   assert.equal(brandConfig.payment.accounts.length, 2);
-  const markup = html(PaymentInstructions, {});
+  const markup = html(PaymentInstructions, { referenceCode: "ZEUS-TEST01" });
   const t = text(markup);
   for (const a of brandConfig.payment.accounts) {
     assert.ok(t.includes(a.provider), a.provider);
@@ -98,7 +100,7 @@ test("booking page shows status, day, services and total only; no bay, worker, p
   const leaky = { ...view(), bay: "BAY CANARY", workers: ["WORKER CANARY"], queuePosition: 987, notes: "NOTE CANARY", lines: view().lines.map((l) => ({ ...l, workStatus: "PROGRESS CANARY" })) };
   const t = text(html(ManagedBookingDetails, { view: leaky, multiDay: false, busy: false, onCancel: noop, onChangeDay: noop }));
   assert.match(t, /ZEUS-TEST01/);
-  assert.match(t, /Waiting for the shop to confirm/);
+  assert.match(t, /Waiting for confirmation/);
   assert.match(t, /Basic Wash/);
   assert.match(t, /Regular Tint/);
   assert.match(t, /Estimated total/);
@@ -110,8 +112,8 @@ test("booking page shows status, day, services and total only; no bay, worker, p
 
 test("booking page: no self-service sends the customer to the shop, with no cancel or change buttons", () => {
   const t = text(html(ManagedBookingDetails, { view: view({ status: "IN_PROGRESS", selfServiceAllowed: false }), multiDay: false, busy: false, onCancel: noop, onChangeDay: noop }));
-  assert.match(t, /In progress at the shop/);
-  assert.match(t, /To change or cancel this booking, please contact the shop\./);
+  assert.match(t, /In progress/);
+  assert.match(t, /Online changes for this booking are closed\. To change or cancel it, please contact the shop\./);
   assert.ok(t.includes(brandConfig.displayPhone));
   assert.doesNotMatch(t, /Cancel booking|Change day/);
 });

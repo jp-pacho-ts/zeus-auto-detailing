@@ -111,7 +111,7 @@ export function DepositProofSection({
         <p className="font-semibold text-foreground" role="status" aria-live="polite">
           {depositWords(deposit)}
         </p>
-        <p className="mt-1 text-xs text-zinc-400">
+        <p className="mt-1 text-sm text-muted-foreground">
           {deposit.proofsSent} of {deposit.proofsAllowed} screenshots sent
         </p>
       </div>
@@ -121,7 +121,7 @@ export function DepositProofSection({
           <label htmlFor="deposit-file" className="text-sm font-semibold text-foreground">
             Payment screenshot
           </label>
-          <p id="deposit-file-help" className="mt-1 text-xs text-zinc-400">
+          <p id="deposit-file-help" className="mt-1 text-sm text-muted-foreground">
             JPEG, PNG or WebP, up to 5 MB. Up to {deposit.proofsAllowed} screenshots per booking.
           </p>
           <input

@@ -202,7 +202,7 @@ test("F1: sign out: a double tap sends one DELETE", async () => {
   out.props.onClick();
   await h.settle();
   assert.equal(calls.filter((c) => c.method === "DELETE").length, 1);
-  assert.match(h.text(), /Enter your booking code/);
+  assert.match(h.text(), /Enter your private code/);
 });
 
 test("F2: a malformed booking read shows a retryable error, never a blank or half view", async () => {
