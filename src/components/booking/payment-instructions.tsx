@@ -3,13 +3,16 @@ import { brandConfig } from "@/config/brand";
 
 // P1-18: how to pay an optional deposit to the shop's own accounts (brand.ts). The system never
 // computes an amount or takes a payment; the shop tells the customer what to pay.
-export function PaymentInstructions({ where = "confirmation" }: { where?: "confirmation" | "manage" }) {
+// P1-19 W12: only if the shop asks; the reference goes in the payment note so the shop can match it.
+export function PaymentInstructions({ where = "confirmation", referenceCode }: { where?: "confirmation" | "manage"; referenceCode: string }) {
   return (
-    <section aria-labelledby="payment-title" className="rounded border border-border bg-card p-6 sm:p-8">
+    <section aria-labelledby="payment-title" className="rounded border border-border bg-card p-4 sm:p-8">
       <h2 id="payment-title" className="text-lg font-bold text-foreground">Paying a deposit</h2>
       <p className="mt-2 text-sm text-muted-foreground">
-        If the shop asks you for a deposit, you can pay it to one of these accounts. Sending a screenshot of your payment is
-        optional: {where === "manage" ? "send it below" : "send it from your booking page"}, or pay at the shop instead.
+        Pay a deposit only if the shop asks you to; wait for its message with the amount. Then pay to one of these accounts and
+        put <strong className="font-semibold text-foreground">{referenceCode}</strong> in the GCash or bank note. Sending a
+        screenshot is optional: {where === "manage" ? "send it below" : "send it from your booking page"}, or pay at the shop
+        instead.
       </p>
       <ul className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {brandConfig.payment.accounts.map((a) => (

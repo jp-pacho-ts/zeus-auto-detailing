@@ -9,6 +9,7 @@ import { DayPicker, dateLabel, todayInManila } from "@/components/booking/day-pi
 import { DepositProofSection } from "@/components/booking/deposit-proof";
 import { ContactShop, ManagedBookingDetails } from "@/components/booking/managed-booking-details";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
+import { reveal } from "@/components/booking/reveal";
 import {
   MANAGE_HEADERS,
   canSendProof,
@@ -147,13 +148,22 @@ export function ManageBooking() {
     if (actionError || codeError) alertRef.current?.focus();
   }, [actionError, codeError]);
 
+  // P1-19 W7: an opened panel and a finished change come into view with focus on their heading.
+  React.useEffect(() => {
+    if (mode === "day") reveal("days-title");
+    if (mode === "cancel") reveal("cancel-title");
+  }, [mode]);
+  React.useEffect(() => {
+    if (done) reveal("manage-result");
+  }, [done]);
+
   const openCode = async (event: React.FormEvent) => {
     event.preventDefault();
     if (codeBusy.current) return;
     setCodeNotice("");
     const accessToken = codeFromText(code);
     if (!accessToken) {
-      setCodeError("Enter your full booking code. It is long: paste it, or open the code file you saved.");
+      setCodeError("Enter your full private code. It is long: paste it, or open the file you saved.");
       return;
     }
     codeBusy.current = true;
@@ -185,9 +195,9 @@ export function ManageBooking() {
 
   const readCodeFile = async (file: File | undefined) => {
     if (!file) return;
-    if (file.size > 16 * 1024) return setCodeError("This is not a booking code file.");
+    if (file.size > 16 * 1024) return setCodeError("This is not a private code file.");
     const found = codeFromText(await file.text());
-    if (!found) return setCodeError("No booking code was found in this file.");
+    if (!found) return setCodeError("No private code was found in this file.");
     setCodeError("");
     setCode(found);
   };
@@ -304,9 +314,7 @@ export function ManageBooking() {
       <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
         <div className="mb-8 max-w-3xl">
           <h1 className="text-2xl font-bold sm:text-3xl">{phase === "booking" ? "Your booking" : "Open your booking"}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Days are shown in Asia/Manila (UTC+8). This page is private to you: keep your booking code to yourself.
-          </p>
+          <p className="mt-2 text-base text-muted-foreground">This page is private to you. Days are in Philippine time.</p>
         </div>
 
         <div className="max-w-3xl space-y-6">
@@ -336,10 +344,11 @@ export function ManageBooking() {
             <>
               <form onSubmit={(e) => void openCode(e)} className={panel} aria-labelledby="code-form-title">
                 <h2 id="code-form-title" className="text-lg font-bold text-foreground">
-                  Enter your booking code
+                  Enter your private code
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  You got this code when you booked. Paste it below, or open the code file you saved.
+                  You got this long code when you booked. Paste it below, or open the file you saved. Your booking reference
+                  (ZEUS-…) is not the private code.
                 </p>
                 {codeNotice && (
                   <p role="status" className="mt-4 rounded border border-border/80 bg-[#121214] p-3 text-sm text-foreground">
@@ -352,7 +361,7 @@ export function ManageBooking() {
                   </div>
                 )}
                 <label htmlFor="booking-code" className="mt-5 block text-sm font-semibold text-foreground">
-                  Booking code
+                  Private code
                 </label>
                 <textarea
                   id="booking-code"
@@ -365,7 +374,7 @@ export function ManageBooking() {
                   autoCorrect="off"
                   spellCheck={false}
                   aria-invalid={Boolean(codeError)}
-                  className="mt-2 w-full rounded border border-input bg-card px-4 py-3 font-mono text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="mt-2 w-full rounded border border-input bg-card px-4 py-3 font-mono text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button type="submit" disabled={codePending || !code.trim()} className={primary}>
@@ -374,7 +383,7 @@ export function ManageBooking() {
                   </button>
                   <label className={secondary + " cursor-pointer"}>
                     <FileText className="h-4 w-4" aria-hidden="true" />
-                    Open saved code file
+                    Open saved file
                     <input type="file" accept=".txt,text/plain" className="sr-only" onChange={(e) => void readCodeFile(e.target.files?.[0])} />
                   </label>
                 </div>
@@ -385,7 +394,7 @@ export function ManageBooking() {
                   Lost your code?
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  For your privacy, a booking cannot be opened with its reference or phone number. Contact the shop with your
+                  For your privacy, a booking can&apos;t be opened with its reference or phone number. Contact the shop with your
                   booking reference and they will help you.
                 </p>
                 <ContactShop />
@@ -396,7 +405,12 @@ export function ManageBooking() {
           {phase === "booking" && view && (
             <>
               {done && (
-                <p role="status" className="rounded border border-emerald-500/50 bg-emerald-500/10 p-4 text-sm font-semibold text-emerald-400">
+                <p
+                  id="manage-result"
+                  tabIndex={-1}
+                  role="status"
+                  className="scroll-mt-6 rounded border border-emerald-500/50 bg-emerald-500/10 p-4 text-sm font-semibold text-emerald-400 focus-visible:outline-none"
+                >
                   {done}
                 </p>
               )}
@@ -431,7 +445,7 @@ export function ManageBooking() {
 
               {mode === "cancel" && (
                 <section aria-labelledby="cancel-title" className={panel}>
-                  <h2 id="cancel-title" className="text-lg font-bold text-foreground">
+                  <h2 id="cancel-title" tabIndex={-1} className="scroll-mt-6 text-lg font-bold text-foreground focus-visible:outline-none">
                     Cancel this booking?
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -442,7 +456,7 @@ export function ManageBooking() {
                       type="button"
                       onClick={() => void cancelBooking()}
                       disabled={locked}
-                      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-destructive px-5 py-3 text-sm font-bold text-destructive-foreground transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-red-700 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {pending ? "Cancelling…" : "Yes, cancel my booking"}
                     </button>
@@ -481,11 +495,12 @@ export function ManageBooking() {
                 </>
               )}
 
+              {/* W12: how to pay comes before the screenshot upload. */}
+              {canSendProof(view) && <PaymentInstructions where="manage" referenceCode={view.referenceCode} />}
               <DepositProofSection view={view} onUpdated={setView} onSignedOut={toCode} />
-              {canSendProof(view) && <PaymentInstructions where="manage" />}
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6">
-                <p className="text-xs text-zinc-400">On a shared device, sign out when you are done.</p>
+                <p className="text-sm text-muted-foreground">On a shared device, sign out when you are done.</p>
                 <button type="button" onClick={() => void signOut()} disabled={pending} className={secondary}>
                   <LogOut className="h-4 w-4" aria-hidden="true" />
                   Sign out

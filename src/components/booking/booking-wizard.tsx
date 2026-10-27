@@ -9,6 +9,7 @@ import {
   Car,
   CarFront,
   Check,
+  ChevronDown,
   ChevronLeft,
   Copy,
   Droplets,
@@ -23,20 +24,27 @@ import {
 } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
-import { TurnstileChallenge } from "@/components/booking/turnstile";
+import { TurnstileChallenge, type ChallengeStatus } from "@/components/booking/turnstile";
 import { DayPicker, DAYS_PER_PAGE, dateLabel, todayInManila } from "@/components/booking/day-picker";
 import { ManagementCode } from "@/components/booking/management-code";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
+import { bookingStatusWords } from "@/components/booking/manage-booking";
+import { reveal } from "@/components/booking/reveal";
 import {
+  CATEGORY_NAMES,
+  CATEGORY_ORDER,
+  arrivalWords,
   availableAddOns,
   createDayRequest,
   isMultiDay,
   lineAmount,
+  money,
   offerLabel,
   publicCreateError,
   quoteTotal,
   resolveDeepLink,
   selectionLines,
+  serviceDetail,
   type DetailsForm,
   type ServicePick,
 } from "@/components/booking/day-booking";
@@ -45,6 +53,7 @@ import type {
   BookingCatalogResponse,
   BookingQuote,
   BookingQuoteResponse,
+  CatalogServiceKind,
   ServicePackage,
 } from "@/types/catalog-contracts";
 import type {
@@ -72,11 +81,17 @@ function getServiceDisciplineIcon(category: string) {
 
 const linesQuery = (lines: ServicePick[]) => lines.map((l) => l.serviceId + ":" + l.quantity).join(",");
 const BOOKING_HEADERS = { "content-type": "application/json", "x-zeus-booking": "1" };
-const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 const control =
   "mt-2 min-h-[48px] w-full rounded border border-input bg-card px-4 py-3 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 transition-colors";
-const panel = "rounded border border-border bg-card p-6 sm:p-8";
+// L9: less padding on phones so the security check fits a 320 px screen.
+const panel = "rounded border border-border bg-card p-4 sm:p-8";
+// L5: option cards have a visible edge (input token, 6.9:1) and a focus ring on the whole card.
+const optionCard = (selected: boolean) =>
+  "flex cursor-pointer items-center justify-between gap-4 rounded border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring sm:p-5 " +
+  (selected ? "border-primary bg-primary/5" : "border-input bg-card hover:border-primary");
+const changeLink =
+  "inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-sm font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50";
 
 function formatPhilippinePhone(raw: string): string {
   if (!raw) return "";
@@ -98,6 +113,10 @@ function formatPhilippinePhone(raw: string): string {
   return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
 }
 
+// L4: four steps the customer acts on; the receipt is not a step.
+const STEP_LABELS = ["Vehicle size", "Services", "Day", "Your details"];
+const HEADINGS = ["Choose your vehicle size", "Choose your services", "Choose your day", "Your details", "Booking received"];
+
 export function BookingWizard({
   initialServiceId,
   initialVehicleName,
@@ -105,12 +124,15 @@ export function BookingWizard({
   initialServiceId?: string;
   initialVehicleName?: string;
 }) {
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
   const [step, setStep] = React.useState(1);
   const [catalog, setCatalog] = React.useState<BookingCatalog | null>(null);
   const [catalogError, setCatalogError] = React.useState("");
   const [catalogVersion, setCatalogVersion] = React.useState(0);
   const [vehicleId, setVehicleId] = React.useState("");
   const [picks, setPicks] = React.useState<ServicePick[]>([]);
+  const [openCategory, setOpenCategory] = React.useState<CatalogServiceKind | null>(null);
+  const [panelDrafts, setPanelDrafts] = React.useState<Record<string, string>>({});
   const [linkWarning, setLinkWarning] = React.useState("");
   const [copied, setCopied] = React.useState(false);
   const [fromDate, setFromDate] = React.useState(todayInManila);
@@ -128,6 +150,7 @@ export function BookingWizard({
     specialRequests: "",
   });
   const [challenge, setChallenge] = React.useState({ version: 0, token: "" });
+  const [challengeStatus, setChallengeStatus] = React.useState<ChallengeStatus>("pending");
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string[]>>({});
   const [message, setMessage] = React.useState("");
   const [pending, setPending] = React.useState(false);
@@ -139,6 +162,7 @@ export function BookingWizard({
   const attempt = React.useRef<CreateDayBookingRequest | null>(null);
   const errorSummary = React.useRef<HTMLDivElement>(null);
   const deepLinkHandled = React.useRef(false);
+  const shownStep = React.useRef(step);
 
   const copyReference = () => {
     if (!booking || typeof navigator === "undefined" || !navigator.clipboard) return;
@@ -168,16 +192,33 @@ export function BookingWizard({
       : liveDays?.data?.quote ?? (quoteState?.key === selectionKey ? quoteState.quote : null)) ?? null;
   const total = quote ? quoteTotal(quote) : null;
   const dayState = liveDays?.data?.days.find((d) => d.date === day)?.state;
+  // W10: a chosen day survives a size or service change while it is still available; otherwise it
+  // counts as not chosen and the customer is told why.
+  const dayGone = Boolean(day) && dayState !== undefined && dayState !== "AVAILABLE";
+  const chosenDay = dayGone ? "" : day;
+  const dayNote = dayGone ? dateLabel(day) + " isn't available for this choice. Choose another day." : "";
+  const paused = liveDays?.data?.onlineBookingStatus === "PAUSED";
   const multiDay = catalog ? isMultiDay(catalog, lines.map((l) => l.serviceId)) : false;
   const serviceById = (id: string) => catalog?.services.find((s) => s.id === id);
   const bases = catalog?.services.filter((s) => s.type === "BASE") ?? [];
-  const addOns = catalog ? availableAddOns(catalog, lines.map((l) => l.serviceId)) : [];
   const picked = (id: string) => picks.find((p) => p.serviceId === id);
+  const offered = (s: ServicePackage) => Boolean(vehicleId) && offerLabel(s, vehicleId).bookable;
 
   // Inline validation checks for Step 4
   const isPhoneValid = /^(09\d{9}|\+639\d{9})$/.test(form.customerPhone.replace(/[\s()\-]/g, ""));
   const isNameValid = form.customerName.trim().length >= 2;
   const isModelValid = form.vehicleModel.trim().length >= 2;
+
+  // Moves to a step. The service step opens the category of the first chosen main service.
+  const goTo = (target: number) => {
+    setMessage("");
+    setFieldErrors({});
+    if (target === 2) {
+      const first = picks.map((p) => serviceById(p.serviceId)).find((s) => s?.type === "BASE");
+      setOpenCategory(first ? first.category : null);
+    }
+    setStep(target);
+  };
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -203,7 +244,10 @@ export function BookingWizard({
             );
           } else {
             if (link.vehicleId) setVehicleId(link.vehicleId);
-            if (link.serviceId) setPicks([{ serviceId: link.serviceId, quantity: 1 }]);
+            if (link.serviceId) {
+              setPicks([{ serviceId: link.serviceId, quantity: 1 }]);
+              setOpenCategory(data.services.find((s) => s.id === link.serviceId)?.category ?? null);
+            }
             if (link.vehicleId) setStep(2);
           }
         } else {
@@ -218,6 +262,13 @@ export function BookingWizard({
       });
     return () => controller.abort();
   }, [initialServiceId, initialVehicleName, catalogVersion]);
+
+  // W1: every new step opens at its top with focus on its heading (not on first load).
+  React.useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    reveal("wizard-step-title");
+  }, [step]);
 
   // The server prices the selection (and signs it) as soon as it changes.
   React.useEffect(() => {
@@ -285,41 +336,43 @@ export function BookingWizard({
     if (message) errorSummary.current?.focus();
   }, [message, fieldErrors]);
 
-  const togglePick = (s: ServicePackage) => {
+  const togglePick = (s: ServicePackage) =>
     setPicks((previous) =>
       previous.some((p) => p.serviceId === s.id)
         ? previous.filter((p) => p.serviceId !== s.id)
         : [...previous, { serviceId: s.id, quantity: 1 }],
     );
-    setDay("");
-  };
   const setQuantity = (serviceId: string, quantity: number) =>
     setPicks((previous) => previous.map((p) => (p.serviceId === serviceId ? { ...p, quantity } : p)));
-  const newChallenge = () => setChallenge((c) => ({ version: c.version + 1, token: "" }));
+  const newChallenge = () => {
+    setChallenge((c) => ({ version: c.version + 1, token: "" }));
+    setChallengeStatus("pending");
+  };
   const onToken = React.useCallback((token: string) => setChallenge((c) => ({ ...c, token })), []);
+  const onChallengeStatus = React.useCallback((status: ChallengeStatus) => setChallengeStatus(status), []);
 
   const next = async () => {
     if (submitting.current) return;
     setMessage("");
     setFieldErrors({});
     if (step === 1 && vehicle) {
-      setStep(2);
+      goTo(2);
       return;
     }
     if (step === 2) {
-      if (lines.some((l) => serviceById(l.serviceId)?.type === "BASE")) setStep(3);
+      if (lines.some((l) => serviceById(l.serviceId)?.type === "BASE")) goTo(3);
       else setMessage("Choose at least one main service.");
       return;
     }
     if (step === 3) {
-      if (day && dayState === "AVAILABLE") setStep(4);
+      if (day && dayState === "AVAILABLE") goTo(4);
       else setMessage("Choose an available day.");
       return;
     }
     if (step !== 4) return;
     if (!attempt.current) {
       if (!quote || !day || dayState !== "AVAILABLE") {
-        setStep(3);
+        goTo(3);
         setMessage("Availability has changed. Please choose your day again.");
         return;
       }
@@ -393,37 +446,196 @@ export function BookingWizard({
   };
   const locked = pending || uncertain;
   const errorFor = (field: string) => fieldErrors[field]?.join(" ");
-  const STEP_LABELS = ["Vehicle", "Services", "Day", "Details & Review", "Booking Received"];
-  const headings = ["Choose Vehicle Size", "Select Services", "Choose Your Day", "Details & Review", "Booking Received"];
   const servicesSummary = lines.map((l) => serviceById(l.serviceId)?.name).filter(Boolean).join(", ");
+  const quoteLines = quote?.lines ?? [];
+  const narrow = typeof window !== "undefined" && window.innerWidth < 360;
 
-  const renderService = (s: ServicePackage) => {
+  // W5: a disabled Submit always says why.
+  const submitReason =
+    step !== 4 || pending
+      ? ""
+      : !turnstileSiteKey
+        ? `Online booking is not available right now. Please call the shop at ${brandConfig.displayPhone}.`
+        : !challenge.token
+          ? challengeStatus === "expired"
+            ? "The security check expired. It restarts by itself; then send your request."
+            : challengeStatus === "failed"
+              ? "The security check didn't load. Check your connection, then reload the page."
+              : "Waiting for the security check…"
+          : !uncertain && !quote
+            ? "Updating the price…"
+            : "";
+  const primaryDisabled =
+    pending ||
+    !catalog ||
+    Boolean(catalogError) ||
+    (step === 1 && !vehicleId) ||
+    (step === 2 && !lines.length) ||
+    (step === 3 && (!day || dayState !== "AVAILABLE")) ||
+    (step === 4 && (!challenge.token || (!uncertain && !quote)));
+  const showPrimary = step < 5 && !(step === 3 && paused);
+
+  const renderPrimary = () => (
+    <button
+      type={step === 4 ? "submit" : "button"}
+      form={step === 4 ? "booking-details" : undefined}
+      onClick={(event) => {
+        if (step !== 4) {
+          event.preventDefault();
+          void next();
+        }
+      }}
+      disabled={primaryDisabled}
+      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-5 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {pending ? "Submitting request…" : step === 4 ? (uncertain ? "Retry same submission" : "Submit booking request") : "Continue"}
+      <ArrowRight aria-hidden="true" className="h-4 w-4" />
+    </button>
+  );
+  const renderBack = () =>
+    step > 1 && step < 5 ? (
+      <button
+        type="button"
+        disabled={locked}
+        onClick={() => goTo(step - 1)}
+        className="inline-flex min-h-[44px] items-center gap-1 px-1 text-sm font-semibold text-foreground underline-offset-4 hover:underline disabled:opacity-50"
+      >
+        <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+        Back
+      </button>
+    ) : null;
+  const renderTotal = () =>
+    step === 1 ? (
+      <span className="text-sm text-muted-foreground">{vehicle ? vehicle.name : "Choose a size"}</span>
+    ) : lines.length ? (
+      <>
+        <span className="block text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</span>
+        <span className="block text-lg font-extrabold tabular-nums text-foreground">{total ? total.amount : "Pricing…"}</span>
+      </>
+    ) : (
+      <span className="text-sm text-muted-foreground">Nothing chosen yet</span>
+    );
+  const renderReason = () => (submitReason ? <p className="mt-2 text-sm text-muted-foreground" role="status">{submitReason}</p> : null);
+
+  // The single review: the desktop summary card (with the primary action) and, on phones, the block
+  // after the details (L2). Each Change returns to its step.
+  const renderReview = () => (
+    <dl className="space-y-3 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <dt className="text-muted-foreground">Vehicle size</dt>
+          <dd className="font-bold text-foreground">{vehicle?.name ?? "—"}</dd>
+        </div>
+        <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink} aria-label="Change vehicle size">
+          Change
+        </button>
+      </div>
+      {step > 1 && (
+        <div className="flex items-start justify-between gap-3 border-t border-border/60 pt-3">
+          <div className="min-w-0">
+            <dt className="text-muted-foreground">Services</dt>
+            <dd className="text-foreground">
+              {step === 4 && quoteLines.length ? (
+                <ul className="space-y-1">
+                  {quoteLines.map((l) => (
+                    <li key={l.serviceId} className="break-words">
+                      <span className="font-bold">
+                        {l.name}
+                        {l.unit === "PANEL" ? ` × ${l.quantity} panels` : ""}
+                      </span>{" "}
+                      <span className="text-muted-foreground">· {lineAmount(l)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="font-bold">{servicesSummary || "Not chosen yet"}</span>
+              )}
+            </dd>
+          </div>
+          {step > 2 && (
+            <button type="button" onClick={() => goTo(2)} disabled={locked} className={changeLink} aria-label="Change services">
+              Change
+            </button>
+          )}
+        </div>
+      )}
+      {step > 2 && (
+        <div className="flex items-start justify-between gap-3 border-t border-border/60 pt-3">
+          <div className="min-w-0">
+            <dt className="text-muted-foreground">{multiDay ? "Drop-off day" : "Day"}</dt>
+            <dd className="font-bold text-foreground">{chosenDay ? dateLabel(chosenDay) : "Not chosen yet"}</dd>
+          </div>
+          {step > 3 && (
+            <button type="button" onClick={() => goTo(3)} disabled={locked} className={changeLink} aria-label="Change day">
+              Change
+            </button>
+          )}
+        </div>
+      )}
+      <div className="border-t border-border pt-3">
+        <dt className="text-muted-foreground">{total?.label ?? "Estimated total"}</dt>
+        <dd className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : lines.length ? "Pricing…" : "—"}</dd>
+        {total?.note && <p className="mt-1 text-sm text-muted-foreground">{total.note}</p>}
+      </div>
+    </dl>
+  );
+
+  // Desktop: the summary stays in view beside the choices and holds the primary action (L1).
+  const renderSummarySidebar = () => (
+    <aside aria-label="Your booking" className="hidden lg:col-span-4 lg:block">
+      <div className="sticky top-6 rounded border border-border bg-[#121214] p-6">
+        <h2 className="mb-4 text-base font-bold text-foreground">Your booking</h2>
+        {renderReview()}
+        {showPrimary && <div className="mt-6 flex flex-col gap-2 [&>button]:w-full">{renderPrimary()}</div>}
+        {renderReason()}
+        <div className="mt-3">{renderBack()}</div>
+      </div>
+    </aside>
+  );
+
+  // Phones, services and day steps: what is chosen so far, above the choices.
+  const renderMobileSummaryTray = () => (
+    <div className="mb-6 rounded border border-border bg-[#121214] p-4 text-sm lg:hidden">
+      <p className="font-bold text-foreground">{vehicle?.name}</p>
+      <p className="break-words text-muted-foreground">{servicesSummary || "No service chosen yet"}</p>
+      {step === 3 && chosenDay && <p className="text-muted-foreground">{dateLabel(chosenDay)}</p>}
+      <button type="button" onClick={() => goTo(1)} disabled={locked} className="mt-1 inline-flex min-h-[44px] items-center font-semibold text-primary hover:underline disabled:opacity-50">
+        Change size
+      </button>
+    </div>
+  );
+
+  // W3: the add-ons offered for a ticked main service, shown directly under it.
+  const addOnsUnder = (base: ServicePackage) => {
+    if (!catalog || !picked(base.id)) return [];
+    return availableAddOns(catalog, [base.id]).filter((a) => {
+      if (!offered(a)) return false;
+      const host = lines.find((l) => catalog.addOnCompatibility.some((c) => c.baseServiceId === l.serviceId && c.addOnServiceId === a.id));
+      return host?.serviceId === base.id;
+    });
+  };
+
+  const renderService = (s: ServicePackage, nested = false) => {
     const pick = picked(s.id);
     const offer = offerLabel(s, vehicleId, pick?.quantity ?? 1);
     const Icon = getServiceDisciplineIcon(s.category);
+    const detail = serviceDetail(s);
+    const extras = nested ? [] : addOnsUnder(s);
     return (
-      <div key={s.id}>
-        <label
-          className={
-            panel +
-            " flex min-h-[96px] items-center justify-between gap-4 transition-colors " +
-            (!offer.bookable
-              ? "cursor-not-allowed opacity-50"
-              : pick
-                ? "cursor-pointer border-primary bg-primary/5"
-                : "cursor-pointer hover:border-zinc-500")
-          }
-        >
+      <li key={s.id}>
+        <label className={optionCard(Boolean(pick)) + " min-h-[80px]"}>
           <div className="flex items-start gap-3.5">
-            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-[#18181b]">
-              <Icon className="h-5 w-5 text-primary shrink-0" aria-hidden="true" />
-            </div>
+            {!nested && (
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-[#18181b]">
+                <Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              </div>
+            )}
             <div>
               <span className="block font-bold text-foreground">{s.name}</span>
-              {s.description && <span className="mt-1 block text-sm text-muted-foreground">{s.description}</span>}
-              <span className="mt-3 block text-sm font-semibold text-foreground">
+              {detail && <span className="mt-1 block text-sm text-muted-foreground">{detail}</span>}
+              <span className="mt-2 block text-sm font-semibold text-foreground">
                 {offer.text}
-                {s.unit === "PANEL" && offer.bookable ? " · per panel count" : ""}
+                {s.unit === "PANEL" ? " · per panel count" : ""}
               </span>
             </div>
           </div>
@@ -432,7 +644,7 @@ export function BookingWizard({
             name="service"
             value={s.id}
             checked={Boolean(pick)}
-            disabled={!offer.bookable || locked}
+            disabled={locked}
             onChange={() => togglePick(s)}
             className="h-5 w-5 shrink-0 accent-primary"
           />
@@ -444,146 +656,108 @@ export function BookingWizard({
             </label>
             <input
               id={"panels-" + s.id}
-              type="number"
+              type="text"
               inputMode="numeric"
-              min={1}
-              max={20}
-              value={pick.quantity}
+              pattern="[0-9]*"
+              aria-describedby={"panels-help-" + s.id}
+              value={panelDrafts[s.id] ?? String(pick.quantity)}
               disabled={locked}
-              onChange={(e) => setQuantity(s.id, Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+              onChange={(e) => {
+                // W13: the field may be empty while typing; a count from 1 to 20 is applied at once.
+                const draft = e.target.value.replace(/\D/g, "").slice(0, 2);
+                setPanelDrafts((d) => ({ ...d, [s.id]: draft }));
+                const n = Number(draft);
+                if (n >= 1 && n <= 20) setQuantity(s.id, n);
+              }}
+              onBlur={() => {
+                const n = Number(panelDrafts[s.id]);
+                setQuantity(s.id, n >= 1 ? Math.min(20, n) : pick.quantity);
+                setPanelDrafts((d) => {
+                  const rest = { ...d };
+                  delete rest[s.id];
+                  return rest;
+                });
+              }}
               className={control}
             />
+            <p id={"panels-help-" + s.id} className="mt-1.5 text-sm text-muted-foreground">
+              1 to 20 panels.
+            </p>
           </div>
+        )}
+        {extras.length > 0 && (
+          <fieldset className="ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4">
+            <legend className="mb-2 text-sm font-semibold text-foreground">Extras for {s.name}</legend>
+            <ul className="space-y-2">{extras.map((a) => renderService(a, true))}</ul>
+          </fieldset>
+        )}
+      </li>
+    );
+  };
+
+  // W3: categories first; one open at a time, each with its count, starting price and choices.
+  const renderCategories = () => {
+    const available = bases.filter(offered);
+    const hidden = bases.length - available.length;
+    const groups = CATEGORY_ORDER.map((category) => ({ category, services: available.filter((s) => s.category === category) })).filter(
+      (g) => g.services.length,
+    );
+    const fromText = (services: ServicePackage[]) => {
+      const offers = services.map((s) => ({ s, o: s.offers.find((o) => o.vehicleCategoryId === vehicleId) }));
+      const fixed = offers.filter(({ o }) => o?.onlineBooking === "PRICED" && o.unitPriceCentavos !== null).map(({ o }) => o!.unitPriceCentavos!);
+      if (fixed.length) return "from " + money(Math.min(...fixed));
+      const estimates = offers.map(({ s, o }) => o?.unitPriceCentavos ?? s.referenceUnitPriceCentavos).filter((c): c is number => c !== null);
+      return estimates.length ? "from about " + money(Math.min(...estimates)) : "price from the shop";
+    };
+    return (
+      <div className="space-y-3">
+        {groups.map(({ category, services }) => {
+          const open = openCategory === category;
+          const chosen = lines.filter((l) => serviceById(l.serviceId)?.category === category).length;
+          const regionId = "category-" + category.toLowerCase();
+          return (
+            <section key={category} className="rounded border border-input bg-card">
+              <h2>
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={regionId}
+                  onClick={() => setOpenCategory(open ? null : category)}
+                  className="flex min-h-[64px] w-full items-center justify-between gap-3 rounded px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-base font-bold text-foreground">{CATEGORY_NAMES[category]}</span>
+                    <span className="block text-sm text-muted-foreground">
+                      {services.length} {services.length === 1 ? "service" : "services"} · {fromText(services)}
+                      {chosen ? <span className="font-semibold text-primary">{" · " + chosen + " chosen"}</span> : null}
+                    </span>
+                  </span>
+                  <ChevronDown aria-hidden="true" className={"h-5 w-5 shrink-0 text-primary transition-transform " + (open ? "rotate-180" : "")} />
+                </button>
+              </h2>
+              <div id={regionId} role="region" aria-label={CATEGORY_NAMES[category]} hidden={!open} className="border-t border-border p-3 sm:p-4">
+                {open && <ul className="space-y-3">{services.map((s) => renderService(s))}</ul>}
+              </div>
+            </section>
+          );
+        })}
+        {hidden > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {hidden} {hidden === 1 ? "service isn't" : "services aren't"} offered for {vehicle?.name}. Call the shop at {brandConfig.displayPhone} to ask.
+          </p>
         )}
       </div>
     );
   };
 
-  const renderTotal = () => (
-    <>
-      <dd className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight text-foreground">
-        {total ? total.amount : lines.length ? "Pricing…" : "—"}
-      </dd>
-      <p className="mt-1 text-xs text-zinc-400">
-        {total?.note ?? "Taxes, professional consumables & shop service included."}
-      </p>
-    </>
-  );
-
-  // Persistent Booking Summary Sidebar (Recognition over Recall)
-  const renderSummarySidebar = () => (
-    <aside aria-label="Booking Summary" className="hidden lg:col-span-4 lg:block">
-      <div className="sticky top-6 rounded border border-border bg-[#121214] p-6 shadow-sm">
-        <div className="border-b border-border pb-4">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-primary">Booking Summary</h2>
-        </div>
-
-        <dl className="mt-4 space-y-4 text-sm">
-          <div>
-            <div className="flex items-center justify-between">
-              <dt className="text-xs font-medium text-muted-foreground">Vehicle Size</dt>
-              <button
-                type="button"
-                onClick={() => {
-                  setStep(1);
-                  setMessage("");
-                }}
-                disabled={locked}
-                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Change
-              </button>
-            </div>
-            <dd className="font-bold text-foreground">{vehicle?.name ?? "—"}</dd>
-          </div>
-
-          <div className="border-t border-border/60 pt-3">
-            <div className="flex items-center justify-between">
-              <dt className="text-xs font-medium text-muted-foreground">Services</dt>
-              {step > 2 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep(2);
-                    setMessage("");
-                  }}
-                  disabled={locked}
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Change
-                </button>
-              )}
-            </div>
-            <dd className="font-bold text-foreground">{servicesSummary || "Selecting services…"}</dd>
-          </div>
-
-          {step >= 3 && (
-            <div className="border-t border-border/60 pt-3">
-              <div className="flex items-center justify-between">
-                <dt className="text-xs font-medium text-muted-foreground">{multiDay ? "Drop-off Day" : "Booking Day"}</dt>
-                {step > 3 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStep(3);
-                      setMessage("");
-                    }}
-                    disabled={locked}
-                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Change
-                  </button>
-                )}
-              </div>
-              <dd className="font-bold text-foreground">{day ? dateLabel(day) : "Choose a day"}</dd>
-            </div>
-          )}
-
-          <div className="border-t border-border pt-4">
-            <dt className="text-xs font-medium text-muted-foreground">{total?.label ?? "Estimated Investment"}</dt>
-            {renderTotal()}
-          </div>
-        </dl>
-      </div>
-    </aside>
-  );
-
-  // Mobile persistent summary tray for Steps 2-4
-  const renderMobileSummaryTray = () => (
-    <div className="mb-6 rounded border border-border bg-[#121214] p-4 text-sm lg:hidden">
-      <div className="flex items-start justify-between gap-3 border-b border-border/60 pb-3">
-        <div className="min-w-0">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">Your Booking</span>
-          <p className="break-words font-bold text-foreground">{servicesSummary || "Selecting services…"}</p>
-          <p className="text-xs text-muted-foreground">{vehicle?.name}</p>
-        </div>
-        <div className="text-right shrink-0">
-          <span className="text-base font-extrabold tabular-nums text-foreground">
-            {total ? total.amount : lines.length ? "Pricing…" : "—"}
-          </span>
-          {total && total.label !== "Total" && <p className="text-[11px] font-medium text-primary">Estimate</p>}
-        </div>
-      </div>
-      <div className="mt-2.5 flex items-center justify-between text-xs">
-        <span className="text-zinc-400">
-          {step === 2 ? "Select services" : day ? dateLabel(day) : "Choose a day below"}
-        </span>
-        <button
-          type="button"
-          onClick={() => {
-            setStep(1);
-            setMessage("");
-          }}
-          disabled={locked}
-          className="inline-flex min-h-[44px] items-center px-1 font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Change setup
-        </button>
-      </div>
-    </div>
-  );
-
-  const quoteLines = quote?.lines ?? [];
+  const intro = [
+    "Prices depend on the size of your vehicle.",
+    "Open a category to see its services. You can choose more than one.",
+    "Days are in Philippine time. " + arrivalWords(),
+    "The shop uses these details to confirm your booking.",
+    "",
+  ][step - 1];
+  const statusWords = booking ? bookingStatusWords(booking.view.status) : "";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -618,45 +792,40 @@ export function BookingWizard({
           <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center">
             <Logo />
           </Link>
-          <span className="text-sm text-muted-foreground">{STEP_LABELS[step - 1]} · Step {step} of 5</span>
+          <span className="text-center text-sm text-muted-foreground">
+            {step < 5 ? `Step ${step} of 4 · ${STEP_LABELS[step - 1]}` : "Booking received"}
+          </span>
           {!locked && (
-            <Link
-              href="/"
-              aria-label="Cancel and return to home"
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center"
-            >
+            <Link href="/" aria-label="Cancel and return to home" className="flex min-h-[44px] min-w-[44px] items-center justify-center">
               <X aria-hidden="true" className="h-5 w-5" />
             </Link>
           )}
         </div>
         <div className="h-1 bg-border">
-          <div className="h-full bg-primary motion-safe:transition-all" style={{ width: step * 20 + "%" }} />
+          <div className="h-full bg-primary motion-safe:transition-all" style={{ width: (step < 5 ? step * 25 : 100) + "%" }} />
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
-        <div className="mb-8 max-w-3xl">
-          <h1 className="text-2xl font-bold sm:text-3xl">{headings[step - 1]}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Days are shown in Asia/Manila (UTC+8). You join that day&apos;s queue and the shop confirms your booking.
-          </p>
+      <main className="mx-auto max-w-5xl px-4 pb-32 pt-8 sm:px-6 sm:pt-14 lg:pb-14">
+        <div className="mb-6 max-w-3xl">
+          <h1 id="wizard-step-title" tabIndex={-1} className="scroll-mt-28 text-2xl font-bold focus-visible:outline-none sm:text-3xl">
+            {HEADINGS[step - 1]}
+          </h1>
+          {intro && <p className="mt-2 text-base text-muted-foreground">{intro}</p>}
         </div>
 
         {message && (
-          <div
-            ref={errorSummary}
-            tabIndex={-1}
-            role="alert"
-            className="mb-6 rounded border border-destructive p-4 text-sm text-destructive"
-          >
+          <div ref={errorSummary} tabIndex={-1} role="alert" className="mb-6 rounded border border-destructive p-4 text-sm text-destructive">
             <p className="font-semibold">{message}</p>
-            {Object.entries(fieldErrors).map(([field, errors]) => (
-              <p key={field} className="mt-1">
-                <a className="inline-flex min-h-[44px] items-center underline" href={step === 4 ? "#" + field : "#booking-days"}>
-                  {errors.join(" ")}
-                </a>
-              </p>
-            ))}
+            {Object.entries(fieldErrors)
+              .filter(([, errors]) => errors.join(" ") !== message)
+              .map(([field, errors]) => (
+                <p key={field} className="mt-1">
+                  <a className="inline-flex min-h-[44px] items-center underline" href={step === 4 ? "#" + field : "#booking-days"}>
+                    {errors.join(" ")}
+                  </a>
+                </p>
+              ))}
           </div>
         )}
 
@@ -674,14 +843,11 @@ export function BookingWizard({
           </div>
         )}
 
-        {/* Step 1: Vehicle Size (Full Width) */}
+        {/* Step 1: vehicle size */}
         {catalog && step === 1 && (
           <div className="max-w-3xl">
             {linkWarning && (
-              <div
-                role="alert"
-                className="mb-6 flex items-start justify-between gap-3 rounded border border-warning/50 bg-warning/10 p-4 text-sm text-warning"
-              >
+              <div role="alert" className="mb-6 flex items-start justify-between gap-3 rounded border border-warning/50 bg-warning/10 p-4 text-sm text-warning">
                 <div className="flex items-start gap-2.5">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                   <p>{linkWarning}</p>
@@ -690,30 +856,21 @@ export function BookingWizard({
                   type="button"
                   onClick={() => setLinkWarning("")}
                   aria-label="Dismiss warning"
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center -mr-2 -mt-2 text-warning hover:opacity-80"
+                  className="-mr-2 -mt-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-warning hover:opacity-80"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
             )}
             <fieldset className="space-y-3">
-              <legend className="mb-3 text-sm text-muted-foreground">
-                Choose your vehicle size. Prices are set per size.
-              </legend>
+              <legend className="sr-only">Vehicle size</legend>
               {catalog.vehicleCategories.map((v) => {
                 const VehicleIcon = getVehicleCategoryIcon(v.code);
                 return (
-                  <label
-                    key={v.id}
-                    className={
-                      panel +
-                      " flex min-h-[80px] cursor-pointer items-center justify-between gap-4 transition-colors " +
-                      (vehicleId === v.id ? "border-primary bg-primary/5" : "hover:border-zinc-500")
-                    }
-                  >
+                  <label key={v.id} className={optionCard(vehicleId === v.id) + " min-h-[72px]"}>
                     <div className="flex items-start gap-3.5">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-[#18181b]">
-                        <VehicleIcon className="h-5 w-5 text-primary shrink-0" aria-hidden="true" />
+                        <VehicleIcon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                       </div>
                       <div>
                         <span className="block font-bold text-foreground">{v.name}</span>
@@ -727,43 +884,31 @@ export function BookingWizard({
                       checked={vehicleId === v.id}
                       onChange={() => {
                         setVehicleId(v.id);
-                        setDay("");
                         setLinkWarning("");
                       }}
-                      className="h-5 w-5 accent-primary shrink-0"
+                      className="h-5 w-5 shrink-0 accent-primary"
                     />
                   </label>
                 );
               })}
             </fieldset>
+            <div className="mt-8 hidden items-center justify-end gap-4 lg:flex">{renderPrimary()}</div>
           </div>
         )}
 
-        {/* Steps 2, 3, 4: Multi-Column Layout with Persistent Summary Tray */}
+        {/* Steps 2-4: choices beside the summary */}
         {catalog && step >= 2 && step <= 4 && (
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
             <div className="min-w-0 lg:col-span-8">
-              {renderMobileSummaryTray()}
+              {step < 4 && renderMobileSummaryTray()}
 
-              {/* Step 2: Services and add-ons */}
               {step === 2 && (
-                <div className="space-y-8">
-                  <fieldset className="space-y-3">
-                    <legend className="mb-3 text-sm text-muted-foreground">
-                      Choose one or more services for your {vehicle?.name}. &quot;For quote&quot; services are booked now and priced by the shop.
-                    </legend>
-                    {bases.map(renderService)}
-                  </fieldset>
-                  {addOns.length > 0 && (
-                    <fieldset className="space-y-3">
-                      <legend className="mb-3 text-sm font-semibold text-foreground">Add-ons for your chosen services</legend>
-                      {addOns.map(renderService)}
-                    </fieldset>
-                  )}
+                <div className="space-y-6">
+                  {renderCategories()}
                   {quoteState?.key === selectionKey && quoteState.error && (
                     <div role="alert" className="text-sm text-destructive">
                       <p>{quoteState.error}</p>
-                      <button type="button" onClick={() => setQuoteVersion((v) => v + 1)} className="mt-2 min-h-[44px] text-xs underline">
+                      <button type="button" onClick={() => setQuoteVersion((v) => v + 1)} className="mt-2 min-h-[44px] text-sm underline">
                         Retry pricing
                       </button>
                     </div>
@@ -771,124 +916,36 @@ export function BookingWizard({
                 </div>
               )}
 
-              {/* Step 3: Day picker (no times, counts or positions) */}
               {step === 3 && (
-                <DayPicker
-                  data={liveDays?.data ?? null}
-                  error={liveDays?.error ?? ""}
-                  onRetry={() => setDaysVersion((v) => v + 1)}
-                  selected={day}
-                  onSelect={setDay}
-                  fromDate={fromDate}
-                  onPage={setFromDate}
-                  multiDay={multiDay}
-                />
+                <>
+                  {dayNote && (
+                    <p role="status" className="mb-4 rounded border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
+                      {dayNote}
+                    </p>
+                  )}
+                  <DayPicker
+                    data={liveDays?.data ?? null}
+                    error={liveDays?.error ?? ""}
+                    onRetry={() => setDaysVersion((v) => v + 1)}
+                    selected={chosenDay}
+                    onSelect={setDay}
+                    fromDate={fromDate}
+                    onPage={setFromDate}
+                    multiDay={multiDay}
+                  />
+                </>
               )}
 
-              {/* Step 4: Customer Details Form */}
               {step === 4 && (
                 <form
                   id="booking-details"
+                  noValidate
                   onSubmit={(e) => {
                     e.preventDefault();
                     void next();
                   }}
                   className={panel}
                 >
-                  {/* Explicit Pre-Submission Review Panel */}
-                  <div className="mb-6 rounded border border-border bg-[#121214] p-5">
-                    <div className="flex items-center justify-between border-b border-border pb-3">
-                      <h2 className="text-sm font-bold uppercase tracking-wider text-primary">Pre-Submission Review</h2>
-                      <span className="rounded bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">Step 4 of 5</span>
-                    </div>
-
-                    <div className="mt-3 divide-y divide-border/60 text-sm">
-                      <div className="flex items-start justify-between py-3">
-                        <div>
-                          <span className="block text-xs font-medium text-muted-foreground">Vehicle Size</span>
-                          <span className="font-bold text-foreground">{vehicle?.name ?? "—"}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStep(1);
-                            setMessage("");
-                          }}
-                          disabled={locked}
-                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label="Edit vehicle size"
-                        >
-                          Edit
-                        </button>
-                      </div>
-
-                      <div className="flex items-start justify-between py-3">
-                        <div className="min-w-0">
-                          <span className="block text-xs font-medium text-muted-foreground">Services</span>
-                          <ul className="mt-1 space-y-1">
-                            {quoteLines.map((l) => (
-                              <li key={l.serviceId} className="break-words">
-                                <span className="font-bold text-foreground">
-                                  {l.name}
-                                  {l.unit === "PANEL" ? ` × ${l.quantity} panels` : ""}
-                                </span>{" "}
-                                <span className="text-xs text-zinc-400">· {lineAmount(l)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStep(2);
-                            setMessage("");
-                          }}
-                          disabled={locked}
-                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label="Edit services"
-                        >
-                          Edit
-                        </button>
-                      </div>
-
-                      <div className="flex items-start justify-between py-3">
-                        <div>
-                          <span className="block text-xs font-medium text-muted-foreground">{multiDay ? "Drop-off Day" : "Booking Day"}</span>
-                          <span className="font-bold text-foreground">{day ? dateLabel(day) : "Choose a day"}</span>
-                          <p className="text-xs text-zinc-400">
-                            {multiDay
-                              ? "This job takes more than one day: bring your car on this day."
-                              : "Timezone: Asia/Manila (UTC+8)"}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStep(3);
-                            setMessage("");
-                          }}
-                          disabled={locked}
-                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label="Edit booking day"
-                        >
-                          Edit
-                        </button>
-                      </div>
-
-                      <div className="pt-3">
-                        <div className="flex items-baseline justify-between">
-                          <span className="text-xs font-medium text-muted-foreground">{total?.label ?? "Estimated Investment"}</span>
-                          <span className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground">
-                            {total ? total.amount : "Pricing…"}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-zinc-400">
-                          {total?.note ?? "Taxes, professional consumables & shop service included."}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
                   {uncertain && (
                     <p className="mb-6 rounded border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
                       Your submitted details are held unchanged while the confirmation is uncertain. Retry to safely recover your booking request.
@@ -896,17 +953,16 @@ export function BookingWizard({
                   )}
 
                   <fieldset disabled={locked} className="space-y-5">
-                    <legend className="sr-only">Customer and vehicle details</legend>
+                    <legend className="sr-only">Your details and your vehicle</legend>
 
-                    {/* Customer Name */}
                     <div>
                       <div className="flex items-center justify-between">
                         <label htmlFor="customerName" className="text-sm font-semibold text-foreground">
-                          Full customer name
+                          Your name
                         </label>
                         {isNameValid && (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400">
-                            <Check className="h-3.5 w-3.5" /> Valid
+                          <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-400">
+                            <Check className="h-3.5 w-3.5" aria-hidden="true" /> Looks good
                           </span>
                         )}
                       </div>
@@ -925,21 +981,20 @@ export function BookingWizard({
                         className={`${control} ${errorFor("customerName") ? "border-destructive ring-1 ring-destructive" : ""}`}
                       />
                       {errorFor("customerName") && (
-                        <p id="customerName-error" className="mt-1.5 text-xs text-destructive">
+                        <p id="customerName-error" className="mt-1.5 text-sm text-destructive">
                           {errorFor("customerName")}
                         </p>
                       )}
                     </div>
 
-                    {/* Customer Phone (with auto-formatting, tel inputmode, inline validation) */}
                     <div>
                       <div className="flex items-center justify-between">
                         <label htmlFor="customerPhone" className="text-sm font-semibold text-foreground">
                           Philippine mobile number
                         </label>
                         {isPhoneValid && (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400">
-                            <Check className="h-3.5 w-3.5" /> Valid number
+                          <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-400">
+                            <Check className="h-3.5 w-3.5" aria-hidden="true" /> Looks good
                           </span>
                         )}
                       </div>
@@ -955,23 +1010,22 @@ export function BookingWizard({
                         onChange={(e) => setForm((prev) => ({ ...prev, customerPhone: formatPhilippinePhone(e.target.value) }))}
                         placeholder="0917 000 0000"
                         aria-invalid={Boolean(errorFor("customerPhone"))}
-                        aria-describedby={errorFor("customerPhone") ? "customerPhone-error" : "customerPhone-help"}
+                        aria-describedby={errorFor("customerPhone") ? "customerPhone-help customerPhone-error" : "customerPhone-help"}
                         className={`${control} ${errorFor("customerPhone") ? "border-destructive ring-1 ring-destructive" : ""}`}
                       />
-                      <p id="customerPhone-help" className="mt-1.5 text-xs text-zinc-400">
-                        Format: 09XX XXX XXXX or +63 9XX XXX XXXX for shop contact and booking updates.
+                      <p id="customerPhone-help" className="mt-1.5 text-sm text-muted-foreground">
+                        The shop texts or calls this number about your booking.
                       </p>
                       {errorFor("customerPhone") && (
-                        <p id="customerPhone-error" className="mt-1 text-xs text-destructive">
+                        <p id="customerPhone-error" className="mt-1 text-sm text-destructive">
                           {errorFor("customerPhone")}
                         </p>
                       )}
                     </div>
 
-                    {/* Customer Email */}
                     <div>
                       <label htmlFor="customerEmail" className="text-sm font-semibold text-foreground">
-                        Email address <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                        Email address <span className="font-normal text-muted-foreground">(optional)</span>
                       </label>
                       <input
                         id="customerEmail"
@@ -989,21 +1043,20 @@ export function BookingWizard({
                         className={`${control} ${errorFor("customerEmail") ? "border-destructive ring-1 ring-destructive" : ""}`}
                       />
                       {errorFor("customerEmail") && (
-                        <p id="customerEmail-error" className="mt-1.5 text-xs text-destructive">
+                        <p id="customerEmail-error" className="mt-1.5 text-sm text-destructive">
                           {errorFor("customerEmail")}
                         </p>
                       )}
                     </div>
 
-                    {/* Vehicle Model */}
                     <div>
                       <div className="flex items-center justify-between">
                         <label htmlFor="vehicleModel" className="text-sm font-semibold text-foreground">
                           Vehicle make, model and year
                         </label>
                         {isModelValid && (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400">
-                            <Check className="h-3.5 w-3.5" /> Provided
+                          <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-400">
+                            <Check className="h-3.5 w-3.5" aria-hidden="true" /> Looks good
                           </span>
                         )}
                       </div>
@@ -1014,25 +1067,23 @@ export function BookingWizard({
                         autoComplete="off"
                         enterKeyHint="next"
                         maxLength={100}
-                        required
                         value={form.vehicleModel}
                         onChange={(e) => setForm((prev) => ({ ...prev, vehicleModel: e.target.value }))}
-                        placeholder="e.g. Toyota Vios"
+                        placeholder="e.g. Toyota Vios 2020"
                         aria-invalid={Boolean(errorFor("vehicleModel"))}
                         aria-describedby={errorFor("vehicleModel") ? "vehicleModel-error" : undefined}
                         className={`${control} ${errorFor("vehicleModel") ? "border-destructive ring-1 ring-destructive" : ""}`}
                       />
                       {errorFor("vehicleModel") && (
-                        <p id="vehicleModel-error" className="mt-1.5 text-xs text-destructive">
+                        <p id="vehicleModel-error" className="mt-1.5 text-sm text-destructive">
                           {errorFor("vehicleModel")}
                         </p>
                       )}
                     </div>
 
-                    {/* Vehicle Plate */}
                     <div>
                       <label htmlFor="vehiclePlate" className="text-sm font-semibold text-foreground">
-                        Plate or conduction number <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                        Plate or conduction number <span className="font-normal text-muted-foreground">(optional)</span>
                       </label>
                       <input
                         id="vehiclePlate"
@@ -1043,22 +1094,21 @@ export function BookingWizard({
                         maxLength={20}
                         value={form.vehiclePlate}
                         onChange={(e) => setForm((prev) => ({ ...prev, vehiclePlate: e.target.value }))}
-                        placeholder="e.g. ABC 1234 or Conduction 0821"
+                        placeholder="e.g. ABC 1234"
                         aria-invalid={Boolean(errorFor("vehiclePlate"))}
                         aria-describedby={errorFor("vehiclePlate") ? "vehiclePlate-error" : undefined}
                         className={`${control} ${errorFor("vehiclePlate") ? "border-destructive ring-1 ring-destructive" : ""}`}
                       />
                       {errorFor("vehiclePlate") && (
-                        <p id="vehiclePlate-error" className="mt-1.5 text-xs text-destructive">
+                        <p id="vehiclePlate-error" className="mt-1.5 text-sm text-destructive">
                           {errorFor("vehiclePlate")}
                         </p>
                       )}
                     </div>
 
-                    {/* Special Requests */}
                     <div>
                       <label htmlFor="specialRequests" className="text-sm font-semibold text-foreground">
-                        Special requests or paint history <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                        Special requests or paint history <span className="font-normal text-muted-foreground">(optional)</span>
                       </label>
                       <textarea
                         id="specialRequests"
@@ -1068,116 +1118,122 @@ export function BookingWizard({
                         enterKeyHint="done"
                         value={form.specialRequests}
                         onChange={(e) => setForm((prev) => ({ ...prev, specialRequests: e.target.value }))}
-                        placeholder="Specific scratches, previous ceramic coating brand, interior stains, or drop-off preferences…"
+                        placeholder="Scratches, an earlier coating, interior stains…"
                         aria-invalid={Boolean(errorFor("specialRequests"))}
                         aria-describedby={errorFor("specialRequests") ? "specialRequests-error" : undefined}
                         className={control}
                       />
                       {errorFor("specialRequests") && (
-                        <p id="specialRequests-error" className="mt-1.5 text-xs text-destructive">
+                        <p id="specialRequests-error" className="mt-1.5 text-sm text-destructive">
                           {errorFor("specialRequests")}
                         </p>
                       )}
                     </div>
 
-                    {/* Security check (Cloudflare Turnstile) */}
                     <div id="turnstileToken">
                       <span className="text-sm font-semibold text-foreground">Security check</span>
                       <div className="mt-2">
-                        {TURNSTILE_SITE_KEY ? (
-                          <TurnstileChallenge key={challenge.version} siteKey={TURNSTILE_SITE_KEY} onToken={onToken} />
+                        {turnstileSiteKey ? (
+                          <TurnstileChallenge
+                            key={challenge.version}
+                            siteKey={turnstileSiteKey}
+                            onToken={onToken}
+                            onStatus={onChallengeStatus}
+                            size={narrow ? "compact" : "normal"}
+                          />
                         ) : (
-                          <p className="text-xs text-destructive">
+                          <p className="text-sm text-destructive">
                             Online booking is not available right now. Please call the shop at {brandConfig.displayPhone}.
                           </p>
                         )}
                       </div>
-                      {errorFor("turnstileToken") && (
-                        <p className="mt-1.5 text-xs text-destructive">{errorFor("turnstileToken")}</p>
+                      {errorFor("turnstileToken") && errorFor("turnstileToken") !== message && (
+                        <p className="mt-1.5 text-sm text-destructive">{errorFor("turnstileToken")}</p>
                       )}
                     </div>
                   </fieldset>
+
+                  <div className="mt-8 border-t border-border pt-6 lg:hidden">
+                    <h2 className="mb-3 text-base font-bold text-foreground">Check your booking</h2>
+                    {renderReview()}
+                  </div>
+                  <p className="mt-6 text-sm text-muted-foreground">
+                    Sending adds your car to that day&apos;s list as a request. The shop reviews it and contacts you to confirm.
+                  </p>
                 </form>
               )}
             </div>
 
-            {/* Sticky Summary Tray (Desktop) */}
             {renderSummarySidebar()}
           </div>
         )}
 
-        {/* Step 5: Booking Confirmation Voucher */}
+        {/* Step 5: booking received (L10: status and next step, then the private code, then details) */}
         {step === 5 && booking && (
           <div className="max-w-3xl space-y-6">
             <section aria-labelledby="reference-title" className={`${panel} print-receipt-card`}>
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <ShieldCheck aria-hidden="true" className="h-8 w-8 text-primary shrink-0" />
+                  <ShieldCheck aria-hidden="true" className="h-8 w-8 shrink-0 text-primary" />
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                      {booking.view.status === "CONFIRMED" ? "Booking Confirmed" : "Booking Received"}
-                    </p>
+                    <p className="text-sm text-muted-foreground">Booking reference</p>
                     <h2 id="reference-title" className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground sm:text-3xl">
                       {booking.view.referenceCode}
                     </h2>
                   </div>
                 </div>
-
-                {/* Actions: Copy Reference & Print Receipt */}
-                <div className="flex items-center gap-2 no-print">
-                  <button
-                    type="button"
-                    onClick={copyReference}
-                    className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground transition-colors hover:border-zinc-500 hover:text-primary"
-                    aria-label="Copy booking reference code"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-                        <span className="text-emerald-400">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4" aria-hidden="true" />
-                        <span>Copy Reference</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (typeof window !== "undefined") window.print();
-                    }}
-                    className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground transition-colors hover:border-zinc-500 hover:text-primary"
-                    aria-label="Print booking receipt"
-                  >
-                    <Printer className="h-4 w-4" aria-hidden="true" />
-                    <span>Print Receipt</span>
-                  </button>
-                </div>
+                <p className="rounded bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">{statusWords}</p>
               </div>
-
-              <p className="mt-4 text-sm text-muted-foreground">
+              <p className="mt-4 text-base text-foreground">
                 {booking.view.status === "CONFIRMED"
-                  ? "Your booking is confirmed. Please bring your car on your booking day."
-                  : "We have received your booking request. Our shop team will review it and contact you to confirm."}
+                  ? "Your booking is confirmed."
+                  : "Your request is sent. The shop will text or call you to confirm."}
               </p>
-
-              <dl className="mt-6 divide-y divide-border/60 text-sm">
-                <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">{booking.multiDay ? "Drop-off Day" : "Booking Day"}</dt>
-                  <dd className="mt-0.5 font-bold text-foreground">
-                    {dateLabel(booking.view.bookingDate)} · {booking.view.timezone}
-                  </dd>
-                  {booking.multiDay && (
-                    <p className="mt-0.5 text-xs text-zinc-400">
-                      This job takes more than one day. Your chosen day is the drop-off day; the shop tells you when your car is ready.
-                    </p>
+              <p className="mt-2 text-base text-foreground">
+                <strong>{dateLabel(booking.view.bookingDate)}.</strong> {arrivalWords()}
+                {booking.multiDay && " This job takes more than one day: this is your drop-off day, and the shop tells you when your car is ready."}
+              </p>
+              <div className="no-print mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={copyReference}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-input bg-card px-3.5 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary"
+                  aria-label="Copy booking reference"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+                      <span className="text-emerald-400">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" aria-hidden="true" />
+                      <span>Copy reference</span>
+                    </>
                   )}
-                </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== "undefined") window.print();
+                  }}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-input bg-card px-3.5 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary"
+                >
+                  <Printer className="h-4 w-4" aria-hidden="true" />
+                  <span>Print receipt</span>
+                </button>
+              </div>
+            </section>
+
+            <ManagementCode referenceCode={booking.view.referenceCode} bookingDate={booking.view.bookingDate} access={booking.access} />
+
+            <section aria-labelledby="details-title" className={`${panel} print-receipt-card`}>
+              <h2 id="details-title" className="text-base font-bold text-foreground">
+                Booking details
+              </h2>
+              <dl className="mt-3 divide-y divide-border/60 text-sm">
                 <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">Services</dt>
+                  <dt className="text-muted-foreground">Services</dt>
                   <dd className="mt-0.5 text-foreground">
                     <ul className="space-y-1">
                       {booking.view.lines.map((l) => (
@@ -1186,166 +1242,95 @@ export function BookingWizard({
                             {l.name}
                             {l.quantity > 1 ? ` × ${l.quantity}` : ""}
                           </span>{" "}
-                          <span className="text-xs text-zinc-400">· {lineAmount(l)}</span>
+                          <span className="text-muted-foreground">· {lineAmount(l)}</span>
                         </li>
                       ))}
                     </ul>
                   </dd>
                 </div>
                 <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">Vehicle</dt>
+                  <dt className="text-muted-foreground">Vehicle</dt>
                   <dd className="mt-0.5 break-words text-foreground">
-                    {booking.view.vehicleCategoryName} · {booking.vehicleModel} · {booking.vehiclePlate ?? "No plate"}
+                    {booking.view.vehicleCategoryName} · {booking.vehicleModel}
+                    {booking.vehiclePlate ? " · " + booking.vehiclePlate : ""}
                   </dd>
                 </div>
                 <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">Customer Contact</dt>
+                  <dt className="text-muted-foreground">Your contact</dt>
                   <dd className="mt-0.5 text-foreground">
                     {booking.customerName} · {booking.customerPhone}
                   </dd>
                 </div>
                 <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">{quoteTotal(booking.view).label}</dt>
+                  <dt className="text-muted-foreground">{quoteTotal(booking.view).label}</dt>
                   <dd className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">{quoteTotal(booking.view).amount}</dd>
-                  <p className="mt-0.5 text-xs text-zinc-400">
-                    {quoteTotal(booking.view).note ?? "Includes labor, professional coatings/compounds, and shop supplies."}
-                  </p>
+                  {quoteTotal(booking.view).note && <p className="mt-0.5 text-sm text-muted-foreground">{quoteTotal(booking.view).note}</p>}
                 </div>
                 <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">Shop Location</dt>
-                  <dd className="mt-0.5 font-medium text-foreground">{brandConfig.address}</dd>
-                </div>
-                <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">Operating Schedule</dt>
-                  <dd className="mt-0.5 font-medium text-foreground">{brandConfig.operatingHours}</dd>
-                </div>
-                <div className="py-3">
-                  <dt className="text-xs text-muted-foreground">Shop Hotline</dt>
-                  <dd className="mt-0.5">
-                    <a
-                      href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`}
-                      className="inline-flex min-h-[44px] items-center font-semibold text-primary hover:underline"
-                      aria-label={`Call shop hotline at ${brandConfig.displayPhone}`}
-                    >
-                      {brandConfig.displayPhone} ({brandConfig.contactPhone})
+                  <dt className="text-muted-foreground">Shop</dt>
+                  <dd className="mt-0.5 text-foreground">
+                    {brandConfig.address} ·{" "}
+                    <a href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`} className="inline-flex min-h-[44px] items-center font-semibold text-primary hover:underline">
+                      {brandConfig.displayPhone}
                     </a>
                   </dd>
                 </div>
               </dl>
-
-              <div className="mt-6 rounded border border-border/80 bg-[#121214] p-4 text-xs text-zinc-400">
-                <p>
-                  <strong className="text-foreground">Next Steps:</strong>{" "}
-                  {booking.view.status === "CONFIRMED" ? (
-                    <>Your booking is <span className="font-semibold text-primary">CONFIRMED</span>. Please save or print this receipt for your visit.</>
-                  ) : (
-                    <>Your booking is currently <span className="font-semibold text-primary">PENDING</span> shop confirmation. Our shop team will review your booking request and contact you to confirm. Please save or print this receipt for your visit.</>
-                  )}
-                </p>
-              </div>
             </section>
 
-            <ManagementCode referenceCode={booking.view.referenceCode} bookingDate={booking.view.bookingDate} access={booking.access} />
+            <details className={`${panel} no-print`}>
+              <summary className="flex min-h-[44px] cursor-pointer items-center text-base font-bold text-foreground">
+                Paying a deposit (only if the shop asks)
+              </summary>
+              <div className="mt-4">
+                <PaymentInstructions referenceCode={booking.view.referenceCode} />
+              </div>
+            </details>
 
-            <PaymentInstructions />
-
-            {/* Post-Booking Assistance: Contact Shop Card */}
             <div className={`${panel} no-print`}>
-              <h3 className="text-base font-bold text-foreground">Contact Shop About This Booking</h3>
-              <p className="mt-1 text-xs text-zinc-400">
-                Have a question about your booking? Contact Zeus Auto Detailing with reference code{" "}
-                <span className="font-mono font-semibold text-primary">{booking.view.referenceCode}</span>.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-3">
+              <h2 className="text-base font-bold text-foreground">Questions about this booking?</h2>
+              <div className="mt-3 flex flex-wrap gap-3">
                 <a
                   href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-input bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary"
                 >
                   <Phone className="h-4 w-4 text-primary" aria-hidden="true" />
-                  Call Shop Hotline ({brandConfig.displayPhone})
+                  Call {brandConfig.displayPhone}
                 </a>
                 <a
-                  href={`${brandConfig.facebookMessengerUrl}?text=${encodeURIComponent(`Hi, I have a booking inquiry for reference code ${booking.view.referenceCode}.`)}`}
+                  href={`${brandConfig.facebookMessengerUrl}?text=${encodeURIComponent(`Hi, I have a question about booking ${booking.view.referenceCode}.`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-input bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary"
                 >
                   <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
-                  Message on Facebook Messenger
+                  Message us on Messenger
                 </a>
               </div>
             </div>
+
+            <Link href="/" className="no-print inline-flex min-h-[44px] items-center text-sm font-semibold text-foreground underline-offset-4 hover:underline">
+              Return to home
+            </Link>
           </div>
         )}
+      </main>
 
-        {/* Wizard Footer Controls */}
-        <div className="mt-8 no-print wizard-footer">
-          <div className="flex max-w-5xl items-center justify-between gap-4">
-            {step > 1 && step < 5 ? (
-              <button
-                type="button"
-                disabled={locked}
-                onClick={() => {
-                  setStep((s) => s - 1);
-                  setMessage("");
-                  setFieldErrors({});
-                }}
-                className="inline-flex min-h-[44px] items-center gap-2 px-4 font-semibold text-foreground transition-colors hover:text-primary disabled:opacity-50"
-              >
-                <ChevronLeft aria-hidden="true" className="h-4 w-4" />
-                Back
-              </button>
-            ) : (
-              <span />
-            )}
-
-            {step < 5 ? (
-              <button
-                type={step === 4 ? "submit" : "button"}
-                form={step === 4 ? "booking-details" : undefined}
-                onClick={(event) => {
-                  if (step !== 4) {
-                    event.preventDefault();
-                    void next();
-                  }
-                }}
-                disabled={
-                  pending ||
-                  !catalog ||
-                  Boolean(catalogError) ||
-                  (step === 1 && !vehicleId) ||
-                  (step === 2 && !lines.length) ||
-                  (step === 3 && (!day || dayState !== "AVAILABLE")) ||
-                  (step === 4 && (!challenge.token || (!uncertain && !quote)))
-                }
-                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-6 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {pending
-                  ? "Submitting request…"
-                  : step === 4
-                    ? uncertain
-                      ? "Retry same submission"
-                      : "Submit booking request"
-                    : "Continue"}
-                <ArrowRight aria-hidden="true" className="h-4 w-4" />
-              </button>
-            ) : (
-              <Link
-                href="/"
-                className="inline-flex min-h-[48px] items-center gap-2 rounded bg-primary px-6 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
-              >
-                Return to Home
-                <Check aria-hidden="true" className="h-4 w-4" />
-              </Link>
+      {/* L1: on phones the running total and the main action stay under the thumb. */}
+      {step < 5 && (
+        <div className="wizard-footer no-print fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:hidden">
+          {/* One row: Back, total, action. On phones (below 480 px): total and Back, then the action full width, so the
+              total is never squeezed out. */}
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="order-2 min-[480px]:order-1">{renderBack()}</div>
+            <div className="order-1 min-w-0 flex-1 text-left min-[480px]:order-2 min-[480px]:text-right">{renderTotal()}</div>
+            {showPrimary && (
+              <div className="order-3 basis-full min-[480px]:basis-auto [&>button]:w-full min-[480px]:[&>button]:w-auto">{renderPrimary()}</div>
             )}
           </div>
-          {step === 4 && (
-            <p className="ml-auto mt-3 max-w-[70ch] text-right text-xs text-zinc-400">
-              Submitting adds your car to that day&apos;s queue as a PENDING booking request. Our shop will review it and contact you to confirm.
-            </p>
-          )}
+          {renderReason()}
         </div>
-      </main>
+      )}
     </div>
   );
 }

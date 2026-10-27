@@ -7,12 +7,56 @@ import type {
   BookingCatalog,
   BookingQuote,
   CatalogSelection,
+  CatalogServiceKind,
   LifecycleError,
   ServicePackage,
 } from "@/types/catalog-contracts";
 
 export const money = (centavos: number) =>
   new Intl.NumberFormat(brandConfig.locale, { style: "currency", currency: brandConfig.currency }).format(centavos / 100);
+
+// P1-19 W3: the service step's categories, in the home page's order and with its group names.
+export const CATEGORY_ORDER: CatalogServiceKind[] = ["WASH", "DETAILING", "GRAPHENE", "TINT", "PPF", "REPAINT"];
+export const CATEGORY_NAMES: Record<CatalogServiceKind, string> = {
+  WASH: "Premium Carwash",
+  DETAILING: "Auto Detailing",
+  GRAPHENE: "Graphene Coating",
+  TINT: "Window Tint",
+  PPF: "Paint Protection Film",
+  REPAINT: "Repaint",
+};
+
+// A one-line description from the catalog's own product facts (W11: the home page's details).
+export function serviceDetail(s: ServicePackage): string | null {
+  if (s.description) return s.description;
+  const parts = [
+    s.productName,
+    s.hardness,
+    s.warrantyMonths ? (s.warrantyMonths % 12 === 0 ? s.warrantyMonths / 12 + "-year" : s.warrantyMonths + "-month") + " warranty" : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+// "08:00" -> "8 AM", "18:30" -> "6:30 PM", with a no-break space so the hours never wrap apart.
+const clock = (time: string) => {
+  const hours = Number(time.slice(0, 2)), minutes = time.slice(3, 5);
+  return (hours % 12 || 12) + (minutes === "00" ? "" : ":" + minutes) + (hours < 12 ? "\u00a0AM" : "\u00a0PM");
+};
+// LE 2026-10-28 (W8): when to bring the car, from the shop's own hours.
+export const arrivalWords = () =>
+  `Bring your car any time during opening hours, ${clock(brandConfig.openTime)}–${clock(brandConfig.closeTime)}, on your chosen day.`;
+
+// W4: what each customer field error says, in plain words. One message per field.
+export const FIELD_COPY: Record<string, string> = {
+  customerName: "Enter your name (at least 2 letters).",
+  customerPhone: "Enter a Philippine mobile number, like 0917 000 0000.",
+  customerEmail: "Check the email address, or leave it empty.",
+  vehicleModel: "Enter your car's make and model (for example Toyota Vios).",
+  vehiclePlate: "Check the plate or conduction number (up to 20 characters).",
+  specialRequests: "Keep special requests under 1,000 characters.",
+  turnstileToken: "Complete the security check.",
+  bookingDate: "Choose an available day.",
+};
 
 const DAY_STATE: Record<PublicDayState, string> = {
   AVAILABLE: "Available",
@@ -163,8 +207,10 @@ export function createDayRequest(input: {
   });
   if (parsed.success) return { ok: true, data: parsed.data };
   const fieldErrors: Record<string, string[]> = {};
-  for (const issue of parsed.error.issues) (fieldErrors[String(issue.path[0] ?? "form")] ??= []).push(issue.message);
-  if (fieldErrors.turnstileToken) fieldErrors.turnstileToken = ["Complete the security check."];
+  for (const issue of parsed.error.issues) {
+    const field = String(issue.path[0] ?? "form");
+    fieldErrors[field] = [FIELD_COPY[field] ?? "Check the booking details and try again."];
+  }
   return { ok: false, fieldErrors };
 }
 
@@ -177,7 +223,12 @@ const FORM_FIELDS = new Set(["customerName", "customerPhone", "customerEmail", "
 // the same attempt (same retry key) is retried, which replays a committed booking safely.
 export function publicCreateError(error: LifecycleError) {
   const uncertain = error.code === "RETRYABLE_ERROR";
-  const fieldErrors = Object.fromEntries(Object.entries(error.fieldErrors).filter(([k]) => FORM_FIELDS.has(k)));
+  // Plain words for the customer's own fields (W4); the security check keeps the server's "again".
+  const fieldErrors = Object.fromEntries(
+    Object.entries(error.fieldErrors)
+      .filter(([k]) => FORM_FIELDS.has(k))
+      .map(([k, v]) => [k, k === "turnstileToken" ? v : [FIELD_COPY[k]]]),
+  );
   const day = error.code === "FULLY_BOOKED" || error.code === "DAY_CLOSED";
   const services = ["CATALOG_UPDATED", "SERVICE_NOT_OFFERED", "QUOTE_REQUIRED", "NOT_FOUND"].includes(error.code);
   return {

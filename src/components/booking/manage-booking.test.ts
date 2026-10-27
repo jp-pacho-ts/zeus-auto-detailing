@@ -91,17 +91,17 @@ test("a non-JSON reply reads as an unconfirmed outcome", async () => {
 });
 
 test("customer status words are status only", () => {
-  assert.equal(bookingStatusWords("PENDING"), "Waiting for the shop to confirm");
+  assert.equal(bookingStatusWords("PENDING"), "Waiting for confirmation");
   assert.equal(bookingStatusWords("CONFIRMED"), "Confirmed");
-  assert.equal(bookingStatusWords("IN_PROGRESS"), "In progress at the shop");
+  assert.equal(bookingStatusWords("IN_PROGRESS"), "In progress");
   assert.equal(bookingStatusWords("COMPLETED"), "Done");
   assert.equal(bookingStatusWords("CANCELLED"), "Cancelled");
 });
 
 test("a booking already in a bay, started or past the cutoff sends the customer to the shop", () => {
   assert.equal(selfServiceNotice(view()), null);
-  assert.equal(selfServiceNotice(view({ selfServiceAllowed: false })), "To change or cancel this booking, please contact the shop.");
-  assert.equal(selfServiceNotice(view({ status: "IN_PROGRESS", selfServiceAllowed: false })), "To change or cancel this booking, please contact the shop.");
+  assert.equal(selfServiceNotice(view({ selfServiceAllowed: false })), "Online changes for this booking are closed. To change or cancel it, please contact the shop.");
+  assert.equal(selfServiceNotice(view({ status: "IN_PROGRESS", selfServiceAllowed: false })), "Online changes for this booking are closed. To change or cancel it, please contact the shop.");
   assert.equal(selfServiceNotice(view({ status: "CANCELLED", selfServiceAllowed: false })), "This booking is cancelled.");
   assert.equal(selfServiceNotice(view({ status: "COMPLETED", selfServiceAllowed: false })), "This booking is done.");
 });
@@ -154,7 +154,7 @@ test("server refusals of an upload read clearly; only unconfirmed outcomes retry
     message: "This booking cannot take a screenshot now. Please contact the shop.", retrySame: false, signedOut: false,
   });
   assert.deepEqual(proofUploadError(error("UNAUTHENTICATED")), {
-    message: "Your booking page closed. Enter your booking code again.", retrySame: false, signedOut: true,
+    message: "Your booking page closed. Enter your private code again.", retrySame: false, signedOut: true,
   });
   assert.deepEqual(proofUploadError(error("RATE_LIMITED", { commitState: "UNKNOWN", retryAfterSeconds: 42 })), {
     message: "Too many tries. Wait 42 seconds, then retry the same screenshot.", retrySame: true, signedOut: false,
@@ -188,7 +188,7 @@ test("cancel and reschedule errors: unconfirmed retries the same key; a changed 
   assert.equal(manageActionError(error("DAY_CLOSED", { commitState: "NOT_COMMITTED" })).message, "That day is no longer available. Choose another day.");
   const out = manageActionError(error("UNAUTHENTICATED"));
   assert.equal(out.signedOut, true);
-  assert.equal(out.message, "Your booking page closed. Enter your booking code again.");
+  assert.equal(out.message, "Your booking page closed. Enter your private code again.");
 });
 
 test("the saved code file holds the code, reference, day and where to use it; no name or phone", () => {

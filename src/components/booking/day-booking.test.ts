@@ -126,7 +126,7 @@ test("the v4 create body uses the quote's own lines, a v4 UUID key and the norma
 test("the car make/model is required; the plate is optional", () => {
   const missing = createDayRequest({ form: { ...form, vehicleModel: " " }, quote: fullQuote, bookingDate: "2026-10-21", turnstileToken: "token", idempotencyKey: "0f8fad5b-d9cb-469f-a165-70867728950e" });
   assert.equal(missing.ok, false);
-  if (!missing.ok) assert.ok(missing.fieldErrors.vehicleModel?.length);
+  if (!missing.ok) assert.deepEqual(missing.fieldErrors.vehicleModel, ["Enter your car's make and model (for example Toyota Vios)."]);
   const noPlate = createDayRequest({ form: { ...form, vehiclePlate: "" }, quote: fullQuote, bookingDate: "2026-10-21", turnstileToken: "token", idempotencyKey: "0f8fad5b-d9cb-469f-a165-70867728950e" });
   assert.equal(noPlate.ok, true);
   if (noPlate.ok) assert.equal(noPlate.data.vehiclePlate, undefined);
@@ -145,8 +145,9 @@ test("create errors route the customer to the right step and never echo unknown 
   assert.equal(publicCreateError(err("SERVICE_NOT_OFFERED")).step, "SERVICES");
   const challenge = publicCreateError(err("CHALLENGE_FAILED", { fieldErrors: { turnstileToken: ["Complete the security check again."] } }));
   assert.deepEqual([challenge.step, challenge.newChallenge, challenge.fieldErrors], ["DETAILS", true, { turnstileToken: ["Complete the security check again."] }]);
-  const validation = publicCreateError(err("VALIDATION_ERROR", { fieldErrors: { customerPhone: ["Use a Philippine mobile number"], staffNote: ["PRIVATE CANARY"] } }));
-  assert.deepEqual(validation.fieldErrors, { customerPhone: ["Use a Philippine mobile number"] });
+  // P1-19 W4: the customer's own fields read in the shop's plain words, whatever the server said.
+  const validation = publicCreateError(err("VALIDATION_ERROR", { fieldErrors: { customerPhone: ["Use a Philippine mobile number"], customerName: ["Too small: expected string to have >=2 characters"], staffNote: ["PRIVATE CANARY"] } }));
+  assert.deepEqual(validation.fieldErrors, { customerPhone: ["Enter a Philippine mobile number, like 0917 000 0000."], customerName: ["Enter your name (at least 2 letters)."] });
   assert.equal(publicCreateError(err("RATE_LIMITED", { retryable: true, retryAfterSeconds: 3600 })).uncertain, false);
 });
 
@@ -160,4 +161,17 @@ test("only an unconfirmed outcome keeps the attempt; every server answer needs a
   }
   const unconfirmed = publicCreateError(err("RETRYABLE_ERROR", { commitState: "UNKNOWN", retryable: true, retryAfterSeconds: 10 }));
   assert.deepEqual([unconfirmed.uncertain, unconfirmed.newChallenge, unconfirmed.step], [true, true, "DETAILS"]);
+});
+
+test("P1-19 W3/W11: wizard categories use the home page's group names, in its order", async () => {
+  const { CATEGORY_ORDER, CATEGORY_NAMES } = await import("./day-booking");
+  const { SERVICE_MENU } = await import("@/components/home/service-menu");
+  assert.deepEqual(CATEGORY_ORDER.map((c) => CATEGORY_NAMES[c]), SERVICE_MENU.map((g) => g.name));
+});
+
+test("P1-19 W8 (LE 2026-10-28): the arrival line comes from the shop's own hours", async () => {
+  const { arrivalWords, serviceDetail } = await import("./day-booking");
+  assert.equal(arrivalWords(), "Bring your car any time during opening hours, 8\u00a0AM–6\u00a0PM, on your chosen day.");
+  assert.equal(serviceDetail(coating), null);
+  assert.equal(serviceDetail({ ...coating, productName: "IGC Eclipse Graphene", hardness: "9H", warrantyMonths: 36 }), "IGC Eclipse Graphene · 9H · 3-year warranty");
 });

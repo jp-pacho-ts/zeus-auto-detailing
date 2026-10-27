@@ -1,12 +1,16 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import type { PublicDay, PublicDayState } from "@/types/contracts";
-import { dateCarrier, manilaToday } from "./availability-core";
+import { brandConfig } from "@/config/brand";
+import { appointmentInstant, dateCarrier, manilaToday } from "./availability-core";
 export const addDays = (day: string, n: number) => new Date(dateCarrier(day).getTime() + n * 86400000).toISOString().slice(0, 10);
 export const dayWindow = (day: string) => ({ startsAt: new Date(day + "T00:00:00+08:00"), endsAt: new Date(Date.parse(day + "T00:00:00+08:00") + 86400000) });
 export function validDay(day: string, now: Date): boolean { const today = manilaToday(now); return day >= today && day <= addDays(today, 90); }
+// P1-19 (LE 2026-10-28; Rulings R2, R3): once the shop has closed (brand closeTime, Manila), today is
+// no longer offered or accepted. Other days are never closed by the clock.
+export const afterClosing = (day: string, now: Date) => day === manilaToday(now) && now >= appointmentInstant(day, brandConfig.closeTime);
 // Private capacity inputs terminate here. Only date/state leaves this function.
-export async function readDayStates(tx: Prisma.TransactionClient, queueCode: string, from: string, through: string, excludeBookingId?:string): Promise<PublicDay[]> {
+export async function readDayStates(tx: Prisma.TransactionClient, queueCode: string, from: string, through: string, now: Date, excludeBookingId?:string): Promise<PublicDay[]> {
     const [queue, overrides, occupancy, blocks, weekdays, priorConfig, configs] = await Promise.all([
         tx.bookingQueue.findUnique({ where: { code: queueCode }, select: { dailyCap: true, isActive: true } }),
         tx.queueCapOverride.findMany({ where: { queueCode, date: { gte: dateCarrier(from), lte: dateCarrier(through) } }, select: { date: true, dailyCap: true } }),
@@ -31,7 +35,7 @@ export async function readDayStates(tx: Prisma.TransactionClient, queueCode: str
     const result: PublicDay[] = [];
     for (let day = from; day <= through; day = addDays(day, 1)) {
         const cap = caps.has(day) ? caps.get(day)! : queue?.dailyCap ?? null;
-        const state: PublicDayState = !queue?.isActive || !effective || day < effective || closed.has(day) || !open.has(dateCarrier(day).getUTCDay()) ? "CLOSED"
+        const state: PublicDayState = !queue?.isActive || !effective || day < effective || closed.has(day) || !open.has(dateCarrier(day).getUTCDay()) || afterClosing(day, now) ? "CLOSED"
             : cap !== null && cap <= (counts.get(day) ?? 0) ? "FULLY_BOOKED" : "AVAILABLE";
         result.push({ date: day, state });
     }

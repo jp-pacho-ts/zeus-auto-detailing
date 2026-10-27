@@ -666,6 +666,7 @@ async function mutation(
               b.queueCode!,
               target,
               target,
+              now,
               b.id,
             );
             if (days[0]?.state !== "AVAILABLE")
@@ -778,7 +779,7 @@ export async function getManagedDayAvailability(
         if (!validDay(v.fromDate, now)) throw invalid();
         const through = addDays(manilaToday(now), 90),
           days = (
-            await readDayStates(tx, b.queueCode!, v.fromDate, through, b.id)
+            await readDayStates(tx, b.queueCode!, v.fromDate, through, now, b.id)
           ).map((d) => ({
             ...d,
             state: beforeCustomerCutoff(d.date, now)

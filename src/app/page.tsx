@@ -14,11 +14,18 @@ import { brandConfig } from "@/config/brand";
 import { CustomerHeader } from "@/components/layout/customer-header";
 import { CustomerFooter } from "@/components/layout/customer-footer";
 import { SERVICE_MENU } from "@/components/home/service-menu";
+import { onlineBookingPaused } from "@/server/online-booking-mode";
 
 export default function HomePage() {
+  // P1-19 W2/W9: one booking call to action. It opens the wizard with no preset size, or dials the
+  // shop while online booking is paused.
+  const paused = onlineBookingPaused();
+  const cta = paused
+    ? { href: `tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`, label: "Call to book" }
+    : { href: "/book", label: "Book an Appointment" };
   return (
     <div className="min-h-screen bg-[#09090b] text-[#f5f5f4]">
-      <CustomerHeader />
+      <CustomerHeader bookHref={cta.href} bookLabel={cta.label} />
 
       <main>
         {/* 1. Hero Section: Confident, architectural, grounded */}
@@ -42,10 +49,10 @@ export default function HomePage() {
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
               <Link
-                href="/book"
+                href={cta.href}
                 className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-6 py-3 text-base font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
-                Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                {cta.label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
               <a
                 href="#services"
@@ -66,7 +73,7 @@ export default function HomePage() {
                 <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" /> Appointments
               </p>
               <p className="mt-1 text-base font-bold text-foreground">
-                Book Online
+                {paused ? "Call to book" : "Book Online"}
               </p>
               <p className="text-xs text-muted-foreground">
                 By appointment only
@@ -180,10 +187,10 @@ export default function HomePage() {
 
           <div className="mt-14 flex flex-col gap-4 border-t border-border pt-10 sm:flex-row sm:items-center">
             <Link
-              href="/book"
+              href={cta.href}
               className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-6 py-3 text-base font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
-              Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              {cta.label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
             <a
               href={brandConfig.facebookMessengerUrl}
@@ -314,10 +321,10 @@ export default function HomePage() {
 
                   <div className="mt-6 border-t border-border pt-6">
                     <Link
-                      href="/book?vehicle=sedan"
+                      href={cta.href}
                       className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     >
-                      Book an Appointment <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      {cta.label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
                     <p className="mt-3 text-center text-xs text-zinc-400">
                       Need same-day guidance? Call hotline at {brandConfig.displayPhone}.

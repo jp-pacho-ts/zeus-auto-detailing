@@ -16,18 +16,18 @@ export function ContactShop({ referenceCode }: { referenceCode?: string }) {
     <div className="mt-4 flex flex-wrap gap-3">
       <a
         href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`}
-        className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+        className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
       >
         <Phone className="h-4 w-4 text-primary" aria-hidden="true" />
         Call the shop ({brandConfig.displayPhone})
       </a>
       <a
         href={`${brandConfig.facebookMessengerUrl}?text=${encodeURIComponent(
-          referenceCode ? `Hi, I have a question about booking ${referenceCode}.` : "Hi, I need help with my booking code.",
+          referenceCode ? `Hi, I have a question about booking ${referenceCode}.` : "Hi, I need help with my private booking code.",
         )}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+        className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
       >
         <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
         Message on Facebook Messenger
@@ -57,7 +57,7 @@ export function ManagedBookingDetails({
         <div className="flex items-center gap-3">
           <ShieldCheck aria-hidden="true" className="h-8 w-8 shrink-0 text-primary" />
           <div>
-            <p className="text-xs font-semibold text-muted-foreground">Booking reference</p>
+            <p className="text-sm text-muted-foreground">Booking reference</p>
             <h2 id="booking-title" className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground sm:text-3xl">
               {view.referenceCode}
             </h2>
@@ -68,20 +68,20 @@ export function ManagedBookingDetails({
 
       <dl className="mt-4 divide-y divide-border/60 text-sm">
         <div className="py-3">
-          <dt className="text-xs text-muted-foreground">{multiDay ? "Drop-off day" : "Booking day"}</dt>
+          <dt className="text-sm text-muted-foreground">{multiDay ? "Drop-off day" : "Day"}</dt>
           <dd className="mt-0.5 font-bold text-foreground">
             {dateLabel(view.bookingDate)} · {view.timezone}
           </dd>
           {multiDay && (
-            <p className="mt-0.5 text-xs text-zinc-400">This job takes more than one day; the shop tells you when your car is ready.</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">This job takes more than one day; the shop tells you when your car is ready.</p>
           )}
         </div>
         <div className="py-3">
-          <dt className="text-xs text-muted-foreground">Vehicle size</dt>
+          <dt className="text-sm text-muted-foreground">Vehicle size</dt>
           <dd className="mt-0.5 text-foreground">{view.vehicleCategoryName}</dd>
         </div>
         <div className="py-3">
-          <dt className="text-xs text-muted-foreground">Services</dt>
+          <dt className="text-sm text-muted-foreground">Services</dt>
           <dd className="mt-0.5 text-foreground">
             <ul className="space-y-1">
               {view.lines.map((l) => (
@@ -90,16 +90,16 @@ export function ManagedBookingDetails({
                     {l.name}
                     {l.quantity > 1 ? ` × ${l.quantity}` : ""}
                   </span>{" "}
-                  <span className="text-xs text-zinc-400">· {lineAmount(l)}</span>
+                  <span className="text-sm text-muted-foreground">· {lineAmount(l)}</span>
                 </li>
               ))}
             </ul>
           </dd>
         </div>
         <div className="py-3">
-          <dt className="text-xs text-muted-foreground">{total.label}</dt>
+          <dt className="text-sm text-muted-foreground">{total.label}</dt>
           <dd className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">{total.amount}</dd>
-          {total.note && <p className="mt-0.5 text-xs text-zinc-400">{total.note}</p>}
+          {total.note && <p className="mt-0.5 text-sm text-muted-foreground">{total.note}</p>}
         </div>
       </dl>
 
@@ -110,7 +110,7 @@ export function ManagedBookingDetails({
         </div>
       ) : (
         <div className="mt-4 border-t border-border pt-4">
-          <p className="text-xs text-zinc-400">You can change the day or cancel online until {cutoffLabel(view.selfServiceCutoff)}.</p>
+          <p className="text-sm text-muted-foreground">You can change the day or cancel online until {cutoffLabel(view.selfServiceCutoff)}.</p>
           <div className="mt-3 flex flex-wrap gap-3">
             <button
               type="button"

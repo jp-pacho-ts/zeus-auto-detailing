@@ -543,6 +543,37 @@ test("configured shop daily budget is independent of NULL queue caps, preserves 
  assert.equal(await f.db.booking.count(),2);
 });
 
+test("P1-19: today closes at the shop's closing time in availability and create; Manila midnight opens the next day", { skip }, async () => {
+ const f=await fixture("afterclose");
+ const today=new Date(Date.now()+8*3600000).toISOString().slice(0,10), tomorrow=new Date(Date.now()+32*3600000).toISOString().slice(0,10);
+ const at=(d:string,t:string)=>new Date(d+"T"+t+"+08:00");
+ const { signQuote } = await import("./catalog-quote-token");
+ // The same selection, quoted at the simulated moment (a quote is valid for 15 minutes from issue).
+ const requestAt=async(now:Date,date:string,phone:string)=>{
+  const r=await f.request(["basic-wash"],date);
+  const { quoteToken: _t, issuedAt: _i, expiresAt: _e, ...body } = r.acceptedQuote; void _t; void _i; void _e;
+  return {...r,acceptedQuote:signQuote(body,config.quote,now),customerPhone:phone};
+ };
+ const days=async(now:Date,fromDate:string)=>{
+  const a=await getDayAvailability({vehicleCategoryId:sizeId(release,"S"),lines:[{serviceId:bySlug(release,"basic-wash").id,quantity:1}],fromDate,days:2},{...f.options,headers:headers(),now});
+  assert.ok(a.ok,JSON.stringify(a));
+  return a.ok?a.data:assert.fail();
+ };
+ const before=at(today,"17:59:59.999"), closing=at(today,"18:00:00.000"), midnight=at(tomorrow,"00:00:00.000");
+ assert.deepEqual((await days(before,today)).days.map(d=>d.state),["AVAILABLE","AVAILABLE"]);
+ const evening=await days(closing,today);
+ assert.deepEqual(evening.days.map(d=>[d.date,d.state]),[[today,"CLOSED"],[tomorrow,"AVAILABLE"]]);
+ assert.equal(evening.nextAvailableDay,tomorrow);
+ assert.deepEqual((await days(midnight,tomorrow)).days[0],{date:tomorrow,state:"AVAILABLE"});
+ const late=await f.create(await requestAt(closing,today,"+639170000011"),headers(),{now:closing});
+ assert.equal(code(late),"DAY_CLOSED"); noPrivate(late.result);
+ assert.equal(!late.result.ok&&late.result.error.message,"The shop is closed on this day. Choose another day.");
+ assert.equal(await f.db.booking.count(),0,"nothing is written for a closed today");
+ assert.equal(code(await f.create(await requestAt(before,today,"+639170000012"),headers(),{now:before})),"OK");
+ assert.equal(code(await f.create(await requestAt(midnight,tomorrow,"+639170000013"),headers(),{now:midnight})),"OK");
+ assert.equal(await f.db.booking.count(),2);
+});
+
 test("PENDING alert counts all queues on one day without any cap and logs no private count", { skip }, async () => {
  const f=await fixture("pendingcount"), logs:string[]=[], original=console.warn;
  await f.db.$executeRawUnsafe('UPDATE booking_queues SET "dailyCap"=NULL,revision=revision+1,"updatedAt"=now()');
