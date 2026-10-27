@@ -513,7 +513,7 @@ export function BookingWizard({
         <span className="block text-lg font-extrabold tabular-nums text-foreground">{total ? total.amount : "Pricing…"}</span>
       </>
     ) : (
-      <span className="text-sm text-muted-foreground">No service chosen yet</span>
+      <span className="text-sm text-muted-foreground">Nothing chosen yet</span>
     );
   const renderReason = () => (submitReason ? <p className="mt-2 text-sm text-muted-foreground" role="status">{submitReason}</p> : null);
 
@@ -1319,10 +1319,13 @@ export function BookingWizard({
       {/* L1: on phones the running total and the main action stay under the thumb. */}
       {step < 5 && (
         <div className="wizard-footer no-print fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:hidden">
-          <div className="mx-auto flex max-w-5xl items-center gap-3">
-            {renderBack()}
-            <div className="min-w-0 flex-1 text-right">{renderTotal()}</div>
-            {showPrimary && renderPrimary()}
+          {/* Below 360 px the total takes its own line above Back and the action, so it is never squeezed out. */}
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="order-first min-w-0 basis-full text-left min-[360px]:order-none min-[360px]:flex-1 min-[360px]:basis-auto min-[360px]:text-right">
+              {renderTotal()}
+            </div>
+            <div className="min-[360px]:order-first">{renderBack()}</div>
+            <div className="ml-auto">{showPrimary && renderPrimary()}</div>
           </div>
           {renderReason()}
         </div>

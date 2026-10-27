@@ -304,7 +304,7 @@ test("W1/L10: after Submit the customer lands on 'Booking received' with the arr
   assert.equal(heading(h), "Booking received");
   assert.deepEqual(revealed, ["scroll:wizard-step-title", "focus:wizard-step-title"]);
   assert.match(h.text(), /Waiting for confirmation/);
-  assert.match(h.text(), /Bring your car any time during opening hours, 8 AM–6 PM, on your chosen day\./);
+  assert.match(h.text(), /Bring your car any time during opening hours, 8\u00a0AM–6\u00a0PM, on your chosen day\./);
   h.unmount();
 });
 

@@ -171,7 +171,7 @@ test("P1-19 W3/W11: wizard categories use the home page's group names, in its or
 
 test("P1-19 W8 (LE 2026-10-28): the arrival line comes from the shop's own hours", async () => {
   const { arrivalWords, serviceDetail } = await import("./day-booking");
-  assert.equal(arrivalWords(), "Bring your car any time during opening hours, 8 AM–6 PM, on your chosen day.");
+  assert.equal(arrivalWords(), "Bring your car any time during opening hours, 8\u00a0AM–6\u00a0PM, on your chosen day.");
   assert.equal(serviceDetail(coating), null);
   assert.equal(serviceDetail({ ...coating, productName: "IGC Eclipse Graphene", hardness: "9H", warrantyMonths: 36 }), "IGC Eclipse Graphene · 9H · 3-year warranty");
 });

@@ -37,10 +37,10 @@ export function serviceDetail(s: ServicePackage): string | null {
   return parts.length ? parts.join(" · ") : null;
 }
 
-// "08:00" -> "8 AM", "18:30" -> "6:30 PM".
+// "08:00" -> "8 AM", "18:30" -> "6:30 PM", with a no-break space so the hours never wrap apart.
 const clock = (time: string) => {
   const hours = Number(time.slice(0, 2)), minutes = time.slice(3, 5);
-  return (hours % 12 || 12) + (minutes === "00" ? "" : ":" + minutes) + (hours < 12 ? " AM" : " PM");
+  return (hours % 12 || 12) + (minutes === "00" ? "" : ":" + minutes) + (hours < 12 ? "\u00a0AM" : "\u00a0PM");
 };
 // LE 2026-10-28 (W8): when to bring the car, from the shop's own hours.
 export const arrivalWords = () =>
