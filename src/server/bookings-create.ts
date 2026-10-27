@@ -24,6 +24,8 @@ export interface CreateDayBookingOptions {
     signal?: AbortSignal;
     turnstileEndpoint?: string;
     notification?: NotificationConfiguration;
+    // Server-only test seam (P1-19 day-boundary tests): replaces the database clock. Never set from a request.
+    now?: Date;
 }
 export interface BookingCommit {
     result: DayBookingResponse;
@@ -180,7 +182,7 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
             return fail(bookingError(input && typeof input === "object" && "contractVersion" in input && input.contractVersion === 4 ? "VALIDATION_ERROR" : "CLIENT_UPGRADE_REQUIRED", "Refresh the booking page and check the booking details."));
         const r = parsed.data, hash = bookingRequestHash(r), keyHash = sha256(r.idempotencyKey);
         const preflight = await withBookingDb(db, "PREFLIGHT", async (tx) => {
-            const now = await bookingDbNow(tx), op = await tx.bookingOperation.findUnique({ where: { keyHash } });
+            const now = options.now ?? await bookingDbNow(tx), op = await tx.bookingOperation.findUnique({ where: { keyHash } });
             const prior = await replay(tx, op, r, hash, now, c);
             if (prior)
                 return { prior };
@@ -205,7 +207,7 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
         const committed = await withBookingDb(db, "CREATE", async (tx) => {
             await lockBookingShop(tx);
             await lockBookingDates(tx, [r.bookingDate]);
-            const now = await bookingDbNow(tx);
+            const now = options.now ?? await bookingDbNow(tx);
             const prior = await replay(tx, await tx.bookingOperation.findUnique({ where: { keyHash } }), r, hash, now, c, true);
             if (prior && !("refresh" in prior))
                 return prior;
@@ -237,7 +239,7 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
                 } });
             if (phone >= 2)
                 return terminal(reject("BOOKING_LIMIT_REACHED", "We can't take another online booking for these details. Please call the shop."));
-            const state = (await readDayStates(tx, accepted.priced.queueId, r.bookingDate, r.bookingDate))[0].state;
+            const state = (await readDayStates(tx, accepted.priced.queueId, r.bookingDate, r.bookingDate, now))[0].state;
             if (state !== "AVAILABLE")
                 return terminal(reject(state === "CLOSED" ? "DAY_CLOSED" : "FULLY_BOOKED", state === "CLOSED" ? "The shop is closed on this day. Choose another day." : "This day is fully booked. Choose another day."));
             // A full/closed selected day has the fixed terminal business outcome, including a last-unit race.

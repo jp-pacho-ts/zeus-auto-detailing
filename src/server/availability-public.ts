@@ -24,7 +24,7 @@ export async function getDayAvailability(input: unknown, options: CreateDayBooki
             return { ok: false, error: bookingError("VALIDATION_ERROR", "Check the selected services and days.", { commitState: "NOT_APPLICABLE" }) };
         const r = parsed.data;
         return await withBookingDb(options.db ?? prisma, "READ", async (tx) => {
-            const now = await bookingDbNow(tx);
+            const now = options.now ?? await bookingDbNow(tx);
             if (!validDay(r.fromDate, now))
                 return { ok: false as const, error: bookingError("VALIDATION_ERROR", "Choose a day from today through the next 90 days.", { commitState: "NOT_APPLICABLE" }) };
             const release = await loadCurrentRelease(tx);
@@ -33,7 +33,7 @@ export async function getDayAvailability(input: unknown, options: CreateDayBooki
             const q = priceSelection(release, { vehicleCategoryId: r.vehicleCategoryId, lines: r.lines });
             if (q.kind === "REJECTED")
                 return { ok: false as const, error: bookingError(q.error.code, q.error.message, { commitState: "NOT_APPLICABLE", fieldErrors: q.error.fieldErrors }) };
-            const through = addDays(manilaToday(now), 90), days = await readDayStates(tx, q.quote.queueId, r.fromDate, through);
+            const through = addDays(manilaToday(now), 90), days = await readDayStates(tx, q.quote.queueId, r.fromDate, through, now);
             return { ok: true as const, data: {
                     timezone: "Asia/Manila" as const, days: days.slice(0, r.days), nextAvailableDay: days.find(d => d.state === "AVAILABLE")?.date ?? null, searchedThrough: through, generatedAt: now.toISOString(), quote: signQuote(q.quote, c.quote, now), onlineBookingStatus: c.mode
                 } };
