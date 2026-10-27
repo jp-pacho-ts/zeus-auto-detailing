@@ -1319,13 +1319,14 @@ export function BookingWizard({
       {/* L1: on phones the running total and the main action stay under the thumb. */}
       {step < 5 && (
         <div className="wizard-footer no-print fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:hidden">
-          {/* Below 360 px the total takes its own line above Back and the action, so it is never squeezed out. */}
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1">
-            <div className="order-first min-w-0 basis-full text-left min-[360px]:order-none min-[360px]:flex-1 min-[360px]:basis-auto min-[360px]:text-right">
-              {renderTotal()}
-            </div>
-            <div className="min-[360px]:order-first">{renderBack()}</div>
-            <div className="ml-auto">{showPrimary && renderPrimary()}</div>
+          {/* One row: Back, total, action. On phones (below 480 px): total and Back, then the action full width, so the
+              total is never squeezed out. */}
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="order-2 min-[480px]:order-1">{renderBack()}</div>
+            <div className="order-1 min-w-0 flex-1 text-left min-[480px]:order-2 min-[480px]:text-right">{renderTotal()}</div>
+            {showPrimary && (
+              <div className="order-3 basis-full min-[480px]:basis-auto [&>button]:w-full min-[480px]:[&>button]:w-auto">{renderPrimary()}</div>
+            )}
           </div>
           {renderReason()}
         </div>
