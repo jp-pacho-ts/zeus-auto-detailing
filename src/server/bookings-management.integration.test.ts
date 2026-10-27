@@ -17,6 +17,7 @@ import {
   sizeId,
 } from "./catalog.fixture";
 import { getBookingQuote } from "./catalog-quote";
+import { signQuote } from "./catalog-quote-token";
 import { createDayBooking } from "./bookings-create";
 import {
   parseBookingConfiguration,
@@ -136,7 +137,9 @@ after(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
-async function fresh(offset = 4) {
+// `at` creates the booking at a simulated moment (server-only clock seam): since P1-19 today is
+// closed after the shop's closing time, so a booking for today is made in the morning.
+async function fresh(offset = 4, at?: Date) {
   const selection = {
     vehicleCategoryId: sizeId(release, "S"),
     lines: [{ serviceId: bySlug(release, "basic-wash").id, quantity: 1 }],
@@ -144,6 +147,13 @@ async function fresh(offset = 4) {
   const q = await getBookingQuote(selection, { db, ring: c.quote });
   assert.ok(q.ok);
   if (!q.ok) throw Error("quote");
+  if (at) {
+    const { quoteToken: _t, issuedAt: _i, expiresAt: _e, ...body } = q.data.quote;
+    void _t;
+    void _i;
+    void _e;
+    q.data.quote = signQuote(body, c.quote, at);
+  }
   const n = ++seq,
     request = {
       contractVersion: 4 as const,
@@ -165,6 +175,7 @@ async function fresh(offset = 4) {
   const commit = await createDayBooking(request, {
     ...options(),
     turnstileEndpoint: endpoint,
+    ...(at ? { now: at } : {}),
   });
   const data = success(commit);
   assert.ok(commit.session);
@@ -677,7 +688,7 @@ test(
       ),
       "CUTOFF_PASSED",
     );
-    const today = await fresh(0);
+    const today = await fresh(0, new Date(day(0) + "T09:00:00+08:00"));
     assert.equal(
       code(
         await management.cancelManagedBooking(
