@@ -149,6 +149,7 @@ export function BayMenu({ bay, bays, onDone }: { bay: Bay; bays: readonly Bay[];
   const [mode, setMode] = React.useState<"CLOSED" | "MENU" | "RENAME" | "CONFIRM">("CLOSED");
   const [notice, setNotice] = React.useState<string | null>(null), [busy, setBusy] = React.useState(false);
   const trigger = React.useRef<HTMLButtonElement>(null), items = React.useRef<(HTMLButtonElement | null)[]>([]), keep = React.useRef<HTMLButtonElement>(null);
+  const confirmation = React.useRef<HTMLDialogElement>(null);
   const menuId = "bay-menu-" + bay.id;
   const close = () => {
     setMode("CLOSED");
@@ -156,7 +157,10 @@ export function BayMenu({ bay, bays, onDone }: { bay: Bay; bays: readonly Bay[];
   };
   React.useEffect(() => {
     if (mode === "MENU") items.current[0]?.focus();
-    if (mode === "CONFIRM") keep.current?.focus();
+    if (mode === "CONFIRM") {
+      if (confirmation.current && !confirmation.current.open) confirmation.current.showModal();
+      keep.current?.focus();
+    }
   }, [mode]);
   function onMenuKey(e: React.KeyboardEvent) {
     const at = items.current.findIndex((el) => el === document.activeElement);
@@ -242,23 +246,40 @@ export function BayMenu({ bay, bays, onDone }: { bay: Bay; bays: readonly Bay[];
         </div>
       )}
       {mode === "CONFIRM" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onKeyDown={(e) => e.key === "Escape" && close()}>
-          <div role="alertdialog" aria-modal="true" aria-labelledby={menuId + "-title"} aria-describedby={menuId + "-text"}
-            className="w-full max-w-sm space-y-3 rounded border border-border bg-[#121214] p-5">
-            <h4 id={menuId + "-title"} className="font-bold">Remove {bay.name}?</h4>
-            <p id={menuId + "-text"} className="text-sm text-muted-foreground">
-              Cars can no longer be moved into it. Its booking history is kept, and it can be brought back under Bay Calendar, Bays.
-            </p>
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button ref={keep} variant="outline" onClick={close}>
-                Keep bay
-              </Button>
-              <Button variant="destructive" disabled={busy} onClick={() => void remove()}>
-                Remove bay
-              </Button>
-            </div>
+        <dialog
+          ref={confirmation}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby={menuId + "-title"}
+          aria-describedby={menuId + "-text"}
+          onCancel={(e) => {
+            e.preventDefault();
+            close();
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "Tab") return;
+            const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+            const first = buttons[0], last = buttons.at(-1);
+            if (document.activeElement === (e.shiftKey ? first : last)) {
+              e.preventDefault();
+              (e.shiftKey ? last : first)?.focus();
+            }
+          }}
+          className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm space-y-3 rounded border border-border bg-[#121214] p-5 text-foreground backdrop:bg-black/60"
+        >
+          <h4 id={menuId + "-title"} className="font-bold">Remove {bay.name}?</h4>
+          <p id={menuId + "-text"} className="text-sm text-muted-foreground">
+            Cars can no longer be moved into it. Its booking history is kept, and it can be brought back under Bay Calendar, Bays.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button ref={keep} variant="outline" onClick={close}>
+              Keep bay
+            </Button>
+            <Button variant="destructive" disabled={busy} onClick={() => void remove()}>
+              Remove bay
+            </Button>
           </div>
-        </div>
+        </dialog>
       )}
       {notice && (
         <p role="alert" className="mt-1 max-w-56 text-xs text-amber-400">
