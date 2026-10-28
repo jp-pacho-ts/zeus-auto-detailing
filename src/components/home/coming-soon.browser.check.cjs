@@ -31,7 +31,7 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     return ctx;
   }
   async function readable(page) {
-    await page.getByRole('heading', { name: 'Our new website.Coming soon.' }).waitFor();
+    await page.getByRole('heading', { name: /Our new website\.\s*Coming soon\./ }).waitFor();
     assert.equal(await page.locator('main').count(), 1);
     assert.equal(await page.locator('nav').count(), 0);
     assert.equal(await page.locator('form').count(), 0);
@@ -62,6 +62,11 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     assert.ok(results.animation, 'signature animation exists');
     assert.notEqual(results.animation.start, results.animation.end);
     assert.equal(results.animation.iterations, 1);
+    for (const time of [0, 275, 550, 1100]) {
+      await brand.evaluate((el, time) => { const a = el.getAnimations()[0]; a.pause(); a.currentTime = time; }, time);
+      await page.screenshot({ path: path.join(out, `animation-${time}ms.png`), fullPage: true });
+    }
+    await brand.evaluate(el => el.getAnimations().forEach(a => a.play()));
     await brand.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
     assert.equal(await brand.evaluate(el => el.getAnimations().some(a => a.playState === 'running')), false);
     results.checks.push('single entrance settles; text readable from first frame');
@@ -93,6 +98,17 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     await page.screenshot({ path: path.join(out, '390-text-zoom.png'), fullPage: true });
     await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
     results.checks.push('keyboard order and visible focus; 200% text zoom; short viewport');
+    results.contrast = await page.evaluate(() => {
+      const luminance = value => {
+        const rgb = value.match(/[\d.]+/g).slice(0, 3).map(Number).map(v => v / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+        return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
+      };
+      const ratio = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+      const main = getComputedStyle(document.querySelector('main'));
+      const call = getComputedStyle(document.querySelector('.zeus-coming-soon__call'));
+      return { text: ratio(main.color, main.backgroundColor), action: ratio(call.color, call.backgroundColor) };
+    });
+    assert.ok(results.contrast.text >= 4.5 && results.contrast.action >= 4.5, 'text and primary action contrast');
     for (const options of [{ reducedMotion: 'reduce' }, { javaScriptEnabled: false }]) {
       const fallback = await context({ viewport: { width: 390, height: 844 }, ...options });
       const p = await fallback.newPage();
@@ -120,6 +136,9 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     assert.equal(session.status, 401);
     assert.match(session.cache, /no-store/);
     results.routes.push({ route: '/api/admin/auth/session', ...session });
+    await page.goto(origin + '/admin', { waitUntil: 'networkidle' });
+    assert.ok(page.url().startsWith(origin + '/admin/login'), 'protected admin redirects unauthenticated visitors to login');
+    results.checks.push('protected admin remains guarded');
     assert.deepEqual(results.errors, []);
   } finally {
     fs.writeFileSync(path.join(out, 'browser-results.json'), JSON.stringify(results, null, 2));
