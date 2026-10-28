@@ -137,8 +137,15 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     assert.equal(session.status, 401);
     assert.match(session.cache, /no-store/);
     results.routes.push({ route: '/api/admin/auth/session', ...session });
-    await page.goto(origin + '/admin', { waitUntil: 'networkidle' });
-    assert.ok(page.url().startsWith(origin + '/admin/login'), 'protected admin redirects unauthenticated visitors to login');
+    // Native redirect requests can bypass Playwright's synthetic-host interception.
+    // Exercise this real navigation directly on the same owned loopback server.
+    const guardContext = await browser.newContext();
+    await guardContext.route('**/*', route => route.request().url().startsWith(upstream.origin + '/') ? route.continue() : route.abort());
+    const guardPage = await guardContext.newPage();
+    await guardPage.goto(upstream.origin + '/admin', { waitUntil: 'networkidle' });
+    assert.ok(guardPage.url().startsWith(upstream.origin + '/admin/login'), 'protected admin redirects unauthenticated visitors to login');
+    await guardPage.getByLabel('Staff Email or ID').waitFor();
+    await guardContext.close();
     results.checks.push('protected admin remains guarded');
     assert.deepEqual(results.errors, []);
   } finally {
