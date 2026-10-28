@@ -57,19 +57,46 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const leaving = React.useRef(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuButton = React.useRef<HTMLButtonElement>(null),
-    firstNavItem = React.useRef<HTMLButtonElement>(null);
-  const closeMenu = React.useCallback(() => {
-    setMenuOpen(false);
-    menuButton.current?.focus();
-  }, []);
+    firstNavItem = React.useRef<HTMLButtonElement>(null),
+    navigation = React.useRef<HTMLElement>(null),
+    menuWasOpen = React.useRef(false);
+  const closeMenu = React.useCallback(() => setMenuOpen(false), []);
   React.useEffect(() => {
-    if (!menuOpen) return;
+    const desktop = window.matchMedia("(min-width: 768px)");
+    if (!menuOpen) {
+      if (menuWasOpen.current && !desktop.matches) menuButton.current?.focus();
+      menuWasOpen.current = false;
+      return;
+    }
+    menuWasOpen.current = true;
     firstNavItem.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeMenu();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeMenu();
+      } else if (e.key === "Tab") {
+        const controls = Array.from(navigation.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        ) ?? []).filter((element) => element.getClientRects().length > 0);
+        const first = controls[0], last = controls.at(-1);
+        if (document.activeElement === (e.shiftKey ? first : last)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first)?.focus();
+        }
+      }
+    };
+    const onResize = () => {
+      if (desktop.matches) {
+        closeMenu();
+        firstNavItem.current?.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    desktop.addEventListener("change", onResize);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      desktop.removeEventListener("change", onResize);
+    };
   }, [menuOpen, closeMenu]);
   React.useEffect(() => {
     const refresh = (e: PageTransitionEvent) => {
@@ -130,7 +157,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   // only #admin-content scrolls; nothing in the dashboard scrolls sideways.
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row">
-      <div className="flex shrink-0 items-center justify-between border-b border-border bg-[#121214] px-4 py-2 md:hidden">
+      <div inert={menuOpen} className="flex shrink-0 items-center justify-between border-b border-border bg-[#121214] px-4 py-2 md:hidden">
         <Link href="/" aria-label="Return to public shop site">
           <Logo small />
         </Link>
@@ -155,6 +182,9 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
 
       {/* Sidebar Navigation */}
       <aside
+        ref={navigation}
+        role={menuOpen ? "dialog" : undefined}
+        aria-modal={menuOpen ? true : undefined}
         id="admin-nav"
         aria-label="Shop Management Sidebar"
         className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] flex-col overflow-y-auto border-r border-border bg-[#121214] p-6 md:static md:z-auto md:flex md:w-64 md:max-w-none md:shrink-0`}
@@ -235,7 +265,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
       </aside>
 
       {/* Main Admin Content */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div inert={menuOpen} className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="shrink-0 border-b border-border px-4 py-4 sm:px-8 lg:px-10 lg:py-6">
           <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
             <div>
