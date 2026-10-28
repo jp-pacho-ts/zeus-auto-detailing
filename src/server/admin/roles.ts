@@ -24,6 +24,7 @@ export const ADMIN_OPS = [
   "CAPS",
   "HISTORY_LOOKUP",
   "DEPOSIT_STATUS", // P1-18: ADMIN only; STAFF reads proofs through READ
+  "SCHEDULE", // P1-20: opening hours and closed days, ADMIN only
 ] as const;
 export type AdminOp = (typeof ADMIN_OPS)[number];
 

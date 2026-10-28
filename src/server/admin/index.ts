@@ -7,6 +7,7 @@ export {
   setBookingStatus, declineBooking, moveBooking, reorderQueueDay, addLine, removeLine, setLineStatus, setLinePrice, setBay, notifyCustomer,
 } from "./bookings-write";
 export { createBay, updateBay, setDefaultCap, setCapOverride, deleteCapOverride } from "./settings-write";
+export { getSchedule, setWeekHours, addClosedDate, removeClosedDate, getCalendar } from "./schedule";
 export { lookupCustomerHistory } from "./history";
 export type { StaffActor, AdminOptions } from "./context";
 

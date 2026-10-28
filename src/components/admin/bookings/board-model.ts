@@ -1,6 +1,8 @@
 import type {
   AdminBoardCard,
   AdminDayBoard,
+  AdminDayQueues,
+  AdminQueueBooking,
   BayType,
 } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
@@ -29,6 +31,36 @@ export function canDrop(
     bay.cards.length === 0 &&
     card.assignedBayId !== bay.id
   );
+}
+// P1-20 item 2 (LE 2026-10-28): one board row per bay type. A row holds the Waiting queue(s)
+// served by that bay type, its bays, and Done: the day's COMPLETED visits of those queues, read
+// from the day queue view (the board itself carries open cars only).
+export const BOARD_LANES: { bayType: BayType; label: string }[] = [
+  { bayType: "WASH", label: "Wash" },
+  { bayType: "DETAILING", label: "Detailing" },
+  { bayType: "PAINT", label: "Paint" },
+];
+export function boardLanes(board: AdminDayBoard, day: AdminDayQueues | null) {
+  return BOARD_LANES.map(({ bayType, label }) => {
+    const waiting = board.queues.filter((q) => q.bayType === bayType);
+    const codes = new Set(waiting.map((q) => q.code));
+    const bays = board.bays.filter((b) => b.bayType === bayType);
+    const done: AdminQueueBooking[] = (day?.queues ?? [])
+      .filter((q) => codes.has(q.code))
+      .flatMap((q) => (q.bookings ?? []).filter((b) => b.status === "COMPLETED"));
+    return {
+      bayType,
+      label,
+      waiting,
+      bays,
+      done,
+      counts: {
+        waiting: waiting.reduce((n, q) => n + q.waiting.length, 0),
+        inBay: bays.reduce((n, b) => n + b.cards.length, 0),
+        done: done.length,
+      },
+    };
+  });
 }
 export const bayPayload = (
   card: { revision: number },
