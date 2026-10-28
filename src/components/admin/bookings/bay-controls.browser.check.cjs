@@ -53,6 +53,19 @@ test('remove-bay confirmation contains Tab/Shift+Tab focus and Escape returns it
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'detached' });
     assert.equal(await trigger.evaluate((element) => document.activeElement === element), true, 'Escape returns focus to the bay menu');
+    await trigger.click();
+    await page.getByRole('menuitem', { name: 'Remove', exact: true }).click();
+    await page.getByRole('button', { name: 'Remove bay', exact: true }).click();
+    await trigger.waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Menu', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay Calendar', exact: true }).click();
+    await page.getByRole('group', { name: 'Calendar sections' }).getByRole('button', { name: 'Bays', exact: true }).click();
+    await page.getByRole('button', { name: 'Bring back ' + name, exact: true }).waitFor();
+    for (const width of [1280, 1024, 768, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      const size = await page.locator('#admin-content').evaluate((element) => ({ client: element.clientWidth, scroll: element.scrollWidth }));
+      assert.ok(size.scroll <= size.client, width + 'px removed-bay actions must fit the content: ' + JSON.stringify(size));
+    }
   } finally {
     // Deactivate only this test's uniquely named empty bay; keep history and every assertion.
     try {

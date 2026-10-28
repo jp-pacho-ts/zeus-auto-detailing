@@ -18,7 +18,7 @@ const TYPES: { value: BayType; label: string }[] = [
 function BayRow({ bay, busy, onPatch }: { bay: AdminBay; busy: boolean; onPatch: (bay: AdminBay, change: Record<string, unknown>, done: string) => Promise<boolean> }) {
   const [confirming, setConfirming] = React.useState(false);
   return (
-    <li className="space-y-3 rounded border border-border bg-[#18181b] p-3">
+    <li className="min-w-0 space-y-3 rounded border border-border bg-[#18181b] p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="break-words font-semibold">{bay.name}</span>
         {!bay.isActive && <span className="rounded border border-border px-2 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">Removed</span>}
@@ -35,7 +35,7 @@ function BayRow({ bay, busy, onPatch }: { bay: AdminBay; busy: boolean; onPatch:
           Bay name
           <input name="name" defaultValue={bay.name} required maxLength={40} className={fieldClass} aria-label={`New name for ${bay.name}`} />
         </label>
-        <Button type="submit" variant="outline" disabled={busy}>
+        <Button type="submit" variant="outline" className="h-auto max-w-full whitespace-normal [overflow-wrap:anywhere] text-left" disabled={busy}>
           Save name
         </Button>
       </form>
@@ -46,17 +46,17 @@ function BayRow({ bay, busy, onPatch }: { bay: AdminBay; busy: boolean; onPatch:
             <Button variant="destructive" disabled={busy} onClick={() => void onPatch(bay, { isActive: false }, `${bay.name} removed.`).then(() => setConfirming(false))}>
               Remove bay
             </Button>
-            <Button variant="outline" onClick={() => setConfirming(false)}>
+            <Button variant="outline" className="h-auto max-w-full whitespace-normal [overflow-wrap:anywhere] text-left" onClick={() => setConfirming(false)}>
               Keep bay
             </Button>
           </div>
         ) : (
-          <Button variant="outline" disabled={busy} onClick={() => setConfirming(true)}>
+          <Button variant="outline" className="h-auto max-w-full whitespace-normal [overflow-wrap:anywhere] text-left" disabled={busy} onClick={() => setConfirming(true)}>
             Remove {bay.name}
           </Button>
         )
       ) : (
-        <Button variant="outline" disabled={busy} onClick={() => void onPatch(bay, { isActive: true }, `${bay.name} is back in use.`)}>
+        <Button variant="outline" className="h-auto max-w-full whitespace-normal [overflow-wrap:anywhere] text-left" disabled={busy} onClick={() => void onPatch(bay, { isActive: true }, `${bay.name} is back in use.`)}>
           Bring back {bay.name}
         </Button>
       )}
