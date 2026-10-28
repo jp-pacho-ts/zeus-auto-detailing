@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { brandConfig } from "@/config/brand";
-import HomePage from "./page";
+import HomePage from "@/components/home/coming-soon-original";
 
 const saved = process.env.ONLINE_BOOKING_MODE;
 afterEach(() => {
