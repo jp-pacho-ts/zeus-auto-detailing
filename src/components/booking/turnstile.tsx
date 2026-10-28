@@ -59,6 +59,9 @@ export function TurnstileChallenge({
   React.useEffect(() => {
     let widget: string | undefined;
     let cancelled = false;
+    // A new widget (first mount, or a size change, QA F2) starts without a token; the removed
+    // widget's token is not kept.
+    callback.current("");
     status.current?.("pending");
     loadTurnstile()
       .then(() => {

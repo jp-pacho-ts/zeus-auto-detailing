@@ -116,6 +116,8 @@ function formatPhilippinePhone(raw: string): string {
 // L4: four steps the customer acts on; the receipt is not a step.
 const STEP_LABELS = ["Vehicle size", "Services", "Day", "Your details"];
 const HEADINGS = ["Choose your vehicle size", "Choose your services", "Choose your day", "Your details", "Booking received"];
+// The normal security-check widget is a fixed 300 px wide; below this it is rendered compact.
+const NARROW_QUERY = "(max-width: 359px)";
 
 export function BookingWizard({
   initialServiceId,
@@ -163,6 +165,11 @@ export function BookingWizard({
   const errorSummary = React.useRef<HTMLDivElement>(null);
   const deepLinkHandled = React.useRef(false);
   const shownStep = React.useRef(step);
+  // L9 / QA F2: below 360 px the security check is compact. It follows the window as it resizes,
+  // not only when something else happens to re-render the form.
+  const [narrow, setNarrow] = React.useState(
+    () => typeof window !== "undefined" && Boolean(window.matchMedia?.(NARROW_QUERY).matches),
+  );
 
   const copyReference = () => {
     if (!booking || typeof navigator === "undefined" || !navigator.clipboard) return;
@@ -269,6 +276,44 @@ export function BookingWizard({
     shownStep.current = step;
     reveal("wizard-step-title");
   }, [step]);
+
+  React.useEffect(() => {
+    const query = window.matchMedia?.(NARROW_QUERY);
+    if (!query?.addEventListener) return;
+    const update = () => setNarrow(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  // QA F1: a keyboard-focused control is never hidden by the fixed phone action bar. The page's
+  // scroll padding follows the bar's measured height (it grows when a reason line wraps; 0 on
+  // desktop, where the bar is hidden). The browser leaves a partly visible control (a tall text box)
+  // where it is, so after each focus the control is brought fully into the padded view.
+  const barShown = step < 5;
+  React.useEffect(() => {
+    if (!barShown || typeof ResizeObserver === "undefined") return;
+    const bar = document.getElementById("wizard-action-bar");
+    if (!bar) return;
+    const root = document.documentElement;
+    const apply = () => {
+      root.style.scrollPaddingBottom = bar.offsetHeight ? bar.offsetHeight + 16 + "px" : "";
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(bar);
+    const keepClear = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || bar.contains(target) || !bar.offsetHeight) return;
+      // After the browser's own focus scroll; an instant scroll also ends a smooth one in progress.
+      window.requestAnimationFrame(() => target.scrollIntoView({ block: "nearest", behavior: "instant" }));
+    };
+    document.addEventListener("focusin", keepClear);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("focusin", keepClear);
+      root.style.scrollPaddingBottom = "";
+    };
+  }, [barShown]);
 
   // The server prices the selection (and signs it) as soon as it changes.
   React.useEffect(() => {
@@ -448,7 +493,6 @@ export function BookingWizard({
   const errorFor = (field: string) => fieldErrors[field]?.join(" ");
   const servicesSummary = lines.map((l) => serviceById(l.serviceId)?.name).filter(Boolean).join(", ");
   const quoteLines = quote?.lines ?? [];
-  const narrow = typeof window !== "undefined" && window.innerWidth < 360;
 
   // W5: a disabled Submit always says why.
   const submitReason =
@@ -1318,7 +1362,10 @@ export function BookingWizard({
 
       {/* L1: on phones the running total and the main action stay under the thumb. */}
       {step < 5 && (
-        <div className="wizard-footer no-print fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div
+          id="wizard-action-bar"
+          className="wizard-footer no-print fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:hidden"
+        >
           {/* One row: Back, total, action. On phones (below 480 px): total and Back, then the action full width, so the
               total is never squeezed out. */}
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2">

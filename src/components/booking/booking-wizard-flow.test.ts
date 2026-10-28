@@ -56,16 +56,60 @@ const openDays = (closed: string[] = []): PublicDay[] => Array.from({ length: 14
 let revealed: string[] = [];
 let windowWidth = 390;
 const g = globalThis as Record<string, unknown>;
-const saved = { window: g.window, document: g.document, fetch: globalThis.fetch };
+const saved = { window: g.window, document: g.document, fetch: globalThis.fetch, ResizeObserver: g.ResizeObserver, Element: g.Element };
+// The fixed action bar's measured height (QA F1) and the narrow-screen media query (QA F2).
+let barHeight = 129;
+let rootStyle: { scrollPaddingBottom?: string } = {};
+let resized: (() => void)[] = [];
+let narrowListeners: (() => void)[] = [];
+let focusListeners: ((e: { target: unknown }) => void)[] = [];
+// A focusable control: records how the wizard scrolled it into view.
+class FakeElement {
+  scrolls: unknown[] = [];
+  scrollIntoView(options: unknown) {
+    this.scrolls.push(options);
+  }
+}
+const inBar = new FakeElement();
+const focusOn = (target: unknown) => {
+  for (const fn of focusListeners) fn({ target });
+};
+const resizeTo = (width: number) => {
+  windowWidth = width;
+  for (const fn of narrowListeners) fn();
+};
 beforeEach(() => {
   revealed = [];
   windowWidth = 390;
+  barHeight = 129;
+  rootStyle = {};
+  resized = [];
+  narrowListeners = [];
   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "wizard-test-site-key";
+  focusListeners = [];
+  g.Element = FakeElement;
   g.document = {
-    getElementById: (elementId: string) => ({
-      scrollIntoView: () => revealed.push("scroll:" + elementId),
-      focus: () => revealed.push("focus:" + elementId),
-    }),
+    documentElement: { style: rootStyle },
+    addEventListener: (type: string, fn: (e: { target: unknown }) => void) => type === "focusin" && focusListeners.push(fn),
+    removeEventListener: (type: string, fn: (e: { target: unknown }) => void) => {
+      focusListeners = focusListeners.filter((f) => f !== fn);
+    },
+    getElementById: (elementId: string) =>
+      elementId === "wizard-action-bar"
+        ? { get offsetHeight() { return barHeight; }, contains: (el: unknown) => el === inBar }
+        : {
+            scrollIntoView: () => revealed.push("scroll:" + elementId),
+            focus: () => revealed.push("focus:" + elementId),
+          },
+  };
+  g.ResizeObserver = class {
+    constructor(private fn: () => void) {}
+    observe() {
+      resized.push(this.fn);
+    }
+    disconnect() {
+      resized = resized.filter((f) => f !== this.fn);
+    }
   };
   g.window = {
     setTimeout: (fn: () => void) => setImmediate(fn),
@@ -74,7 +118,16 @@ beforeEach(() => {
     clearInterval: () => undefined,
     addEventListener: () => undefined,
     removeEventListener: () => undefined,
-    matchMedia: () => ({ matches: false }),
+    requestAnimationFrame: (fn: () => void) => fn(),
+    matchMedia: (query: string) => ({
+      get matches() {
+        return query === "(max-width: 359px)" ? windowWidth < 360 : false;
+      },
+      addEventListener: (_type: string, fn: () => void) => narrowListeners.push(fn),
+      removeEventListener: (_type: string, fn: () => void) => {
+        narrowListeners = narrowListeners.filter((f) => f !== fn);
+      },
+    }),
     get innerWidth() {
       return windowWidth;
     },
@@ -84,6 +137,8 @@ afterEach(() => {
   g.window = saved.window;
   delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   g.document = saved.document;
+  g.ResizeObserver = saved.ResizeObserver;
+  g.Element = saved.Element;
   globalThis.fetch = saved.fetch;
 });
 
@@ -341,4 +396,49 @@ test("L9: the security check is compact when the window is narrower than 360 px"
   await toDetails(h);
   assert.equal(h.child(TurnstileChallenge)!.props.size, "compact");
   h.unmount();
+});
+
+test("QA F2: an open details step switches the security check to compact when the window narrows, with no other input", async () => {
+  network();
+  windowWidth = 1280;
+  const h = mountHooks(BookingWizard, {});
+  await toDetails(h);
+  assert.equal(h.child(TurnstileChallenge)!.props.size, "normal");
+  resizeTo(320);
+  await h.settle();
+  assert.equal(h.child(TurnstileChallenge)!.props.size, "compact", "no field was touched");
+  resizeTo(1280);
+  await h.settle();
+  assert.equal(h.child(TurnstileChallenge)!.props.size, "normal");
+  h.unmount();
+  assert.equal(narrowListeners.length, 0, "the media-query listener is removed on unmount");
+});
+
+test("QA F1: keyboard focus scrolling keeps clear of the fixed action bar, at its measured height", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  assert.equal(rootStyle.scrollPaddingBottom, "145px", "bar height 129 + 16 px clearance, from step 1");
+  await toDetails(h);
+  assert.equal(rootStyle.scrollPaddingBottom, "145px");
+  barHeight = 177; // e.g. the security-check reason wraps to two lines
+  for (const fn of resized) fn();
+  assert.equal(rootStyle.scrollPaddingBottom, "193px");
+  // A focused control (e.g. a tall text box the browser left partly under the bar) is brought fully
+  // into the padded view, instantly; the bar's own buttons are left alone.
+  const textBox = new FakeElement();
+  focusOn(textBox);
+  assert.deepEqual(textBox.scrolls, [{ block: "nearest", behavior: "instant" }]);
+  focusOn(inBar);
+  assert.deepEqual(inBar.scrolls, []);
+  barHeight = 0; // desktop: the bar is hidden
+  for (const fn of resized) fn();
+  assert.equal(rootStyle.scrollPaddingBottom, "");
+  const desktopField = new FakeElement();
+  focusOn(desktopField);
+  assert.deepEqual(desktopField.scrolls, [], "no extra scrolling without the bar");
+  h.unmount();
+  assert.equal(rootStyle.scrollPaddingBottom, "", "cleared when the wizard leaves the page");
+  assert.equal(resized.length, 0);
+  assert.equal(focusListeners.length, 0);
 });
