@@ -1176,7 +1176,10 @@ test("P1-17 board: large days are complete, future waiting excluded, inactive oc
   assert.ok(!board.queues.flatMap(q => q.waiting).some(c => c.id === future));
   const bay = await s.createBay(ADMIN, { name: "Retired occupied bay", bayType: "WASH", sortOrder: 180 }, opts());
   await s.setBay(ADMIN, ids[0], { expectedRevision: 1, date: day, bayId: bay.id }, opts());
-  await s.updateBay(ADMIN, bay.id, { expectedUpdatedAt: bay.updatedAt, isActive: false }, opts());
+  // P1-20: updateBay now refuses to remove an occupied bay, so an inactive occupied bay (older
+  // data) is set up directly; the board must still show it with its car.
+  await refused(s.updateBay(ADMIN, bay.id, { expectedUpdatedAt: bay.updatedAt, isActive: false }, opts()), "SCHEDULE_CONFLICT", "occupied bay removal");
+  await db.bay.update({ where: { id: bay.id }, data: { isActive: false, updatedAt: new Date() } });
   board = await s.getDayBoard(STAFF, { date: day }, opts());
   assert.equal(board.bays.find(b => b.id === bay.id)?.cards[0].id, ids[0]);
   const all = [...board.queues.flatMap(q => q.waiting), ...board.bays.flatMap(b => b.cards)];

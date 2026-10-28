@@ -4,25 +4,43 @@ import { Button } from "@/components/ui/button";
 import type {
   AdminBoardCard,
   AdminDayBoard,
+  AdminDayQueues,
+  AdminQueueBooking,
   AdminWriteResult,
+  BayType,
 } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import { adminRequest, AdminRequestError } from "./client";
 import { fieldClass, LoadState, useAdminResource } from "./use-admin-resource";
 import { shopDate, statusLabel } from "./model";
-import { bayPayload, canDrop, plateLabel, writeFeedback } from "./board-model";
+import {
+  bayPayload,
+  boardLanes,
+  canDrop,
+  plateLabel,
+  writeFeedback,
+} from "./board-model";
+import { AddBay, BayMenu } from "./bay-controls";
 import { BookingDetail } from "./booking-detail";
 import { DepositBadge } from "./deposit-badge";
 
 export function BayBoard({ role }: { role: UserRole }) {
   const [date, setDate] = React.useState(shopDate),
-    [column, setColumn] = React.useState("WASH"),
+    [picked, setPicked] = React.useState<Partial<Record<BayType, string>>>({}),
     [selected, setSelected] = React.useState<string | null>(null);
   const resource = useAdminResource<AdminDayBoard>(
       "/api/admin/board?date=" + date,
     ),
     board = resource.data,
-    reloadBoard = resource.reload;
+    reloadBoardOnly = resource.reload;
+  // Done: the day's completed visits come from the day queue view (read-only).
+  const dayView = useAdminResource<AdminDayQueues>(
+      "/api/admin/queues?date=" + date,
+    ),
+    reloadDay = dayView.reload;
+  const reloadBoard = React.useCallback(async () => {
+    await Promise.all([reloadBoardOnly(), reloadDay()]);
+  }, [reloadBoardOnly, reloadDay]);
   const [busy, setBusy] = React.useState(false),
     [message, setMessage] = React.useState(""),
     [blocked, setBlocked] = React.useState(false),
@@ -50,8 +68,12 @@ export function BayBoard({ role }: { role: UserRole }) {
       focus.current = null;
     }
   }, [board, busy]);
+  async function bayChanged(text: string) {
+    setMessage(text);
+    await reloadBoard();
+  }
   async function refresh() {
-    await resource.reload();
+    await reloadBoard();
     if (mounted.current) {
       setBlocked(false);
       setReview(null);
@@ -68,10 +90,11 @@ export function BayBoard({ role }: { role: UserRole }) {
         { method: "PUT", body: bayPayload(card, date, bayId) },
       );
       if (!mounted.current) return;
-      setColumn(bayId ?? card.queueCode);
+      const lane = board?.queues.find((q) => q.code === card.queueCode)?.bayType;
+      if (lane) setPicked((p) => ({ ...p, [lane]: bayId ?? card.queueCode }));
       focus.current = "board-card-" + card.id;
       setMessage("Car moved.");
-      await resource.reload();
+      await reloadBoard();
     } catch (e) {
       if (!mounted.current) return;
       if (e instanceof AdminRequestError && e.status === 401) {
@@ -133,29 +156,69 @@ export function BayBoard({ role }: { role: UserRole }) {
     }
     void move(card, bayId);
   }
-  const columns = board
-    ? ["WASH", "DETAILING", "PAINT"].flatMap((type) => [
-        ...board.queues
-          .filter((q) => q.bayType === type)
-          .map((q) => ({
+  // One row per bay type: Waiting queue(s) -> bays -> Done. Below md each row shows one picked
+  // column; from md the row's columns wrap, so nothing scrolls sideways.
+  const lanes = board
+    ? boardLanes(board, dayView.data).map((lane) => {
+        const columns = [
+          ...lane.waiting.map((q) => ({
             id: q.code,
             label: "Waiting · " + q.name,
-            subtitle: q.bayType,
+            subtitle: "",
             cards: q.waiting,
+            done: null,
+            bay: null,
           })),
-        ...board.bays
-          .filter((b) => b.bayType === type)
-          .map((b) => ({
+          ...lane.bays.map((b) => ({
             id: b.id,
             label: b.name,
-            subtitle: b.bayType + (b.isActive ? "" : " · Inactive"),
+            subtitle: b.isActive ? "" : "Inactive",
             cards: b.cards,
+            done: null,
+            bay: b.isActive ? b : null,
           })),
-      ])
+          {
+            id: "DONE-" + lane.bayType,
+            label: "Done · " + lane.label,
+            subtitle: "Finished today",
+            cards: [] as AdminBoardCard[],
+            done: lane.done,
+            bay: null,
+          },
+        ];
+        const want = picked[lane.bayType];
+        return {
+          ...lane,
+          columns,
+          active: columns.some((c) => c.id === want) ? want! : columns[0].id,
+        };
+      })
     : [];
-  const activeColumn = columns.some((c) => c.id === column)
-    ? column
-    : (columns[0]?.id ?? "");
+  function doneView(b: AdminQueueBooking) {
+    return (
+      <article
+        key={b.id}
+        className="min-w-0 space-y-1 rounded border border-border bg-[#18181b] p-4"
+        aria-label={b.referenceCode}
+      >
+        <button
+          className="min-h-[44px] break-all text-left font-mono font-bold text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
+          onClick={() => setSelected(b.id)}
+        >
+          {b.referenceCode}
+        </button>
+        <p className="break-words text-sm font-semibold">
+          {b.vehicleModel} · {plateLabel(b.vehiclePlate)}
+        </p>
+        <p className="break-words text-xs text-muted-foreground">
+          {b.lines
+            .filter((l) => !l.removed)
+            .map((l) => l.name)
+            .join(", ") || b.serviceName}
+        </p>
+      </article>
+    );
+  }
   function cardView(card: AdminBoardCard) {
     const allowed = board?.queues.find(
       (q) => q.code === card.queueCode,
@@ -329,62 +392,110 @@ export function BayBoard({ role }: { role: UserRole }) {
       )}
       {board && (
         <>
-          <label className="block text-xs md:hidden">
-            Board column
-            <select
-              aria-label="Board column"
-              className={fieldClass}
-              value={activeColumn}
-              onChange={(e) => setColumn(e.target.value)}
+          {lanes.map((lane) => (
+            <section
+              key={lane.bayType}
+              aria-label={lane.label + " row"}
+              className="min-w-0 space-y-3 rounded border border-border bg-[#0f0f11] p-3"
             >
-              {columns.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label} ({c.cards.length})
-                </option>
-              ))}
-            </select>
-          </label>
-          <div
-            className="flex min-w-0 gap-4 overflow-x-auto pb-4 focus-visible:ring-2 focus-visible:ring-primary"
-            tabIndex={0}
-            aria-label="Bay board, scroll horizontally for all columns"
-          >
-            {columns.map((c) => (
-              <section
-                key={c.id}
-                aria-label={c.label}
-                className={
-                  (c.id === activeColumn ? "block " : "hidden ") +
-                  "w-full min-w-0 shrink-0 space-y-3 rounded border border-border bg-[#121214] p-3 md:block md:w-72"
-                }
-                onDragOver={(e) => {
-                  if (role === "ADMIN" && !busy && !blocked) e.preventDefault();
-                }}
-                onDrop={(e) =>
-                  drop(
-                    e,
-                    board.bays.some((b) => b.id === c.id) ? c.id : null,
-                    board.queues.some((q) => q.code === c.id)
-                      ? c.id
-                      : undefined,
-                  )
-                }
-              >
-                <h3 tabIndex={-1} className="break-words text-sm font-bold">
-                  {c.label} ({c.cards.length})
-                </h3>
-                <p className="text-xs text-muted-foreground">{c.subtitle}</p>
-                {c.cards.map(cardView)}
-                {!c.cards.length && (
-                  <p className="py-4 text-xs text-muted-foreground">
-                    {board.bays.some((b) => b.id === c.id)
-                      ? "Bay empty"
-                      : "No waiting cars"}
-                  </p>
-                )}
-              </section>
-            ))}
-          </div>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h2 className="text-base font-bold">{lane.label}</h2>
+                <p className="text-xs text-muted-foreground">
+                  {lane.counts.waiting} waiting · {lane.counts.inBay} in bay ·{" "}
+                  {lane.counts.done} done
+                </p>
+              </div>
+              <label className="block text-xs md:hidden">
+                Board column
+                <select
+                  aria-label={lane.label + " board column"}
+                  className={fieldClass}
+                  value={lane.active}
+                  onChange={(e) =>
+                    setPicked((p) => ({ ...p, [lane.bayType]: e.target.value }))
+                  }
+                >
+                  {lane.columns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label} ({c.done ? c.done.length : c.cards.length})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:[grid-template-columns:repeat(auto-fill,minmax(14rem,1fr))]">
+                {lane.columns.map((c) => (
+                  <section
+                    key={c.id}
+                    aria-label={c.label}
+                    className={
+                      (c.id === lane.active ? "block " : "hidden ") +
+                      "min-w-0 space-y-3 rounded border border-border bg-[#121214] p-3 md:block"
+                    }
+                    onDragOver={(e) => {
+                      if (!c.done && role === "ADMIN" && !busy && !blocked)
+                        e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      if (c.done) return;
+                      drop(
+                        e,
+                        board.bays.some((b) => b.id === c.id) ? c.id : null,
+                        board.queues.some((q) => q.code === c.id)
+                          ? c.id
+                          : undefined,
+                      );
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 tabIndex={-1} className="min-w-0 break-words py-2 text-sm font-bold">
+                        {c.label} ({c.done ? c.done.length : c.cards.length})
+                      </h3>
+                      {role === "ADMIN" && c.bay && (
+                        <BayMenu bay={c.bay} bays={board.bays} onDone={bayChanged} />
+                      )}
+                    </div>
+                    {c.subtitle && (
+                      <p className="text-xs text-muted-foreground">{c.subtitle}</p>
+                    )}
+                    {c.done ? (
+                      <>
+                        {dayView.error && (
+                          <p role="alert" className="text-xs text-rose-400">
+                            Finished cars could not load. Refresh the board.
+                          </p>
+                        )}
+                        {c.done.map(doneView)}
+                        {!c.done.length && !dayView.error && (
+                          <p className="py-4 text-xs text-muted-foreground">
+                            {dayView.loading ? "Loading..." : "No cars finished yet"}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {c.cards.map(cardView)}
+                        {!c.cards.length && (
+                          <p className="py-4 text-xs text-muted-foreground">
+                            {board.bays.some((b) => b.id === c.id)
+                              ? "Bay empty"
+                              : "No waiting cars"}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </section>
+                ))}
+              </div>
+              {role === "ADMIN" && (
+                <AddBay
+                  bayType={lane.bayType}
+                  label={lane.label}
+                  bays={board.bays}
+                  onDone={bayChanged}
+                />
+              )}
+            </section>
+          ))}
           <p className="text-xs text-muted-foreground">
             {cards.length} open cars · Open a card for the service checklist and
             assigned staff.

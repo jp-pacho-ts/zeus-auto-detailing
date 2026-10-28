@@ -86,6 +86,17 @@ export async function updateBay(
     ) {
       throw fieldError("name", "A bay with this name already exists.");
     }
+    // P1-20: removing (deactivating) a bay needs it empty; history is kept either way.
+    if (
+      v.isActive === false &&
+      bay.isActive &&
+      (await tx.bayOccupancy.findUnique({ where: { bayId: id }, select: { bookingId: true } }))
+    )
+      throw fieldError(
+        "isActive",
+        `Move the car out of ${bay.name} before removing it.`,
+        "SCHEDULE_CONFLICT",
+      );
     if (v.bayType !== undefined && v.bayType !== bay.bayType) {
       const allowed = (
         await tx.bayTypeQueue.findMany({ where: { bayType: v.bayType } })

@@ -69,11 +69,16 @@ BEGIN
     RAISE EXCEPTION 'publish_catalog(text, text, text, text) is missing: run this after prisma migrate deploy completes';
   END IF;
   FOREACH g SLICE 1 IN ARRAY ARRAY[
-    -- Catalog and schedule: read only.
+    -- Catalog and schedule: read (schedule writes follow).
     ['catalog_releases', 'SELECT'], ['catalog_head', 'SELECT'], ['catalog_service_versions', 'SELECT'],
     ['service_size_offers', 'SELECT'], ['service_work_plans', 'SELECT'], ['add_on_compatibility', 'SELECT'],
     ['vehicle_categories', 'SELECT'], ['services', 'SELECT'], ['schedule_configs', 'SELECT'], ['time_slots', 'SELECT'],
     ['blocked_dates', 'SELECT'], ['bay_type_queues', 'SELECT'],
+
+    -- Opening hours and closed days (P1-20, ADMIN): slots are never deleted, closed dates are
+    -- added and removed, the schedule start is only inserted. Live delta: p1-20-schedule-grants.sql.
+    ['time_slots', 'INSERT'], ['time_slots', 'UPDATE ("startTime", "endTime", "isActive")'],
+    ['blocked_dates', 'INSERT, DELETE'], ['schedule_configs', 'INSERT'],
 
     -- Queues, caps and bays (ADMIN settings).
     ['booking_queues', 'SELECT'],

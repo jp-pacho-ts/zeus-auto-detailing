@@ -82,11 +82,9 @@ test("calendar derives eight operating bays from live active flags, without a br
     );
   }
 });
-test("queue headers distinguish no limit, zero and set limits; optional controls default off", () => {
+test("queue headers distinguish no limit, zero and set limits", () => {
   const off = render().html;
   assert.ok(off.includes("2 committed · no limit"));
-  assert.ok(off.includes("Optional limits"));
-  assert.ok(off.includes('placeholder="Off (no limit)"'));
   assert.equal(off.includes("unconfigured (full)"), false);
   assert.equal(off.includes("fully booked"), false);
   assert.ok(render("ADMIN", 0).html.includes("2 committed · Limit 0"));
@@ -94,4 +92,15 @@ test("queue headers distinguish no limit, zero and set limits; optional controls
   const staff = render("STAFF").html;
   assert.ok(staff.includes("no limit"));
   assert.equal(staff.includes("Save default limit"), false);
+});
+// P1-20 item 6 (LE 2026-10-28): the Optional limits panel is hidden for every role and no longer
+// reads the caps. The cap routes, data and API tests stay (admin.integration W12-W14).
+test("the Optional limits panel is not rendered and does not load the caps", () => {
+  for (const [role, cap] of [["ADMIN", null], ["ADMIN", 8], ["STAFF", null]] as const) {
+    const { html, urls } = render(role, cap);
+    assert.equal(html.includes("Optional limits"), false, role);
+    assert.equal(html.includes("Save default limit"), false, role);
+    assert.equal(html.includes('placeholder="Off (no limit)"'), false, role);
+    assert.equal(urls.some((u) => u?.startsWith("/api/admin/schedule/caps")), false, role);
+  }
 });

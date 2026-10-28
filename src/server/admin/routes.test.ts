@@ -40,6 +40,11 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["PUT", "/api/admin/schedule/caps/WASH/2027-03-01", () => import("@/app/api/admin/schedule/caps/[code]/[date]/route"), { code: "WASH", date: "2027-03-01" }],
   ["DELETE", "/api/admin/schedule/caps/WASH/2027-03-01", () => import("@/app/api/admin/schedule/caps/[code]/[date]/route"), { code: "WASH", date: "2027-03-01" }],
   ["POST", "/api/admin/customers/history", () => import("@/app/api/admin/customers/history/route"), {}],
+  ["GET", "/api/admin/calendar?from=2027-03-01&to=2027-03-07", () => import("@/app/api/admin/calendar/route"), {}],
+  ["GET", "/api/admin/schedule", () => import("@/app/api/admin/schedule/route"), {}],
+  ["PUT", "/api/admin/schedule/hours", () => import("@/app/api/admin/schedule/hours/route"), {}],
+  ["POST", "/api/admin/schedule/closed-dates", () => import("@/app/api/admin/schedule/closed-dates/route"), {}],
+  ["DELETE", `/api/admin/schedule/closed-dates/${ID}`, () => import("@/app/api/admin/schedule/closed-dates/[id]/route"), { id: ID }],
 ];
 const call = async (method: string, target: string, load: () => Promise<Record<string, unknown>>, params: Record<string, string>, headers: Record<string, string>, body?: string) => {
   const handler = (await load())[method] as Handler;

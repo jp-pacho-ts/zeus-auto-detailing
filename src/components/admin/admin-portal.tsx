@@ -10,6 +10,8 @@ import {
   ClipboardList,
   Users,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { BookingsTab } from "./bookings-tab";
@@ -53,6 +55,22 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const [signingOut, setSigningOut] = React.useState(false),
     [logoutError, setLogoutError] = React.useState<string | null>(null);
   const leaving = React.useRef(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const menuButton = React.useRef<HTMLButtonElement>(null),
+    firstNavItem = React.useRef<HTMLButtonElement>(null);
+  const closeMenu = React.useCallback(() => {
+    setMenuOpen(false);
+    menuButton.current?.focus();
+  }, []);
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    firstNavItem.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeMenu();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen, closeMenu]);
   React.useEffect(() => {
     const refresh = (e: PageTransitionEvent) => {
       if (e.persisted) window.location.reload();
@@ -108,34 +126,71 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
     );
   const staff = session.data;
 
+  // P1-20: one screen tall. The sidebar (a drawer below md) and the header stay in place and
+  // only #admin-content scrolls; nothing in the dashboard scrolls sideways.
   return (
-    <div className="flex min-h-screen flex-col md:flex-row bg-[#09090b] text-[#f5f5f4]">
-      {/* Sidebar Navigation */}
-      <aside
-        aria-label="Shop Management Sidebar"
-        className="flex w-full shrink-0 md:w-64 flex-col border-r border-border bg-[#121214] p-6"
-      >
-        <Link href="/" aria-label="Return to public shop site" className="mb-8">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row">
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-[#121214] px-4 py-2 md:hidden">
+        <Link href="/" aria-label="Return to public shop site">
           <Logo small />
         </Link>
+        <button
+          ref={menuButton}
+          type="button"
+          aria-controls="admin-nav"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen(true)}
+          className="inline-flex min-h-[44px] items-center gap-2 rounded px-3 text-sm font-medium text-foreground hover:bg-[#18181b] focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <Menu className="h-5 w-5" aria-hidden="true" /> Menu
+        </button>
+      </div>
+      {menuOpen && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+          onClick={closeMenu}
+        />
+      )}
+
+      {/* Sidebar Navigation */}
+      <aside
+        id="admin-nav"
+        aria-label="Shop Management Sidebar"
+        className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] flex-col overflow-y-auto border-r border-border bg-[#121214] p-6 md:static md:z-auto md:flex md:w-64 md:max-w-none md:shrink-0`}
+      >
+        <div className="mb-8 flex items-center justify-between">
+          <Link href="/" aria-label="Return to public shop site">
+            <Logo small />
+          </Link>
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={closeMenu}
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:hidden"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
 
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Shop Management
         </p>
 
-        <nav
-          aria-label="Shop Operations Navigation"
-          className="flex flex-wrap gap-1 md:block md:space-y-1"
-        >
-          {NAV_ITEMS.map(({ name, icon: Icon }) => {
+        <nav aria-label="Shop Operations Navigation" className="space-y-1">
+          {NAV_ITEMS.map(({ name, icon: Icon }, i) => {
             const isActive = tab === name;
             return (
               <button
                 type="button"
                 key={name}
-                onClick={() => setTab(name)}
+                ref={i === 0 ? firstNavItem : undefined}
+                onClick={() => {
+                  setTab(name);
+                  if (menuOpen) closeMenu();
+                }}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex flex-1 min-w-[140px] md:w-full min-h-[44px] items-center gap-3 rounded px-3 py-2 text-xs font-medium transition-colors ${
+                className={`flex w-full min-h-[44px] items-center gap-3 rounded px-3 py-2 text-xs font-medium transition-colors ${
                   isActive
                     ? "bg-primary/10 text-primary font-bold"
                     : "text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
@@ -149,7 +204,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         </nav>
 
         {/* Staff footer */}
-        <div className="mt-4 md:mt-auto border-t border-border pt-4">
+        <div className="mt-auto border-t border-border pt-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
@@ -180,9 +235,9 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
       </aside>
 
       {/* Main Admin Content */}
-      <main className="min-w-0 flex-1 overflow-auto p-8 lg:p-10">
-        <div className="mx-auto max-w-6xl">
-          <header className="mb-8 flex flex-col justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-end">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="shrink-0 border-b border-border px-4 py-4 sm:px-8 lg:px-10 lg:py-6">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-primary">
                 {new Intl.DateTimeFormat(brandConfig.locale, {
@@ -211,16 +266,24 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             </div>
-          </header>
+          </div>
+        </header>
 
-          {/* Active Tab View */}
-          {tab === "Bookings" && <BookingsTab role={staff.role} />}
-          {tab === "Bay Calendar" && <CalendarTab role={staff.role} />}
-          {tab === "Team & Commissions" && <DetailersTab />}
-          {tab === "Supplies & Inventory" && <InventoryTab />}
-          {tab === "Sales Analytics" && <AnalyticsTab />}
-        </div>
-      </main>
+        <main
+          id="admin-content"
+          tabIndex={-1}
+          className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 focus:outline-none sm:px-8 lg:px-10 lg:py-8"
+        >
+          <div className="mx-auto max-w-6xl">
+            {/* Active Tab View */}
+            {tab === "Bookings" && <BookingsTab role={staff.role} />}
+            {tab === "Bay Calendar" && <CalendarTab role={staff.role} />}
+            {tab === "Team & Commissions" && <DetailersTab />}
+            {tab === "Supplies & Inventory" && <InventoryTab />}
+            {tab === "Sales Analytics" && <AnalyticsTab />}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

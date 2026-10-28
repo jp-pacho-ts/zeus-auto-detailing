@@ -24,7 +24,6 @@ import {
 } from "./bookings/use-admin-resource";
 import { BookingDetail } from "./bookings/booking-detail";
 import { BayBoard } from "./bookings/bay-board";
-import { CapSettings } from "./bookings/cap-settings";
 
 function BookingRows({
   bookings,
@@ -50,14 +49,17 @@ function BookingRows({
 }) {
   const filtered = (rows: AdminQueueBooking[]) =>
     filter === "ALL" ? rows : rows.filter((b) => b.status === filter);
+  // P1-20: a table from xl up; below it each booking stacks as a labelled card (no sideways scroll).
+  const cell = "block min-w-0 break-words xl:table-cell xl:p-4";
+  const cellLabel = (text: string) => (
+    <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground xl:hidden">
+      {text}
+    </span>
+  );
   return (
-    <div
-      className="overflow-x-auto"
-      tabIndex={0}
-      aria-label="Bookings table, scroll horizontally for more columns"
-    >
-      <table className="w-full text-left text-xs">
-        <thead className="border-b border-border bg-[#18181b] text-muted-foreground">
+    <div>
+      <table className="block w-full text-left text-xs xl:table">
+        <thead className="hidden border-b border-border bg-[#18181b] text-muted-foreground xl:table-header-group">
           <tr>
             {[
               "Reference",
@@ -77,41 +79,52 @@ function BookingRows({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
+        <tbody className="block divide-y divide-border xl:table-row-group">
           {filtered(bookings).map((b) => (
-            <tr key={b.id} className="hover:bg-[#18181b]/50">
-              <td className="p-4 font-mono font-bold text-primary">
+            <tr
+              key={b.id}
+              className="grid grid-cols-1 gap-3 p-4 hover:bg-[#18181b]/50 sm:grid-cols-2 xl:table-row xl:p-0"
+            >
+              <td className={cell + " font-mono font-bold text-primary"}>
+                {cellLabel("Reference")}
                 <button
-                  className="min-h-[44px] underline focus-visible:ring-2 focus-visible:ring-primary"
+                  className="min-h-[44px] break-all text-left underline focus-visible:ring-2 focus-visible:ring-primary"
                   onClick={() => onSelect(b.id)}
                 >
                   {b.referenceCode}
                 </button>
               </td>
-              <td className="p-4 font-medium">
+              <td className={cell + " font-medium"}>
+                {cellLabel("Client")}
                 {b.customerName}
                 <p className="text-muted-foreground">{b.vehicleModel}</p>
               </td>
-              <td className="p-4 text-muted-foreground">
+              <td className={cell + " text-muted-foreground"}>
+                {cellLabel("Treatment")}
                 {b.lines
                   .filter((l) => !l.removed)
                   .map((l) => l.name)
                   .join(", ") || b.serviceName}
               </td>
-              <td className="p-4 text-muted-foreground">
+              <td className={cell + " text-muted-foreground"}>
+                {cellLabel("Day / bay")}
                 {b.bookingDate}
                 <p>{b.bay?.name ?? "Unassigned"}</p>
               </td>
-              <td className="p-4">
+              <td className={cell}>
+                {cellLabel("Status")}
                 <span
                   className={`inline-block rounded border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${b.status === "CONFIRMED" || b.status === "COMPLETED" ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400" : b.status === "PENDING" ? "border-amber-500/30 bg-amber-500/15 text-amber-400" : b.status === "IN_PROGRESS" ? "border-blue-500/30 bg-blue-500/15 text-blue-400" : "border-rose-500/30 bg-rose-500/15 text-rose-400"}`}
                 >
                   {statusLabel(b.status)}
                 </span>
               </td>
-              <td className="p-4 tabular-nums">{totalLabel(b.totals)}</td>
-              <td className="p-4">
-                <div className="flex gap-2">
+              <td className={cell + " tabular-nums"}>
+                {cellLabel("Amount")}
+                {totalLabel(b.totals)}
+              </td>
+              <td className={cell}>
+                <div className="flex flex-wrap gap-2">
                   <Button variant="outline" onClick={() => onSelect(b.id)}>
                     Open
                   </Button>
@@ -148,13 +161,7 @@ function BookingRows({
   );
 }
 
-function BookingsList({
-  role,
-  showCaps = false,
-}: {
-  role: UserRole;
-  showCaps?: boolean;
-}) {
+function BookingsList({ role }: { role: UserRole }) {
   const [date, setDate] = React.useState(shopDate),
     [filter, setFilter] = React.useState("ALL"),
     [selected, setSelected] = React.useState<string | null>(null),
@@ -573,23 +580,22 @@ function BookingsList({
           )}
         </section>
       )}
-      {showCaps && role === "ADMIN" && (
-        <CapSettings key={date} date={date} onChanged={day.reload} />
-      )}
     </div>
   );
 }
 
-// Keep Calendar's existing list/cap view. Bookings opens on the operational board.
+// Calendar opens on the day list; Bookings opens on the operational board. P1-20 item 6 (LE
+// 2026-10-28): the Optional limits panel (bookings/cap-settings.tsx) is no longer rendered; the
+// cap routes and data stay, limits stay off, and the panel can be rendered here again later.
 export function BookingsTab({
   role,
-  showCaps = false,
+  listView = false,
 }: {
   role: UserRole;
-  showCaps?: boolean;
+  listView?: boolean;
 }) {
   const [view, setView] = React.useState<"BOARD" | "LIST">("BOARD");
-  if (showCaps) return <BookingsList role={role} showCaps />;
+  if (listView) return <BookingsList role={role} />;
   return (
     <div className="min-w-0 space-y-4">
       <div role="group" aria-label="Bookings view" className="flex gap-2">
