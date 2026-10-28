@@ -25,7 +25,7 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     await ctx.route('**/*', async route => {
       const request = route.request();
       if (!request.url().startsWith(origin + '/')) return route.abort();
-      const response = await route.fetch({ url: request.url().replace(origin, upstream.origin), timeout: 30000 });
+      const response = await route.fetch({ url: request.url().replace(origin, upstream.origin), timeout: 30000, maxRedirects: 0 });
       await route.fulfill({ response });
     });
     return ctx;
@@ -75,9 +75,10 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
       const measure = await page.evaluate(() => {
         const root = document.documentElement;
         const heading = document.querySelector('h1');
-        return { client: root.clientWidth, scroll: root.scrollWidth, headingHeight: heading.clientHeight, headingLineHeight: parseFloat(getComputedStyle(heading).lineHeight) };
+        return { client: root.clientWidth, scroll: root.scrollWidth, height: root.scrollHeight, headingHeight: heading.clientHeight, headingLineHeight: parseFloat(getComputedStyle(heading).lineHeight) };
       });
       assert.ok(measure.scroll <= measure.client, `${width}x${height}: no horizontal overflow`);
+      if (width >= 1280 && height >= 800) assert.ok(measure.height <= height, 'desktop notice fits one screen');
       assert.ok(measure.headingHeight <= measure.headingLineHeight * 2 + 2, 'headline at most two lines');
       results.widths.push({ width, height, ...measure });
       await page.screenshot({ path: path.join(out, `${width}x${height}-after.png`), fullPage: true });

@@ -7,7 +7,10 @@ export const comingSoonStyles = `
   background: rgb(var(--background)); color: rgb(var(--foreground));
 }
 .zeus-coming-soon__brand { padding-top: clamp(1rem, 5vh, 4rem); max-width: 68rem; transform-origin: left center; }
-.zeus-coming-soon__logo { display: block; width: 100%; height: auto; }
+.zeus-coming-soon__logo {
+  display: block; width: 100%; height: auto; max-height: 40svh;
+  object-fit: contain; object-position: left center;
+}
 .zeus-coming-soon__notice {
   display: grid; grid-template-columns: 1.2fr 1fr; align-items: end; gap: clamp(2rem, 5vw, 6rem);
 }
