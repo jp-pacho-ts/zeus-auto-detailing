@@ -76,7 +76,7 @@ async function refused(p: Promise<unknown>, code: string, label: string, check?:
   }, label);
 }
 // What a customer sees for the wash queue (the existing public availability read).
-const publicDays = (from: string, to: string) => db.$transaction((tx) => days.readDayStates(tx, "WASH", from, to));
+const publicDays = (from: string, to: string) => db.$transaction((tx) => days.readDayStates(tx, "WASH", from, to, NOW));
 const states = async (from: string, to: string) => Object.fromEntries((await publicDays(from, to)).map((d) => [d.date, d.state]));
 const week = (open: (d: number) => boolean, times: Record<number, [string, string]> = {}): AdminWeekdayHours[] =>
   Array.from({ length: 7 }, (_, d) => ({ dayOfWeek: d, open: open(d), openTime: times[d]?.[0] ?? "08:00", closeTime: times[d]?.[1] ?? "18:00" }));
