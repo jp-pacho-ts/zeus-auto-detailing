@@ -6,8 +6,8 @@ import {
   ArrowRight,
   BarChart3,
   Boxes,
-  CalendarDays,
   ClipboardList,
+  Columns3,
   Users,
   LogOut,
   Menu,
@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { BookingsTab } from "./bookings-tab";
-import { CalendarTab } from "./calendar-tab";
+import { BayWorkspace } from "./bay-workspace";
 import { DetailersTab } from "./detailers-tab";
 import { InventoryTab } from "./inventory-tab";
 import { AnalyticsTab } from "./analytics-tab";
@@ -27,6 +27,7 @@ import { brandConfig } from "@/config/brand";
 export type AdminTab =
   | "Bookings"
   | "Bay Calendar"
+  | "Bay board"
   | "Team & Commissions"
   | "Supplies & Inventory"
   | "Sales Analytics";
@@ -41,7 +42,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { name: "Bookings", icon: ClipboardList },
-  { name: "Bay Calendar", icon: CalendarDays },
+  { name: "Bay board", icon: Columns3 },
   { name: "Team & Commissions", icon: Users },
   { name: "Supplies & Inventory", icon: Boxes },
   { name: "Sales Analytics", icon: BarChart3 },
@@ -306,8 +307,10 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         >
           <div className="mx-auto max-w-6xl">
             {/* Active Tab View */}
-            {tab === "Bookings" && <BookingsTab role={staff.role} />}
-            {tab === "Bay Calendar" && <CalendarTab role={staff.role} />}
+            {tab === "Bookings" && (
+              <BookingsTab role={staff.role} initialView={initialTab === "Bay Calendar" ? "CALENDAR" : "BOOKINGS"} />
+            )}
+            {tab === "Bay board" && <BayWorkspace role={staff.role} />}
             {tab === "Team & Commissions" && <DetailersTab />}
             {tab === "Supplies & Inventory" && <InventoryTab />}
             {tab === "Sales Analytics" && <AnalyticsTab />}

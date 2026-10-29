@@ -25,6 +25,10 @@ test('mobile drawer contains focus, makes background inert, restores focus and p
     await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    const firstMenu = page.locator('button[aria-controls=admin-nav]');
+    if (await firstMenu.isVisible()) await firstMenu.click();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
     const nav = page.locator('#admin-nav');
     const menu = page.locator('button[aria-controls=admin-nav]');
@@ -63,8 +67,8 @@ test('mobile drawer contains focus, makes background inert, restores focus and p
       assert.equal(await page.locator('header').getByRole('link', { name: /New Booking/ }).evaluate(el => el === document.activeElement), true, 'desktop Tab leaves sidebar normally');
       await page.keyboard.press('Shift+Tab');
       assert.equal(await nav.getByRole('button', { name: 'Sign out', exact: true }).evaluate(el => el === document.activeElement), true, 'desktop Shift+Tab returns normally');
-      await nav.getByRole('button', { name: 'Bay Calendar', exact: true }).click();
-      await page.getByRole('heading', { name: 'Bay Calendar', exact: true }).waitFor();
+      await nav.getByRole('button', { name: 'Team & Commissions', exact: true }).click();
+      await page.getByRole('heading', { name: 'Team & Commissions', exact: true }).waitFor();
       await shot(width + '-desktop');
       await nav.getByRole('button', { name: 'Bookings', exact: true }).click();
     }

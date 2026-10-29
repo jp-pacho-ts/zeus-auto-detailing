@@ -36,6 +36,8 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
     await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     const washRow = page.getByRole('region', { name: 'Wash row' });
     const waiting = washRow.getByRole('region', { name: 'Waiting · Wash', exact: true });
     const card = waiting.locator('article').first();

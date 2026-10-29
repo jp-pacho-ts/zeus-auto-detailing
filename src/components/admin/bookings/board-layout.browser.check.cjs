@@ -29,6 +29,8 @@ test('Board day sits right of the view switch from lg; row columns share one hei
     await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
     await page.locator('section[aria-label$=" row"] article').first().waitFor();
     for (const width of [390, 768, 1024, 1280, 1440]) {
@@ -63,7 +65,7 @@ test('Board day sits right of the view switch from lg; row columns share one hei
       const m = await page.evaluate(() => {
         const box = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, height: r.height }; };
         const content = document.querySelector('#admin-content');
-        const tab = document.querySelector('[aria-label="Bookings view"]');
+        const tab = document.querySelector('[aria-label="Bay board sections"]');
         const day = document.querySelector('input[aria-label="Board day"]');
         const refresh = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Refresh board');
         const columns = [...document.querySelectorAll('section[aria-label$=" row"] section[aria-label]')]

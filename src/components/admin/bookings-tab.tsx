@@ -23,7 +23,7 @@ import {
   useAdminResource,
 } from "./bookings/use-admin-resource";
 import { BookingDetail } from "./bookings/booking-detail";
-import { BayBoard } from "./bookings/bay-board";
+import { CalendarTab } from "./calendar-tab";
 
 function BookingRows({
   bookings,
@@ -161,14 +161,14 @@ function BookingRows({
   );
 }
 
-function BookingsList({ role }: { role: UserRole }) {
+function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOnly?: boolean }) {
   const [date, setDate] = React.useState(shopDate),
     [filter, setFilter] = React.useState("ALL"),
     [selected, setSelected] = React.useState<string | null>(null),
     [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState<string | null>(null);
   const day = useAdminResource<AdminDayQueues>(
-    `/api/admin/queues?date=${date}`,
+    historyOnly ? null : `/api/admin/queues?date=${date}`,
   );
   const [listing, setListing] = React.useState<{
       url: string;
@@ -278,6 +278,7 @@ function BookingsList({ role }: { role: UserRole }) {
   }
   return (
     <div className="space-y-6">
+      {!historyOnly && (<>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard
           title="Day's Bookings"
@@ -515,7 +516,8 @@ function BookingsList({ role }: { role: UserRole }) {
           </>
         )}
       </section>
-      {role === "ADMIN" && (
+      </>)}
+      {role === "ADMIN" && historyOnly && (
         <section className="rounded border border-border bg-[#121214] p-4">
           <h2 className="font-bold">Customer booking history</h2>
           <p className="text-xs text-muted-foreground">
@@ -584,17 +586,22 @@ function BookingsList({ role }: { role: UserRole }) {
   );
 }
 
-// Calendar opens on the day list; Bookings opens on the operational board. P1-20 item 6 (LE
+// Customer bookings, date calendar and phone history share a workspace. Kanban is in BayWorkspace.
+// P1-20 item 6 (LE
 // 2026-10-28): the Optional limits panel (bookings/cap-settings.tsx) is no longer rendered; the
 // cap routes and data stay, limits stay off, and the panel can be rendered here again later.
 export function BookingsTab({
   role,
   listView = false,
+  initialView = "BOOKINGS",
 }: {
   role: UserRole;
   listView?: boolean;
+  initialView?: "BOOKINGS" | "CALENDAR" | "HISTORY";
 }) {
-  const [view, setView] = React.useState<"BOARD" | "LIST">("BOARD");
+  const [view, setView] = React.useState<"BOOKINGS" | "CALENDAR" | "HISTORY">(
+    initialView === "HISTORY" && role !== "ADMIN" ? "BOOKINGS" : initialView,
+  );
   // P1-22: the board draws the switch in its own toolbar, beside Board day, so switching views
   // re-creates the switch; keep focus on the button that was pressed.
   const switched = React.useRef(false);
@@ -604,37 +611,51 @@ export function BookingsTab({
     document.getElementById("bookings-view-" + view)?.focus();
   }, [view]);
   if (listView) return <BookingsList role={role} />;
-  const show = (next: "BOARD" | "LIST") => {
+  const show = (next: "BOOKINGS" | "CALENDAR" | "HISTORY") => {
     if (next === view) return;
     switched.current = true;
     setView(next);
   };
   const viewSwitch = (
-    <div role="group" aria-label="Bookings view" className="flex gap-2">
+    <div className="min-w-0 space-y-2">
+    <div role="group" aria-label="Bookings view" className="flex flex-wrap gap-2">
       <Button
-        id="bookings-view-BOARD"
-        variant={view === "BOARD" ? "default" : "outline"}
-        aria-pressed={view === "BOARD"}
-        onClick={() => show("BOARD")}
+        id="bookings-view-BOOKINGS"
+        variant={view === "BOOKINGS" ? "default" : "outline"}
+        aria-pressed={view === "BOOKINGS"}
+        onClick={() => show("BOOKINGS")}
       >
-        Board
+        Bookings
       </Button>
       <Button
-        id="bookings-view-LIST"
-        variant={view === "LIST" ? "default" : "outline"}
-        aria-pressed={view === "LIST"}
-        onClick={() => show("LIST")}
+        id="bookings-view-CALENDAR"
+        variant={view === "CALENDAR" ? "default" : "outline"}
+        aria-pressed={view === "CALENDAR"}
+        onClick={() => show("CALENDAR")}
       >
-        List / history
+        Calendar
       </Button>
+      {role === "ADMIN" && <Button
+        id="bookings-view-HISTORY"
+        variant={view === "HISTORY" ? "default" : "outline"}
+        aria-pressed={view === "HISTORY"}
+        onClick={() => show("HISTORY")}
+      >
+        History
+      </Button>}
+    </div>
+    <p className="text-xs text-muted-foreground" aria-live="polite">
+      {view === "BOOKINGS" ? "View customer bookings and search by date or status."
+        : view === "CALENDAR" ? "Choose a date to see its customer bookings."
+        : "Look up a customer’s past bookings by phone."}
+    </p>
     </div>
   );
-  return view === "BOARD" ? (
-    <BayBoard role={role} viewSwitch={viewSwitch} />
-  ) : (
+  return (
     <div className="min-w-0 space-y-4">
       {viewSwitch}
-      <BookingsList role={role} />
+      {view === "CALENDAR" ? <CalendarTab role={role} />
+        : <BookingsList key={view} role={role} historyOnly={view === "HISTORY"} />}
     </div>
   );
 }

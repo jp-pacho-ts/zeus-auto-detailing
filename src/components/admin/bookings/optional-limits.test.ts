@@ -61,7 +61,10 @@ function render(role = "ADMIN", cap: number | null = null, bayState = "ready") {
   try {
     return {
       html: renderToStaticMarkup(
-        createElement(require("../calendar-tab").CalendarTab, { role }),
+        createElement(require("../bay-workspace").BayWorkspace, { role }),
+      ),
+      list: renderToStaticMarkup(
+        createElement(require("../bookings-tab").BookingsTab, { role, listView: true }),
       ),
       urls,
     };
@@ -83,13 +86,13 @@ test("calendar derives eight operating bays from live active flags, without a br
   }
 });
 test("queue headers distinguish no limit, zero and set limits", () => {
-  const off = render().html;
+  const off = render().list;
   assert.ok(off.includes("2 committed · no limit"));
   assert.equal(off.includes("unconfigured (full)"), false);
   assert.equal(off.includes("fully booked"), false);
-  assert.ok(render("ADMIN", 0).html.includes("2 committed · Limit 0"));
-  assert.ok(render("ADMIN", 8).html.includes("2 committed · Limit 8"));
-  const staff = render("STAFF").html;
+  assert.ok(render("ADMIN", 0).list.includes("2 committed · Limit 0"));
+  assert.ok(render("ADMIN", 8).list.includes("2 committed · Limit 8"));
+  const staff = render("STAFF").list;
   assert.ok(staff.includes("no limit"));
   assert.equal(staff.includes("Save default limit"), false);
 });
@@ -97,7 +100,7 @@ test("queue headers distinguish no limit, zero and set limits", () => {
 // reads the caps. The cap routes, data and API tests stay (admin.integration W12-W14).
 test("the Optional limits panel is not rendered and does not load the caps", () => {
   for (const [role, cap] of [["ADMIN", null], ["ADMIN", 8], ["STAFF", null]] as const) {
-    const { html, urls } = render(role, cap);
+    const result = render(role, cap), html = result.html + result.list, urls = result.urls;
     assert.equal(html.includes("Optional limits"), false, role);
     assert.equal(html.includes("Save default limit"), false, role);
     assert.equal(html.includes('placeholder="Off (no limit)"'), false, role);
