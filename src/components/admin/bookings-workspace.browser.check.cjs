@@ -34,7 +34,10 @@ test('Bookings contains customers/calendar/history; Bay board contains Kanban/se
   await views.getByRole('button',{name:'Calendar',exact:true}).focus();await p.keyboard.press('Enter');await p.getByRole('group',{name:'Calendar view'}).waitFor();assert.equal(await p.evaluate(()=>document.activeElement.id),'bookings-view-CALENDAR');
   assert.equal(await p.getByRole('group',{name:'Bay board sections'}).count(),0);assert.equal(await p.getByLabel('Queue day').count(),0);
   await p.getByRole('button',{name:'Next month',exact:true}).click();await p.getByRole('button',{name:'Previous month',exact:true}).click();
-  await p.getByRole('button',{name:/^[A-Za-z]+, \d{1,2} [A-Za-z]+ \d{4}/}).first().click();await p.getByRole('region',{name:/^Bookings on /}).waitFor();await shot(p,'1440-calendar-after');
+  // The app localizes date labels; target its labelled date toggles rather than guessing an English date order.
+  const dayButton=p.locator('button[aria-label][aria-pressed]').first();
+  assert.match(await dayButton.getAttribute('aria-label'),/\d{4}/);
+  await dayButton.click();await p.getByRole('region',{name:/^Bookings on /}).waitFor();await shot(p,'1440-calendar-after');
   await p.setViewportSize({width:390,height:900});await shot(p,'390-calendar-after');
   await views.getByRole('button',{name:'History',exact:true}).click();await p.getByRole('heading',{name:'Customer booking history',exact:true}).waitFor();assert.equal(await p.getByLabel('Queue day').count(),0);assert.equal(await p.getByRole('button',{name:'Search bookings',exact:true}).count(),0);assert.equal(await p.evaluate(()=>document.activeElement.id),'bookings-view-HISTORY');await shot(p,'390-history-after');
   await nav(p,'Bay board');await p.getByLabel('Board day').waitFor();assert.equal(await views.count(),0);await p.getByLabel('Board day').fill(fixtureDay);await p.locator('section[aria-label$=" row"] article').first().waitFor();
