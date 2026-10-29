@@ -31,9 +31,35 @@ test('Board day sits right of the view switch from lg; row columns share one hei
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByLabel('Board day').waitFor();
     await page.locator('section[aria-label$=" row"] article').first().waitFor();
-    for (const width of [390, 768, 1280, 1440]) {
+    for (const width of [390, 768, 1024, 1280, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await page.waitForTimeout(200);
+      // The dashboard frame is one screen tall and only #admin-content scrolls: the page itself
+      // never scrolls, and a wheel outside the board (or past its end) leaves the frame in place.
+      const pageScroll = () => page.evaluate(() => ({
+        scrollY: window.scrollY, height: document.scrollingElement.scrollHeight, client: document.scrollingElement.clientHeight,
+        header: Math.round(document.querySelector('header').getBoundingClientRect().top),
+      }));
+      const still = (s, where) => {
+        assert.ok(s.height <= s.client, width + 'px ' + where + ': the page itself cannot scroll: ' + JSON.stringify(s));
+        assert.equal(s.scrollY, 0, width + 'px ' + where + ': the page stays at the top');
+        assert.ok(s.header >= 0, width + 'px ' + where + ': the header stays in place: ' + s.header);
+      };
+      still(await pageScroll(), 'at rest');
+      const nav = page.locator('#admin-nav');
+      const outside = (await nav.isVisible()) ? await nav.boundingBox() : await page.locator('header').first().boundingBox();
+      await page.mouse.move(outside.x + outside.width / 2, outside.y + Math.min(outside.height - 4, 60));
+      for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 600);
+      await page.waitForTimeout(150);
+      still(await pageScroll(), 'after a wheel over the ' + ((await nav.isVisible()) ? 'sidebar' : 'top bar'));
+      const contentBox = await page.locator('#admin-content').boundingBox();
+      await page.mouse.move(contentBox.x + contentBox.width / 2, contentBox.y + contentBox.height - 20);
+      for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 800);
+      await page.waitForTimeout(150);
+      assert.ok(await page.locator('#admin-content').evaluate((el) => el.scrollTop > 0 || el.scrollHeight <= el.clientHeight), width + 'px the board itself scrolls');
+      still(await pageScroll(), 'after a wheel past the end of the board');
+      await page.locator('#admin-content').evaluate((el) => { el.scrollTop = 0; });
+      await page.waitForTimeout(100);
       const m = await page.evaluate(() => {
         const box = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, height: r.height }; };
         const content = document.querySelector('#admin-content');
