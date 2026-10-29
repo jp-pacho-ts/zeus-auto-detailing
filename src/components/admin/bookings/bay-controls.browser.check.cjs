@@ -113,7 +113,6 @@ test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and 
     await page.getByRole('menuitem', { name: 'Remove', exact: true }).click();
     await page.getByRole('button', { name: 'Remove bay', exact: true }).click();
     await trigger.waitFor({ state: 'detached' });
-    await page.getByRole('button', { name: 'Menu', exact: true }).click();
     await page.getByRole('group', { name: 'Bay board sections' }).getByRole('button', { name: 'Bays', exact: true }).click();
     await page.getByRole('button', { name: 'Bring back ' + name, exact: true }).waitFor();
     for (const width of [1280, 1024, 768, 390]) {
