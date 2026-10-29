@@ -118,10 +118,11 @@ test("Board day and Refresh board sit in one toolbar with the view switch, befor
 });
 
 // P1-22: columns in a row stretch to one height. An empty column's slot is at least one card tall
-// from md up (LE: "full one-card height"; ADMIN cards carry move controls, so they are taller than
-// STAFF cards), so an empty row is as tall as a row holding one car.
+// from lg up (LE: "full one-card height"; ADMIN cards carry move controls, so they are taller than
+// STAFF cards), so an empty row is as tall as a row holding one car. At md the sidebar leaves room
+// for one column per line, so the slot stays short there (UI/UX check a4326df).
 test("board columns stretch to equal height and an empty slot keeps one card's height", () => {
-  for (const [role, min] of [["ADMIN", "md:min-h-[26rem]"], ["STAFF", "md:min-h-[14rem]"]] as const) {
+  for (const [role, min] of [["ADMIN", "lg:min-h-[26rem]"], ["STAFF", "lg:min-h-[14rem]"]] as const) {
     const html = render(role);
     const grids = html.match(/<div class="[^"]*\bgrid\b[^"]*auto-fill[^"]*"/g) ?? [];
     assert.equal(grids.length, 3, role + ": one column grid per row");
@@ -136,6 +137,7 @@ test("board columns stretch to equal height and an empty slot keeps one card's h
     assert.ok(slots.length >= 3 + 8, role + ": every empty column shows a slot");
     for (const slot of slots) {
       assert.ok(slot.includes(min) && /\bmin-h-24\b/.test(slot) && /\bflex-1\b/.test(slot), role + " slot fills the column with a minimum: " + slot);
+      assert.doesNotMatch(slot, /\bmd:min-h-/, role + ": no card-height minimum below lg");
       if (/Bay empty|No waiting cars/.test(slot)) assert.match(slot, /border-dashed/, role + ": drop targets show a dashed slot");
       else assert.doesNotMatch(slot, /border-dashed/, role + ": Done is not a drop target");
     }
