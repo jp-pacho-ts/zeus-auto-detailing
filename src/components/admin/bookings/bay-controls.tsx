@@ -124,6 +124,8 @@ function trapTab(e: React.KeyboardEvent<HTMLDialogElement>) {
 
 // P1-22 (LE 2026-10-29): a small row-header button opens the add form as a modal. The board
 // reload after an add re-creates the rows, so BayBoard refocuses the button by this id.
+// The row goes in aria-label ("Add bay to Wash" still starts with the visible text). An sr-only
+// span is absolutely positioned and escaped the fixed dashboard frame, scrolling the whole page.
 export const addBayButtonId = (bayType: BayType) => "add-bay-button-" + bayType;
 export function AddBay({ bayType, label, bays, onDone }: { bayType: BayType; label: string; bays: readonly Bay[]; onDone: (message: string) => Promise<void> }) {
   const [open, setOpen] = React.useState(false);
@@ -134,8 +136,8 @@ export function AddBay({ bayType, label, bays, onDone }: { bayType: BayType; lab
   };
   return (
     <>
-      <Button ref={button} id={addBayButtonId(bayType)} variant="outline" size="sm" className="shrink-0" aria-haspopup="dialog" onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4" aria-hidden="true" /> Add bay<span className="sr-only">{` to ${label}`}</span>
+      <Button ref={button} id={addBayButtonId(bayType)} variant="outline" size="sm" className="shrink-0" aria-label={`Add bay to ${label}`} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        <Plus className="h-4 w-4" aria-hidden="true" /> Add bay
       </Button>
       {open && (
         <AddBayDialog
