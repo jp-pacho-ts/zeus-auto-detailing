@@ -59,6 +59,8 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
     const centre = async (locator) => { const b = await locator.boundingBox(); assert.ok(b, 'visible'); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
     // Press on a point, move in small steps to the target's centre, release. Returns mid-drag card styles.
     async function drag(from, to) {
+      // A move can leave #admin-content scrolled (focus follows the moved card): put both ends on screen first.
+      await to.scrollIntoViewIfNeeded(); await from.scrollIntoViewIfNeeded();
       const a = await centre(from), b = await centre(to);
       await page.mouse.move(a.x, a.y);
       await page.mouse.down();
