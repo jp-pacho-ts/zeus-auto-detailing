@@ -352,7 +352,7 @@ export function BayMenu({ bay, bays, onDone }: { bay: Bay; bays: readonly Bay[];
         >
           <h4 id={menuId + "-title"} className="font-bold">Remove {bay.name}?</h4>
           <p id={menuId + "-text"} className="text-sm text-muted-foreground">
-            Cars can no longer be moved into it. Its booking history is kept, and it can be brought back under Bay Calendar, Bays.
+            Cars can no longer be moved into it. Its booking history is kept, and it can be brought back under Bay board, Bays.
           </p>
           <div className="flex flex-wrap justify-end gap-2">
             <Button ref={keep} variant="outline" onClick={close}>

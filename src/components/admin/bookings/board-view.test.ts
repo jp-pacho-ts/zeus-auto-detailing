@@ -46,8 +46,11 @@ const board = {
 };
 function render(role: "ADMIN" | "STAFF") {
   const resources = require("./use-admin-resource");
-  mock.method(resources, "useAdminResource", () => ({
-    data: board,
+  mock.method(resources, "useAdminResource", (url: string | null) => ({
+    data: url === "/api/admin/bays" ? board.bays : url?.startsWith("/api/admin/board?") ? board : {
+      date: board.date, closed: null, legacy: [],
+      queues: board.queues.map(q => ({ ...q, bookings: [], committed: q.waiting.length, effectiveCap: null })),
+    },
     loading: false,
     error: null,
     reload: async () => {},
@@ -55,20 +58,21 @@ function render(role: "ADMIN" | "STAFF") {
   }));
   try {
     return renderToStaticMarkup(
-      createElement(require("../bookings-tab").BookingsTab, { role }),
+      createElement(require("../bay-workspace").BayWorkspace, { role }),
     );
   } finally {
     mock.restoreAll();
   }
 }
-test("Bookings defaults to board with four Waiting queues, eight bays, captured car/services/staff/progress and a column selector", () => {
+test("Bay board defaults to Kanban with four Waiting queues, eight bays, captured car/services/staff/progress and a column selector", () => {
   const html = render("ADMIN");
-  assert.ok(html.includes('aria-pressed="true">Board'));
+  assert.ok(html.includes('aria-pressed="true">Kanban'));
   for (const q of board.queues)
     assert.ok(html.includes("Waiting \u00b7 " + q.name));
   for (const bay of board.bays) assert.ok(html.includes(bay.name));
   for (const value of [
-    "List / history",
+    "Bays",
+    "Opening hours",
     "Board column",
     "Synthetic Toyota Vios",
     "No plate",
@@ -122,7 +126,7 @@ test("board groups Waiting queues beside compatible bays", () => {
 test("Board day and Refresh board sit in one toolbar with the view switch, before the helper text", () => {
   const html = render("ADMIN");
   const toolbar = html.search(
-    /<div class="[^"]*\blg:flex-row\b[^"]*\blg:justify-between\b[^"]*"><div role="group" aria-label="Bookings view"/,
+    /<div class="[^"]*\blg:flex-row\b[^"]*\blg:justify-between\b[^"]*"><div role="group" aria-label="Bay board sections"/,
   );
   assert.ok(toolbar >= 0, "the view switch opens a wrapping toolbar row");
   const day = html.indexOf('aria-label="Board day"', toolbar),

@@ -17,10 +17,21 @@ test('Board day sits right of the view switch from lg; row columns share one hei
   const browser = await chromium.launch({ headless: true, ...(process.env.P120_CHROME_EXECUTABLE ? { executablePath: process.env.P120_CHROME_EXECUTABLE } : {}) });
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    // A loopback connection reset is the harness proxy's, not the page's: retry a GET/HEAD at most twice and log it.
+    // HTTP status failures and every other error still pass straight through.
     await context.route('**/*', async (route) => {
       const request = route.request();
       if (!request.url().startsWith(origin + '/')) return route.abort();
-      const response = await route.fetch({ url: request.url().replace(origin, upstream.origin), headers: { ...request.headers(), 'x-forwarded-for': '198.51.100.126' } });
+      const retryable = ['GET', 'HEAD'].includes(request.method());
+      let response;
+      for (let attempt = 0; !response; attempt++) {
+        try {
+          response = await route.fetch({ url: request.url().replace(origin, upstream.origin), headers: { ...request.headers(), 'x-forwarded-for': '198.51.100.126' } });
+        } catch (error) {
+          if (!retryable || attempt === 2 || !/ECONNRESET|socket hang up/.test(error.message)) throw error;
+          console.log('proxy retry ' + (attempt + 1) + '/2 after ' + error.message.split('\n')[0] + ': ' + request.method() + ' ' + request.url());
+        }
+      }
       await route.fulfill({ response });
     });
     const page = await context.newPage();
@@ -29,6 +40,8 @@ test('Board day sits right of the view switch from lg; row columns share one hei
     await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
     await page.locator('section[aria-label$=" row"] article').first().waitFor();
     for (const width of [390, 768, 1024, 1280, 1440]) {
@@ -63,7 +76,7 @@ test('Board day sits right of the view switch from lg; row columns share one hei
       const m = await page.evaluate(() => {
         const box = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, height: r.height }; };
         const content = document.querySelector('#admin-content');
-        const tab = document.querySelector('[aria-label="Bookings view"]');
+        const tab = document.querySelector('[aria-label="Bay board sections"]');
         const day = document.querySelector('input[aria-label="Board day"]');
         const refresh = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Refresh board');
         const columns = [...document.querySelectorAll('section[aria-label$=" row"] section[aria-label]')]
@@ -108,19 +121,19 @@ test('Board day sits right of the view switch from lg; row columns share one hei
       }
       if (process.env.P122_LAYOUT_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.P122_LAYOUT_SCREENSHOTS, width + '-layout.png') });
     }
-    // The switch moves between the board toolbar and the list view, so keyboard focus must follow it.
+    // The switch moves between the Kanban toolbar and bay setup, so keyboard focus must follow it.
     await page.setViewportSize({ width: 1280, height: 900 });
-    const view = page.getByRole('group', { name: 'Bookings view' });
+    const view = page.getByRole('group', { name: 'Bay board sections' });
     const focused = (name) => view.getByRole('button', { name, exact: true }).evaluate((el) => document.activeElement === el);
-    await view.getByRole('button', { name: 'List / history', exact: true }).focus();
+    await view.getByRole('button', { name: 'Bays', exact: true }).focus();
     await page.keyboard.press('Enter');
-    await view.getByRole('button', { name: 'List / history', exact: true, pressed: true }).waitFor();
-    assert.equal(await page.getByLabel('Board day').count(), 0, 'Board day shows only in Board view');
-    assert.equal(await focused('List / history'), true, 'focus stays on List / history after switching');
+    await view.getByRole('button', { name: 'Bays', exact: true, pressed: true }).waitFor();
+    assert.equal(await page.getByLabel('Board day').count(), 0, 'Board day shows only in Kanban view');
+    assert.equal(await focused('Bays'), true, 'focus stays on Bays after switching');
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Enter');
     await page.getByLabel('Board day').waitFor();
-    assert.equal(await focused('Board'), true, 'focus stays on Board after switching back');
+    assert.equal(await focused('Kanban'), true, 'focus stays on Kanban after switching back');
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

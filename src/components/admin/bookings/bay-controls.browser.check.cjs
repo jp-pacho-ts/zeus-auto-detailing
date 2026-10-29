@@ -39,6 +39,10 @@ test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and 
     await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    const firstMenu = page.locator('button[aria-controls=admin-nav]');
+    if (await firstMenu.isVisible()) await firstMenu.click();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     const add = page.getByRole('button', { name: 'Add bay to Wash', exact: true });
     await add.waitFor();
     const modal = page.getByRole('dialog', { name: 'Add a wash bay' });
@@ -109,9 +113,7 @@ test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and 
     await page.getByRole('menuitem', { name: 'Remove', exact: true }).click();
     await page.getByRole('button', { name: 'Remove bay', exact: true }).click();
     await trigger.waitFor({ state: 'detached' });
-    await page.getByRole('button', { name: 'Menu', exact: true }).click();
-    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay Calendar', exact: true }).click();
-    await page.getByRole('group', { name: 'Calendar sections' }).getByRole('button', { name: 'Bays', exact: true }).click();
+    await page.getByRole('group', { name: 'Bay board sections' }).getByRole('button', { name: 'Bays', exact: true }).click();
     await page.getByRole('button', { name: 'Bring back ' + name, exact: true }).waitFor();
     for (const width of [1280, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });

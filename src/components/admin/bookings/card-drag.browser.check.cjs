@@ -36,6 +36,8 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
     await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     const washRow = page.getByRole('region', { name: 'Wash row' });
     const waiting = washRow.getByRole('region', { name: 'Waiting · Wash', exact: true });
     const card = waiting.locator('article').first();
@@ -57,6 +59,8 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
     const centre = async (locator) => { const b = await locator.boundingBox(); assert.ok(b, 'visible'); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
     // Press on a point, move in small steps to the target's centre, release. Returns mid-drag card styles.
     async function drag(from, to) {
+      // A move can leave #admin-content scrolled (focus follows the moved card): put both ends on screen first.
+      await to.scrollIntoViewIfNeeded(); await from.scrollIntoViewIfNeeded();
       const a = await centre(from), b = await centre(to);
       await page.mouse.move(a.x, a.y);
       await page.mouse.down();
