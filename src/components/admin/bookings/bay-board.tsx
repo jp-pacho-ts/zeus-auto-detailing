@@ -20,11 +20,12 @@ import {
   plateLabel,
   writeFeedback,
 } from "./board-model";
-import { AddBay, BayMenu } from "./bay-controls";
+import { AddBay, addBayButtonId, BayMenu } from "./bay-controls";
 import { BookingDetail } from "./booking-detail";
 import { DepositBadge } from "./deposit-badge";
 
-export function BayBoard({ role }: { role: UserRole }) {
+// viewSwitch: BookingsTab's Board / List switch, drawn on the left of the board toolbar (P1-22).
+export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: React.ReactNode }) {
   const [date, setDate] = React.useState(shopDate),
     [picked, setPicked] = React.useState<Partial<Record<BayType, string>>>({}),
     [selected, setSelected] = React.useState<string | null>(null);
@@ -194,6 +195,10 @@ export function BayBoard({ role }: { role: UserRole }) {
         };
       })
     : [];
+  // Card heights measured for P1-22: ADMIN about 410px (move controls), STAFF about 226px.
+  const emptySlot =
+    "flex min-h-24 flex-1 items-center justify-center px-3 text-xs text-muted-foreground " +
+    (role === "ADMIN" ? "md:min-h-[26rem]" : "md:min-h-[14rem]");
   function doneView(b: AdminQueueBooking) {
     return (
       <article
@@ -337,31 +342,36 @@ export function BayBoard({ role }: { role: UserRole }) {
   }
   return (
     <div className="min-w-0 space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs">
-          Board day
-          <input
-            aria-label="Board day"
-            type="date"
-            value={date}
+      {/* P1-22: one toolbar row from lg (switch left, day and refresh right); two lines below. */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        {viewSwitch}
+        <div className="flex items-end gap-3">
+          <label className="min-w-0 flex-1 text-xs lg:flex lg:flex-none lg:items-center lg:gap-2">
+            Board day
+            <input
+              aria-label="Board day"
+              type="date"
+              value={date}
+              disabled={busy}
+              className={fieldClass + " lg:mt-0 lg:w-44"}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setDate(e.target.value);
+                  setSelected(null);
+                  setMessage("");
+                }
+              }}
+            />
+          </label>
+          <Button
+            variant="outline"
+            className="shrink-0"
+            onClick={() => void refresh()}
             disabled={busy}
-            className={fieldClass}
-            onChange={(e) => {
-              if (e.target.value) {
-                setDate(e.target.value);
-                setSelected(null);
-                setMessage("");
-              }
-            }}
-          />
-        </label>
-        <Button
-          variant="outline"
-          onClick={() => void refresh()}
-          disabled={busy}
-        >
-          Refresh board
-        </Button>
+          >
+            Refresh board
+          </Button>
+        </div>
       </div>
       <p className="text-xs text-muted-foreground">
         One car per bay until done or returned to Waiting. Earlier open cars
@@ -398,12 +408,25 @@ export function BayBoard({ role }: { role: UserRole }) {
               aria-label={lane.label + " row"}
               className="min-w-0 space-y-3 rounded border border-border bg-[#0f0f11] p-3"
             >
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 className="text-base font-bold">{lane.label}</h2>
-                <p className="text-xs text-muted-foreground">
-                  {lane.counts.waiting} waiting · {lane.counts.inBay} in bay ·{" "}
-                  {lane.counts.done} done
-                </p>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
+                  <h2 className="text-base font-bold">{lane.label}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {lane.counts.waiting} waiting · {lane.counts.inBay} in bay ·{" "}
+                    {lane.counts.done} done
+                  </p>
+                </div>
+                {role === "ADMIN" && (
+                  <AddBay
+                    bayType={lane.bayType}
+                    label={lane.label}
+                    bays={board.bays}
+                    onDone={(text) => {
+                      focus.current = addBayButtonId(lane.bayType);
+                      return bayChanged(text);
+                    }}
+                  />
+                )}
               </div>
               <label className="block text-xs md:hidden">
                 Board column
@@ -422,14 +445,15 @@ export function BayBoard({ role }: { role: UserRole }) {
                   ))}
                 </select>
               </label>
-              <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:[grid-template-columns:repeat(auto-fill,minmax(14rem,1fr))]">
+              {/* P1-22: columns stretch to the row's tallest; an empty slot is one card tall from md. */}
+              <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 md:[grid-template-columns:repeat(auto-fill,minmax(14rem,1fr))]">
                 {lane.columns.map((c) => (
                   <section
                     key={c.id}
                     aria-label={c.label}
                     className={
-                      (c.id === lane.active ? "block " : "hidden ") +
-                      "min-w-0 space-y-3 rounded border border-border bg-[#121214] p-3 md:block"
+                      (c.id === lane.active ? "flex " : "hidden ") +
+                      "min-w-0 flex-col gap-3 rounded border border-border bg-[#121214] p-3 md:flex"
                     }
                     onDragOver={(e) => {
                       if (!c.done && role === "ADMIN" && !busy && !blocked)
@@ -466,7 +490,7 @@ export function BayBoard({ role }: { role: UserRole }) {
                         )}
                         {c.done.map(doneView)}
                         {!c.done.length && !dayView.error && (
-                          <p className="py-4 text-xs text-muted-foreground">
+                          <p className={emptySlot}>
                             {dayView.loading ? "Loading..." : "No cars finished yet"}
                           </p>
                         )}
@@ -475,7 +499,7 @@ export function BayBoard({ role }: { role: UserRole }) {
                       <>
                         {c.cards.map(cardView)}
                         {!c.cards.length && (
-                          <p className="py-4 text-xs text-muted-foreground">
+                          <p className={emptySlot + " rounded border border-dashed border-border"}>
                             {board.bays.some((b) => b.id === c.id)
                               ? "Bay empty"
                               : "No waiting cars"}
@@ -486,14 +510,6 @@ export function BayBoard({ role }: { role: UserRole }) {
                   </section>
                 ))}
               </div>
-              {role === "ADMIN" && (
-                <AddBay
-                  bayType={lane.bayType}
-                  label={lane.label}
-                  bays={board.bays}
-                  onDone={bayChanged}
-                />
-              )}
             </section>
           ))}
           <p className="text-xs text-muted-foreground">

@@ -595,30 +595,46 @@ export function BookingsTab({
   listView?: boolean;
 }) {
   const [view, setView] = React.useState<"BOARD" | "LIST">("BOARD");
+  // P1-22: the board draws the switch in its own toolbar, beside Board day, so switching views
+  // re-creates the switch; keep focus on the button that was pressed.
+  const switched = React.useRef(false);
+  React.useEffect(() => {
+    if (!switched.current) return;
+    switched.current = false;
+    document.getElementById("bookings-view-" + view)?.focus();
+  }, [view]);
   if (listView) return <BookingsList role={role} />;
-  return (
+  const show = (next: "BOARD" | "LIST") => {
+    if (next === view) return;
+    switched.current = true;
+    setView(next);
+  };
+  const viewSwitch = (
+    <div role="group" aria-label="Bookings view" className="flex gap-2">
+      <Button
+        id="bookings-view-BOARD"
+        variant={view === "BOARD" ? "default" : "outline"}
+        aria-pressed={view === "BOARD"}
+        onClick={() => show("BOARD")}
+      >
+        Board
+      </Button>
+      <Button
+        id="bookings-view-LIST"
+        variant={view === "LIST" ? "default" : "outline"}
+        aria-pressed={view === "LIST"}
+        onClick={() => show("LIST")}
+      >
+        List / history
+      </Button>
+    </div>
+  );
+  return view === "BOARD" ? (
+    <BayBoard role={role} viewSwitch={viewSwitch} />
+  ) : (
     <div className="min-w-0 space-y-4">
-      <div role="group" aria-label="Bookings view" className="flex gap-2">
-        <Button
-          variant={view === "BOARD" ? "default" : "outline"}
-          aria-pressed={view === "BOARD"}
-          onClick={() => setView("BOARD")}
-        >
-          Board
-        </Button>
-        <Button
-          variant={view === "LIST" ? "default" : "outline"}
-          aria-pressed={view === "LIST"}
-          onClick={() => setView("LIST")}
-        >
-          List / history
-        </Button>
-      </div>
-      {view === "BOARD" ? (
-        <BayBoard role={role} />
-      ) : (
-        <BookingsList role={role} />
-      )}
+      {viewSwitch}
+      <BookingsList role={role} />
     </div>
   );
 }

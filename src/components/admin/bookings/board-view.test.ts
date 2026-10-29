@@ -100,3 +100,44 @@ test("board groups Waiting queues beside compatible bays", () => {
     html.indexOf("Bay 0") < html.indexOf("Waiting \u00b7 DETAILING_COATING"),
   );
 });
+
+// P1-22 (LE 2026-10-29): Board day and Refresh board share the view switch's row, on its right
+// from lg up and on the next line below lg. The browser check measures the actual positions.
+test("Board day and Refresh board sit in one toolbar with the view switch, before the helper text", () => {
+  const html = render("ADMIN");
+  const toolbar = html.search(
+    /<div class="[^"]*\blg:flex-row\b[^"]*\blg:justify-between\b[^"]*"><div role="group" aria-label="Bookings view"/,
+  );
+  assert.ok(toolbar >= 0, "the view switch opens a wrapping toolbar row");
+  const day = html.indexOf('aria-label="Board day"', toolbar),
+    refresh = html.indexOf("Refresh board", toolbar),
+    helper = html.indexOf("One car per bay");
+  assert.ok(day > toolbar && refresh > day, "Board day, then Refresh board, follow the switch");
+  assert.ok(helper > refresh, "the helper sentence stays under the toolbar");
+  assert.equal(html.split('aria-label="Board day"').length, 2, "one Board day field");
+});
+
+// P1-22: columns in a row stretch to one height. An empty column's slot is at least one card tall
+// from md up (LE: "full one-card height"; ADMIN cards carry move controls, so they are taller than
+// STAFF cards), so an empty row is as tall as a row holding one car.
+test("board columns stretch to equal height and an empty slot keeps one card's height", () => {
+  for (const [role, min] of [["ADMIN", "md:min-h-[26rem]"], ["STAFF", "md:min-h-[14rem]"]] as const) {
+    const html = render(role);
+    const grids = html.match(/<div class="[^"]*\bgrid\b[^"]*auto-fill[^"]*"/g) ?? [];
+    assert.equal(grids.length, 3, role + ": one column grid per row");
+    for (const grid of grids) {
+      assert.doesNotMatch(grid, /items-start/, role + ": columns are not top-aligned at their own height");
+      assert.match(grid, /items-stretch/, role);
+    }
+    const columns = html.match(/<section aria-label="(Waiting \u00b7 |Bay |Done \u00b7 )[^"]*" class="[^"]*"/g) ?? [];
+    assert.equal(columns.length, 4 + 8 + 3, role + ": every column");
+    for (const column of columns) assert.match(column, /\bflex-col\b/, role + ": " + column);
+    const slots = html.match(/<p class="[^"]*">(Bay empty|No waiting cars|No cars finished yet|Loading\.\.\.)<\/p>/g) ?? [];
+    assert.ok(slots.length >= 3 + 8, role + ": every empty column shows a slot");
+    for (const slot of slots) {
+      assert.ok(slot.includes(min) && /\bmin-h-24\b/.test(slot) && /\bflex-1\b/.test(slot), role + " slot fills the column with a minimum: " + slot);
+      if (/Bay empty|No waiting cars/.test(slot)) assert.match(slot, /border-dashed/, role + ": drop targets show a dashed slot");
+      else assert.doesNotMatch(slot, /border-dashed/, role + ": Done is not a drop target");
+    }
+  }
+});
