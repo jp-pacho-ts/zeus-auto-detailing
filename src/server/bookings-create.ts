@@ -15,7 +15,7 @@ import { createAdmission, enterBooking, withBookingDb } from "./bookings-admissi
 import { parseBookingConfiguration, grantExpiry, signManagementToken, type BookingConfiguration } from "./bookings-credentials";
 import { verifyTurnstile, turnstileRemoteIp } from "./bookings-turnstile";
 import { readDayStates, dayWindow, validDay } from "./availability-days";
-import { drainShopNotifications, shopNotificationMessage, type NotificationConfiguration } from "./notifications/bookings";
+import { drainShopNotifications, shopNotificationMessage, sendCustomerConfirmation, type NotificationConfiguration } from "./notifications/bookings";
 export { lockBookingDates, lockBookingShop } from "./bookings-locks";
 export interface CreateDayBookingOptions {
     db?: PrismaClient;
@@ -275,14 +275,15 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
         }, options.signal);
         if (committed.created && committed.result.ok) {
             // Committed transaction and its permit are finished before any mail-provider call.
-            try {
-                await drainShopNotifications({
+            // Independent bounded provider waits: neither failure suppresses the other notice.
+            await Promise.all([
+                drainShopNotifications({
                     ...options, db, bookingId: committed.result.data.booking.id
-                });
-            }
-            catch {
-                console.warn(JSON.stringify({ event: "booking.notification_deferred" }));
-            }
+                }).catch(() => {
+                    console.warn(JSON.stringify({ event: "booking.notification_deferred" }));
+                }),
+                sendCustomerConfirmation(committed.result.data.booking, r.customerEmail, options.notification),
+            ]);
         }
         return committed;
     }

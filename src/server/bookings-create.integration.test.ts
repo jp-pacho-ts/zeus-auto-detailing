@@ -1,3 +1,4 @@
+import { brandConfig } from "@/config/brand";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
@@ -8,7 +9,7 @@ import { createAndMigrate, mapPublisher, publish, serviceClient, siblingDatabase
 import { bySlug, readManifest, releaseFromManifest, sizeId } from "./catalog.fixture";
 import { getBookingQuote } from "./catalog-quote";
 import { parseBookingConfiguration, verifyManagementToken } from "./bookings-credentials";
-import { createDayBooking, type CreateDayBookingOptions } from "./bookings-create";
+import { createDayBooking, lockBookingShop, type CreateDayBookingOptions } from "./bookings-create";
 import { getDayAvailability } from "./availability-public";
 import { bookingPost } from "./bookings-http";
 import { sendTurnNotice, drainShopNotifications } from "./notifications/bookings";
@@ -502,6 +503,7 @@ test("F2 SMTP acceptance then finalize failure reclaims once with the same outbo
  const messageId=`<booking-shop.${box.id}@localhost>`;
  const accepted=()=>smtp.messages.filter(e=>e.messageId===messageId);
  assert.equal(accepted().length,1,"SMTP actually accepted before DB finalize failed");
+ assert.equal(smtp.messages.filter(e=>e.messageId===`<booking-confirm.${b.id}@localhost>`).length,1,"shop finalize failure must not suppress the customer confirmation");
  assert.equal(code(await f.create({...r,turnstileToken:randomUUID()})),"OK");assert.equal(accepted().length,1,"replay cannot enqueue/send again");
  await f.db.$executeRawUnsafe('UPDATE fixture_finalize_fault SET enabled=false');
  await f.db.bookingNotificationOutbox.update({where:{id:box.id},data:{nextAttemptAt:new Date(0)}});
@@ -585,4 +587,139 @@ test("PENDING alert counts all queues on one day without any cap and logs no pri
   assert.equal(code(await f.create({...await f.request(["regular-tint"]),customerPhone:"+639170000002"},headers(),opts)),"OK");
   assert.deepEqual(logs.filter(x=>x.includes("booking.pending_count")).map(x=>JSON.parse(x)),[{event:"booking.pending_count",level:"WARN"}]);
  }finally{console.warn=original;}
+});
+
+// P1-24: exercise real commits, replay gates and the actual TLS SMTP transport, never live mail.
+test("P1-24: first commit sends one private-safe customer receipt; racing and later replays never resend", { skip }, async () => {
+    const f = await fixture("customer_confirm"), r = await f.request();
+    const before = smtp.messages.length;
+    const results = await Promise.all([f.create(r), f.create(r)]);
+    assert.ok(results.every(x => x.result.ok), "both concurrent calls recover the committed booking");
+    assert.equal(results.filter(x => x.created).length, 1);
+    const row = await f.db.booking.findFirstOrThrow();
+    const id = `<booking-confirm.${row.id}@localhost>`;
+    const customer = smtp.messages.slice(before).filter(e => e.to === r.customerEmail);
+    assert.equal(customer.length, 1, "exactly one customer confirmation per first commit");
+    const mail = customer[0];
+    assert.equal(mail.messageId, id);
+    assert.equal(mail.subject, "Booking received " + row.referenceCode);
+    assert.match(mail.raw, /^Content-Type: text\/plain;/im);
+    assert.ok(mail.text.includes(brandConfig.businessName));
+    assert.ok(mail.text.includes(row.referenceCode));
+    assert.ok(mail.text.includes(r.bookingDate + " (" + brandConfig.timezone + ")"));
+    assert.ok(mail.text.includes(brandConfig.operatingSchedule));
+    assert.ok(mail.text.includes(row.vehicleCategoryNameSnapshot));
+    for (const line of r.acceptedQuote.lines) assert.ok(mail.text.includes(line.name));
+    assert.ok(mail.text.includes("Estimated total: PHP " + (r.acceptedQuote.totalPriceCentavos / 100).toFixed(2)));
+    assert.ok(mail.text.includes("Your request is sent. The shop will text or call you to confirm."));
+    assert.ok(mail.text.includes(config.origin + "/book/manage"));
+    assert.ok(mail.text.includes(brandConfig.supportPhone));
+    assert.ok(mail.text.includes(brandConfig.facebookMessengerUrl));
+    noPrivate(mail.text);
+    for (const privateValue of [row.id, r.customerName.trim(), r.customerPhone, r.customerEmail, "Test Car", "PRIVATE PLATE", "PRIVATE NOTES"]) {
+        assert.equal(mail.text.includes(privateValue), false, "customer receipt excludes unrelated private fields");
+    }
+    assert.doesNotMatch(mail.text, /\/admin\b|accessToken|\b(?:bay|capacity|worker)\b/i);
+    assert.doesNotMatch(mail.text, /for quote/i, "a fully priced selection has no for-quote warning");
+    const box = await f.db.bookingNotificationOutbox.findFirstOrThrow();
+    const shop = smtp.messages.slice(before).filter(e => e.to === smtp.config.shopEmail);
+    assert.equal(shop.length, 1, "existing shop notification still sends once");
+    assert.equal(shop[0].subject, "New booking " + row.referenceCode);
+    assert.equal(shop[0].messageId, `<booking-shop.${box.id}@localhost>`);
+    assert.equal(shop[0].text, box.text);
+    assert.equal(box.state, "SENT");
+    const count = smtp.attempts.length;
+    const replay = await f.create({ ...r, turnstileToken: randomUUID() });
+    assert.equal(code(replay), "OK");
+    assert.equal(replay.created, false);
+    if (replay.result.ok && results[0].result.ok) assert.deepEqual(replay.result.data.booking, results[0].result.data.booking);
+    assert.equal(smtp.attempts.length, count, "exact replay does not attempt either notification");
+    assert.equal(await f.db.booking.count(), 1);
+    assert.equal(await f.db.bookingNotificationOutbox.count(), 1, "no customer outbox added");
+});
+
+test("P1-24: customer receipt preserves selected quantities and estimated for-quote pricing", { skip }, async () => {
+    const f = await fixture("customer_quote"), r = await f.request(["arcane-graphene", "basic-wash", "panel-repaint"]);
+    const before = smtp.messages.length;
+    const result = await f.create(r);
+    assert.equal(code(result), "OK");
+    const customer = smtp.messages.slice(before).filter(e => e.to === r.customerEmail);
+    assert.equal(customer.length, 1);
+    const text = customer[0].text;
+    for (const line of r.acceptedQuote.lines) {
+        assert.ok(text.includes(line.name));
+        if (line.quantity > 1) assert.ok(text.includes(line.name + " × " + line.quantity));
+    }
+    assert.match(text, /for quote/i);
+    assert.match(text, /shop will confirm the final price/i);
+    const estimated = r.acceptedQuote.estimatedTotalCentavos;
+    assert.ok(estimated !== null, "this synthetic selection has source reference prices");
+    assert.ok(text.includes("Estimated total: PHP " + (estimated / 100).toFixed(2)));
+    assert.notEqual(estimated, r.acceptedQuote.totalPriceCentavos, "estimate must include quote references");
+    noPrivate(text);
+});
+
+test("P1-24: no customer recipient or SMTP configuration means no customer send", { skip }, async () => {
+    const absent = await fixture("customer_noemail"), r = { ...await absent.request(), customerEmail: undefined };
+    let before = smtp.attempts.length;
+    assert.equal(code(await absent.create(r)), "OK");
+    assert.equal(smtp.attempts.length - before, 1, "shop notice remains; no customer attempt");
+    assert.equal(smtp.attempts.at(-1)?.to, smtp.config.shopEmail);
+    const unconfigured = await fixture("customer_nosmtp");
+    before = smtp.attempts.length;
+    assert.equal(code(await unconfigured.create(await unconfigured.request(), headers(), { notification: undefined })), "OK");
+    assert.equal(smtp.attempts.length, before, "without configured SMTP there is no provider call");
+});
+
+test("P1-24: rejection and hanging SMTP keep the committed response and log only the booking id", { skip }, async () => {
+    for (const mode of ["reject", "hang"] as const) {
+        const f = await fixture("customer_" + mode), r = await f.request();
+        const warnings: unknown[][] = [], originalWarn = console.warn;
+        console.warn = (...args: unknown[]) => { warnings.push(args); };
+        smtp.setRejected(mode === "reject");
+        smtp.setHanging(mode === "hang");
+        const start = Date.now();
+        let result: Awaited<ReturnType<typeof f.create>>;
+        try {
+            let finished = false;
+            const pending = f.create(r).then(value => { finished = true; return value; });
+            try {
+                if (mode === "hang") {
+                    let row;
+                    for (let i = 0; i < 100 && !row; i++) {
+                        row = await f.db.booking.findFirst({ where: { idempotencyKey: sha256(r.idempotencyKey) } });
+                        if (!row) await new Promise(resolve => setTimeout(resolve, 20));
+                    }
+                    assert.ok(row, "booking committed and visible while SMTP is stalled");
+                    assert.equal(finished, false, "provider wait is still active");
+                    await f.db.$transaction(async tx => {
+                        await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '500ms'");
+                        await lockBookingShop(tx);
+                    });
+                }
+            } finally { result = await pending; }
+        } finally {
+            smtp.setRejected(false);
+            smtp.setHanging(false);
+            console.warn = originalWarn;
+        }
+        assert.ok(Date.now() - start < 5000, "both SMTP waits stay within the existing transport bound");
+        assert.equal(code(result), "OK");
+        assert.equal(result.created, true);
+        assert.equal(result.result.ok && result.result.data.commitState, "COMMITTED");
+        const row = await f.db.booking.findFirstOrThrow();
+        assert.equal(row.status, "PENDING");
+        assert.equal(row.receiptTotalCentavos, r.acceptedQuote.totalPriceCentavos);
+        const events = warnings.flat().map(x => typeof x === "string" ? JSON.parse(x) as Record<string, unknown> : x);
+        assert.deepEqual(events.filter(e => (e as Record<string, unknown>).event === "booking.customer_confirmation_not_sent"), [
+            { event: "booking.customer_confirmation_not_sent", bookingId: row.id }
+        ]);
+        const logged = JSON.stringify(warnings);
+        for (const secret of [r.customerEmail, r.customerName.trim(), r.customerPhone, "PRIVATE NOTES", "PRIVATE PLATE", smtp.config.password]) {
+            assert.equal(logged.includes(secret), false, "failure logs exclude customer and provider secrets");
+        }
+        const attempts = smtp.attempts.length;
+        assert.equal(code(await f.create({ ...r, turnstileToken: randomUUID() })), "OK");
+        assert.equal(smtp.attempts.length, attempts, "a later replay never retries a failed customer confirmation");
+    }
 });
