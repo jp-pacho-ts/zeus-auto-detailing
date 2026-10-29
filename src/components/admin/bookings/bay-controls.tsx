@@ -111,6 +111,20 @@ function NameForm({ id, label, initial, submitLabel, validate, onSubmit, onCance
   );
 }
 
+// Same Tab wrap for both bay modals: focus stays inside while the dialog is open.
+function trapTab(e: React.KeyboardEvent<HTMLDialogElement>) {
+  if (e.key !== "Tab") return;
+  const focusable = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("input:not(:disabled), button:not(:disabled)"));
+  const first = focusable[0], last = focusable.at(-1);
+  if (document.activeElement === (e.shiftKey ? first : last)) {
+    e.preventDefault();
+    (e.shiftKey ? last : first)?.focus();
+  }
+}
+
+// P1-22 (LE 2026-10-29): a small row-header button opens the add form as a modal. The board
+// reload after an add re-creates the rows, so BayBoard refocuses the button by this id.
+export const addBayButtonId = (bayType: BayType) => "add-bay-button-" + bayType;
 export function AddBay({ bayType, label, bays, onDone }: { bayType: BayType; label: string; bays: readonly Bay[]; onDone: (message: string) => Promise<void> }) {
   const [open, setOpen] = React.useState(false);
   const button = React.useRef<HTMLButtonElement>(null);
@@ -118,30 +132,105 @@ export function AddBay({ bayType, label, bays, onDone }: { bayType: BayType; lab
     setOpen(false);
     queueMicrotask(() => button.current?.focus());
   };
-  if (!open)
-    return (
-      <Button ref={button} variant="outline" className="w-full border-dashed" aria-label={`Add a ${label.toLowerCase()} bay`} onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4" aria-hidden="true" /> Add bay
-      </Button>
-    );
   return (
-    <div className="rounded border border-dashed border-border bg-[#121214] p-3">
-      <NameForm
-        id={"add-bay-" + bayType}
-        label={`New ${label.toLowerCase()} bay name`}
-        initial=""
-        submitLabel="Add bay"
-        validate={(name) => bayNameError(name, bays)}
-        onSubmit={async (name) => {
-          const failed = await send(addBayRequest(bayType, name, bays));
-          if (failed !== null) return failed || null;
-          close();
-          await onDone(`${name.trim()} added.`);
-          return null;
+    <>
+      <Button ref={button} id={addBayButtonId(bayType)} variant="outline" size="sm" className="shrink-0" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        <Plus className="h-4 w-4" aria-hidden="true" /> Add bay<span className="sr-only">{` to ${label}`}</span>
+      </Button>
+      {open && (
+        <AddBayDialog
+          id={"add-bay-" + bayType}
+          title={`Add a ${label.toLowerCase()} bay`}
+          validate={(name) => bayNameError(name, bays)}
+          onSubmit={async (name) => {
+            const failed = await send(addBayRequest(bayType, name, bays));
+            if (failed !== null) return failed || null;
+            close();
+            await onDone(`${name.trim()} added.`);
+            return null;
+          }}
+          onCancel={close}
+        />
+      )}
+    </>
+  );
+}
+
+function AddBayDialog({ id, title, validate, onSubmit, onCancel }: {
+  id: string; title: string; validate: (name: string) => string | null; onSubmit: (name: string) => Promise<string | null>; onCancel: () => void;
+}) {
+  const [name, setName] = React.useState(""), [error, setError] = React.useState<string | null>(null), [busy, setBusy] = React.useState(false);
+  const dialog = React.useRef<HTMLDialogElement>(null), input = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (dialog.current && !dialog.current.open) dialog.current.showModal();
+    input.current?.focus();
+  }, []);
+  const fail = (message: string) => {
+    setError(message);
+    input.current?.focus();
+  };
+  return (
+    <dialog
+      ref={dialog}
+      aria-labelledby={id + "-title"}
+      onCancel={(e) => {
+        e.preventDefault();
+        if (!busy) onCancel();
+      }}
+      onKeyDown={trapTab}
+      className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm rounded border border-border bg-[#121214] p-5 text-foreground backdrop:bg-black/60"
+    >
+      <form
+        className="space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const invalid = validate(name);
+          if (invalid) return fail(invalid);
+          setBusy(true);
+          const failed = await onSubmit(name);
+          if (failed === null) return;
+          setBusy(false);
+          fail(failed);
         }}
-        onCancel={close}
-      />
-    </div>
+      >
+        <h2 id={id + "-title"} className="font-bold">{title}</h2>
+        <div className="space-y-1">
+          <label className="block text-xs" htmlFor={id}>
+            Bay name
+          </label>
+          <input
+            ref={input}
+            id={id}
+            value={name}
+            maxLength={60}
+            autoComplete="off"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={id + "-help" + (error ? " " + id + "-error" : "")}
+            onChange={(e) => {
+              setName(e.target.value);
+              setError(null);
+            }}
+            className={fieldClass}
+          />
+          <p id={id + "-help"} className="text-xs text-muted-foreground">
+            Up to 40 characters. Each bay name is used once across the shop.
+          </p>
+          {error && (
+            <p id={id + "-error"} role="alert" className="text-xs text-rose-400">
+              {error}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={busy}>
+            {busy ? "Adding…" : "Add bay"}
+          </Button>
+        </div>
+      </form>
+    </dialog>
   );
 }
 
@@ -256,15 +345,7 @@ export function BayMenu({ bay, bays, onDone }: { bay: Bay; bays: readonly Bay[];
             e.preventDefault();
             close();
           }}
-          onKeyDown={(e) => {
-            if (e.key !== "Tab") return;
-            const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
-            const first = buttons[0], last = buttons.at(-1);
-            if (document.activeElement === (e.shiftKey ? first : last)) {
-              e.preventDefault();
-              (e.shiftKey ? last : first)?.focus();
-            }
-          }}
+          onKeyDown={trapTab}
           className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm space-y-3 rounded border border-border bg-[#121214] p-5 text-foreground backdrop:bg-black/60"
         >
           <h4 id={menuId + "-title"} className="font-bold">Remove {bay.name}?</h4>

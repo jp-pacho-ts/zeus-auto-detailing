@@ -59,18 +59,25 @@ function render(role: "ADMIN" | "STAFF") {
   }
 }
 
-test("ADMIN gets Add bay at the end of every row and a keyboard menu on every bay; STAFF gets neither", () => {
+// P1-22 (LE 2026-10-29): Add bay is a small button in each row header that opens a modal,
+// not a full-width block after the columns. Its name keeps the visible words first.
+test("ADMIN gets a compact Add bay in every row header and a keyboard menu on every bay; STAFF gets neither", () => {
   const admin = render("ADMIN");
   for (const row of ["Wash", "Detailing", "Paint"]) {
-    const start = admin.indexOf(`aria-label="${row} row"`), add = admin.indexOf(`Add a ${row.toLowerCase()} bay`, start);
-    assert.ok(start > 0 && add > start, row);
+    const start = admin.indexOf(`aria-label="${row} row"`), heading = admin.indexOf("</h2>", start);
+    const add = admin.indexOf(`Add bay<span class="sr-only"> to ${row}</span>`, start), firstColumn = admin.indexOf('aria-label="Waiting · ', start);
+    assert.ok(start > 0 && heading > start && add > heading, row + ": Add bay follows the row heading");
+    assert.ok(add < firstColumn, row + ": Add bay sits in the row header, before the columns");
+    const button = admin.lastIndexOf("<button", add);
+    assert.match(admin.slice(button, add), /aria-haspopup="dialog"/, row + ": Add bay opens a dialog");
+    assert.doesNotMatch(admin.slice(button, add), /w-full|border-dashed/, row + ": Add bay is compact");
   }
-  assert.ok(admin.indexOf("Add a wash bay") < admin.indexOf('aria-label="Detailing row"'), "Add bay ends its own row");
+  assert.equal(admin.includes("<dialog"), false, "no dialog is open until Add bay is clicked");
   for (const b of bays) {
     assert.ok(admin.includes(`aria-label="Options for ${b.name}"`), b.name);
   }
   assert.match(admin, /aria-haspopup="menu"/);
   assert.match(admin, /aria-expanded="false"/);
   const staff = render("STAFF");
-  for (const hidden of ["Add a wash bay", "Options for", "aria-haspopup"]) assert.equal(staff.includes(hidden), false, hidden);
+  for (const hidden of ["Add bay", "Options for", "aria-haspopup"]) assert.equal(staff.includes(hidden), false, hidden);
 });
