@@ -110,19 +110,19 @@ test('Board day sits right of the view switch from lg; row columns share one hei
       }
       if (process.env.P122_LAYOUT_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.P122_LAYOUT_SCREENSHOTS, width + '-layout.png') });
     }
-    // The switch moves between the board toolbar and the list view, so keyboard focus must follow it.
+    // The switch moves between the Kanban toolbar and bay setup, so keyboard focus must follow it.
     await page.setViewportSize({ width: 1280, height: 900 });
-    const view = page.getByRole('group', { name: 'Bookings view' });
+    const view = page.getByRole('group', { name: 'Bay board sections' });
     const focused = (name) => view.getByRole('button', { name, exact: true }).evaluate((el) => document.activeElement === el);
-    await view.getByRole('button', { name: 'List / history', exact: true }).focus();
+    await view.getByRole('button', { name: 'Bays', exact: true }).focus();
     await page.keyboard.press('Enter');
-    await view.getByRole('button', { name: 'List / history', exact: true, pressed: true }).waitFor();
-    assert.equal(await page.getByLabel('Board day').count(), 0, 'Board day shows only in Board view');
-    assert.equal(await focused('List / history'), true, 'focus stays on List / history after switching');
+    await view.getByRole('button', { name: 'Bays', exact: true, pressed: true }).waitFor();
+    assert.equal(await page.getByLabel('Board day').count(), 0, 'Board day shows only in Kanban view');
+    assert.equal(await focused('Bays'), true, 'focus stays on Bays after switching');
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Enter');
     await page.getByLabel('Board day').waitFor();
-    assert.equal(await focused('Board'), true, 'focus stays on Board after switching back');
+    assert.equal(await focused('Kanban'), true, 'focus stays on Kanban after switching back');
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();
