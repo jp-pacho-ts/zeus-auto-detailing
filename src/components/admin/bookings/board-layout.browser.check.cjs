@@ -17,10 +17,21 @@ test('Board day sits right of the view switch from lg; row columns share one hei
   const browser = await chromium.launch({ headless: true, ...(process.env.P120_CHROME_EXECUTABLE ? { executablePath: process.env.P120_CHROME_EXECUTABLE } : {}) });
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    // A loopback connection reset is the harness proxy's, not the page's: retry a GET/HEAD at most twice and log it.
+    // HTTP status failures and every other error still pass straight through.
     await context.route('**/*', async (route) => {
       const request = route.request();
       if (!request.url().startsWith(origin + '/')) return route.abort();
-      const response = await route.fetch({ url: request.url().replace(origin, upstream.origin), headers: { ...request.headers(), 'x-forwarded-for': '198.51.100.126' } });
+      const retryable = ['GET', 'HEAD'].includes(request.method());
+      let response;
+      for (let attempt = 0; !response; attempt++) {
+        try {
+          response = await route.fetch({ url: request.url().replace(origin, upstream.origin), headers: { ...request.headers(), 'x-forwarded-for': '198.51.100.126' } });
+        } catch (error) {
+          if (!retryable || attempt === 2 || !/ECONNRESET|socket hang up/.test(error.message)) throw error;
+          console.log('proxy retry ' + (attempt + 1) + '/2 after ' + error.message.split('\n')[0] + ': ' + request.method() + ' ' + request.url());
+        }
+      }
       await route.fulfill({ response });
     });
     const page = await context.newPage();
