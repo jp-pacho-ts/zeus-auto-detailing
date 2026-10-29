@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { Booking, BookingLineItem, PrismaClient } from "@prisma/client";
 import { brandConfig } from "@/config/brand";
+import type { DayBookingView } from "@/types/contracts";
 import { prisma } from "../db";
 import { withBookingDb } from "../bookings-admission";
 import { bookingDbNow } from "../bookings-locks";
@@ -101,6 +102,59 @@ export function shopNotificationMessage(
       origin + "/admin/bookings?bookingId=" + encodeURIComponent(b.id),
     ].join("\n"),
   };
+}
+// P1-24: only the first committed create calls this with its captured customer receipt.
+// Whitelist public receipt fields: no later staff edits, notes, contact details or bearer links.
+export function customerConfirmationMessage(
+  booking: DayBookingView,
+  origin: string,
+): { subject: string; text: string } {
+  const forQuote = booking.lines.some((line) => line.priceStatus === "FOR_QUOTE");
+  const services = booking.lines.map((line) =>
+    "- " + line.name + (line.quantity > 1 ? " × " + line.quantity : "") +
+    (line.priceStatus === "FOR_QUOTE" ? " (for quote)" : ""),
+  );
+  const estimate = booking.estimatedTotalCentavos === null
+    ? "To be quoted by the shop."
+    : brandConfig.currency + " " + (booking.estimatedTotalCentavos / 100).toFixed(2);
+  return {
+    subject: "Booking received " + booking.referenceCode,
+    text: [
+      brandConfig.businessName,
+      "Booking reference: " + booking.referenceCode,
+      "Your request is sent. The shop will text or call you to confirm.",
+      "Drop-off day: " + booking.bookingDate + " (" + brandConfig.timezone + ")",
+      "Opening hours: " + brandConfig.operatingSchedule,
+      "Vehicle size: " + booking.vehicleCategoryName,
+      "Selected services:",
+      ...services,
+      "Estimated total: " + estimate,
+      ...(forQuote ? ["Some services are for quote. The shop will confirm the final price."] : []),
+      "Manage your booking: " + origin + "/book/manage",
+      "Phone: " + brandConfig.supportPhone,
+      "Messenger: " + brandConfig.facebookMessengerUrl,
+    ].join("\n"),
+  };
+}
+// Simple send now: no outbox/retry, including after SMTP rejection/timeout. Never throws
+// into the committed booking response. sendSmtpMessage retains its existing 3 s bound.
+export async function sendCustomerConfirmation(
+  booking: DayBookingView,
+  customerEmail: string | undefined,
+  notification?: NotificationConfiguration,
+): Promise<void> {
+  if (!customerEmail) return;
+  try {
+    const config = notification ?? notificationConfiguration();
+    if (!config) return;
+    if (await sendSmtpMessage(
+      config,
+      customerEmail,
+      customerConfirmationMessage(booking, config.origin),
+      `<booking-confirm.${booking.id}@${new URL(config.origin).hostname}>`,
+    )) return;
+  } catch { /* Keep the committed result even if configuration or provider code fails. */ }
+  console.warn(JSON.stringify({ event: "booking.customer_confirmation_not_sent", bookingId: booking.id }));
 }
 export async function sendSmtpMessage(
   config: NotificationConfiguration,
