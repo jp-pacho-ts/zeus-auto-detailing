@@ -24,6 +24,10 @@ import { AddBay, addBayButtonId, BayMenu } from "./bay-controls";
 import { BookingDetail } from "./booking-detail";
 import { DepositBadge } from "./deposit-badge";
 
+// P1-23: only ADMIN moves cars, and never while a move is being written or its outcome is in doubt.
+export const cardDraggable = (role: UserRole, busy: boolean, blocked: boolean) =>
+  role === "ADMIN" && !busy && !blocked;
+
 // viewSwitch: BookingsTab's Board / List switch, drawn on the left of the board toolbar (P1-22).
 export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: React.ReactNode }) {
   const [date, setDate] = React.useState(shopDate),
@@ -49,7 +53,9 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
   const writing = React.useRef(false),
     mounted = React.useRef(true),
     focus = React.useRef<string | null>(null),
-    drag = React.useRef<AdminBoardCard | null>(null);
+    drag = React.useRef<AdminBoardCard | null>(null),
+    pressedControl = React.useRef(false);
+  const [dragging, setDragging] = React.useState<string | null>(null);
   React.useEffect(() => {
     mounted.current = true;
     return () => {
@@ -195,11 +201,12 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
         };
       })
     : [];
-  // Card heights measured for P1-22: ADMIN about 410px (move controls), STAFF about 226px. From lg
-  // only: at md the sidebar leaves one column per line, so there is nothing to line up with.
+  // Card heights measured: ADMIN about 382px (move controls; P1-23 removed the separate drag button),
+  // STAFF about 226px. From lg only: at md the sidebar leaves one column per line, so there is
+  // nothing to line up with.
   const emptySlot =
     "flex min-h-24 flex-1 items-center justify-center px-3 text-xs text-muted-foreground " +
-    (role === "ADMIN" ? "lg:min-h-[26rem]" : "lg:min-h-[14rem]");
+    (role === "ADMIN" ? "lg:min-h-[24rem]" : "lg:min-h-[14rem]");
   function doneView(b: AdminQueueBooking) {
     return (
       <article
@@ -229,11 +236,35 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
     const allowed = board?.queues.find(
       (q) => q.code === card.queueCode,
     )?.bayType;
+    const canDrag = cardDraggable(role, busy, blocked);
     return (
       <article
         key={card.id}
-        className="min-w-0 space-y-3 rounded border border-border bg-[#18181b] p-4"
+        className={
+          "min-w-0 space-y-3 rounded border border-border bg-[#18181b] p-4" +
+          (canDrag ? " cursor-grab active:cursor-grabbing" : "") +
+          (dragging === card.id ? " opacity-50 ring-2 ring-primary" : "")
+        }
         aria-label={card.referenceCode}
+        // P1-23 (LE 2026-10-29): the whole ADMIN card is the drag source. A press that starts on a
+        // control (reference, dropdown, Move car) keeps that control's own behavior instead.
+        draggable={role === "ADMIN" ? canDrag : undefined}
+        onPointerDown={(e) => {
+          pressedControl.current = Boolean(
+            (e.target as Element).closest("button, select, input, textarea, a, label"),
+          );
+        }}
+        onDragStart={(e) => {
+          if (!canDrag || pressedControl.current) return e.preventDefault();
+          drag.current = card;
+          setDragging(card.id);
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", card.id);
+        }}
+        onDragEnd={() => {
+          drag.current = null;
+          setDragging(null);
+        }}
       >
         <button
           id={"board-card-" + card.id}
@@ -274,23 +305,9 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
         )}
         {role === "ADMIN" && (
           <>
-            <button
-              type="button"
-              draggable={!busy && !blocked}
-              disabled={busy || blocked}
-              aria-label={"Drag " + card.referenceCode}
-              className="min-h-[44px] text-xs underline focus-visible:ring-2 focus-visible:ring-primary"
-              onDragStart={(e) => {
-                drag.current = card;
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", card.id);
-              }}
-              onDragEnd={() => {
-                drag.current = null;
-              }}
-            >
-              Drag to bay
-            </button>
+            <p className="text-xs text-muted-foreground">
+              Drag this card to a bay, or use Move car.
+            </p>
             <form
               className="space-y-2"
               onSubmit={(e) => {

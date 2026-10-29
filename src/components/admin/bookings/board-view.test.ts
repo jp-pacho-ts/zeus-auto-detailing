@@ -79,7 +79,12 @@ test("Bookings defaults to board with four Waiting queues, eight bays, captured 
   ])
     assert.ok(html.includes(value), value);
   assert.ok(html.includes('aria-label="Move ZEUS-TEST17 to bay"'));
-  assert.ok(html.includes("Drag to bay"));
+  // P1-23 (LE 2026-10-29): the whole card is the drag source, shown by a grab cursor and a hint.
+  const card = html.match(/<article[^>]*aria-label="ZEUS-TEST17"[^>]*>/)?.[0] ?? "";
+  assert.match(card, /draggable="true"/, "the ADMIN card itself can be dragged");
+  assert.match(card, /cursor-grab/, "the ADMIN card shows a grab cursor");
+  assert.ok(html.includes("Drag this card to a bay"), "a short drag hint");
+  assert.equal(html.includes(">Drag to bay<"), false, "no separate drag-only control");
 });
 test("STAFF board retains card/checklist entry but has no bay-move or worker-write controls", () => {
   const html = render("STAFF");
@@ -87,11 +92,22 @@ test("STAFF board retains card/checklist entry but has no bay-move or worker-wri
   assert.ok(html.includes("Synthetic Technician"));
   for (const value of [
     "Drag to bay",
+    "Drag this card",
     "Move car",
     "Assign worker",
     "Remove Synthetic Technician",
+    'draggable="true"',
+    "cursor-grab",
   ])
     assert.equal(html.includes(value), false, value);
+});
+
+test("only an ADMIN card that is not mid-write or blocked can be dragged", () => {
+  const { cardDraggable } = require("./bay-board");
+  assert.equal(cardDraggable("ADMIN", false, false), true);
+  assert.equal(cardDraggable("ADMIN", true, false), false, "busy");
+  assert.equal(cardDraggable("ADMIN", false, true), false, "blocked");
+  for (const role of ["STAFF", "DETAILER", "MANAGER"]) assert.equal(cardDraggable(role, false, false), false, role);
 });
 
 test("board groups Waiting queues beside compatible bays", () => {
@@ -122,7 +138,8 @@ test("Board day and Refresh board sit in one toolbar with the view switch, befor
 // STAFF cards), so an empty row is as tall as a row holding one car. At md the sidebar leaves room
 // for one column per line, so the slot stays short there (UI/UX check a4326df).
 test("board columns stretch to equal height and an empty slot keeps one card's height", () => {
-  for (const [role, min] of [["ADMIN", "lg:min-h-[26rem]"], ["STAFF", "lg:min-h-[14rem]"]] as const) {
+  // P1-23: the ADMIN card lost its separate drag button (about 410px -> 382px), so its slot follows.
+  for (const [role, min] of [["ADMIN", "lg:min-h-[24rem]"], ["STAFF", "lg:min-h-[14rem]"]] as const) {
     const html = render(role);
     const grids = html.match(/<div class="[^"]*\bgrid\b[^"]*auto-fill[^"]*"/g) ?? [];
     assert.equal(grids.length, 3, role + ": one column grid per row");
