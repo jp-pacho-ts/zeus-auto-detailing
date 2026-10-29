@@ -114,6 +114,8 @@ test('homepage intro: first session, replay prevention, accessibility and failur
       const p = await fallback.newPage();
       await p.goto(base.origin, { waitUntil: mode === 'image-failure' ? 'domcontentloaded' : 'networkidle' });
       if (mode === 'image-failure') await p.locator('[data-home-intro="running"]').waitFor();
+      // P1-26 F2: with every script blocked, the inline pre-paint curtain stays until its CSS fallback (<=4s).
+      if (mode === 'script-failure') await p.locator('[data-home-curtain]').waitFor({ state: 'hidden', timeout: 4500 });
       await settled(p);
       assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), mode + ': no overflow');
       if (!['image-failure', 'font-failure'].includes(mode)) assert.equal(await p.locator('[data-home-intro]').getAttribute('data-home-intro'), 'idle');

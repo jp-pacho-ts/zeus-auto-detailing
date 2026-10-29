@@ -2,11 +2,14 @@ import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { comingSoonStyles } from "./coming-soon.styles";
+import { CurrentYear } from "./current-year";
 import { HomeIntro } from "./home-intro";
+import { HOME_INTRO_PREPAINT, HOME_INTRO_PREPAINT_ID } from "./home-intro-prepaint";
 
 export function ComingSoon() {
   const phone = `tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`;
-  return <><style>{comingSoonStyles}</style><HomeIntro>
+  // The pre-paint script must stay before the curtain and content so it runs before they first paint.
+  return <><style>{comingSoonStyles}</style><script id={HOME_INTRO_PREPAINT_ID} dangerouslySetInnerHTML={{ __html: HOME_INTRO_PREPAINT }} /><HomeIntro>
     <div className="zeus-coming-soon">
       <header className="zeus-home-header">
         <a href="#home" aria-label="Zeus Auto Detailing home"><Image src={brandConfig.logoUrl} alt={brandConfig.businessName} width={715} height={275} priority sizes="180px" className="zeus-coming-soon__logo" /></a>
@@ -25,7 +28,7 @@ export function ComingSoon() {
         <figure className="zeus-craft"><Image src="/images/home/polishing.jpg" alt="Machine polishing a vehicle panel" width={700} height={394} sizes="(max-width: 800px) 180px, 280px" /><figcaption>The detailing work continues <span>Paint correction</span></figcaption></figure>
       </main>
       <section className="zeus-contact-band" aria-label="Shop contact information"><div><strong>The studio is open</strong><p>Appointments & inquiries by phone</p></div><div><span>Visit us</span><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(brandConfig.locationFull)}`} target="_blank" rel="noopener noreferrer">{brandConfig.location}</a></div><div><span>Contact</span><a href={phone}>{brandConfig.displayPhone}</a></div></section>
-      <footer className="zeus-coming-soon__footer"><span>© {new Date().getFullYear()} {brandConfig.businessName}</span><span>Built around the details.</span><a href="https://unsplash.com" target="_blank" rel="noopener noreferrer">Photography: Unsplash</a></footer>
+      <footer className="zeus-coming-soon__footer"><span>© <CurrentYear buildYear={new Date().getFullYear()} /> {brandConfig.businessName}</span><span>Built around the details.</span><a href="https://unsplash.com" target="_blank" rel="noopener noreferrer">Photography: Unsplash</a></footer>
     </div>
   </HomeIntro></>;
 }

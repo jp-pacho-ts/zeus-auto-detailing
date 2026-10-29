@@ -32,7 +32,7 @@ export const comingSoonStyles = `
   margin:0}
 
 .zeus-home-header{
-  height:100px;
+  min-height:100px;
   padding:0 5.55%;
   display:flex;
   justify-content:space-between;
@@ -283,8 +283,10 @@ export const comingSoonStyles = `
 
 @media(max-width:800px){
   .zeus-home-header{
-  height:87px;
-  padding:0 5%}
+  min-height:87px;
+  padding:10px 5%;
+  flex-wrap:wrap;
+  gap:4px 16px}
 .zeus-coming-soon__logo{
   width:138px}
 .zeus-home-city{
@@ -292,7 +294,9 @@ export const comingSoonStyles = `
 .zeus-home-header>div{
   font-size:.75rem}
 .zeus-hero{
-  min-height:1010px}
+  min-height:1010px;
+  display:flex;
+  flex-direction:column}
 .zeus-hero-photo{
   inset:0 0 30%}
 .zeus-hero-photo img{
@@ -300,7 +304,7 @@ export const comingSoonStyles = `
 .zeus-hero-photo:after{
   background:linear-gradient(0deg,#0b0b0c 0%,#0b0b0cee 20%,#0b0b0c40 85%)}
 .zeus-hero-copy{
-  padding:245px 5% 195px;
+  padding:245px 5% 32px;
   max-width:650px}
 .zeus-pretitle{
   margin-top:35px!important}
@@ -312,10 +316,15 @@ export const comingSoonStyles = `
   top:22px;
   left:5%;
   text-align:right}
+/* F1: in flow below the actions, pushed to the bottom right as in the reference, so larger text grows the hero
+   instead of sliding the copy under the photo. */
 .zeus-craft{
+  position:relative;
+  right:auto;
+  bottom:auto;
   width:180px;
-  right:5%;
-  bottom:24px}
+  margin:auto 5% 24px auto;
+  align-self:flex-end}
 .zeus-craft img{
   height:100px}
 .zeus-craft figcaption{
