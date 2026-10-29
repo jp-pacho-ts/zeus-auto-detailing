@@ -141,3 +141,12 @@ test("D3 loadForWrite takes unique sorted source and target date locks after the
   await loadForWrite(tx as never, id, 1, { dates: ["2027-03-06", "2027-03-02", "2027-03-04"] });
   assert.deepEqual(calls.map(args => args.slice(1)), ["2027-03-02", "2027-03-04", "2027-03-06"].map(day => [746002, createHash("sha256").update(day).digest().readInt32BE(0)]));
 });
+
+test("P1-28 work starts on the booked Manila day: earlier is refused with the day named, the day itself and later are not", async () => {
+  const { startDayRefusal } = await import("./bookings-write");
+  assert.equal(startDayRefusal("2026-10-31", "2026-10-29"), "This booking is for Sat, Oct 31. It can start on that day.");
+  assert.equal(startDayRefusal("2026-10-31", "2026-10-30"), "This booking is for Sat, Oct 31. It can start on that day.");
+  assert.equal(startDayRefusal("2027-01-01", "2026-12-31"), "This booking is for Fri, Jan 1. It can start on that day.");
+  assert.equal(startDayRefusal("2026-10-31", "2026-10-31"), null);
+  assert.equal(startDayRefusal("2026-10-28", "2026-10-29"), null, "a carried-over car keeps working");
+});

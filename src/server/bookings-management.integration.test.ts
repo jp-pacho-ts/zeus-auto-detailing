@@ -68,6 +68,8 @@ let server: Server,
   actorId = "";
 const day = (n = 4) =>
   new Date(Date.now() + 8 * 3600000 + n * 86400000).toISOString().slice(0, 10);
+// P1-28: staff can start or seat a booking only on its day; 10:00 Manila on day(n).
+const onDay = (n: number) => ({ db, now: () => new Date(day(n) + "T02:00:00.000Z") });
 const headers = (token?: string) =>
   new Headers({
     origin: c.origin,
@@ -726,7 +728,7 @@ test(
       actor(),
       a.id,
       { expectedRevision: 1, date: day(20), bayId: bay.id },
-      { db },
+      onDay(20),
     );
     for (const kind of ["CANCEL", "RESCHEDULE"]) {
       const input = {
@@ -758,7 +760,7 @@ test(
       b.id,
       line.id,
       { expectedRevision: 1, workStatus: "IN_PROGRESS" },
-      { db },
+      onDay(22),
     );
     assert.equal(
       code(
@@ -856,7 +858,7 @@ test(
         actor(),
         a.id,
         { expectedRevision: 1, date: day(offset + 2), bayId: bay.id },
-        { db },
+        onDay(offset + 2),
       );
       const moved = await admin.moveBooking(
         actor(),
@@ -902,7 +904,7 @@ test(
       actor(),
       a.id,
       { expectedRevision: 1, date: day(44), bayId: bay.id },
-      { db },
+      onDay(44),
     );
     await assert.rejects(
       db.$transaction(async (tx) => {

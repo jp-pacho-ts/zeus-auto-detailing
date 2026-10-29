@@ -10,6 +10,8 @@ import {
 } from "./context";
 
 // One SQL statement: every nested aggregate observes the same READ COMMITTED snapshot.
+// A card shows from its booked day on (P1-28): an occupied bay carries an earlier car over, but a
+// later-day booking never appears early, even if an older write seated it ahead of its day.
 export async function getDayBoard(
   actor: StaffActor,
   input: unknown,
@@ -30,7 +32,7 @@ export async function getDayBoard(
           'assignedWorkers',COALESCE((SELECT jsonb_agg(jsonb_build_object('staffId',s.id,'name',s.name,'isActive',s."isActive") ORDER BY s.name,s.id) FROM booking_worker_assignments w JOIN staff s ON s.id=w."staffId" WHERE w."bookingId"=b.id),'[]'),
           'progress',(SELECT jsonb_build_object('done',count(*) FILTER(WHERE l."workStatus"='DONE'),'total',count(*)) FROM booking_line_items l WHERE l."bookingId"=b.id AND l."removedAt" IS NULL)) AS card
         FROM bookings b LEFT JOIN bay_occupancies o ON o."bookingId"=b.id
-        WHERE b."snapshotVersion"='QUEUE_V3' AND b.status IN ('PENDING','CONFIRMED','IN_PROGRESS') AND (b."bookingDate"<=$1::date OR o."bayId" IS NOT NULL)
+        WHERE b."snapshotVersion"='QUEUE_V3' AND b.status IN ('PENDING','CONFIRMED','IN_PROGRESS') AND b."bookingDate"<=$1::date
       ) SELECT jsonb_build_object('date',$1::text,
         'closed',(SELECT jsonb_build_object('reason',d.reason) FROM blocked_dates d WHERE d.date=$1::date AND d."isFullDay" LIMIT 1),
         'workers',COALESCE((SELECT jsonb_agg(jsonb_build_object('staffId',id,'name',name,'isActive',"isActive") ORDER BY name,id) FROM staff WHERE "isActive"),'[]'),
