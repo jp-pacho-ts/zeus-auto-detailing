@@ -31,6 +31,8 @@ const events: { event: string; fields: Record<string, unknown> }[] = [];
 let seq = 0;
 const NOW = new Date("2027-03-01T02:00:00.000Z"); // Monday 10:00 Manila
 const opts = () => ({ db: app, now: () => NOW });
+// P1-28: a car goes into a bay only on its booked day (10:00 Manila).
+const at = (day: string) => ({ db: app, now: () => new Date(day + "T02:00:00.000Z") });
 const GRANTS_SQL = path.join(process.cwd(), "prisma", "sql", "p1-20-schedule-grants.sql");
 
 const lit = (x: unknown): string => x === null || x === undefined ? "NULL" : typeof x === "number" ? String(x) : `'${String(x).replace(/'/g, "''")}'`;
@@ -214,7 +216,7 @@ test("calendar: STAFF reads per-day counts by status and closed days; at most 42
 test("bays: removing (deactivating) a bay with a car in it is refused; empty bays can be removed and brought back", { skip }, async () => {
   const bay = await s.createBay(ADMIN, { name: "P120 Wash 1", sortOrder: 50, bayType: "WASH" }, opts());
   const id = await book("2027-03-18");
-  const seated = await s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-18", bayId: bay.id }, opts());
+  const seated = await s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-18", bayId: bay.id }, at("2027-03-18"));
   const current = (await s.listBays(ADMIN, opts())).find((b) => b.id === bay.id)!;
   await refused(s.updateBay(ADMIN, bay.id, { expectedUpdatedAt: current.updatedAt, isActive: false }, opts()), "SCHEDULE_CONFLICT", "car in bay",
     (e) => assert.match(e.message, /Move the car out of P120 Wash 1 before removing it/));

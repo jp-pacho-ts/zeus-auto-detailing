@@ -5,6 +5,7 @@ import type {
   AdminQueueDay,
   AdminWriteResult,
 } from "@/types/admin-contracts";
+import { brandConfig } from "@/config/brand";
 import {
   AddLineSchema,
   AdminDaySchema,
@@ -54,6 +55,28 @@ import { lockBookingDates } from "@/server/bookings-locks";
 
 const OPEN: BookingStatus[] = ["PENDING", "CONFIRMED", "IN_PROGRESS"];
 const today = (o: AdminOptions) => manilaDate(o.now?.() ?? new Date());
+const dayLabel = new Intl.DateTimeFormat(brandConfig.locale, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+// P1-28: work (a bay, a started service, IN_PROGRESS, COMPLETED) waits for the booked Manila
+// day; confirming ahead does not. Returns the staff message, or null once the day has come.
+export function startDayRefusal(bookedDay: string, now: string): string | null {
+  if (now >= bookedDay) return null;
+  return `This booking is for ${dayLabel.format(dateCarrier(bookedDay))}. It can start on that day.`;
+}
+async function refuseBeforeDay(
+  tx: StaffTx,
+  bookingId: string,
+  bookingDate: Date,
+  options: AdminOptions,
+): Promise<void> {
+  const message = startDayRefusal(isoDay(bookingDate), today(options));
+  if (message) await conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId, message);
+}
 const result = async (
   tx: StaffTx,
   id: string,
@@ -167,6 +190,8 @@ export async function setBookingStatus(
       return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
     if (!canPerform(STATUS_OP[v.status], actor.role))
       return conflict(tx, "FORBIDDEN", bookingId);
+    if (v.status === "IN_PROGRESS" || v.status === "COMPLETED")
+      await refuseBeforeDay(tx, bookingId, b.bookingDate, options);
     const v3 = b.snapshotVersion === "QUEUE_V3";
     if (
       v3 &&
@@ -647,6 +672,9 @@ export async function setLineStatus(
     if (!OPEN.includes(b.status))
       return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
     await activeLine(tx, bookingId, lid, b.lineItems);
+    // Putting a service back to WAITING stays allowed early, so staff can undo early work.
+    if (v.workStatus !== "WAITING")
+      await refuseBeforeDay(tx, bookingId, b.bookingDate, options);
     const line = b.lineItems.find((l) => l.id === lid)!;
     if (line.workStatus === v.workStatus) return result(tx, bookingId, true);
     const starts =
@@ -756,6 +784,15 @@ export async function setBay(
         "date",
         "Assign a bay on the booked day or a later day of the job.",
       );
+    // Return to Waiting (bayId null) stays allowed on any day, so an early seat can be undone.
+    if (v.bayId) {
+      await refuseBeforeDay(tx, bookingId, b.bookingDate, options);
+      if (v.date > today(options))
+        throw fieldError(
+          "date",
+          "A car can go into a bay on today's board only.",
+        );
+    }
     const current = await tx.bayOccupancy.findUnique({ where: { bookingId } });
     if ((current?.bayId ?? null) === v.bayId)
       return result(tx, bookingId, true);

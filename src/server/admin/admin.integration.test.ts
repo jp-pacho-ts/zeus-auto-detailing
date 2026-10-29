@@ -31,6 +31,8 @@ let ring: import("./history-key-ring").HistoryKeyRing;
 let seq = 0;
 const NOW = new Date("2027-03-01T02:00:00.000Z"); // 10:00 Manila on 2027-03-01
 const opts = (extra: Record<string, unknown> = {}) => ({ db: app, now: () => NOW, ...extra });
+// P1-28: work cannot begin before the booked day, so starts and bay moves run on that day (10:00 Manila).
+const at = (day: string) => opts({ now: () => new Date(day + "T02:00:00.000Z") });
 
 const lit = (x: unknown): string => x === null || x === undefined ? "NULL" : typeof x === "number" ? String(x) : `'${String(x).replace(/'/g, "''")}'`;
 async function insert(tx: { $executeRawUnsafe(q: string): Promise<number> }, table: string, row: Record<string, unknown>) {
@@ -117,12 +119,12 @@ test("W1 status: ADMIN confirms; STAFF cannot; stale revision, no-op policy, com
   await refused(s.setBookingStatus(STAFF, id, { expectedRevision: 2, status: "CONFIRMED" }, opts()), "FORBIDDEN", "STAFF same-status");
   assert.equal((await audits(id)).length, 1);
   // STAFF starts and completes (D4); completion needs every active line done.
-  const started = await s.setBookingStatus(STAFF, id, { expectedRevision: 2, status: "IN_PROGRESS" }, opts());
+  const started = await s.setBookingStatus(STAFF, id, { expectedRevision: 2, status: "IN_PROGRESS" }, at("2027-03-02"));
   assert.equal(started.booking.status, "IN_PROGRESS");
-  await refused(s.setBookingStatus(STAFF, id, { expectedRevision: 3, status: "COMPLETED" }, opts()), "BOOKING_NOT_MANAGEABLE", "open lines");
+  await refused(s.setBookingStatus(STAFF, id, { expectedRevision: 3, status: "COMPLETED" }, at("2027-03-02")), "BOOKING_NOT_MANAGEABLE", "open lines");
   const [line] = await lineIds(id);
-  await s.setLineStatus(STAFF, id, line, { expectedRevision: 3, workStatus: "DONE" }, opts());
-  const done = await s.setBookingStatus(STAFF, id, { expectedRevision: 4, status: "COMPLETED" }, opts());
+  await s.setLineStatus(STAFF, id, line, { expectedRevision: 3, workStatus: "DONE" }, at("2027-03-02"));
+  const done = await s.setBookingStatus(STAFF, id, { expectedRevision: 4, status: "COMPLETED" }, at("2027-03-02"));
   assert.equal(done.booking.status, "COMPLETED");
   const row = await db.booking.findUniqueOrThrow({ where: { id } });
   assert.ok(row.terminalAt);
@@ -152,7 +154,7 @@ test("W2 decline and D5 reinstate: ADMIN only, reason required, fixed decline ki
 test("W3 move: ADMIN, cap-checked target, closed days, range, new position and window; earlier bay days released", { skip }, async () => {
   const id = await book(select("S", "basic-wash"), "2027-03-04");
   const bay = await s.createBay(ADMIN, { name: "Move Bay", sortOrder: 1, bayType: "WASH" }, opts());
-  await s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-04", bayId: bay.id }, opts());
+  await s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-04", bayId: bay.id }, at("2027-03-04"));
   await refused(s.moveBooking(STAFF, id, { expectedRevision: 2, toDate: "2027-03-05", toQueueCode: "WASH" }, opts()), "FORBIDDEN", "STAFF move");
   for (let i = 0; i < 5; i++) await book(select("S", "basic-wash"), "2027-03-06");
   await refused(s.moveBooking(ADMIN, id, { expectedRevision: 2, toDate: "2027-03-06", toQueueCode: "WASH" }, opts()), "SCHEDULE_CONFLICT", "full target",
@@ -210,11 +212,11 @@ test("W5-W8 lines: add from the head release, composition rules, soft removal, A
   const priceAudits = (await audits(id)).filter((a) => a.action === "PRICE_SET");
   assert.deepEqual(priceAudits.map((a) => [a.previousPriceCentavos, a.newPriceCentavos]), [[null, 1_200_000], [1_200_000, 1_250_000]]);
   // Line status: the first IN_PROGRESS line starts the booking (§16, R1), one revision, two audit rows.
-  const started = await s.setLineStatus(STAFF, id, coating.id, { expectedRevision: 6, workStatus: "IN_PROGRESS" }, opts());
+  const started = await s.setLineStatus(STAFF, id, coating.id, { expectedRevision: 6, workStatus: "IN_PROGRESS" }, at("2027-03-09"));
   assert.deepEqual([started.booking.status, started.booking.revision], ["IN_PROGRESS", 7]);
   const last = (await audits(id)).slice(-2).map((a) => [a.action, a.toRevision]);
   assert.deepEqual(last.sort(), [["LINE_STATUS_CHANGED", 7], ["STATUS_CHANGED", 7]]);
-  assert.equal((await s.setLineStatus(STAFF, id, coating.id, { expectedRevision: 7, workStatus: "IN_PROGRESS" }, opts())).noChange, true);
+  assert.equal((await s.setLineStatus(STAFF, id, coating.id, { expectedRevision: 7, workStatus: "IN_PROGRESS" }, at("2027-03-09"))).noChange, true);
   // The last base cannot go.
   await s.removeLine(ADMIN, id, wash.id, { expectedRevision: 7 }, opts());
   await refused(s.removeLine(ADMIN, id, coating.id, { expectedRevision: 8 }, opts()), "VALIDATION_ERROR", "last base");
@@ -227,16 +229,16 @@ test("W9 bays and W10/W11 bay list: ADMIN assigns and manages (LE Amendment 4), 
   await refused(s.createBay(ADMIN, { name: " bay 1 ", sortOrder: 2, bayType: "WASH" }, opts()), "VALIDATION_ERROR", "duplicate name");
   const other = await s.createBay(ADMIN, { name: "Bay 2", sortOrder: 2, bayType: "WASH" }, opts());
   await refused(s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-09", bayId: bay.id }, opts()), "VALIDATION_ERROR", "before the day");
-  const a1 = await s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-10", bayId: bay.id }, opts());
+  const a1 = await s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-10", bayId: bay.id }, at("2027-03-10"));
   assert.deepEqual(a1.booking.bay, { id: bay.id, name: "Bay 1" });
-  assert.equal((await s.setBay(ADMIN, id, { expectedRevision: 2, date: "2027-03-10", bayId: bay.id }, opts())).noChange, true);
-  await s.setBay(ADMIN, id, { expectedRevision: 2, date: "2027-03-10", bayId: other.id }, opts());
-  const cleared = await s.setBay(ADMIN, id, { expectedRevision: 3, date: "2027-03-10", bayId: null }, opts());
+  assert.equal((await s.setBay(ADMIN, id, { expectedRevision: 2, date: "2027-03-10", bayId: bay.id }, at("2027-03-10"))).noChange, true);
+  await s.setBay(ADMIN, id, { expectedRevision: 2, date: "2027-03-10", bayId: other.id }, at("2027-03-10"));
+  const cleared = await s.setBay(ADMIN, id, { expectedRevision: 3, date: "2027-03-10", bayId: null }, at("2027-03-10"));
   assert.equal(cleared.booking.bay, null);
   await refused(s.updateBay(ADMIN, other.id, { expectedUpdatedAt: "2020-01-01T00:00:00.000Z", isActive: false }, opts()), "VERSION_CONFLICT", "stale bay");
   const off = await s.updateBay(ADMIN, other.id, { expectedUpdatedAt: other.updatedAt, isActive: false }, opts());
   assert.equal(off.isActive, false);
-  await refused(s.setBay(ADMIN, id, { expectedRevision: 4, date: "2027-03-10", bayId: other.id }, opts()), "VALIDATION_ERROR", "inactive bay");
+  await refused(s.setBay(ADMIN, id, { expectedRevision: 4, date: "2027-03-10", bayId: other.id }, at("2027-03-10")), "VALIDATION_ERROR", "inactive bay");
   assert.deepEqual((await db.bookingAuditEvent.findMany({ where: { bayId: bay.id, bookingId: null } })).map((a) => a.action), ["BAY_LIST_CHANGED"]);
 });
 
@@ -458,7 +460,7 @@ test("Codex F2: historical LEGACY_V1 and CATALOG_V2 can complete without mutable
     });
     const originalLines = await db.bookingLineItem.findMany({ where: { bookingId: id } });
     if (version === "CATALOG_V2") await refused(s.setLineStatus(STAFF, id, lineId, { expectedRevision: 1, workStatus: "DONE" }, opts()), "BOOKING_NOT_MANAGEABLE", "historical line stays immutable");
-    const completed = await s.setBookingStatus(STAFF, id, { expectedRevision: 1, status: "COMPLETED" }, opts());
+    const completed = await s.setBookingStatus(STAFF, id, { expectedRevision: 1, status: "COMPLETED" }, at("2027-04-04"));
     assert.deepEqual([completed.booking.status, completed.booking.revision], ["COMPLETED", 2]);
     assert.deepEqual(await db.bookingLineItem.findMany({ where: { bookingId: id } }), originalLines);
     assert.deepEqual((await audits(id)).map((a) => [a.action, a.fromStatus, a.toStatus, a.fromRevision, a.toRevision]), [["STATUS_CHANGED", "IN_PROGRESS", "COMPLETED", 1, 2]]);
@@ -668,7 +670,7 @@ test(
         STAFF,
         a,
         { expectedRevision: 1, date: day, bayId: bay.id },
-        opts(),
+        at("2027-06-03"),
       ),
       "FORBIDDEN",
       "LE ADMIN-only move",
@@ -678,7 +680,7 @@ test(
         ADMIN,
         a,
         { expectedRevision: 1, date: day, bayId: paint.id },
-        opts(),
+        at("2027-06-03"),
       ),
       "SCHEDULE_CONFLICT",
       "wrong type",
@@ -687,7 +689,7 @@ test(
       ADMIN,
       a,
       { expectedRevision: 1, date: day, bayId: bay.id },
-      opts(),
+      at("2027-06-03"),
     );
     assert.equal(assigned.booking.occupancy?.bay.id, bay.id);
     await refused(
@@ -695,7 +697,7 @@ test(
         ADMIN,
         b,
         { expectedRevision: 1, date: "2027-06-03", bayId: bay.id },
-        opts(),
+        at("2027-06-03"),
       ),
       "SCHEDULE_CONFLICT",
       "busy across days",
@@ -766,7 +768,7 @@ test(
         a,
         (await lineIds(a))[0],
         { expectedRevision: 3, workStatus: "DONE" },
-        opts(),
+        at("2027-06-03"),
       ),
     ]);
     assert.deepEqual(outcomes.map((x) => x.status).sort(), [
@@ -781,21 +783,21 @@ test(
           a,
           current.lines[0].id,
           { expectedRevision: current.revision, workStatus: "DONE" },
-          opts(),
+          at("2027-06-03"),
         )
       ).booking;
     const done = await s.setBookingStatus(
       STAFF,
       a,
       { expectedRevision: current.revision, status: "COMPLETED" },
-      opts(),
+      at("2027-06-03"),
     );
     assert.equal(done.booking.occupancy, null);
     await s.setBay(
       ADMIN,
       b,
       { expectedRevision: 1, date: "2027-06-03", bayId: bay.id },
-      opts(),
+      at("2027-06-03"),
     );
     assert.ok(
       !(await s.getDayBoard(STAFF, { date: "2027-06-04" }, opts())).bays
@@ -919,7 +921,7 @@ test(
           ADMIN,
           id,
           { date: day, expectedRevision: 1, bayId: bay.id },
-          opts(),
+          at(day),
         ),
       ),
     );
@@ -948,7 +950,7 @@ test(
           ADMIN,
           winner.id,
           { date: day, expectedRevision: 2, bayId },
-          opts(),
+          at(day),
         ),
       ),
     );
@@ -1078,7 +1080,7 @@ test(
       ADMIN,
       id,
       { expectedRevision: 1, date: day, bayId: bay.id },
-      opts(),
+      at(day),
     );
     await assert.rejects(
       db.$transaction(async (tx) => {
@@ -1158,7 +1160,7 @@ test(
 test("P1-17 regression: ADMIN can release a bay after a visit carries beyond 365 days", { skip }, async () => {
   const id=await book(select("S","basic-wash"),"2027-06-20");
   const bay=await s.createBay(ADMIN,{name:"Long carry-over",sortOrder:170,bayType:"WASH"},opts());
-  await s.setBay(ADMIN,id,{expectedRevision:1,date:"2027-06-20",bayId:bay.id},opts());
+  await s.setBay(ADMIN,id,{expectedRevision:1,date:"2027-06-20",bayId:bay.id},at("2027-06-20"));
   const board=await s.getDayBoard(STAFF,{date:"2028-07-21"},opts());assert.ok(board.bays.find(b=>b.id===bay.id)?.cards.some(c=>c.id===id));
   const released=await s.setBay(ADMIN,id,{expectedRevision:2,date:"2028-07-21",bayId:null},opts());assert.equal(released.booking.occupancy,null);
 });
@@ -1175,7 +1177,7 @@ test("P1-17 board: large days are complete, future waiting excluded, inactive oc
   assert.deepEqual(own.map(c => c.queuePosition), Array.from({ length: 105 }, (_, i) => i + 1));
   assert.ok(!board.queues.flatMap(q => q.waiting).some(c => c.id === future));
   const bay = await s.createBay(ADMIN, { name: "Retired occupied bay", bayType: "WASH", sortOrder: 180 }, opts());
-  await s.setBay(ADMIN, ids[0], { expectedRevision: 1, date: day, bayId: bay.id }, opts());
+  await s.setBay(ADMIN, ids[0], { expectedRevision: 1, date: day, bayId: bay.id }, at(day));
   // P1-20: updateBay now refuses to remove an occupied bay, so an inactive occupied bay (older
   // data) is set up directly; the board must still show it with its car.
   await refused(s.updateBay(ADMIN, bay.id, { expectedUpdatedAt: bay.updatedAt, isActive: false }, opts()), "SCHEDULE_CONFLICT", "occupied bay removal");
@@ -1194,8 +1196,8 @@ test("P1-17 board: large days are complete, future waiting excluded, inactive oc
   await refused(s.assignWorker(ADMIN, ids[1], worker.id, { expectedRevision: 3 }, opts()), "SCHEDULE_CONFLICT", "inactive reassign");
   await refused(s.assignWorker(ADMIN, ids[3], randomUUID(), { expectedRevision: 1 }, opts()), "NOT_FOUND", "unknown worker");
   await s.assignWorker(ADMIN, ids[2], ADMIN.staffId, { expectedRevision: 1 }, opts());
-  await s.setLineStatus(STAFF, ids[2], (await lineIds(ids[2]))[0], { expectedRevision: 2, workStatus: "DONE" }, opts());
-  const done = await s.setBookingStatus(STAFF, ids[2], { expectedRevision: 3, status: "COMPLETED" }, opts());
+  await s.setLineStatus(STAFF, ids[2], (await lineIds(ids[2]))[0], { expectedRevision: 2, workStatus: "DONE" }, at(day));
+  const done = await s.setBookingStatus(STAFF, ids[2], { expectedRevision: 3, status: "COMPLETED" }, at(day));
   assert.equal(done.booking.assignedWorkers[0].staffId, ADMIN.staffId);
   await refused(s.unassignWorker(ADMIN, ids[2], ADMIN.staffId, { expectedRevision: 4 }, opts()), "BOOKING_NOT_MANAGEABLE", "completed history stays assigned");
   assert.ok(!(await s.getDayBoard(STAFF, { date: day }, opts())).queues.flatMap(q => q.waiting).some(c => c.id === ids[2]));
@@ -1204,8 +1206,8 @@ test("P1-17 board: large days are complete, future waiting excluded, inactive oc
 test("P1-17 DB retention: even an audited ADMIN delete cannot erase completed worker history", { skip }, async () => {
   const id = await book(select("S", "basic-wash"), "2027-06-24");
   await s.assignWorker(ADMIN, id, STAFF.staffId, { expectedRevision: 1 }, opts());
-  await s.setLineStatus(STAFF, id, (await lineIds(id))[0], { expectedRevision: 2, workStatus: "DONE" }, opts());
-  await s.setBookingStatus(STAFF, id, { expectedRevision: 3, status: "COMPLETED" }, opts());
+  await s.setLineStatus(STAFF, id, (await lineIds(id))[0], { expectedRevision: 2, workStatus: "DONE" }, at("2027-06-24"));
+  await s.setBookingStatus(STAFF, id, { expectedRevision: 3, status: "COMPLETED" }, at("2027-06-24"));
   const rollback = new Error("Rollback accepted forbidden deletion");
   let accepted = false;
   try {
@@ -1223,4 +1225,76 @@ test("P1-17 DB retention: even an audited ADMIN delete cannot erase completed wo
   assert.equal(accepted, false, "DB must retain closed-job worker history, not only rely on the API");
   assert.equal(await db.bookingWorkerAssignment.count({ where: { bookingId: id } }), 1);
   assert.equal((await detail(id)).revision, 4);
+});
+
+// P1-28 (live bug): a booking for a later day was put in a bay and started on today's board.
+test("P1-28: before its Manila day a booking can't take a bay, start a service, start or complete; confirming ahead stays allowed", { skip }, async () => {
+  const day = "2027-03-03"; // NOW is 10:00 Manila on 2027-03-01
+  const early = "This booking is for Wed, Mar 3. It can start on that day.";
+  const says = (label: string) => (e: import("./errors").AdminServiceError) => assert.equal(e.message, early, label);
+  const id = await book(select("S", "basic-wash"), day);
+  const [line] = await lineIds(id);
+  const bay = await s.createBay(ADMIN, { name: "P128 early bay", sortOrder: 280, bayType: "WASH" }, opts());
+  await refused(s.setBay(ADMIN, id, { expectedRevision: 1, date: day, bayId: bay.id }, opts()), "BOOKING_NOT_MANAGEABLE", "bay before the day", says("bay"));
+  for (const workStatus of ["IN_PROGRESS", "DONE"] as const)
+    await refused(s.setLineStatus(STAFF, id, line, { expectedRevision: 1, workStatus }, opts()), "BOOKING_NOT_MANAGEABLE", "service " + workStatus, says(workStatus));
+  await refused(s.setBookingStatus(STAFF, id, { expectedRevision: 1, status: "IN_PROGRESS" }, opts()), "BOOKING_NOT_MANAGEABLE", "start pending", says("start"));
+  const confirmed = await s.setBookingStatus(ADMIN, id, { expectedRevision: 1, status: "CONFIRMED" }, opts());
+  assert.deepEqual([confirmed.booking.status, confirmed.booking.revision], ["CONFIRMED", 2], "confirming ahead of the day");
+  await refused(s.setBookingStatus(STAFF, id, { expectedRevision: 2, status: "IN_PROGRESS" }, opts()), "BOOKING_NOT_MANAGEABLE", "start confirmed", says("start confirmed"));
+  await refused(s.setLineStatus(STAFF, id, line, { expectedRevision: 2, workStatus: "IN_PROGRESS" }, opts()), "BOOKING_NOT_MANAGEABLE", "service on confirmed", says("service confirmed"));
+  // Nothing was written by any refusal.
+  const row = await db.booking.findUniqueOrThrow({ where: { id }, include: { lineItems: true } });
+  assert.deepEqual([row.status, row.revision, row.lineItems[0].workStatus], ["CONFIRMED", 2, "WAITING"]);
+  assert.equal(await db.bayOccupancy.count({ where: { bookingId: id } }), 0);
+  assert.equal(await db.bookingBayAssignment.count({ where: { bookingId: id } }), 0);
+  assert.deepEqual((await audits(id)).map((a) => a.action), ["STATUS_CHANGED"]);
+  // The Manila day boundary: 23:59:59.999 on Mar 2 is still early; 00:00 on Mar 3 is the day.
+  const lastMoment = opts({ now: () => new Date("2027-03-02T15:59:59.999Z") });
+  await refused(s.setBay(ADMIN, id, { expectedRevision: 2, date: day, bayId: bay.id }, lastMoment), "BOOKING_NOT_MANAGEABLE", "one ms early", says("boundary"));
+  const midnight = opts({ now: () => new Date("2027-03-02T16:00:00.000Z") });
+  assert.equal((await s.setBay(ADMIN, id, { expectedRevision: 2, date: day, bayId: bay.id }, midnight)).booking.occupancy?.bay.id, bay.id);
+  const started = await s.setLineStatus(STAFF, id, line, { expectedRevision: 3, workStatus: "IN_PROGRESS" }, midnight);
+  assert.equal(started.booking.status, "IN_PROGRESS", "on the day the first service starts the booking");
+});
+
+test("P1-28: a bay is set on today's board only; an earlier car can't be put in a bay on a later day", { skip }, async () => {
+  const id = await book(select("S", "basic-wash"), "2027-03-01"); // today
+  const bay = await s.createBay(ADMIN, { name: "P128 later-day bay", sortOrder: 281, bayType: "WASH" }, opts());
+  await refused(s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-02", bayId: bay.id }, opts()), "VALIDATION_ERROR", "tomorrow's board",
+    (e) => assert.deepEqual(e.fieldErrors, { date: ["A car can go into a bay on today's board only."] }));
+  assert.equal(await db.bayOccupancy.count({ where: { bookingId: id } }), 0);
+  assert.equal((await s.setBay(ADMIN, id, { expectedRevision: 1, date: "2027-03-01", bayId: bay.id }, opts())).booking.occupancy?.bay.id, bay.id);
+});
+
+test("P1-28: a future booking already in a bay (live bad row) stays off today's board and can be cleared, not worked", { skip }, async () => {
+  const day = "2027-03-03";
+  const early = "This booking is for Wed, Mar 3. It can start on that day.";
+  const says = (label: string) => (e: import("./errors").AdminServiceError) => assert.equal(e.message, early, label);
+  const seated = await book(select("S", "basic-wash"), day), started = await book(select("S", "basic-wash"), day);
+  const carried = await book(select("S", "basic-wash"), "2027-02-28");
+  const bays = await Promise.all([282, 283, 284].map((n) => s.createBay(ADMIN, { name: "P128 stuck " + n, sortOrder: n, bayType: "WASH" }, opts())));
+  // The bad rows as the old code wrote them: seated and started on their day's board ahead of time.
+  // Running those writes on the day itself gives the same stored state.
+  await s.setBay(ADMIN, seated, { expectedRevision: 1, date: day, bayId: bays[0].id }, at(day));
+  await s.setBay(ADMIN, started, { expectedRevision: 1, date: day, bayId: bays[1].id }, at(day));
+  const [startedLine] = await lineIds(started);
+  await s.setLineStatus(STAFF, started, startedLine, { expectedRevision: 2, workStatus: "DONE" }, at(day));
+  await s.setBay(ADMIN, carried, { expectedRevision: 1, date: "2027-02-28", bayId: bays[2].id }, at("2027-02-28"));
+  // Today's board: neither future car in a bay or Waiting; the earlier open car carries over.
+  const today = await s.getDayBoard(STAFF, { date: "2027-03-01" }, opts());
+  const shown = [...today.queues.flatMap((q) => q.waiting), ...today.bays.flatMap((b) => b.cards)].map((c) => c.id);
+  assert.ok(!shown.includes(seated) && !shown.includes(started), "future cars stay off today's board");
+  assert.equal(today.bays.find((b) => b.id === bays[2].id)?.cards[0]?.id, carried, "carry-over kept");
+  const onDay = await s.getDayBoard(STAFF, { date: day }, opts());
+  assert.equal(onDay.bays.find((b) => b.id === bays[0].id)?.cards[0]?.id, seated, "visible on its own day");
+  // Early work stays refused; undoing is allowed.
+  await refused(s.setBookingStatus(STAFF, started, { expectedRevision: 3, status: "COMPLETED" }, opts()), "BOOKING_NOT_MANAGEABLE", "complete early", says("complete"));
+  const undone = await s.setLineStatus(STAFF, started, startedLine, { expectedRevision: 3, workStatus: "WAITING" }, opts());
+  assert.equal(undone.booking.lines[0].workStatus, "WAITING", "a service can go back to waiting");
+  // Return to Waiting from the booking's own day board clears the bay.
+  const cleared = await s.setBay(ADMIN, seated, { expectedRevision: 2, date: day, bayId: null }, opts());
+  assert.equal(cleared.booking.occupancy, null);
+  assert.equal(await db.bookingBayAssignment.count({ where: { bookingId: seated } }), 0);
+  await refused(s.setBay(ADMIN, seated, { expectedRevision: 3, date: day, bayId: bays[0].id }, opts()), "BOOKING_NOT_MANAGEABLE", "re-seat early", says("re-seat"));
 });
