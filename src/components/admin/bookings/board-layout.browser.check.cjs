@@ -7,7 +7,7 @@ const { test } = require('node:test');
 const path = require('node:path');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
-test('Board day sits right of the view switch from lg; row columns share one height; empty columns keep a card height', { timeout: 90_000 }, async () => {
+test('Board day sits right of the view switch from lg; row columns share one height; empty columns keep a card height from lg', { timeout: 90_000 }, async () => {
   const upstream = new URL(process.env.P120_BROWSER_ORIGIN);
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(upstream.hostname), 'Synthetic loopback app only');
   assert.equal(upstream.origin, process.env.P120_BROWSER_ORIGIN);
@@ -67,7 +67,16 @@ test('Board day sits right of the view switch from lg; row columns share one hei
           const heights = line.map((c) => c.height);
           assert.ok(Math.max(...heights) - Math.min(...heights) <= 1, width + 'px ' + key + ' columns share one height: ' + JSON.stringify(line.map((c) => [c.label, Math.round(c.height)])));
         }
-        for (const c of empty) assert.ok(c.height >= m.tallestCard, width + 'px empty ' + c.label + ' keeps at least one card height: ' + Math.round(c.height) + ' < ' + Math.round(m.tallestCard));
+        if (width >= 1024) {
+          for (const c of empty) assert.ok(c.height >= m.tallestCard, width + 'px empty ' + c.label + ' keeps at least one card height: ' + Math.round(c.height) + ' < ' + Math.round(m.tallestCard));
+        } else {
+          // At md the sidebar leaves one column per line: nothing to line up, so the slot stays short.
+          for (const c of empty) {
+            assert.ok(c.height >= 96, width + 'px empty ' + c.label + ' keeps a visible slot: ' + Math.round(c.height));
+            if (lines.get(c.row + '@' + Math.round(c.top)).length === 1)
+              assert.ok(c.height < m.tallestCard, width + 'px empty ' + c.label + ' alone on its line is not card height: ' + Math.round(c.height) + ' >= ' + Math.round(m.tallestCard));
+          }
+        }
       } else {
         for (const c of empty) assert.ok(c.height >= 96, width + 'px empty ' + c.label + ' keeps a visible slot: ' + Math.round(c.height));
       }

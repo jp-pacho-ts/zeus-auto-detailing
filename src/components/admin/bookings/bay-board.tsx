@@ -195,10 +195,11 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
         };
       })
     : [];
-  // Card heights measured for P1-22: ADMIN about 410px (move controls), STAFF about 226px.
+  // Card heights measured for P1-22: ADMIN about 410px (move controls), STAFF about 226px. From lg
+  // only: at md the sidebar leaves one column per line, so there is nothing to line up with.
   const emptySlot =
     "flex min-h-24 flex-1 items-center justify-center px-3 text-xs text-muted-foreground " +
-    (role === "ADMIN" ? "md:min-h-[26rem]" : "md:min-h-[14rem]");
+    (role === "ADMIN" ? "lg:min-h-[26rem]" : "lg:min-h-[14rem]");
   function doneView(b: AdminQueueBooking) {
     return (
       <article
@@ -445,7 +446,7 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
                   ))}
                 </select>
               </label>
-              {/* P1-22: columns stretch to the row's tallest; an empty slot is one card tall from md. */}
+              {/* P1-22: columns stretch to the row's tallest; an empty slot is one card tall from lg. */}
               <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 md:[grid-template-columns:repeat(auto-fill,minmax(14rem,1fr))]">
                 {lane.columns.map((c) => (
                   <section
