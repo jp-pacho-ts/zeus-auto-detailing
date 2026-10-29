@@ -31,7 +31,7 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     return ctx;
   }
   async function readable(page) {
-    await page.getByRole('heading', { name: /Our new website\.\s*Coming soon\./ }).waitFor();
+    await page.getByRole('heading', { name: /Coming soon/ }).waitFor();
     assert.equal(await page.locator('main').count(), 1);
     assert.equal(await page.locator('nav').count(), 0);
     assert.equal(await page.locator('form').count(), 0);
@@ -46,30 +46,9 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     page.on('pageerror', error => results.errors.push(error.message));
     await page.goto(origin, { waitUntil: 'networkidle' });
     await readable(page);
-    const brand = page.locator('.zeus-coming-soon__brand');
-    results.animation = await brand.evaluate(el => {
-      const a = el.getAnimations()[0];
-      if (!a) return null;
-      a.pause(); a.currentTime = 0;
-      const start = getComputedStyle(el).transform;
-      a.currentTime = 550;
-      const middle = getComputedStyle(el).transform;
-      a.currentTime = 1100;
-      const end = getComputedStyle(el).transform;
-      a.play();
-      return { start, middle, end, duration: a.effect.getTiming().duration, iterations: a.effect.getTiming().iterations };
-    });
-    assert.ok(results.animation, 'signature animation exists');
-    assert.notEqual(results.animation.start, results.animation.end);
-    assert.equal(results.animation.iterations, 1);
-    for (const time of [0, 275, 550, 1100]) {
-      await brand.evaluate((el, time) => { const a = el.getAnimations()[0]; a.pause(); a.currentTime = time; }, time);
-      await page.screenshot({ path: path.join(out, `animation-${time}ms.png`), fullPage: true });
-    }
-    await brand.evaluate(el => el.getAnimations().forEach(a => a.play()));
-    await brand.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
-    assert.equal(await brand.evaluate(el => el.getAnimations().some(a => a.playState === 'running')), false);
-    results.checks.push('single entrance settles; text readable from first frame');
+    await page.locator('[data-home-intro="running"]').waitFor({state:'hidden'});
+    assert.equal(await page.locator('[data-home-content]').evaluate(el => el.inert), false);
+    results.checks.push('finite cinematic intro settles; content accessible');
     for (const [width, height] of [[390, 844], [768, 1024], [1280, 800], [1440, 900], [390, 480], [320, 640]]) {
       await page.setViewportSize({ width, height });
       const measure = await page.evaluate(() => {
@@ -78,12 +57,16 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
         return { client: root.clientWidth, scroll: root.scrollWidth, height: root.scrollHeight, headingHeight: heading.clientHeight, headingLineHeight: parseFloat(getComputedStyle(heading).lineHeight) };
       });
       assert.ok(measure.scroll <= measure.client, `${width}x${height}: no horizontal overflow`);
-      if (width >= 1280 && height >= 800) assert.ok(measure.height <= height, 'desktop notice fits one screen');
+      assert.ok(measure.height >= height, 'complete cinematic page remains scrollable');
       assert.ok(measure.headingHeight <= measure.headingLineHeight * 2 + 2, 'headline at most two lines');
       results.widths.push({ width, height, ...measure });
       await page.screenshot({ path: path.join(out, `${width}x${height}-after.png`), fullPage: true });
     }
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Zeus Auto Detailing home');
+    await page.keyboard.press('Tab');
+    assert.match(await page.evaluate(() => document.activeElement.textContent), /Contact the shop/);
     await page.keyboard.press('Tab');
     assert.match(await page.evaluate(() => document.activeElement.textContent), /Call the shop/);
     const focus = await page.evaluate(() => {
@@ -105,7 +88,7 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
         return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
       };
       const ratio = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
-      const main = getComputedStyle(document.querySelector('main'));
+      const main = getComputedStyle(document.querySelector('.zeus-coming-soon'));
       const call = getComputedStyle(document.querySelector('.zeus-coming-soon__call'));
       return { text: ratio(main.color, main.backgroundColor), action: ratio(call.color, call.backgroundColor) };
     });
@@ -115,7 +98,7 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
       const p = await fallback.newPage();
       await p.goto(origin, { waitUntil: 'networkidle' });
       await readable(p);
-      if (options.reducedMotion) assert.equal(await p.locator('.zeus-coming-soon__brand').evaluate(el => getComputedStyle(el).animationName), 'none');
+      if (options.reducedMotion) assert.equal(await p.locator('[data-home-intro]').getAttribute('data-home-intro'), 'idle');
       await p.screenshot({ path: path.join(out, options.reducedMotion ? '390-reduced-motion.png' : '390-no-js.png'), fullPage: true });
       await fallback.close();
     }

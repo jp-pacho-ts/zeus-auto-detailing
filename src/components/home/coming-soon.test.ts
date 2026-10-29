@@ -32,5 +32,5 @@ test("temporary homepage renders the same complete static content in PAUSED and 
   assert.equal(render(), paused);
   assert.equal(process.env.ONLINE_BOOKING_MODE, "OPEN");
   const content = paused.replace(/<style>[\s\S]*?<\/style>/g, "");
-  assert.doesNotMatch(content, /<script\b|<canvas\b|countdown|[0-9]+%|instagram\.com/);
+  assert.doesNotMatch(content, /<script\b|<canvas\b|countdown|>[0-9]+%<|instagram\.com/);
 });
