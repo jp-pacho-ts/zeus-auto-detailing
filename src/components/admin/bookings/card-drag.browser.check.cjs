@@ -124,6 +124,75 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
     assert.equal(puts.length, 2, 'one PUT for the return');
     assert.equal(puts[1].bayId, null, 'returning to Waiting sends bayId null');
     await shot(page, '1280-card-back-in-waiting');
+
+    const cleanDragStyle = async (locator, reason) => {
+      const style = await locator.evaluate((el) => ({ opacity: getComputedStyle(el).opacity, classes: [...el.classList] }));
+      assert.equal(style.opacity, '1', reason + ': opacity resets');
+      for (const token of ['opacity-50', 'ring-2', 'ring-primary']) assert.equal(style.classes.includes(token), false, reason + ': no stale ' + token);
+    };
+    const resting = () => cardIn('Waiting · Wash');
+    const restBody = () => resting().locator('p').first();
+    const begin = async () => {
+      const a = await centre(restBody());
+      await page.mouse.move(a.x, a.y); await page.mouse.down();
+      await page.mouse.move(a.x + 14, a.y + 14, { steps: 5 });
+      assert.ok(Number(await resting().evaluate((el) => getComputedStyle(el).opacity)) < 1, 'native drag has started');
+    };
+    // Cancellation and outside-column drops keep the original no-write behavior and remove the ring.
+    await begin(); await page.keyboard.press('Escape'); await page.mouse.up();
+    await page.waitForTimeout(150);
+    await cleanDragStyle(resting(), 'Escape');
+    await begin(); const header = await centre(page.locator('header'));
+    await page.mouse.move(header.x, header.y, { steps: 20 }); await page.mouse.up();
+    await page.waitForTimeout(150);
+    await cleanDragStyle(resting(), 'outside drop');
+    assert.equal(puts.length, 2, 'cancelled/outside drags send no PUT');
+    // A car cannot return to a different Waiting queue.
+    const wrongQueue = page.getByRole('region', { name: 'Waiting · Detailing + Coating', exact: true });
+    await drag(restBody(), wrongQueue);
+    await page.getByRole('status').filter({ hasText: 'Return a car to its own Waiting queue.' }).waitFor();
+    assert.equal(puts.length, 2, 'wrong-queue rejection sends no PUT');
+    await cleanDragStyle(resting(), 'wrong queue');
+
+    // F1: rejection reload unmounts the source before dragend; appearance must still reset.
+    const incompatible = page.getByRole('region', { name: 'QSA Detail A', exact: true });
+    const reload = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/admin/board' && r.status() === 200);
+    const sourceElement = await resting().elementHandle();
+    await drag(restBody(), incompatible);
+    await page.getByRole('status').filter({ hasText: 'This bay does not take this queue.' }).waitFor();
+    await reload;
+    await page.waitForFunction((el) => !el.isConnected, sourceElement);
+    await resting().waitFor();
+    assert.equal(puts.length, 2, 'incompatible rejection and reload send no PUT');
+    assert.equal(await resting().count(), 1, 'incompatible rejection leaves the car in Waiting');
+    assert.equal(await incompatible.getByRole('article', { name: ref, exact: true }).count(), 0, 'incompatible bay never receives the car');
+    await shot(page, '1280-incompatible-rejected');
+    await cleanDragStyle(resting(), 'incompatible rejection after redraw');
+
+    // Keyboard/phone fallback after that rejection writes once each way and must not inherit a ring.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await resting().getByLabel('Move ' + ref + ' to bay').selectOption({ label: emptyBay });
+    await resting().getByRole('button', { name: 'Move car', exact: true }).focus();
+    await page.keyboard.press('Enter'); await cardIn(emptyBay).waitFor();
+    assert.equal(puts.length, 3, 'post-rejection keyboard move sends exactly one PUT');
+    assert.equal(typeof puts[2].bayId, 'string');
+    await cleanDragStyle(cardIn(emptyBay), 'keyboard move after rejection');
+    await cardIn(emptyBay).getByLabel('Move ' + ref + ' to bay').selectOption({ index: 0 });
+    await cardIn(emptyBay).getByRole('button', { name: 'Move car', exact: true }).focus();
+    await page.keyboard.press('Enter'); await resting().waitFor();
+    assert.equal(puts.length, 4, 'post-rejection keyboard return sends exactly one PUT');
+    assert.equal(puts[3].bayId, null);
+    await cleanDragStyle(resting(), 'keyboard return after rejection');
+    await shot(page, '390-post-rejection-keyboard-return');
+
+    await page.setViewportSize({ width: 1280, height: 2400 });
+    const busyReload = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/admin/board' && r.status() === 200);
+    await drag(restBody(), column(busyBay));
+    await page.getByRole('status').filter({ hasText: 'This bay is busy. The car stayed in its column.' }).waitFor();
+    await busyReload; await resting().waitFor();
+    assert.equal(puts.length, 4, 'busy rejection still sends no PUT after keyboard fallback');
+    assert.equal(await cardIn(busyBay).count(), 0);
+    await cleanDragStyle(resting(), 'busy rejection after redraw');
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

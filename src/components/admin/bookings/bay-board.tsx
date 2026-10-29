@@ -43,9 +43,6 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
       "/api/admin/queues?date=" + date,
     ),
     reloadDay = dayView.reload;
-  const reloadBoard = React.useCallback(async () => {
-    await Promise.all([reloadBoardOnly(), reloadDay()]);
-  }, [reloadBoardOnly, reloadDay]);
   const [busy, setBusy] = React.useState(false),
     [message, setMessage] = React.useState(""),
     [blocked, setBlocked] = React.useState(false),
@@ -56,6 +53,16 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
     drag = React.useRef<AdminBoardCard | null>(null),
     pressedControl = React.useRef(false);
   const [dragging, setDragging] = React.useState<string | null>(null);
+  const clearDrag = React.useCallback(() => {
+    drag.current = null;
+    pressedControl.current = false;
+    setDragging(null);
+  }, []);
+  const reloadBoard = React.useCallback(async () => {
+    // Reload removes the source article, so its dragend may never be delivered.
+    clearDrag();
+    await Promise.all([reloadBoardOnly(), reloadDay()]);
+  }, [clearDrag, reloadBoardOnly, reloadDay]);
   React.useEffect(() => {
     mounted.current = true;
     return () => {
@@ -144,7 +151,8 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
   function drop(e: React.DragEvent, bayId: string | null, queue?: string) {
     e.preventDefault();
     const card = drag.current;
-    drag.current = null;
+    // Every drop exit ends the gesture before a rejection or move can reload its source.
+    clearDrag();
     if (!card || busy || blocked || role !== "ADMIN") return;
     if (queue && (card.queueCode !== queue || card.assignedBayId === null)) {
       setMessage("Return a car to its own Waiting queue.");
@@ -261,10 +269,7 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", card.id);
         }}
-        onDragEnd={() => {
-          drag.current = null;
-          setDragging(null);
-        }}
+        onDragEnd={clearDrag}
       >
         <button
           id={"board-card-" + card.id}
@@ -374,6 +379,7 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
               className={fieldClass + " lg:mt-0 lg:w-44"}
               onChange={(e) => {
                 if (e.target.value) {
+                  clearDrag();
                   setDate(e.target.value);
                   setSelected(null);
                   setMessage("");
