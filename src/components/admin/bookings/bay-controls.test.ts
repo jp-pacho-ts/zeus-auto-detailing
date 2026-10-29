@@ -60,18 +60,23 @@ function render(role: "ADMIN" | "STAFF") {
 }
 
 // P1-22 (LE 2026-10-29): Add bay is a small button in each row header that opens a modal,
-// not a full-width block after the columns. Its name keeps the visible words first.
+// not a full-width block after the columns. Its name keeps the visible words first. The row goes
+// in aria-label, not an sr-only span: that span is absolutely positioned and escaped the fixed
+// dashboard frame, so the whole page scrolled (Claude-QSA, cb63329).
 test("ADMIN gets a compact Add bay in every row header and a keyboard menu on every bay; STAFF gets neither", () => {
   const admin = render("ADMIN");
   for (const row of ["Wash", "Detailing", "Paint"]) {
     const start = admin.indexOf(`aria-label="${row} row"`), heading = admin.indexOf("</h2>", start);
-    const add = admin.indexOf(`Add bay<span class="sr-only"> to ${row}</span>`, start), firstColumn = admin.indexOf('aria-label="Waiting · ', start);
+    const add = admin.indexOf(`aria-label="Add bay to ${row}"`, start), firstColumn = admin.indexOf('aria-label="Waiting · ', start);
     assert.ok(start > 0 && heading > start && add > heading, row + ": Add bay follows the row heading");
     assert.ok(add < firstColumn, row + ": Add bay sits in the row header, before the columns");
-    const button = admin.lastIndexOf("<button", add);
-    assert.match(admin.slice(button, add), /aria-haspopup="dialog"/, row + ": Add bay opens a dialog");
-    assert.doesNotMatch(admin.slice(button, add), /w-full|border-dashed/, row + ": Add bay is compact");
+    const button = admin.lastIndexOf("<button", add), end = admin.indexOf("</button>", add);
+    const tag = admin.slice(button, end);
+    assert.match(tag, /aria-haspopup="dialog"/, row + ": Add bay opens a dialog");
+    assert.doesNotMatch(tag, /w-full|border-dashed/, row + ": Add bay is compact");
+    assert.match(tag, />[^<]*Add bay[^<]*$/, row + ": the visible text is Add bay (label in name)");
   }
+  assert.equal(admin.includes("sr-only"), false, "nothing on the board is an absolutely positioned sr-only span");
   assert.equal(admin.includes("<dialog"), false, "no dialog is open until Add bay is clicked");
   for (const b of bays) {
     assert.ok(admin.includes(`aria-label="Options for ${b.name}"`), b.name);
