@@ -8,6 +8,7 @@ import type {
   AdminDayQueues,
   AdminWriteResult,
   AdminNotifyResult,
+  AdminDeleteResult,
 } from "@/types/admin-contracts";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import type { UserRole } from "@/types/contracts";
@@ -59,7 +60,8 @@ export function BookingDetail({
     [uncertain, setUncertain] = React.useState(false),
     [error, setError] = React.useState<string | null>(null),
     [notice, setNotice] = React.useState<string | null>(null),
-    [conflict, setConflict] = React.useState<AdminBookingDetail | null>(null);
+    [conflict, setConflict] = React.useState<AdminBookingDetail | null>(null),
+    [typed, setTyped] = React.useState("");
   const mounted = React.useRef(true),
     writing = React.useRef(false);
   React.useEffect(() => {
@@ -79,11 +81,19 @@ export function BookingDetail({
     setError(null);
     setNotice(null);
     try {
-      const result = await adminRequest<AdminWriteResult | AdminNotifyResult>(
-        `/api/admin/bookings/${id}${path}`,
-        { method, body: { ...body, expectedRevision: b.revision } },
-      );
+      const result = await adminRequest<
+        AdminWriteResult | AdminNotifyResult | AdminDeleteResult
+      >(`/api/admin/bookings/${id}${path}`, {
+        method,
+        body: { ...body, expectedRevision: b.revision },
+      });
       if (!mounted.current) return;
+      if ("deleted" in result) {
+        // The booking is gone: refresh the board or list behind this dialog, then close it.
+        void onChanged();
+        onClose();
+        return;
+      }
       resource.setData(result.booking);
       void onChanged();
       setNotice(
@@ -788,6 +798,44 @@ export function BookingDetail({
                 ))}
               </ul>
             </>
+          )}
+          {admin && (
+            <form
+              aria-labelledby="delete-booking-title"
+              onSubmit={(e) =>
+                submit(e, (f) => {
+                  void write("/delete", { reference: String(f.get("reference")) });
+                })
+              }
+              className="space-y-2 rounded border border-rose-500/40 p-3"
+            >
+              <h3 id="delete-booking-title" className="text-sm font-bold text-rose-400">
+                Delete booking
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Deleting removes this booking, its services, any deposit proof and its place on
+                the board for good. It also removes it from history, from the day&apos;s counts
+                and from any totals built from completed jobs. A short record that you deleted
+                it is kept.
+              </p>
+              <label className="block text-xs">
+                Type {b.referenceCode} to confirm
+                <input
+                  name="reference"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={typed}
+                  onChange={(e) => setTyped(e.target.value)}
+                  className={fieldClass}
+                />
+              </label>
+              <Button
+                variant="destructive"
+                disabled={disabled || typed !== b.referenceCode}
+              >
+                Delete booking
+              </Button>
+            </form>
           )}
           <details>
             <summary className="min-h-[44px] cursor-pointer text-sm font-bold">

@@ -178,7 +178,6 @@ model Booking {
   occupancy                   BayOccupancy?
   workerAssignments           BookingWorkerAssignment[]
   bayAssignments              BookingBayAssignment[]
-  auditEvents                 BookingAuditEvent[]
   depositStatus               DepositStatus              @default(NONE)
   depositProofs               BookingDepositProof[]
 
@@ -429,6 +428,7 @@ enum BookingAuditAction {
   CUSTOMER_NOTIFIED
   HISTORY_LOOKUP
   DEPOSIT_STATUS_CHANGED
+  BOOKING_DELETED
 }
 
 // P1-18: the system records proof and status only; it never computes or moves money.
@@ -593,7 +593,6 @@ model BookingLineItem {
   removedAt                  DateTime?           @db.Timestamptz(3)
   removedByStaffId           String?
   removedBy                  Staff?              @relation("LineRemovedBy", fields: [removedByStaffId], references: [id], onDelete: Restrict)
-  auditEvents                BookingAuditEvent[]
 
   @@unique([bookingId, order])
   @@map("booking_line_items")
@@ -754,9 +753,7 @@ model BookingAuditEvent {
   actorStaffId          String
   actor                 Staff              @relation(fields: [actorStaffId], references: [id], onDelete: Restrict)
   bookingId             String?
-  booking               Booking?           @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   lineId                String?
-  line                  BookingLineItem?   @relation(fields: [lineId], references: [id], onDelete: Restrict)
   queueCode             String?
   queue                 BookingQueue?      @relation(fields: [queueCode], references: [code], onDelete: Restrict, onUpdate: Restrict)
   bayId                 String?
@@ -783,6 +780,7 @@ model BookingAuditEvent {
   fromDepositStatus     DepositStatus?
   toDepositStatus       DepositStatus?
   reason                String?
+  bookingReference      String? // BOOKING_DELETED only: the reference code, never customer details
   requestId             String?
   txId                  BigInt             @default(dbgenerated("txid_current()"))
   createdAt             DateTime           @default(now()) @db.Timestamptz(3)
@@ -791,6 +789,16 @@ model BookingAuditEvent {
   @@index([actorStaffId, createdAt])
   @@index([lineId])
   @@map("booking_audit_events")
+}
+
+// P1-29: owner-only (the runtime role has no privilege). delete_booking() writes one row per delete
+// transaction; the delete triggers open only while it exists. Removed before the function returns.
+model BookingDeleteToken {
+  txId      BigInt
+  bookingId String
+
+  @@id([txId, bookingId])
+  @@map("booking_delete_tokens")
 }
 
 model BookingOperation {

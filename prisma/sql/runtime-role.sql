@@ -68,6 +68,13 @@ BEGIN
   ELSIF migrated THEN
     RAISE EXCEPTION 'publish_catalog(text, text, text, text) is missing: run this after prisma migrate deploy completes';
   END IF;
+  -- P1-29: the one audited path that deletes a booking (SECURITY DEFINER; zeus_app has no DELETE).
+  IF to_regprocedure('public.delete_booking(text, text, integer, text)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION delete_booking(text, text, integer, text) FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION delete_booking(text, text, integer, text) TO zeus_app;
+  ELSIF migrated THEN
+    RAISE EXCEPTION 'delete_booking(text, text, integer, text) is missing: run this after prisma migrate deploy completes';
+  END IF;
   FOREACH g SLICE 1 IN ARRAY ARRAY[
     -- Catalog and schedule: read (schedule writes follow).
     ['catalog_releases', 'SELECT'], ['catalog_head', 'SELECT'], ['catalog_service_versions', 'SELECT'],
@@ -134,7 +141,8 @@ END $$;
 
 -- No privileges at all: _prisma_migrations, catalog_publishers, catalog_publication_events,
 -- catalog_hold_segments, booking_assignments, slot_capacity_overrides, commission_payouts,
--- inventory_items, inventory_transactions, service_recipes, and EXECUTE on publish_catalog.
+-- inventory_items, inventory_transactions, service_recipes, booking_delete_tokens (P1-29, written only
+-- by delete_booking()), and EXECUTE on publish_catalog.
 
 -- Owner default privileges for future tables (S-06). Each migration that adds a table revokes
 -- these and grants its exact list; this script, run after it, is the final word.

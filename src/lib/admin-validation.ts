@@ -123,6 +123,10 @@ export const LinePriceSchema = z
 export const DepositStatusSchema = z
   .object({ expectedRevision: Revision, status: z.enum(["RECEIVED", "REJECTED"]), reason: Reason.optional() })
   .strict();
+// P1-29: ADMIN deletes a booking by typing its reference code; the revision stops a stale screen.
+export const DeleteBookingSchema = z
+  .object({ expectedRevision: Revision, reference: z.string().min(1).max(60) })
+  .strict();
 export const BayAssignSchema = z
   .object({
     expectedRevision: Revision,
