@@ -21,6 +21,7 @@ export async function deleteBooking(actor: StaffActor, id: unknown, input: unkno
       await tx.$queryRaw`SELECT delete_booking(${bookingId}, ${actor.staffId}, ${v.expectedRevision}::integer, ${v.reference})`;
     } catch (error) {
       const text = error instanceof Error ? error.message : "";
+      if (text.includes("ZD006")) throw new AdminServiceError("VALIDATION_ERROR");
       if (text.includes("ZD005")) throw new AdminServiceError("BOOKING_NOT_MANAGEABLE", "A payout, assignment or stock record still points at this booking, so it can't be deleted.");
       if (text.includes("ZD004")) throw new AdminServiceError("FORBIDDEN");
       if (text.includes("ZD003")) throw fieldError("reference", "The reference code does not match.");

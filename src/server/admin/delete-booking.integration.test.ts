@@ -309,3 +309,25 @@ test("F7 an app session cannot open the delete path: a forged audit row and mark
   assert.equal(await db.bookingAuditEvent.count({ where: { bookingId: b.id, action: "BOOKING_DELETED" } }), 0, "the forged rows rolled back");
   assert.equal(Number((await db.$queryRawUnsafe<{ n: bigint }[]>("SELECT count(*) AS n FROM booking_delete_tokens"))[0].n), 0, "no token is left behind");
 });
+
+test("F8 delete_booking rejects every NULL, empty or out-of-range input from a direct app session and changes nothing", { skip }, async () => {
+  const b = await bookingAt("CONFIRMED", "2027-04-21");
+  const revision = await rev(b.id);
+  type Args = [string | null, string | null, number | null, string | null];
+  const good: Args = [b.id, ADMIN.staffId, revision, b.reference];
+  const variants: [string, Args][] = [
+    ["NULL booking", [null, good[1], good[2], good[3]]], ["empty booking", ["", good[1], good[2], good[3]]],
+    ["NULL actor", [good[0], null, good[2], good[3]]], ["empty actor", [good[0], "", good[2], good[3]]],
+    ["NULL revision", [good[0], good[1], null, good[3]]], ["zero revision", [good[0], good[1], 0, good[3]]], ["negative revision", [good[0], good[1], -1, good[3]]],
+    ["NULL reference", [good[0], good[1], good[2], null]], ["empty reference", [good[0], good[1], good[2], ""]],
+    ["all NULL", [null, null, null, null]],
+  ];
+  const before = JSON.stringify(await counts(b.id));
+  for (const [label, a] of variants)
+    await assert.rejects(app.$transaction((tx) => tx.$queryRaw`SELECT delete_booking(${a[0]}::text, ${a[1]}::text, ${a[2]}::integer, ${a[3]}::text)`), /Z[D]00|Missing|not found|Only an admin|Booking changed|Reference code/, label);
+  assert.equal(JSON.stringify(await counts(b.id)), before, "nothing changed");
+  assert.equal(await db.bookingAuditEvent.count({ where: { bookingId: b.id, action: "BOOKING_DELETED" } }), 0, "no deletion record");
+  // The all-valid call still works.
+  await app.$queryRaw`SELECT delete_booking(${good[0]}::text, ${good[1]}::text, ${good[2]}::integer, ${good[3]}::text)`;
+  assert.equal((await counts(b.id)).booking, 0);
+});

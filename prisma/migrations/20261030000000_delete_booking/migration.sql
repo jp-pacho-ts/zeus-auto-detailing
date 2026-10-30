@@ -127,18 +127,22 @@ CREATE CONSTRAINT TRIGGER board_relation_audit AFTER INSERT ON booking_worker_as
 CREATE CONSTRAINT TRIGGER board_relation_audit_delete AFTER DELETE ON booking_worker_assignments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NOT booking_delete_authorised(OLD."bookingId")) EXECUTE FUNCTION check_board_relation_audit();
 
 -- Error codes the service maps: ZD001 not found, ZD002 stale revision, ZD003 wrong reference,
--- ZD004 not an admin, ZD005 a legacy money record still points at the booking.
+-- ZD004 not an admin, ZD005 a legacy money record still points at the booking, ZD006 a missing/empty input.
 CREATE FUNCTION delete_booking(p_booking text, p_actor text, p_revision integer, p_reference text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE b public.bookings; line_count integer; total bigint;
 BEGIN
+ -- Every input is required, before any lock or write (a NULL compares as unknown, never as different).
+ IF p_booking IS NULL OR p_booking = '' OR p_actor IS NULL OR p_actor = '' OR p_revision IS NULL OR p_revision < 1 OR p_reference IS NULL OR p_reference = '' THEN
+  RAISE EXCEPTION 'Missing or invalid input' USING ERRCODE = 'ZD006';
+ END IF;
  PERFORM pg_advisory_xact_lock(746001, 1);
  IF NOT EXISTS(SELECT 1 FROM public.staff WHERE id = p_actor AND "isActive" AND role IN ('ADMIN','MANAGER')) THEN
   RAISE EXCEPTION 'Only an admin can delete a booking' USING ERRCODE = 'ZD004';
  END IF;
  SELECT * INTO b FROM public.bookings WHERE id = p_booking FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Booking not found' USING ERRCODE = 'ZD001'; END IF;
- IF b.revision <> p_revision THEN RAISE EXCEPTION 'Booking changed' USING ERRCODE = 'ZD002'; END IF;
+ IF b.revision IS DISTINCT FROM p_revision THEN RAISE EXCEPTION 'Booking changed' USING ERRCODE = 'ZD002'; END IF;
  IF b."referenceCode" IS DISTINCT FROM p_reference THEN RAISE EXCEPTION 'Reference code does not match' USING ERRCODE = 'ZD003'; END IF;
  IF EXISTS(SELECT 1 FROM public.booking_assignments WHERE "bookingId" = p_booking)
     OR EXISTS(SELECT 1 FROM public.commission_payouts WHERE "bookingId" = p_booking)
