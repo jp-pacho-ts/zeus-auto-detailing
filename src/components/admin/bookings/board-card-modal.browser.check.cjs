@@ -141,14 +141,43 @@ test('click anywhere on a board card opens its details modal; controls and drags
     await page.reload({ waitUntil: 'networkidle' });
     assert.notEqual(await scrollMode(page), 'hidden', 'the dashboard scrolls after a reload');
 
-    // Done cards open the same details.
-    const done = page.locator('section[aria-label^="Done"] article').first();
-    if (await done.count()) {
-      await done.getByText(/Synthetic Vehicle|·/).first().click();
-      await dialog.waitFor();
-      await page.keyboard.press('Escape');
-      await dialog.waitFor({ state: 'detached' });
-    }
+    // Done cards open the same details. The fixture has none, so finish the car in the busy bay through
+    // the admin API (start it, mark its lines done, complete it); this step is mandatory, never skipped.
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
+    await page.getByLabel('Board day').waitFor();
+    const busyCar = washRow.locator('section[aria-label^="Wash Bay"] article').first();
+    await busyCar.waitFor();
+    const doneRef = await busyCar.getAttribute('aria-label');
+    const finished = await page.evaluate(async (reference) => {
+      const post = async (url, body, method = 'POST') => {
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const json = await res.json();
+        if (!res.ok) throw new Error(url + ' ' + res.status + ' ' + JSON.stringify(json.error ?? json));
+        return json.data;
+      };
+      const get = async (url) => (await (await fetch(url)).json()).data;
+      const board = await get('/api/admin/board?date=' + new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10));
+      const found = board.bays.flatMap((b) => b.cards).find((c) => c.referenceCode === reference);
+      if (!found) throw new Error('no board card for ' + reference);
+      let detail = await get('/api/admin/bookings/' + found.id);
+      detail = (await post('/api/admin/bookings/' + found.id + '/status', { expectedRevision: detail.revision, status: 'IN_PROGRESS' })).booking;
+      for (const line of detail.lines.filter((l) => !l.removed)) {
+        detail = (await post('/api/admin/bookings/' + found.id + '/lines/' + line.id + '/status', { expectedRevision: detail.revision, workStatus: 'DONE' })).booking;
+      }
+      detail = (await post('/api/admin/bookings/' + found.id + '/status', { expectedRevision: detail.revision, status: 'COMPLETED' })).booking;
+      return detail.status;
+    }, doneRef);
+    assert.equal(finished, 'COMPLETED', 'the fixture car was completed so the board has a Done card');
+    await page.getByRole('button', { name: 'Refresh board', exact: true }).click();
+    const done = washRow.getByRole('region', { name: /^Done · Wash/ }).getByRole('article', { name: doneRef, exact: true });
+    await done.waitFor({ timeout: 10_000 });
+    assert.equal(await done.count(), 1, 'a Done card is on the board');
+    await done.getByText(/Synthetic Vehicle|·/).first().click();
+    await dialog.waitFor();
+    await dialog.getByText(doneRef, { exact: true }).first().waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'board-card-' + (await done.getByRole('button', { name: doneRef, exact: true }).getAttribute('id')).slice('board-card-'.length), 'focus returns to the Done card');
     await close(s);
 
     // ---- DETAILER: opens the details read-only, no Delete booking ----
