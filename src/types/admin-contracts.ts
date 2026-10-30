@@ -167,6 +167,11 @@ export interface AdminWriteResult {
   booking: AdminBookingDetail;
   noChange: boolean;
 }
+// P1-29: the booking is gone; only its reference code comes back.
+export interface AdminDeleteResult {
+  deleted: true;
+  reference: string;
+}
 export interface AdminNotifyResult extends AdminWriteResult {
   notice: "SENT" | "NOT_SENT" | "NO_EMAIL";
 }
