@@ -16,6 +16,7 @@ import { adminRequest, AdminRequestError } from "./client";
 import {
   centavos,
   money,
+  notifyNotice,
   statusActions,
   statusLabel,
   totalLabel,
@@ -110,11 +111,7 @@ export function BookingDetail({
       void onChanged();
       setNotice(
         "notice" in result
-          ? {
-              SENT: "Customer email sent.",
-              NOT_SENT: "Customer email was not sent. Try again later.",
-              NO_EMAIL: "No customer email address is on file.",
-            }[result.notice]
+          ? notifyNotice(result.notice)
           : result.noChange
             ? "No change was needed."
             : "Booking updated.",

@@ -144,17 +144,49 @@ export async function sendCustomerConfirmation(
   notification?: NotificationConfiguration,
 ): Promise<void> {
   if (!customerEmail) return;
+  let reason: EmailFailureReason = "error";
   try {
     const config = notification ?? notificationConfiguration();
-    if (!config) return;
-    if (await sendSmtpMessage(
+    if (!config) {
+      logEmailNotSent("customer_confirmation", "config_missing", booking.id);
+      return;
+    }
+    const result = await sendSmtpClassified(
       config,
       customerEmail,
       customerConfirmationMessage(booking, config.origin),
       `<booking-confirm.${booking.id}@${new URL(config.origin).hostname}>`,
-    )) return;
+    );
+    if (result === "sent") return;
+    reason = result;
   } catch { /* Keep the committed result even if configuration or provider code fails. */ }
   console.warn(JSON.stringify({ event: "booking.customer_confirmation_not_sent", bookingId: booking.id }));
+  logEmailNotSent("customer_confirmation", reason, booking.id);
+}
+
+// P1-31: why a customer email did not go out, as a class only. Never the provider's message text, the
+// address, the password or a name: those can hold secrets and customer details.
+export type EmailFailureReason = "config_missing" | "auth_rejected" | "timeout" | "unreachable" | "tls_failed" | "refused" | "error";
+export function classifySmtpError(error: unknown): EmailFailureReason {
+  const code = (e: unknown): string => (typeof e === "object" && e !== null && typeof (e as { code?: unknown }).code === "string" ? (e as { code: string }).code : "");
+  const own = code(error), cause = code((error as { cause?: unknown } | null)?.cause);
+  if (/^(ERR_SSL|ERR_TLS|CERT_|DEPTH_ZERO|UNABLE_TO_VERIFY|SELF_SIGNED|HOSTNAME_MISMATCH)/.test(cause) || /^(ERR_SSL|ERR_TLS|CERT_|UNABLE_TO_VERIFY|SELF_SIGNED)/.test(own)) return "tls_failed";
+  if (own === "EAUTH") return "auth_rejected";
+  if (own === "ETIMEDOUT") return "timeout";
+  if (["ECONNECTION", "ECONNREFUSED", "ECONNRESET", "ESOCKET", "EDNS", "ENOTFOUND", "EHOSTUNREACH", "ENETUNREACH", "EPROTOCOL"].includes(own)) return "unreachable";
+  if (own === "EENVELOPE" || own === "EMESSAGE") return "refused";
+  return "error";
+}
+// One line per failed customer email, with the kind and the class only. Missing settings are logged
+// once per process: every booking would say the same thing.
+let configMissingLogged = false;
+export function resetEmailFailureLog(): void { configMissingLogged = false; }
+export function logEmailNotSent(kind: "turn_notice" | "customer_confirmation", reason: EmailFailureReason, bookingId: string): void {
+  if (reason === "config_missing") {
+    if (configMissingLogged) return;
+    configMissingLogged = true;
+  }
+  console.warn(JSON.stringify({ event: "booking.email_not_sent", kind, reason, bookingId }));
 }
 export async function sendSmtpMessage(
   config: NotificationConfiguration,
@@ -162,6 +194,14 @@ export async function sendSmtpMessage(
   message: { subject: string; text: string },
   messageId: string,
 ): Promise<boolean> {
+  return (await sendSmtpClassified(config, to, message, messageId)) === "sent";
+}
+export async function sendSmtpClassified(
+  config: NotificationConfiguration,
+  to: string,
+  message: { subject: string; text: string },
+  messageId: string,
+): Promise<"sent" | Exclude<EmailFailureReason, "config_missing">> {
   const transport = nodemailer.createTransport({
     host: config.host,
     port: config.port,
@@ -193,20 +233,22 @@ export async function sendSmtpMessage(
           text: message.text,
           messageId,
         })
-        .then((info) =>
+        .then((info): "sent" | "refused" =>
           info.accepted.some(
             (address) => String(address).toLowerCase() === to.toLowerCase(),
-          ),
+          )
+            ? "sent"
+            : "refused",
         ),
-      new Promise<boolean>((resolve) => {
+      new Promise<"timeout">((resolve) => {
         timeout = setTimeout(() => {
           transport.close();
-          resolve(false);
+          resolve("timeout");
         }, 3000);
       }),
     ]);
-  } catch {
-    return false;
+  } catch (error) {
+    return classifySmtpError(error) as Exclude<EmailFailureReason, "config_missing">;
   } finally {
     if (timeout) clearTimeout(timeout);
     transport.close();
@@ -345,7 +387,10 @@ export async function sendTurnNotice(
 ): Promise<"SENT" | "NOT_SENT"> {
   try {
     const config = options.notification ?? notificationConfiguration();
-    if (!config) return "NOT_SENT";
+    if (!config) {
+      logEmailNotSent("turn_notice", "config_missing", bookingId);
+      return "NOT_SENT";
+    }
     const booking = await withBookingDb(
       options.db ?? prisma,
       "NOTIFICATION",
@@ -363,15 +408,17 @@ export async function sendTurnNotice(
         brandConfig.businessName +
         ". Please be ready to visit the shop. Contact the shop if you need help.",
     };
-    return (await sendSmtpMessage(
+    const result = await sendSmtpClassified(
       config,
       booking.customerEmail,
       message,
       `<booking-turn.${randomUUID()}@${new URL(config.origin).hostname}>`,
-    ))
-      ? "SENT"
-      : "NOT_SENT";
+    );
+    if (result === "sent") return "SENT";
+    logEmailNotSent("turn_notice", result, bookingId);
+    return "NOT_SENT";
   } catch {
+    logEmailNotSent("turn_notice", "error", bookingId);
     return "NOT_SENT";
   }
 }

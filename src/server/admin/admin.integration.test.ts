@@ -528,7 +528,7 @@ test("D2 NULL caps: move and reinstate are unlimited; zero and reached set caps 
   assert.equal((await audits(declined)).length, 3);
 });
 
-test("D2 notification adapter sends via loopback SMTP only after the audited admin action commits", { skip }, async () => {
+test("D2 notification adapter sends via loopback SMTP; the audit row is written only after the send succeeded (P1-31)", { skip }, async () => {
   const { smtpSimulation } = await import("../notifications/smtp.fixture");
   const notice = await import("./notice");
   const smtp = await smtpSimulation();
@@ -536,10 +536,11 @@ test("D2 notification adapter sends via loopback SMTP only after the audited adm
     const id = await book(select("S", "basic-wash"), "2027-03-28", { customerEmail: "turn@example.test" });
     const sender = notice.bookingTurnNoticeSender({ db: app, notification: smtp.config });
     const response = await s.notifyCustomer(STAFF, id, { expectedRevision: 1 }, opts({ sender: { async send(bookingId: string) {
-      assert.equal(await db.bookingAuditEvent.count({ where: { bookingId, action: "CUSTOMER_NOTIFIED" } }), 1, "audit is visible from a separate connection before SMTP");
+      assert.equal(await db.bookingAuditEvent.count({ where: { bookingId, action: "CUSTOMER_NOTIFIED" } }), 0, "P1-31: no audit row exists before the send");
       return sender.send(bookingId);
     } } }));
     assert.equal(response.notice, "SENT");
+    assert.equal(await db.bookingAuditEvent.count({ where: { bookingId: id, action: "CUSTOMER_NOTIFIED" } }), 1, "P1-31: one audit row once the send went out");
     assert.equal(smtp.attempts.length, 1);
     assert.equal(smtp.attempts[0].to, "turn@example.test");
     await refused(s.notifyCustomer(STAFF, id, { expectedRevision: 1 }, opts({ sender })), "RATE_LIMITED", "second attempt");
@@ -550,7 +551,7 @@ test("D2 notification adapter sends via loopback SMTP only after the audited adm
     const failed = await book(select("S", "basic-wash"), "2027-03-28", { customerEmail: "failure@example.test" });
     smtp.setRejected(true);
     assert.equal((await s.notifyCustomer(STAFF, failed, { expectedRevision: 1 }, opts({ sender }))).notice, "NOT_SENT");
-    assert.equal((await audits(failed)).filter(a => a.action === "CUSTOMER_NOTIFIED").length, 1);
+    assert.equal((await audits(failed)).filter(a => a.action === "CUSTOMER_NOTIFIED").length, 0, "P1-31: a failed send leaves no audit row");
   } finally { await smtp.close(); }
 });
 
