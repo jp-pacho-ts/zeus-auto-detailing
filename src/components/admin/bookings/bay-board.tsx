@@ -19,6 +19,7 @@ import {
   bayPayload,
   boardLanes,
   canDrop,
+  isControlTarget,
   plateLabel,
   writeFeedback,
 } from "./board-model";
@@ -164,7 +165,8 @@ export function BayBoard({
     focus = React.useRef<string | null>(null),
     reveal = React.useRef<{ lane: BayType; colId: string } | null>(null),
     drag = React.useRef<AdminBoardCard | null>(null),
-    pressedControl = React.useRef(false);
+    pressedControl = React.useRef(false),
+    restoreFocus = React.useRef<string | null>(null);
   const [dragging, setDragging] = React.useState<string | null>(null);
 
   const scrollerRefs = React.useRef<Partial<Record<BayType, HTMLDivElement | null>>>({});
@@ -387,6 +389,18 @@ export function BayBoard({
       focus.current = null;
     }
   }, [board, resource.loading, busy, syncRowCue]);
+
+  // P1-30: when the details dialog closes, focus goes back to that card's reference button. If the
+  // card is gone (moved away or deleted) it lands on the board's day field instead of <body>. While
+  // the board is reloading after a change, wait for it so the answer is about the new board.
+  React.useEffect(() => {
+    if (selected !== null || !restoreFocus.current || resource.loading) return;
+    const target =
+      document.getElementById(restoreFocus.current) ??
+      document.getElementById("board-day-input");
+    restoreFocus.current = null;
+    target?.focus({ preventScroll: true });
+  }, [selected, resource.loading]);
 
   function startDragLoop(initialX: number, initialY: number) {
     if (dragLoop.current.raf) cancelAnimationFrame(dragLoop.current.raf);
@@ -622,6 +636,12 @@ export function BayBoard({
     "flex min-h-24 flex-1 items-center justify-center px-3 text-xs text-muted-foreground " +
     (role === "ADMIN" ? "lg:min-h-[26rem]" : "lg:min-h-[14rem]");
 
+  function openFromCardClick(e: React.MouseEvent<HTMLElement>, id: string) {
+    if (isControlTarget(e.target)) return;
+    if (window.getSelection()?.toString()) return;
+    setSelected(id);
+  }
+
   function doneView(b: AdminQueueBooking) {
     const activeLines = b.lines.filter((l) => !l.removed);
     const first = activeLines[0]?.name || b.serviceName;
@@ -629,10 +649,12 @@ export function BayBoard({
     return (
       <article
         key={b.id + "-" + boardGen}
-        className="min-w-0 space-y-1 rounded border border-border bg-[#18181b] p-2.5 leading-tight"
+        className="min-w-0 cursor-pointer space-y-1 rounded border border-border bg-[#18181b] p-2.5 leading-tight"
         aria-label={b.referenceCode}
+        onClick={(e) => openFromCardClick(e, b.id)}
       >
         <button
+          id={"board-card-" + b.id}
           className="min-h-[44px] break-all text-left font-mono font-bold text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
           onClick={() => setSelected(b.id)}
         >
@@ -671,7 +693,7 @@ export function BayBoard({
         key={card.id + "-" + boardGen}
         className={
           "min-w-0 space-y-1.5 rounded border border-border bg-[#18181b] p-2.5 leading-tight" +
-          (canDrag ? " cursor-grab active:cursor-grabbing" : "") +
+          (canDrag ? " cursor-grab active:cursor-grabbing" : " cursor-pointer") +
           (dragging === card.id ? " opacity-50 ring-2 ring-primary" : "")
         }
         aria-label={card.referenceCode}
@@ -694,6 +716,10 @@ export function BayBoard({
           startDragLoop(e.clientX, e.clientY);
         }}
         onDragEnd={clearDrag}
+        // P1-30 (LE 2026-10-30): a click anywhere on the card opens its details. Controls keep their own
+        // behaviour, and a click that ends a text selection is not a request to open it. A real drag
+        // never fires a click. The card is not a tab stop: its reference button opens it by keyboard.
+        onClick={(e) => openFromCardClick(e, card.id)}
       >
         <div className="flex items-center justify-between gap-2">
           <button
@@ -813,6 +839,7 @@ export function BayBoard({
           <label className="min-w-0 flex-1 text-xs lg:flex lg:flex-none lg:items-center lg:gap-2">
             Board day
             <input
+              id="board-day-input"
               aria-label="Board day"
               type="date"
               value={date}
@@ -1198,6 +1225,7 @@ export function BayBoard({
           }
           onChanged={refresh}
           onClose={() => {
+            restoreFocus.current = "board-card-" + selected;
             setSelected(null);
             if (review) void refresh();
           }}
