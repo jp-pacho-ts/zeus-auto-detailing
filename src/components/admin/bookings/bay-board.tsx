@@ -125,7 +125,7 @@ export function BayBoard({
   const resource = useAdminResource<AdminDayBoard>(
       "/api/admin/board?date=" + date,
     ),
-    reloadBoardOnly = resource.reload;
+    reloadBoardOnly = resource.load;
   // Done: the day's completed visits come from the day queue view (read-only).
   const dayView = useAdminResource<AdminDayQueues>(
       "/api/admin/queues?date=" + date,
@@ -157,6 +157,8 @@ export function BayBoard({
     [refusal, setRefusal] = React.useState(false),
     [blocked, setBlocked] = React.useState(false),
     [review, setReview] = React.useState<string | null>(null);
+  // F1: after a failed reload the retained cards are stale, so they stay read-only until one succeeds.
+  const locked = blocked || resource.error !== null;
   const writing = React.useRef(false),
     mounted = React.useRef(true),
     focus = React.useRef<string | null>(null),
@@ -291,7 +293,8 @@ export function BayBoard({
   const reloadBoard = React.useCallback(async () => {
     // Reload replaces the source article, so its dragend may never be delivered.
     clearDrag();
-    await Promise.all([reloadBoardOnly(), reloadDay()]);
+    const [boardLoaded] = await Promise.all([reloadBoardOnly(), reloadDay()]);
+    return boardLoaded;
   }, [clearDrag, reloadBoardOnly, reloadDay]);
 
   React.useEffect(() => {
@@ -452,14 +455,15 @@ export function BayBoard({
     await reloadBoard();
   }
   async function refresh() {
-    await reloadBoard();
-    if (mounted.current) {
+    // Only a successful board reload settles an uncertain write; a failed one keeps the lock.
+    const loaded = await reloadBoard();
+    if (loaded && mounted.current) {
       setBlocked(false);
       setReview(null);
     }
   }
   async function move(card: AdminBoardCard, bayId: string | null) {
-    if (role !== "ADMIN" || writing.current || blocked) return;
+    if (role !== "ADMIN" || writing.current || locked) return;
     writing.current = true;
     setBusy(true);
     const lane =
@@ -523,7 +527,7 @@ export function BayBoard({
     const card = drag.current;
     // Every drop exit ends the gesture before a rejection or move can reload its source.
     clearDrag();
-    if (!card || busy || blocked || role !== "ADMIN") return;
+    if (!card || busy || locked || role !== "ADMIN") return;
     const cardLane =
       board?.queues.find((q) => q.code === card.queueCode)?.bayType ?? null;
     if (queue && (card.queueCode !== queue || card.assignedBayId === null)) {
@@ -652,7 +656,7 @@ export function BayBoard({
     const allowed = board?.queues.find(
       (q) => q.code === card.queueCode,
     )?.bayType;
-    const canDrag = cardDraggable(role, busy, blocked);
+    const canDrag = cardDraggable(role, busy, locked);
     const firstLine = card.lines[0];
     const extraLines = Math.max(0, card.lines.length - 1);
     const allLinesTitle = card.lines
@@ -751,7 +755,7 @@ export function BayBoard({
                 aria-label={"Move " + card.referenceCode + " to bay"}
                 className="min-h-[44px] min-w-0 flex-1 rounded border border-border bg-[#18181b] px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 defaultValue=""
-                disabled={busy || blocked}
+                disabled={busy || locked}
               >
                 <option value="" disabled={!card.assignedBayId}>
                   Waiting ·{" "}
@@ -775,7 +779,7 @@ export function BayBoard({
                 id={"board-move-" + card.id}
                 size="sm"
                 className="shrink-0 px-2.5"
-                disabled={busy || blocked}
+                disabled={busy || locked}
                 type="submit"
                 variant="outline"
               >
@@ -996,7 +1000,7 @@ export function BayBoard({
                           "min-w-0 flex-col gap-3 rounded border border-border bg-[#121214] p-3 md:flex md:w-60 md:shrink-0"
                         }
                         onDragOver={(e) => {
-                          if (!c.done && role === "ADMIN" && !busy && !blocked)
+                          if (!c.done && role === "ADMIN" && !busy && !locked)
                             e.preventDefault();
                         }}
                         onDrop={(e) => {
@@ -1070,7 +1074,7 @@ export function BayBoard({
                         !colId.startsWith("DONE-") &&
                         role === "ADMIN" &&
                         !busy &&
-                        !blocked
+                        !locked
                       ) {
                         e.preventDefault();
                       }
@@ -1124,7 +1128,7 @@ export function BayBoard({
                         !colId.startsWith("DONE-") &&
                         role === "ADMIN" &&
                         !busy &&
-                        !blocked
+                        !locked
                       ) {
                         e.preventDefault();
                       }

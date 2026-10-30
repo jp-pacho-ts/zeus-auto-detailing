@@ -15,11 +15,12 @@ export function useAdminResource<T>(
   }>({ key: "", data: null, error: null, loading: false });
   const gate = React.useRef(requestGeneration()),
     abort = React.useRef<AbortController | null>(null);
-  const reload = React.useCallback(async () => {
+  // load resolves true only when this call fetched fresh data (false: failed or superseded).
+  const load = React.useCallback(async (): Promise<boolean> => {
     abort.current?.abort();
     const ticket = gate.current.next();
     setState({ key, data: null, error: null, loading: Boolean(url) });
-    if (!url) return;
+    if (!url) return false;
     const controller = new AbortController();
     abort.current = controller;
     try {
@@ -28,13 +29,15 @@ export function useAdminResource<T>(
         body: body === undefined ? undefined : JSON.parse(body),
         signal: controller.signal,
       });
-      if (gate.current.current(ticket))
+      if (gate.current.current(ticket)) {
         setState({ key, data: value, error: null, loading: false });
+        return true;
+      }
     } catch (e) {
       if (gate.current.current(ticket) && !controller.signal.aborted) {
         if (e instanceof AdminRequestError && e.status === 401) {
           window.location.replace("/admin/login");
-          return;
+          return false;
         }
         setState({
           key,
@@ -45,7 +48,11 @@ export function useAdminResource<T>(
         });
       }
     }
+    return false;
   }, [url, method, body, key]);
+  const reload = React.useCallback(async () => {
+    await load();
+  }, [load]);
   React.useEffect(() => {
     const currentGate = gate.current;
     let cancelled = false;
@@ -64,7 +71,7 @@ export function useAdminResource<T>(
       : { data: null, error: null, loading: Boolean(url) };
   const setData = (data: T | null) =>
     setState({ key, data, error: null, loading: false });
-  return { ...current, setData, reload };
+  return { ...current, setData, reload, load };
 }
 export const fieldClass =
   "mt-1 min-h-[44px] w-full rounded border border-border bg-[#18181b] px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
