@@ -19,7 +19,7 @@ test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and 
   const browser = await chromium.launch({ headless: true, ...(process.env.P120_CHROME_EXECUTABLE ? { executablePath: process.env.P120_CHROME_EXECUTABLE } : {}) });
   const name = 'QA Focus Bay ' + Date.now();
   let page;
-  let refuseNextAdd = false, holdNextAdd = null;
+  let refuseNextAdd = false, holdNextAdd = null, holdNextBoard = null;
   try {
     const context = await browser.newContext({ viewport: { width: 390, height: 900 } });
     await context.route('**/*', async (route) => {
@@ -31,6 +31,8 @@ test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and 
         return route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'CONFLICT', message: 'Synthetic refusal from the shop server.', commitState: 'NOT_COMMITTED' } }) });
       }
       if (adding && holdNextAdd) { const hold = holdNextAdd; holdNextAdd = null; await hold; }
+      // Deterministic: the board reload that follows an add can be held, to show focus waits for it.
+      if (request.method() === 'GET' && new URL(request.url()).pathname === '/api/admin/board' && holdNextBoard) { const hold = holdNextBoard; holdNextBoard = null; await hold; }
       const response = await route.fetch({ url: request.url().replace(origin, upstream.origin), headers: { ...request.headers(), 'x-forwarded-for': '198.51.100.122' } });
       await route.fulfill({ response });
     });
@@ -87,8 +89,16 @@ test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and 
     assert.equal(await modal.getByRole('button', { name: 'Cancel', exact: true }).isDisabled(), true, 'Cancel is disabled while adding');
     await page.keyboard.press('Escape');
     assert.equal(await modal.isVisible(), true, 'Escape is ignored while adding');
+    let releaseBoard;
+    holdNextBoard = new Promise((resolve) => { releaseBoard = resolve; });
     release();
     await modal.waitFor({ state: 'detached' });
+    // Focus is restored by the board once the reload that follows an add has settled (the rows are
+    // re-created), so wait for that reload and the button's focus, not a fixed time.
+    const settled = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/admin/board' && r.status() === 200);
+    releaseBoard();
+    await settled;
+    await page.waitForFunction(() => document.activeElement?.id === 'add-bay-button-WASH');
     assert.equal(await isFocused(add), true, 'focus returns to Add bay after the bay is added');
     await page.getByRole('status').filter({ hasText: name + ' added.' }).waitFor();
     await page.getByLabel('Wash board column').selectOption({ label: name + ' (0)' });
