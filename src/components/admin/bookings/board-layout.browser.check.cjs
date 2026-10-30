@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-// P1-22 real-browser regression (LE 2026-10-29). Same environment as bay-controls.browser.check.cjs;
+// P1-22 / P1-25 real-browser regression. Same environment as bay-controls.browser.check.cjs;
 // never loads .env. The fixture day needs at least one card and at least one empty column.
 // Optional: P122_LAYOUT_SCREENSHOTS (directory).
 const assert = require('node:assert/strict');
@@ -7,7 +7,7 @@ const { test } = require('node:test');
 const path = require('node:path');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
-test('Board day sits right of the view switch from lg; row columns share one height; empty columns keep a card height from lg', { timeout: 90_000 }, async () => {
+test('Board day sits right of the view switch from lg; row columns share one height on a single line; empty columns keep a card height from lg', { timeout: 90_000 }, async () => {
   const upstream = new URL(process.env.P120_BROWSER_ORIGIN);
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(upstream.hostname), 'Synthetic loopback app only');
   assert.equal(upstream.origin, process.env.P120_BROWSER_ORIGIN);
@@ -102,6 +102,7 @@ test('Board day sits right of the view switch from lg; row columns share one hei
           const key = c.row + '@' + Math.round(c.top);
           lines.set(key, [...(lines.get(key) ?? []), c]);
         }
+        assert.equal(lines.size, 3, width + 'px every row keeps all its columns on one horizontal line: ' + JSON.stringify([...lines.keys()]));
         for (const [key, line] of lines) {
           const heights = line.map((c) => c.height);
           assert.ok(Math.max(...heights) - Math.min(...heights) <= 1, width + 'px ' + key + ' columns share one height: ' + JSON.stringify(line.map((c) => [c.label, Math.round(c.height)])));

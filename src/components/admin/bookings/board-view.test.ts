@@ -137,23 +137,42 @@ test("Board day and Refresh board sit in one toolbar with the view switch, befor
   assert.equal(html.split('aria-label="Board day"').length, 2, "one Board day field");
 });
 
-// P1-22: columns in a row stretch to one height. An empty column's slot is at least one card tall
-// from lg up (LE: "full one-card height"; ADMIN cards carry move controls, so they are taller than
-// STAFF cards), so an empty row is as tall as a row holding one car. At md the sidebar leaves room
-// for one column per line, so the slot stays short there (UI/UX check a4326df).
-test("board columns stretch to equal height and an empty slot keeps one card's height", () => {
-  // P1-23: the ADMIN card lost its separate drag button (about 410px -> 382px), so its slot follows.
-  for (const [role, min] of [["ADMIN", "lg:min-h-[24rem]"], ["STAFF", "lg:min-h-[14rem]"]] as const) {
+// P1-22 / P1-25: columns in a row sit on one horizontal scrolling line from md up and stretch to
+// one height. An empty column's slot keeps min-h-24 below lg and lg:min-h-[26rem] (ADMIN) /
+// lg:min-h-[14rem] (STAFF) from lg up.
+test("board columns sit on one sideways-scrolling row from md, stretch to equal height and keep empty-slot minimums", () => {
+  for (const [role, min] of [["ADMIN", "lg:min-h-[26rem]"], ["STAFF", "lg:min-h-[14rem]"]] as const) {
     const html = render(role);
-    const grids = html.match(/<div class="[^"]*\bgrid\b[^"]*auto-fill[^"]*"/g) ?? [];
-    assert.equal(grids.length, 3, role + ": one column grid per row");
-    for (const grid of grids) {
-      assert.doesNotMatch(grid, /items-start/, role + ": columns are not top-aligned at their own height");
-      assert.match(grid, /items-stretch/, role);
+    const scrollers = html.match(/<div[^>]*data-board-row-scroll="[^"]*"[^>]*>/g) ?? [];
+    assert.equal(scrollers.length, 3, role + ": one horizontal row scroller per row");
+    for (const scroller of scrollers) {
+      assert.doesNotMatch(scroller, /items-start|auto-fill/, role + ": rows do not top-align or wrap with auto-fill");
+      for (const token of [
+        "relative",
+        "min-w-0",
+        "grid",
+        "grid-cols-1",
+        "items-stretch",
+        "gap-3",
+        "md:flex",
+        "md:overflow-x-auto",
+        "md:overscroll-x-contain",
+        "md:pb-2",
+        "md:scroll-px-12",
+        "[scrollbar-width:thin]",
+        "[scrollbar-color:#3f3f46_transparent]",
+        "hover:[scrollbar-color:#52525b_transparent]",
+      ])
+        assert.ok(scroller.includes(token), role + " scroller includes " + token + ": " + scroller);
     }
-    const columns = html.match(/<section aria-label="(Waiting \u00b7 |Bay |Done \u00b7 )[^"]*" class="[^"]*"/g) ?? [];
+    const columns = html.match(/<section[^>]*aria-label="(Waiting \u00b7 |Bay |Done \u00b7 )[^"]*"[^>]*>/g) ?? [];
     assert.equal(columns.length, 4 + 8 + 3, role + ": every column");
-    for (const column of columns) assert.match(column, /\bflex-col\b/, role + ": " + column);
+    for (const column of columns) {
+      assert.match(column, /\bflex-col\b/, role + ": " + column);
+      assert.match(column, /\bmd:w-60\b/, role + " fixed column width from md: " + column);
+      assert.match(column, /\bmd:shrink-0\b/, role + " columns do not shrink on md+: " + column);
+      assert.match(column, /data-board-column="[^"]+"/, role + " column carries data-board-column: " + column);
+    }
     const slots = html.match(/<p class="[^"]*">(Bay empty|No waiting cars|No cars finished yet|Loading\.\.\.)<\/p>/g) ?? [];
     assert.ok(slots.length >= 3 + 8, role + ": every empty column shows a slot");
     for (const slot of slots) {
@@ -163,4 +182,108 @@ test("board columns stretch to equal height and an empty slot keeps one card's h
       else assert.doesNotMatch(slot, /border-dashed/, role + ": Done is not a drop target");
     }
   }
+});
+
+test("P1-25: each row has a relative fade wrapper, left/right w-12 edge fades, header scroll arrows before Add bay, and no sr-only elements", () => {
+  const html = render("ADMIN");
+  assert.equal(html.includes("sr-only"), false, "no sr-only spans inside the board");
+  const wraps = html.match(/<div[^>]*data-board-row-wrap="[^"]*"[^>]*>/g) ?? [];
+  assert.equal(wraps.length, 3, "three relative row wrappers");
+  for (const wrap of wraps) assert.match(wrap, /\brelative\b/, wrap);
+  const leftFades = html.match(/<div[^>]*data-board-fade="left"[^>]*>/g) ?? [];
+  const rightFades = html.match(/<div[^>]*data-board-fade="right"[^>]*>/g) ?? [];
+  assert.equal(leftFades.length, 3, "three left edge fades");
+  assert.equal(rightFades.length, 3, "three right edge fades");
+  for (const fade of [...leftFades, ...rightFades]) {
+    assert.match(fade, /aria-hidden="true"/, fade);
+    assert.match(fade, /\bw-12\b/, fade);
+    assert.match(fade, /from-\[#0f0f11\]/, fade);
+    assert.match(fade, /to-transparent/, fade);
+  }
+  for (const lane of ["Wash", "Detailing", "Paint"]) {
+    const earlier = html.indexOf(`aria-label="Show earlier ${lane} columns"`);
+    const more = html.indexOf(`aria-label="Show more ${lane} columns"`);
+    const add = html.indexOf(`aria-label="Add bay to ${lane}"`);
+    assert.ok(earlier > 0 && more > earlier && add > more, `${lane}: header scroll arrows sit before Add bay`);
+  }
+});
+
+test("P1-25: multi-service cards render services on one line with +N more and inline progress while keeping 44px targets and whole-card drag", () => {
+  const resources = require("./use-admin-resource");
+  const multiCard = {
+    ...card,
+    lines: [
+      { id: "l1", name: "Basic Wash", workStatus: "WAITING" },
+      { id: "l2", name: "Engine Bay Clean", workStatus: "IN_PROGRESS" },
+      { id: "l3", name: "Underchassis Wash", workStatus: "DONE" },
+    ],
+    progress: { done: 1, total: 3 },
+  };
+  const multiBoard = {
+    ...board,
+    queues: board.queues.map((q, i) => (i === 0 ? { ...q, waiting: [multiCard] } : q)),
+  };
+  mock.method(resources, "useAdminResource", (url: string | null) => ({
+    data: url === "/api/admin/bays" ? multiBoard.bays : url?.startsWith("/api/admin/board?") ? multiBoard : null,
+    loading: false,
+    error: null,
+    reload: async () => {},
+    setData: () => {},
+  }));
+  try {
+    const html = renderToStaticMarkup(createElement(require("./bay-board").BayBoard, { role: "ADMIN" }));
+    assert.ok(html.includes("Basic Wash"), "shows first service");
+    assert.ok(html.includes("+2 more"), "summarizes remaining services on the same line");
+    assert.ok(html.includes("1/3 done"), "shows inline progress");
+    assert.equal(html.includes("<ul"), false, "services do not expand into a multi-line ul");
+    const labelIdx = html.indexOf('aria-label="ZEUS-TEST17"');
+    const articleStart = html.lastIndexOf("<article", labelIdx);
+    const articleEnd = html.indexOf("</article>", labelIdx);
+    const articleHtml = html.slice(articleStart, articleEnd);
+    assert.match(articleHtml, /draggable="true"/);
+    assert.match(articleHtml, /cursor-grab/);
+    const refBtn = articleHtml.match(/<button[^>]*id="board-card-car"[^>]*>/)?.[0] ?? "";
+    const selectEl = articleHtml.match(/<select[^>]*aria-label="Move ZEUS-TEST17 to bay"[^>]*>/)?.[0] ?? "";
+    const moveBtn = articleHtml.match(/<button[^>]*id="board-move-car"[^>]*>/)?.[0] ?? "";
+    assert.match(refBtn, /\bmin-h-\[44px\]/);
+    assert.match(selectEl, /\bmin-h-\[44px\]/);
+    assert.match(moveBtn, /\bmin-h-\[44px\]/);
+  } finally {
+    mock.restoreAll();
+  }
+});
+
+test("P1-25: edgeScrollStep and revealColumnScrollLeft follow the UI/UX speed curve and sideways-only reveal rules", () => {
+  const { edgeScrollStep, revealColumnScrollLeft } = require("./bay-board");
+  const rect = { left: 100, right: 900, top: 200, bottom: 700, width: 800 };
+  const midScroll = { scrollLeft: 300, clientWidth: 800, scrollWidth: 2000 };
+  // Outside vertical span -> no scroll
+  assert.deepEqual(edgeScrollStep(895, 150, rect, midScroll, 16), { dir: 0, speed: 0, delta: 0 });
+  // Center of row -> no scroll
+  assert.deepEqual(edgeScrollStep(500, 400, rect, midScroll, 16), { dir: 0, speed: 0, delta: 0 });
+  // Inner edge of right 80px zone (x = 820 -> depth = 0) -> 0
+  assert.deepEqual(edgeScrollStep(820, 400, rect, midScroll, 20), { dir: 0, speed: 0, delta: 0 });
+  // Halfway into right 80px zone (x = 860 -> depth = 0.5) -> speed = 150 + 850 * 0.25 = 362.5 px/s
+  const halfRight = edgeScrollStep(860, 400, rect, midScroll, 20);
+  assert.equal(halfRight.dir, 1);
+  assert.equal(halfRight.speed, 362.5);
+  assert.ok(Math.abs(halfRight.delta - 362.5 * 0.02) < 1e-6);
+  // At right edge or up to 40px outside (x = 920 -> depth clamped to 1) and dt capped at 50ms -> speed = 1000 px/s, delta = 50px
+  const fullRight = edgeScrollStep(920, 400, rect, midScroll, 120);
+  assert.deepEqual(fullRight, { dir: 1, speed: 1000, delta: 50 });
+  // Beyond 40px outside -> no scroll
+  assert.deepEqual(edgeScrollStep(945, 400, rect, midScroll, 20), { dir: 0, speed: 0, delta: 0 });
+  // Left edge zone at start of row (scrollLeft = 0) -> cannot scroll left further
+  assert.deepEqual(edgeScrollStep(110, 400, rect, { ...midScroll, scrollLeft: 0 }, 20), { dir: 0, speed: 0, delta: 0 });
+  // Left edge zone when scrolled right -> negative delta
+  const leftStep = edgeScrollStep(100, 400, rect, midScroll, 20);
+  assert.deepEqual(leftStep, { dir: -1, speed: 1000, delta: -20 });
+
+  // Sideways column reveal (Section 9B):
+  // Left edge under 48px fade -> scrollLeft = col.offsetLeft - 48
+  assert.equal(revealColumnScrollLeft({ offsetLeft: 200, offsetWidth: 240 }, { scrollLeft: 180, clientWidth: 800, scrollWidth: 2000 }), 152);
+  // Right edge under 48px fade -> scrollLeft = col.offsetLeft + col.offsetWidth - clientWidth + 48
+  assert.equal(revealColumnScrollLeft({ offsetLeft: 750, offsetWidth: 240 }, { scrollLeft: 100, clientWidth: 800, scrollWidth: 2000 }), 238);
+  // Already visible between fades -> unchanged
+  assert.equal(revealColumnScrollLeft({ offsetLeft: 300, offsetWidth: 240 }, { scrollLeft: 100, clientWidth: 800, scrollWidth: 2000 }), 100);
 });
