@@ -45,6 +45,18 @@ export function BookingDetail({
   React.useEffect(() => {
     dialog.current?.showModal();
   }, []);
+  // P1-30: the page behind a modal must not scroll. The dashboard scrolls inside #admin-content, which
+  // a native modal leaves wheel-scrollable, so lock it while the dialog exists. The cleanup restores
+  // it on every way out (Escape, Close, a delete, the board unmounting).
+  React.useEffect(() => {
+    const area = document.getElementById("admin-content");
+    if (!area) return;
+    const previous = area.style.overflow;
+    area.style.overflow = "hidden";
+    return () => {
+      area.style.overflow = previous;
+    };
+  }, []);
   const resource = useAdminResource<AdminBookingDetail>(
       `/api/admin/bookings/${id}`,
     ),

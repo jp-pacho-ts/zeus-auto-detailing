@@ -84,3 +84,9 @@ export function writeFeedback(error: {
     review: error.code === "VERSION_CONFLICT",
   };
 }
+
+// P1-30: a click that lands on (or inside) one of these keeps that control's own behaviour and does
+// not open the card's details. The same list decides whether a press may start a card drag.
+export const CONTROL_SELECTOR = "button, select, input, textarea, a, label, [role='menu'], [role='menuitem']";
+export const isControlTarget = (target: EventTarget | null): boolean =>
+  target instanceof Element && target.closest(CONTROL_SELECTOR) !== null;
