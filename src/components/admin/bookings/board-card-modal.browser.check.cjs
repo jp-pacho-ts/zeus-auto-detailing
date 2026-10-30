@@ -68,10 +68,10 @@ test('click anywhere on a board card opens its details modal; controls and drags
       await shot(page, `p130-before-${width}`);
       await card.getByText(/Synthetic Vehicle|·/).first().click();
       await dialog.getByText('Booking details').waitFor({ timeout: 5000 }).catch(() => {});
-      await shot(page, `p130-after-${width}`);
       assert.equal(await dialog.count(), 1, `${width}px: a click on the card body opens the details dialog`);
       assert.equal(await dialog.evaluate((d) => d.open && d.matches(':modal')), true, 'it is a true modal dialog');
       await dialog.getByText(ref, { exact: true }).first().waitFor();
+      await shot(page, `p130-after-${width}`);
       assert.equal(await scrollMode(page), 'hidden', 'the dashboard cannot scroll behind the modal');
       // Escape closes it, focus returns to this card's reference button, the scroll area works again.
       await page.keyboard.press('Escape');
