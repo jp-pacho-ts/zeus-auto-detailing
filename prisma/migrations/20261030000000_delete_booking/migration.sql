@@ -8,18 +8,20 @@ BEGIN;
 --  * delete_booking() is the only way in. It is SECURITY DEFINER, executable by zeus_app only; the
 --    runtime role still has no DELETE on any of these tables.
 --  * It takes the shop lock, requires an active ADMIN/MANAGER actor, the expected revision and the
---    typed reference code, writes the BOOKING_DELETED audit row, sets the transaction-local marker
---    zeus.deleting_booking, then deletes.
+--    typed reference code, writes the BOOKING_DELETED audit row, sets the owner-only token row for
+--    this transaction and booking (booking_delete_tokens), then deletes and removes the token.
 --  * The immutability triggers on the child tables keep rejecting every DELETE. Their DELETE
 --    triggers are now separate and carry a WHEN clause that lets the delete through only when
---    booking_delete_authorised() is true: marker = that booking AND a BOOKING_DELETED audit row for
---    it exists in this same transaction. A marker alone, or an audit row alone, is not enough.
+--    booking_delete_authorised() is true: a token row for this transaction and booking exists AND a
+--    BOOKING_DELETED audit row for it exists in this same transaction. Only delete_booking() can write
+--    the token, so an app session cannot open the path by forging an audit row.
 --  * booking_audit_events keeps its rows byte for byte. Its two foreign keys (bookingId, lineId) are
 --    dropped so they can outlive the booking; the insert guard now checks existence instead.
 --
 -- Down steps (documented only; Prisma does not run them). Rows already deleted cannot return.
 --   DROP FUNCTION delete_booking(text, text, integer, text);
 --   DROP FUNCTION booking_delete_authorised(text);
+--   DROP TABLE booking_delete_tokens;  (after the triggers below no longer call the function)
 --   for each of booking_line_items, booking_operations, booking_management_grants,
 --     booking_management_sessions, bay_occupancies, booking_worker_assignments: DROP the
 --     "*_delete" trigger and recreate the original combined trigger
@@ -80,8 +82,16 @@ ALTER TABLE booking_audit_events ADD CONSTRAINT booking_audit_shape CHECK (COALE
     WHEN 'BOOKING_DELETED' THEN "bookingId" IS NOT NULL AND "bookingReference" IS NOT NULL AND "fromStatus" IS NOT NULL AND "resultCount" IS NOT NULL AND reason IS NULL AND "phoneDigest" IS NULL AND "lineId" IS NULL
     ELSE false END, false));
 
-CREATE FUNCTION booking_delete_authorised(bid text) RETURNS boolean LANGUAGE sql SET search_path=pg_catalog,public AS $$
- SELECT bid IS NOT NULL AND current_setting('zeus.deleting_booking', true) = bid
+-- The delete path is opened by a row in an owner-only table that only delete_booking() writes (the
+-- runtime role has no privilege on it, so it cannot be forged from an app session; a settable
+-- session variable could be). The row is keyed by the transaction and the booking and is removed
+-- by delete_booking() before it returns.
+CREATE TABLE booking_delete_tokens ("txId" BIGINT NOT NULL, "bookingId" TEXT NOT NULL, CONSTRAINT booking_delete_tokens_pkey PRIMARY KEY ("txId", "bookingId"));
+REVOKE ALL ON booking_delete_tokens FROM PUBLIC;
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='zeus_app') THEN REVOKE ALL ON booking_delete_tokens FROM zeus_app; END IF; END $$;
+
+CREATE FUNCTION booking_delete_authorised(bid text) RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+ SELECT bid IS NOT NULL AND EXISTS(SELECT 1 FROM public.booking_delete_tokens t WHERE t."txId" = txid_current() AND t."bookingId" = bid)
   AND EXISTS(SELECT 1 FROM public.booking_audit_events e WHERE e.action::text = 'BOOKING_DELETED' AND e."bookingId" = bid AND e."txId" = txid_current())
 $$;
 
@@ -137,7 +147,7 @@ BEGIN
  END IF;
  SELECT count(*), LEAST(sum(COALESCE("staffPriceCentavos", "subtotalCentavos")), 100000000) INTO line_count, total
    FROM public.booking_line_items WHERE "bookingId" = p_booking AND "removedAt" IS NULL;
- PERFORM set_config('zeus.deleting_booking', p_booking, true);
+ INSERT INTO public.booking_delete_tokens ("txId", "bookingId") VALUES (txid_current(), p_booking);
  INSERT INTO public.booking_audit_events (id, action, "actorStaffId", "bookingId", "queueCode", "fromStatus", "fromDate", "resultCount", "newPriceCentavos", "bookingReference")
    VALUES (gen_random_uuid()::text, 'BOOKING_DELETED', p_actor, p_booking, b."queueCode", b.status, b."bookingDate", line_count, total::integer, b."referenceCode");
  DELETE FROM public.booking_turnstile_uses WHERE "operationId" IN (SELECT id FROM public.booking_operations WHERE "bookingId" = p_booking);
@@ -151,7 +161,7 @@ BEGIN
  DELETE FROM public.booking_bay_assignments WHERE "bookingId" = p_booking;
  DELETE FROM public.booking_line_items WHERE "bookingId" = p_booking;
  DELETE FROM public.bookings WHERE id = p_booking;
- PERFORM set_config('zeus.deleting_booking', '', true);
+ DELETE FROM public.booking_delete_tokens WHERE "txId" = txid_current() AND "bookingId" = p_booking;
  RETURN jsonb_build_object('reference', b."referenceCode", 'status', b.status::text, 'lines', line_count);
 END $$;
 REVOKE ALL ON FUNCTION delete_booking(text, text, integer, text) FROM PUBLIC;

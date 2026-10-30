@@ -791,6 +791,16 @@ model BookingAuditEvent {
   @@map("booking_audit_events")
 }
 
+// P1-29: owner-only (the runtime role has no privilege). delete_booking() writes one row per delete
+// transaction; the delete triggers open only while it exists. Removed before the function returns.
+model BookingDeleteToken {
+  txId      BigInt
+  bookingId String
+
+  @@id([txId, bookingId])
+  @@map("booking_delete_tokens")
+}
+
 model BookingOperation {
   id                String               @id @default(uuid())
   keyHash           String               @unique

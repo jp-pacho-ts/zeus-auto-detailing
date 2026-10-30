@@ -141,7 +141,8 @@ END $$;
 
 -- No privileges at all: _prisma_migrations, catalog_publishers, catalog_publication_events,
 -- catalog_hold_segments, booking_assignments, slot_capacity_overrides, commission_payouts,
--- inventory_items, inventory_transactions, service_recipes, and EXECUTE on publish_catalog.
+-- inventory_items, inventory_transactions, service_recipes, booking_delete_tokens (P1-29, written only
+-- by delete_booking()), and EXECUTE on publish_catalog.
 
 -- Owner default privileges for future tables (S-06). Each migration that adds a table revokes
 -- these and grants its exact list; this script, run after it, is the final word.

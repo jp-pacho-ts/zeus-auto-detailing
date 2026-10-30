@@ -246,17 +246,17 @@ test("F4 the app role cannot delete or alter any of these rows on its own", { sk
   assert.equal((await counts(b.id)).booking, 1);
 });
 
-test("F5 the marker alone, the audit row alone, or the wrong booking's pair never opens the delete path", { skip }, async () => {
+test("F5 the token alone, the audit row alone, or the wrong booking's pair never opens the delete path", { skip }, async () => {
   const a = await bookingAt("CONFIRMED", "2027-04-11"), c = await bookingAt("CONFIRMED", "2027-04-11");
   const lineA = (await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: a.id } })).id;
   const auditRow = (id: string) => `INSERT INTO booking_audit_events (id,action,"actorStaffId","bookingId","fromStatus","resultCount","bookingReference") VALUES (gen_random_uuid()::text,'BOOKING_DELETED','${ADMIN.staffId}','${id}','CONFIRMED',1,'ZEUS-X1')`;
-  const marker = (id: string) => `SELECT set_config('zeus.deleting_booking','${id}',true)`;
-  const tryDelete = (steps: string[], q: string) => db.$transaction(async (tx) => { for (const x of steps) await tx.$queryRawUnsafe(x); await tx.$executeRawUnsafe(q); });
+  const marker = (id: string) => `INSERT INTO booking_delete_tokens ("txId","bookingId") VALUES (txid_current(),'${id}')`; // the owner-only token
+  const tryDelete = (steps: string[], q: string) => db.$transaction(async (tx) => { for (const x of steps) await tx.$executeRawUnsafe(x); await tx.$executeRawUnsafe(q); });
   const del = `DELETE FROM booking_line_items WHERE id='${lineA}'`;
-  await assert.rejects(tryDelete([marker(a.id)], del), /append-only/, "marker without the audit row");
-  await assert.rejects(tryDelete([auditRow(a.id)], del), /append-only/, "audit row without the marker");
+  await assert.rejects(tryDelete([marker(a.id)], del), /append-only/, "token without the audit row");
+  await assert.rejects(tryDelete([auditRow(a.id)], del), /append-only/, "audit row without the token");
   await assert.rejects(tryDelete([marker(c.id), auditRow(c.id)], del), /append-only/, "another booking's pair");
-  await assert.rejects(tryDelete([marker(a.id), auditRow(c.id)], del), /append-only/, "marker for one, audit row for another");
+  await assert.rejects(tryDelete([marker(a.id), auditRow(c.id)], del), /append-only/, "token for one, audit row for another");
   // The audit row of an earlier transaction does not count either.
   await db.$executeRawUnsafe(auditRow(a.id));
   await assert.rejects(tryDelete([marker(a.id)], del), /append-only/, "audit row from another transaction");
@@ -275,4 +275,37 @@ test("F6 delete_booking itself: runtime role only, ADMIN actor only, wrong input
   const [acl] = await db.$queryRawUnsafe<{ acl: string }[]>(`SELECT proacl::text AS acl FROM pg_proc WHERE proname='delete_booking'`);
   assert.ok(/zeus_app=X\//.test(acl.acl) && !/(^\{|,)=X\//.test(acl.acl), `only zeus_app and the owner can execute: ${acl.acl}`);
   assert.equal((await counts(b.id)).booking, 1);
+});
+
+test("F7 an app session cannot open the delete path: a forged audit row and marker delete no child row, and the token table is closed to it", { skip }, async () => {
+  const b = await bookingAt("IN_PROGRESS", "2027-04-20"); // has a bay occupancy and a worker too
+  assert.equal((await counts(b.id)).bay_occupancies, 1);
+  assert.equal((await counts(b.id)).booking_worker_assignments, 1);
+  const forge = `INSERT INTO booking_audit_events (id,action,"actorStaffId","bookingId","fromStatus","resultCount","bookingReference") VALUES (gen_random_uuid()::text,'BOOKING_DELETED','${ADMIN.staffId}','${b.id}','IN_PROGRESS',1,'${b.reference}')`;
+  const marker = `SELECT set_config('zeus.deleting_booking','${b.id}',true)`;
+  const denied = /permission denied/, board = /Board relation/;
+  const cases: [string, string, RegExp][] = [
+    ["booking_line_items", '"bookingId"', denied], ["booking_operations", '"bookingId"', denied],
+    ["booking_management_sessions", '"bookingId"', denied], ["booking_management_grants", '"bookingId"', denied],
+    ["booking_notification_outbox", '"bookingId"', denied], ["booking_deposit_proofs", '"bookingId"', denied],
+    // (booking_bay_assignments is plain bay history the app may already delete; it has no audit gate, so it is not a case here.)
+    ["bookings", "id", denied],
+    // zeus_app may delete these two through the normal audited path; the forged pair must not skip that audit.
+    ["bay_occupancies", '"bookingId"', board], ["booking_worker_assignments", '"bookingId"', board],
+  ];
+  for (const [table, col, re] of cases) {
+    await assert.rejects(app.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(forge);
+      await tx.$queryRawUnsafe(marker);
+      await tx.$executeRawUnsafe(`DELETE FROM ${table} WHERE ${col}='${b.id}'`);
+      await tx.$executeRawUnsafe("SET CONSTRAINTS ALL IMMEDIATE");
+    }), re, table);
+  }
+  // The app cannot write, read or change the token table at all.
+  for (const q of [`INSERT INTO booking_delete_tokens ("txId","bookingId") VALUES (txid_current(),'${b.id}')`, "SELECT * FROM booking_delete_tokens", "DELETE FROM booking_delete_tokens"])
+    await assert.rejects(app.$executeRawUnsafe(q), denied, q);
+  const after = await counts(b.id);
+  assert.deepEqual([after.booking, after.booking_line_items >= 1, after.bay_occupancies, after.booking_worker_assignments], [1, true, 1, 1]);
+  assert.equal(await db.bookingAuditEvent.count({ where: { bookingId: b.id, action: "BOOKING_DELETED" } }), 0, "the forged rows rolled back");
+  assert.equal(Number((await db.$queryRawUnsafe<{ n: bigint }[]>("SELECT count(*) AS n FROM booking_delete_tokens"))[0].n), 0, "no token is left behind");
 });
