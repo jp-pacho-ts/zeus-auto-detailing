@@ -23,11 +23,9 @@ let s: Services;
 let pricing: typeof import("../catalog-pricing");
 const manifest = readManifest();
 let releaseId = "";
-let ADMIN: StaffActor, MANAGER: StaffActor, STAFF: StaffActor;
+let STAFF: StaffActor;
 let seq = 0;
 const NOW = new Date("2027-03-01T02:00:00.000Z");
-const opts = () => ({ db: app, now: () => NOW });
-const at = (day: string) => ({ db: app, now: () => new Date(day + "T02:00:00.000Z") });
 
 const lit = (x: unknown): string => x === null || x === undefined ? "NULL" : typeof x === "number" ? String(x) : `'${String(x).replace(/'/g, "''")}'`;
 async function insert(tx: { $executeRawUnsafe(q: string): Promise<number> }, table: string, row: Record<string, unknown>) {
@@ -78,16 +76,13 @@ before(async () => {
   pricing = await import("../catalog-pricing");
   s = await import("./index");
   const tooling = await import(path.join(process.cwd(), "prisma", "catalog", "catalog.mjs")) as { stableId(k: string): string };
-  const adminId = await mapPublisher(db, "p131-admin@example.test");
+  await mapPublisher(db, "p131-admin@example.test");
   releaseId = await publish(db, manifest, tooling.stableId);
   const detailer = await db.staff.create({ data: { name: "Detailer", phone: "", email: "p131-detailer@example.test", role: "DETAILER" } });
-  ADMIN = { staffId: adminId, role: "ADMIN", sessionId: randomUUID() };
-  MANAGER = ADMIN;
   STAFF = { staffId: detailer.id, role: "STAFF", sessionId: randomUUID() };
   await db.$executeRawUnsafe(`UPDATE booking_queues SET "dailyCap"=50, revision=revision+1, "updatedAt"=now()`);
 });
 after(async () => { console.warn = realWarn; if (app) await app.$disconnect(); await db.$disconnect(); await root.$disconnect(); });
-void MANAGER;
 
 async function withSmtp<T>(run: (smtp: Awaited<ReturnType<(typeof import("../notifications/smtp.fixture"))["smtpSimulation"]>>, sender: import("./notice").TurnNoticeSender) => Promise<T>): Promise<T> {
   const { smtpSimulation } = await import("../notifications/smtp.fixture");
