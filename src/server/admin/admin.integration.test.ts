@@ -279,7 +279,10 @@ test("W15 notify: no email, sent, rate limit, provider failure, and the send hap
   const failing = await book(select("S", "basic-wash"), "2027-03-12", { customerEmail: "d@example.test" });
   const broken = { async send() { throw new Error("provider down"); } };
   const r3 = await s.notifyCustomer(ADMIN, failing, { expectedRevision: 1 }, opts({ sender: broken }));
-  assert.deepEqual([r3.notice, (await audits(failing)).length], ["NOT_SENT", 1]);
+  // P1-31: a failed send leaves no audit row, so the very next attempt is allowed (and records one once it goes out).
+  assert.deepEqual([r3.notice, (await audits(failing)).length], ["NOT_SENT", 0]);
+  const retry = await s.notifyCustomer(ADMIN, failing, { expectedRevision: 1 }, opts({ sender }));
+  assert.deepEqual([retry.notice, (await audits(failing)).length], ["SENT", 1]);
 });
 
 test("W16 history: ADMIN only, one customer's bookings, fixed empty shape, keyed digest audit, fail closed, rate limit", { skip }, async () => {
