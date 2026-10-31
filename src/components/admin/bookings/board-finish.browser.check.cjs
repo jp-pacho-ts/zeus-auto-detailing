@@ -9,6 +9,7 @@ const path = require('node:path');
 const { test } = require('node:test');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
+const OLD_NAME = 'Bay ' + 'board'; // the old page name, written in two parts so a search for it finds only real leftovers
 const confirmText = (ref) => `Finish ${ref}? All its services will be marked done and the booking completed. A finished car can't be moved back.`;
 
 test('the Kanban board: a car is finished by dropping it on Done, or from its move control, after a confirm', { timeout: 240_000 }, async () => {
@@ -52,11 +53,11 @@ test('the Kanban board: a car is finished by dropping it on Done, or from its mo
     const menu = page.locator('button[aria-controls=admin-nav]');
     if (await menu.isVisible()) await menu.click();
     const nav = page.getByRole('navigation', { name: 'Shop Operations Navigation' });
-    assert.equal(await nav.getByRole('button', { name: 'Bay board' }).count(), 0, 'no "Bay board" in the sidebar');
+    assert.equal(await nav.getByRole('button', { name: OLD_NAME }).count(), 0, 'no "Bay board" in the sidebar');
     await nav.getByRole('button', { name: 'Kanban board', exact: true }).click();
     await page.getByRole('heading', { name: 'Kanban board', exact: true }).waitFor();
     await page.getByLabel('Board day').waitFor();
-    assert.ok(!(await page.locator('body').innerText()).includes('Bay board'), 'no "Bay board" text on the page');
+    assert.ok(!(await page.locator('body').innerText()).includes(OLD_NAME), 'no "Bay board" text on the page');
     assert.equal(await page.getByRole('group', { name: 'Kanban board sections' }).count(), 1);
     await shot(page, `p134-board-${width}`);
 
@@ -154,7 +155,8 @@ test('the Kanban board: a car is finished by dropping it on Done, or from its mo
     await show('Done · Wash');
     await doneCol.getByRole('article', { name: ref2, exact: true }).waitFor({ timeout: 15_000 });
     assert.equal(finishes.length, sent + 1);
-    assert.equal(await page.evaluate((id) => document.activeElement?.id, 'board-card-' + (await doneCol.getByRole('article', { name: ref2, exact: true }).getByRole('button', { name: ref2, exact: true }).getAttribute('id')).slice('board-card-'.length)), await doneCol.getByRole('article', { name: ref2, exact: true }).getByRole('button', { name: ref2, exact: true }).getAttribute('id'), 'focus lands on the finished card');
+    const doneBtn = doneCol.getByRole('article', { name: ref2, exact: true }).getByRole('button', { name: ref2, exact: true });
+    assert.equal(await page.evaluate(() => document.activeElement?.id), await doneBtn.getAttribute('id'), 'focus lands on the finished card');
     await shot(page, `p134-finished-keyboard-${width}`);
 
     // ---- 4. An uncertain finish locks the board (P1-25): no further moves or finishes until a good reload ----
