@@ -30,9 +30,13 @@ export function BookingLookupForm({ onFound }: { onFound: (data: ManagedLookupDa
   const [challenge, setChallenge] = React.useState<ChallengeStatus>("pending");
   const [challengeKey, setChallengeKey] = React.useState(0);
   const [error, setError] = React.useState("");
+  const [shown, setShown] = React.useState(0); // bumps on every message so focus follows even a repeated one
   const [pending, setPending] = React.useState(false);
   const busy = React.useRef(false);
   const alertRef = React.useRef<HTMLParagraphElement>(null);
+  React.useEffect(() => {
+    if (shown > 0) alertRef.current?.focus();
+  }, [shown]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -70,7 +74,7 @@ export function BookingLookupForm({ onFound }: { onFound: (data: ManagedLookupDa
       setChallengeKey((k) => k + 1);
       busy.current = false;
       setPending(false);
-      queueMicrotask(() => alertRef.current?.focus());
+      setShown((n) => n + 1);
     }
   };
 
