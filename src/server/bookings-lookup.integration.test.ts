@@ -210,6 +210,8 @@ test("L9 a new booking stores first and last name and the display name First Las
   const b = await book({ customerFirstName: "Ana", customerLastName: "dela Cruz" });
   const row = await db.booking.findUniqueOrThrow({ where: { id: b.id } });
   assert.deepEqual([row.customerName, row.customerFirstName, row.customerLastName], ["Ana dela Cruz", "Ana", "dela Cruz"]);
+  // The database itself refuses half a name.
+  await assert.rejects(db.$executeRawUnsafe(`UPDATE bookings SET "customerLastName"=NULL WHERE id='${b.id}'`), /booking_customer_name_parts/);
   const old = await book({ customerName: "Old Style" });
   const oldRow = await db.booking.findUniqueOrThrow({ where: { id: old.id } });
   assert.deepEqual([oldRow.customerName, oldRow.customerFirstName, oldRow.customerLastName], ["Old Style", null, null]);

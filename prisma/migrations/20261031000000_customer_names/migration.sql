@@ -8,10 +8,14 @@ BEGIN;
 -- exist, then the code release. The new code reads them only in the customer create and the lookup.
 --
 -- Down-step (documented only; Prisma does not run it):
---   ALTER TABLE bookings DROP COLUMN "customerFirstName", DROP COLUMN "customerLastName";
+--   ALTER TABLE bookings DROP CONSTRAINT booking_customer_name_parts,
+--     DROP COLUMN "customerFirstName", DROP COLUMN "customerLastName";
 ALTER TABLE "bookings" ADD COLUMN "customerFirstName" TEXT, ADD COLUMN "customerLastName" TEXT;
+-- Both or neither (a CHECK passes on NULL, so the pairing is stated explicitly), 1 to 50 characters each,
+-- no control characters.
 ALTER TABLE "bookings" ADD CONSTRAINT booking_customer_name_parts CHECK (
-  ("customerFirstName" IS NULL AND "customerLastName" IS NULL)
-  OR (length("customerFirstName") BETWEEN 1 AND 50 AND length("customerLastName") BETWEEN 1 AND 50
-      AND "customerFirstName" !~ '[[:cntrl:]]' AND "customerLastName" !~ '[[:cntrl:]]'));
+  ("customerFirstName" IS NULL) = ("customerLastName" IS NULL)
+  AND ("customerFirstName" IS NULL OR (
+    length("customerFirstName") BETWEEN 1 AND 50 AND length("customerLastName") BETWEEN 1 AND 50
+    AND "customerFirstName" !~ '[[:cntrl:]]' AND "customerLastName" !~ '[[:cntrl:]]')));
 COMMIT;
