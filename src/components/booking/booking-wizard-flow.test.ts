@@ -303,7 +303,8 @@ test("W4: one round of checking with plain words; no browser bubble, no programm
   form.props.onSubmit({ preventDefault() {} });
   await h.settle();
   const t = h.text();
-  assert.match(t, /Enter your name \(at least 2 letters\)\./);
+  assert.match(t, /Enter your first name\./);
+  assert.match(t, /Enter your last name\./);
   assert.match(t, /Enter a Philippine mobile number, like 0917 000 0000\./);
   assert.match(t, /Enter your car's make and model/);
   assert.doesNotMatch(t, /Too small|expected|>=|string/);
@@ -334,7 +335,7 @@ test("W5: a server message is shown once, not repeated as its own field line", a
   network({ create: () => ({ ok: false, error: { code: "CHALLENGE_FAILED", message: "Complete the security check again.", fieldErrors: { turnstileToken: ["Complete the security check again."] }, retryable: true, commitState: "UNKNOWN", currentQuote: null, currentBooking: null, retryAfterSeconds: null } }) });
   const h = mountHooks(BookingWizard, {});
   await toDetails(h);
-  for (const [field, value] of [["customerName", "Test Customer"], ["customerPhone", "0917 000 0000"], ["vehicleModel", "Toyota Vios"]])
+  for (const [field, value] of [["customerFirstName", "Test"], ["customerLastName", "Customer"], ["customerPhone", "0917 000 0000"], ["vehicleModel", "Toyota Vios"]])
     h.all().find((e) => e.props.id === field)!.props.onChange({ target: { value } });
   fire(h.child(TurnstileChallenge), "onToken", "token-1");
   await h.settle();
@@ -348,7 +349,7 @@ test("W1/L10: after Submit the customer lands on 'Booking received' with the arr
   const posts = network();
   const h = mountHooks(BookingWizard, {});
   await toDetails(h);
-  for (const [field, value] of [["customerName", "Test Customer"], ["customerPhone", "0917 000 0000"], ["vehicleModel", "Toyota Vios"]])
+  for (const [field, value] of [["customerFirstName", "Test"], ["customerLastName", "Customer"], ["customerPhone", "0917 000 0000"], ["vehicleModel", "Toyota Vios"]])
     h.all().find((e) => e.props.id === field)!.props.onChange({ target: { value } });
   fire(h.child(TurnstileChallenge), "onToken", "token-1");
   await h.settle();

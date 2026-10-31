@@ -108,7 +108,7 @@ const fullQuote = {
   lines: [{ serviceId: wash.id, offerId: id(50), kind: "BASE", name: "Basic Wash", unit: "VEHICLE", quantity: 1, priceStatus: "PRICED", unitPriceCentavos: 18000, subtotalCentavos: 18000, referenceUnitPriceCentavos: null, referenceSubtotalCentavos: null }],
   totalPriceCentavos: 18000, estimatedTotalCentavos: 18000, currency: "PHP", issuedAt: "2026-10-20T00:00:00.000Z", expiresAt: "2026-10-20T00:15:00.000Z", quoteToken: "signed",
 } as BookingQuote;
-const form = { customerName: " Juan dela Cruz ", customerPhone: "0917 123 4567", customerEmail: "", vehicleModel: "Toyota Vios", vehiclePlate: "abc 1234", specialRequests: "" };
+const form = { customerFirstName: " Juan ", customerLastName: " dela Cruz ", customerPhone: "0917 123 4567", customerEmail: "", vehicleModel: "Toyota Vios", vehiclePlate: "abc 1234", specialRequests: "" };
 
 test("the v4 create body uses the quote's own lines, a v4 UUID key and the normalized phone", () => {
   const r = createDayRequest({ form, quote: fullQuote, bookingDate: "2026-10-21", turnstileToken: "token", idempotencyKey: "0f8fad5b-d9cb-469f-a165-70867728950e" });
@@ -118,6 +118,8 @@ test("the v4 create body uses the quote's own lines, a v4 UUID key and the norma
   assert.equal(r.data.contractVersion, 4);
   assert.equal(r.data.customerPhone, "+639171234567");
   assert.equal(r.data.customerName, "Juan dela Cruz");
+  assert.equal(r.data.customerFirstName, "Juan");
+  assert.equal(r.data.customerLastName, "dela Cruz");
   assert.equal(r.data.vehiclePlate, "ABC 1234");
   assert.equal(r.data.customerEmail, undefined);
   assert.equal(r.data.specialRequests, undefined);
@@ -147,7 +149,7 @@ test("create errors route the customer to the right step and never echo unknown 
   assert.deepEqual([challenge.step, challenge.newChallenge, challenge.fieldErrors], ["DETAILS", true, { turnstileToken: ["Complete the security check again."] }]);
   // P1-19 W4: the customer's own fields read in the shop's plain words, whatever the server said.
   const validation = publicCreateError(err("VALIDATION_ERROR", { fieldErrors: { customerPhone: ["Use a Philippine mobile number"], customerName: ["Too small: expected string to have >=2 characters"], staffNote: ["PRIVATE CANARY"] } }));
-  assert.deepEqual(validation.fieldErrors, { customerPhone: ["Enter a Philippine mobile number, like 0917 000 0000."], customerName: ["Enter your name (at least 2 letters)."] });
+  assert.deepEqual(validation.fieldErrors, { customerPhone: ["Enter a Philippine mobile number, like 0917 000 0000."], customerName: ["Enter your first and last name."] });
   assert.equal(publicCreateError(err("RATE_LIMITED", { retryable: true, retryAfterSeconds: 3600 })).uncertain, false);
 });
 
@@ -174,4 +176,12 @@ test("P1-19 W8 (LE 2026-10-28): the arrival line comes from the shop's own hours
   assert.equal(arrivalWords(), "Bring your car any time during opening hours, 8\u00a0AM–6\u00a0PM, on your chosen day.");
   assert.equal(serviceDetail(coating), null);
   assert.equal(serviceDetail({ ...coating, productName: "IGC Eclipse Graphene", hardness: "9H", warrantyMonths: 36 }), "IGC Eclipse Graphene · 9H · 3-year warranty");
+});
+
+test("P1-32: a missing first or last name is refused with its own plain message", () => {
+  for (const [field, message] of [["customerFirstName", "Enter your first name."], ["customerLastName", "Enter your last name."]] as const) {
+    const r = createDayRequest({ form: { ...form, [field]: "  " }, quote: fullQuote, bookingDate: "2026-10-21", turnstileToken: "token", idempotencyKey: "0f8fad5b-d9cb-469f-a165-70867728950e" });
+    assert.equal(r.ok, false);
+    if (!r.ok) assert.deepEqual(r.fieldErrors[field], [message]);
+  }
 });

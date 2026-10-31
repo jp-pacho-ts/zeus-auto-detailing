@@ -41,7 +41,10 @@ export function TurnstileChallenge({
   onToken,
   onStatus,
   size = "normal",
+  action = "booking_create",
 }: {
+  // P1-32: the server checks the action, so a create token cannot be replayed on the lookup.
+  action?: "booking_create" | "booking_lookup";
   siteKey: string;
   onToken: (token: string) => void;
   onStatus?: (status: ChallengeStatus) => void;
@@ -68,7 +71,7 @@ export function TurnstileChallenge({
         if (cancelled || !box.current || !window.turnstile) return;
         widget = window.turnstile.render(box.current, {
           sitekey: siteKey,
-          action: "booking_create",
+          action,
           theme: "dark",
           size,
           callback: (token: string) => {
@@ -94,7 +97,7 @@ export function TurnstileChallenge({
       cancelled = true;
       if (widget && window.turnstile) window.turnstile.remove(widget);
     };
-  }, [siteKey, size]);
+  }, [siteKey, size, action]);
   return (
     <div>
       <div ref={box} />

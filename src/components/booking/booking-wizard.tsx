@@ -144,7 +144,8 @@ export function BookingWizard({
   const [days, setDays] = React.useState<{ key: string; data: DayAvailabilityData | null; error: string } | null>(null);
   const [daysVersion, setDaysVersion] = React.useState(0);
   const [form, setForm] = React.useState<DetailsForm>({
-    customerName: "",
+    customerFirstName: "",
+    customerLastName: "",
     customerPhone: "",
     customerEmail: "",
     vehicleModel: "",
@@ -213,7 +214,8 @@ export function BookingWizard({
 
   // Inline validation checks for Step 4
   const isPhoneValid = /^(09\d{9}|\+639\d{9})$/.test(form.customerPhone.replace(/[\s()\-]/g, ""));
-  const isNameValid = form.customerName.trim().length >= 2;
+  const isFirstNameValid = form.customerFirstName.trim().length >= 1;
+  const isLastNameValid = form.customerLastName.trim().length >= 1;
   const isModelValid = form.vehicleModel.trim().length >= 2;
 
   // Moves to a step. The service step opens the category of the first chosen main service.
@@ -999,36 +1001,69 @@ export function BookingWizard({
                   <fieldset disabled={locked} className="space-y-5">
                     <legend className="sr-only">Your details and your vehicle</legend>
 
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <label htmlFor="customerName" className="text-sm font-semibold text-foreground">
-                          Your name
-                        </label>
-                        {isNameValid && (
-                          <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-400">
-                            <Check className="h-3.5 w-3.5" aria-hidden="true" /> Looks good
-                          </span>
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label htmlFor="customerFirstName" className="text-sm font-semibold text-foreground">
+                            First name
+                          </label>
+                          {isFirstNameValid && (
+                            <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-400">
+                              <Check className="h-3.5 w-3.5" aria-hidden="true" /> Looks good
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          id="customerFirstName"
+                          name="customerFirstName"
+                          type="text"
+                          autoComplete="given-name"
+                          enterKeyHint="next"
+                          maxLength={50}
+                          value={form.customerFirstName}
+                          onChange={(e) => setForm((prev) => ({ ...prev, customerFirstName: e.target.value }))}
+                          placeholder="e.g. Juan"
+                          aria-invalid={Boolean(errorFor("customerFirstName"))}
+                          aria-describedby={errorFor("customerFirstName") ? "customerFirstName-error" : undefined}
+                          className={`${control} ${errorFor("customerFirstName") ? "border-destructive ring-1 ring-destructive" : ""}`}
+                        />
+                        {errorFor("customerFirstName") && (
+                          <p id="customerFirstName-error" className="mt-1.5 text-sm text-destructive">
+                            {errorFor("customerFirstName")}
+                          </p>
                         )}
                       </div>
-                      <input
-                        id="customerName"
-                        name="customerName"
-                        type="text"
-                        autoComplete="name"
-                        enterKeyHint="next"
-                        maxLength={100}
-                        value={form.customerName}
-                        onChange={(e) => setForm((prev) => ({ ...prev, customerName: e.target.value }))}
-                        placeholder="e.g. Juan dela Cruz"
-                        aria-invalid={Boolean(errorFor("customerName"))}
-                        aria-describedby={errorFor("customerName") ? "customerName-error" : undefined}
-                        className={`${control} ${errorFor("customerName") ? "border-destructive ring-1 ring-destructive" : ""}`}
-                      />
-                      {errorFor("customerName") && (
-                        <p id="customerName-error" className="mt-1.5 text-sm text-destructive">
-                          {errorFor("customerName")}
-                        </p>
-                      )}
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label htmlFor="customerLastName" className="text-sm font-semibold text-foreground">
+                            Last name
+                          </label>
+                          {isLastNameValid && (
+                            <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-400">
+                              <Check className="h-3.5 w-3.5" aria-hidden="true" /> Looks good
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          id="customerLastName"
+                          name="customerLastName"
+                          type="text"
+                          autoComplete="family-name"
+                          enterKeyHint="next"
+                          maxLength={50}
+                          value={form.customerLastName}
+                          onChange={(e) => setForm((prev) => ({ ...prev, customerLastName: e.target.value }))}
+                          placeholder="e.g. dela Cruz"
+                          aria-invalid={Boolean(errorFor("customerLastName"))}
+                          aria-describedby={errorFor("customerLastName") ? "customerLastName-error" : undefined}
+                          className={`${control} ${errorFor("customerLastName") ? "border-destructive ring-1 ring-destructive" : ""}`}
+                        />
+                        {errorFor("customerLastName") && (
+                          <p id="customerLastName-error" className="mt-1.5 text-sm text-destructive">
+                            {errorFor("customerLastName")}
+                          </p>
+                        )}
+                      </div>
                     </div>
 
                     <div>

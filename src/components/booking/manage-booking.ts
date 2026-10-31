@@ -8,6 +8,7 @@ import type {
   ManagedDayAvailabilityData,
   ManagedDayBookingView,
   ManagedDepositView,
+  ManagedLookupData,
   ManagementMutationData,
 } from "@/types/contracts";
 
@@ -273,3 +274,12 @@ export function toBase64(bytes: Uint8Array): string {
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);
 }
+
+// P1-32: the answer to "reference code + last name". Contact details arrive already masked.
+export const isLookupData = (v: unknown): v is ManagedLookupData =>
+  isObject(v) &&
+  isManagedView(v.booking) &&
+  typeof v.sessionExpiresAt === "string" &&
+  isObject(v.contact) &&
+  typeof v.contact.phone === "string" &&
+  (v.contact.email === null || typeof v.contact.email === "string");
