@@ -43,7 +43,7 @@ test('click anywhere on a board card opens its details modal; controls and drags
     await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
     const menu = page.locator('button[aria-controls=admin-nav]');
     if (await menu.isVisible()) await menu.click();
-    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Kanban board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
     return { context, page };
   }
@@ -143,7 +143,7 @@ test('click anywhere on a board card opens its details modal; controls and drags
 
     // Done cards open the same details. The fixture has none, so finish the car in the busy bay through
     // the admin API (start it, mark its lines done, complete it); this step is mandatory, never skipped.
-    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Kanban board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
     const busyCar = washRow.locator('section[aria-label^="Wash Bay"] article').first();
     await busyCar.waitFor();

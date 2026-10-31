@@ -37,7 +37,7 @@ test('only an ADMIN can delete a booking, after typing its reference code', { ti
     await page.getByLabel('Password', { exact: true }).fill(password);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
-    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Kanban board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
     return { context, page };
   }
@@ -80,7 +80,7 @@ test('only an ADMIN can delete a booking, after typing its reference code', { ti
     assert.equal(await page.locator('article').count(), total - 1, 'one card fewer');
     // Reload: the booking is really gone, not just hidden.
     await page.reload({ waitUntil: 'networkidle' });
-    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Kanban board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
     await page.locator('article').first().waitFor();
     assert.equal(await page.getByRole('article', { name: ref, exact: true }).count(), 0, 'still gone after a reload');

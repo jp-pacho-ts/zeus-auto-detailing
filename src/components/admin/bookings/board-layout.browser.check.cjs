@@ -41,7 +41,7 @@ test('Board day sits right of the view switch from lg; row columns share one hei
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
-    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Kanban board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
     await page.locator('section[aria-label$=" row"] article').first().waitFor();
     for (const width of [390, 768, 1024, 1280, 1440]) {
@@ -76,7 +76,7 @@ test('Board day sits right of the view switch from lg; row columns share one hei
       const m = await page.evaluate(() => {
         const box = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, height: r.height }; };
         const content = document.querySelector('#admin-content');
-        const tab = document.querySelector('[aria-label="Bay board sections"]');
+        const tab = document.querySelector('[aria-label="Kanban board sections"]');
         const day = document.querySelector('input[aria-label="Board day"]');
         const refresh = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Refresh board');
         const columns = [...document.querySelectorAll('section[aria-label$=" row"] section[aria-label]')]
@@ -124,7 +124,7 @@ test('Board day sits right of the view switch from lg; row columns share one hei
     }
     // The switch moves between the Kanban toolbar and bay setup, so keyboard focus must follow it.
     await page.setViewportSize({ width: 1280, height: 900 });
-    const view = page.getByRole('group', { name: 'Bay board sections' });
+    const view = page.getByRole('group', { name: 'Kanban board sections' });
     const focused = (name) => view.getByRole('button', { name, exact: true }).evaluate((el) => document.activeElement === el);
     await view.getByRole('button', { name: 'Bays', exact: true }).focus();
     await page.keyboard.press('Enter');

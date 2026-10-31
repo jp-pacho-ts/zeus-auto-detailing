@@ -15,6 +15,7 @@ import {
   BookingStatusWriteSchema,
   DeclineSchema,
   LinePriceSchema,
+  FinishBookingSchema,
   LineStatusSchema,
   MoveSchema,
   NotifySchema,
@@ -939,4 +940,44 @@ async function notifyOnce(
     notice,
   });
   return { booking: outcome.booking, noChange: true, notice };
+}
+
+// P1-34 (LE 2026-10-31): drop a car on Done. Every active service is marked done and the booking is
+// completed in ONE transaction under the shop lock, with ONE revision bump (the database wants a single
+// bump with audit rows that match it, so setLineStatus and setBookingStatus cannot be composed). ADMIN
+// only. The lines change before the booking row because a completed booking refuses line changes.
+// Who may finish is decided in one place: canFinish.
+const canFinish = (status: BookingStatus, onBay: boolean) =>
+  status === "IN_PROGRESS" || (OPEN.includes(status) && onBay);
+export async function finishBooking(
+  actor: StaffActor,
+  id: unknown,
+  input: unknown,
+  options: AdminOptions = {},
+): Promise<AdminWriteResult> {
+  authorize(actor, "FINISH_BOOKING");
+  const bookingId = parse(AdminIdSchema, id);
+  const v = parse(FinishBookingSchema, input);
+  return mutate(options, "finish", async (tx) => {
+    const b = await loadForWrite(tx, bookingId, v.expectedRevision, { v3: true });
+    if (!OPEN.includes(b.status))
+      return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId, "This booking is already finished or cancelled.");
+    const onBay = (await tx.bayOccupancy.count({ where: { bookingId } })) > 0;
+    if (!canFinish(b.status, onBay))
+      return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId, "Move this car into a bay before finishing it.");
+    await refuseBeforeDay(tx, bookingId, b.bookingDate, options);
+    const active = b.lineItems.filter((l) => l.removedAt === null);
+    if (!active.length)
+      return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId, "Add a service before finishing this booking.");
+    const revs = { fromRevision: v.expectedRevision, toRevision: v.expectedRevision + 1 };
+    for (const line of active.filter((l) => l.workStatus !== "DONE")) {
+      await tx.bookingLineItem.update({ where: { id: line.id }, data: { workStatus: "DONE", workStatusChangedAt: new Date() } });
+      await audit(tx, actor, { action: "LINE_STATUS_CHANGED", bookingId, lineId: line.id, fromLineStatus: line.workStatus, toLineStatus: "DONE", ...revs });
+    }
+    await bump(tx, bookingId, v.expectedRevision, { status: "COMPLETED", terminalAt: new Date() });
+    await audit(tx, actor, { action: "STATUS_CHANGED", bookingId, fromStatus: b.status, toStatus: "COMPLETED", ...revs });
+    await releaseOccupancy(tx, actor, bookingId, v.expectedRevision);
+    logWrite(actor, "booking_finished", bookingId, v.expectedRevision + 1);
+    return result(tx, bookingId, false);
+  });
 }
