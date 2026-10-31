@@ -42,3 +42,12 @@ export const MANAGEMENT_ADMISSION_POLICIES = {
     maxConcurrentPerKey: 2,
   },
 } as const;
+
+// P1-32: the public "reference code + last name" lookup. A reference code is 31 bits, so the caps are
+// tight: per reference (counted for every attempt, found or not, from any IP) and per client.
+export const LOOKUP_POLICIES = {
+  client: { perKeyPerMinute: 10, perKeyPerDay: 100, maxConcurrentPerKey: 2 },
+  reference: { perKeyPerMinute: 5, perKeyPerDay: 10, maxConcurrentPerKey: 2 },
+} as const;
+// Failed lookups across the whole shop per hour: past this, answers are slowed and one alert is logged.
+export const LOOKUP_CEILING = { failedPerHour: 200, delayMs: 2000 } as const;

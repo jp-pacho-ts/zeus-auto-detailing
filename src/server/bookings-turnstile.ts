@@ -14,6 +14,8 @@ export async function verifyTurnstile(token: string, config: {
     timeoutMs?: number;
     remoteip?: string;
     signal?: AbortSignal;
+    // P1-32: the widget's action must match, so a booking-create token cannot be replayed on the lookup.
+    action?: "booking_create" | "booking_lookup";
 } = {}): Promise<"VERIFIED" | "INVALID" | "UNAVAILABLE"> {
     let release: (() => void) | undefined;
     try {
@@ -35,7 +37,7 @@ export async function verifyTurnstile(token: string, config: {
             return "UNAVAILABLE";
         if ("error-codes" in result && Array.isArray(result["error-codes"]) && result["error-codes"].includes("internal-error"))
             return "UNAVAILABLE";
-        return result.success === true && "action" in result && result.action === "booking_create" && "hostname" in result && typeof result.hostname === "string" && config.hostnames.includes(result.hostname) ? "VERIFIED" : "INVALID";
+        return result.success === true && "action" in result && result.action === (options.action ?? "booking_create") && "hostname" in result && typeof result.hostname === "string" && config.hostnames.includes(result.hostname) ? "VERIFIED" : "INVALID";
     }
     catch {
         return "UNAVAILABLE";

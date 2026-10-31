@@ -244,3 +244,12 @@ export type RecoveredBookingOperation =
 export type ManagementMutationData={operationKind:"CANCEL"|"RESCHEDULE";booking:ManagedDayBookingView;replayed:boolean;noChange:boolean};
 export interface ManagedDayAvailabilityData {bookingId:UUID;bookingRevision:number;timezone:"Asia/Manila";days:PublicDay[];nextAvailableDay:LocalDate|null;searchedThrough:LocalDate;quote:null}
 export type DayAvailabilityResponse = import("./catalog-contracts").LifecycleResult<DayAvailabilityData>;
+
+// P1-32: what the public "reference code + last name" lookup returns on a match. Status-level progress
+// only (per-service work status is staff-only); contact details are masked.
+export interface ManagedLookupData {
+  booking: ManagedDayBookingView;
+  progress: { label: string; step: number; steps: string[]; cancelled: boolean };
+  contact: { phone: string; email: string | null };
+  sessionExpiresAt: string;
+}

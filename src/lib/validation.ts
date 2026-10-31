@@ -1,3 +1,4 @@
+import { composeCustomerName } from "./booking-lookup";
 import { BookingQuoteSchema, CatalogSelectionSchema } from "@/types/catalog-contracts";
 import { z } from "zod";
 
@@ -71,9 +72,30 @@ export const UpdateBookingStatusSchema = z.object({
   status: BookingStatusSchema,
 }).strict();
 
+// P1-32: the customer gives a first and a last name. An old single name (a stale browser tab) still
+// validates. The stored display name is "First Last", so every older reader keeps working.
+export const customerNameFields = {
+  customerName: SingleLine().min(2).max(100).optional(),
+  customerFirstName: SingleLine().min(1).max(50).optional(),
+  customerLastName: SingleLine().min(1).max(50).optional(),
+};
+type NameFields = { customerName?: string; customerFirstName?: string; customerLastName?: string };
+export function refineCustomerName(r: NameFields, ctx: z.RefinementCtx): void {
+  if (r.customerFirstName !== undefined || r.customerLastName !== undefined) {
+    if (!r.customerFirstName) ctx.addIssue({ code: "custom", path: ["customerFirstName"], message: "Enter your first name." });
+    if (!r.customerLastName) ctx.addIssue({ code: "custom", path: ["customerLastName"], message: "Enter your last name." });
+  } else if (!r.customerName) ctx.addIssue({ code: "custom", path: ["customerFirstName"], message: "Enter your first name." });
+}
+export const withComposedName = <T extends NameFields>(r: T): T & { customerName: string } => ({ ...r, customerName: composeCustomerName(r) });
+export const CustomerNameSchema = z.object(customerNameFields).extend({}).strict().superRefine(refineCustomerName).transform((r) => {
+  const out = withComposedName(r);
+  return r.customerFirstName ? out : { customerName: out.customerName };
+});
+
 // P1-03 queue contracts. The archived slot schemas above remain for historical replay only.
 export const TurnstileTokenSchema = z.string().min(1).max(2048).regex(/^[\x21-\x7E]+$/);
 export const CreateDayBookingSchema = CreateBookingSchema.omit({ serviceId: true, startTime: true, vehicleCategoryId: true }).extend({
+ ...customerNameFields,
  contractVersion: z.literal(4),
  idempotencyKey: z.string().uuid().refine(s => s[14] === "4").transform(s => s.toLowerCase()),
  vehicleCategoryId: CatalogSelectionSchema.shape.vehicleCategoryId,
@@ -82,7 +104,8 @@ export const CreateDayBookingSchema = CreateBookingSchema.omit({ serviceId: true
  turnstileToken: TurnstileTokenSchema,
 }).strict().superRefine((r, ctx) => {
  if (r.vehicleCategoryId !== r.acceptedQuote.vehicleCategoryId || r.lines.length !== r.acceptedQuote.lines.length || r.lines.some((l, i) => l.serviceId !== r.acceptedQuote.lines[i].serviceId || l.quantity !== r.acceptedQuote.lines[i].quantity)) ctx.addIssue({ code: "custom", path: ["acceptedQuote"], message: "Selection must match the accepted quote" });
-});
+ refineCustomerName(r, ctx);
+}).transform(withComposedName);
 export const DayAvailabilitySchema = CatalogSelectionSchema.extend({ fromDate: LocalDateSchema, days: z.number().int().min(1).max(31).default(14) }).strict();
 
 // P1-04: private authority is never a reference or phone number.

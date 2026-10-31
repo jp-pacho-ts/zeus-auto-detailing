@@ -57,12 +57,23 @@ import {
   MANAGEMENT_ADMISSION_POLICIES,
 } from "./bookings-management-policy";
 import { admitManagementReceipt } from "./bookings-management-ledger";
+import { timingSafeEqual } from "node:crypto";
+import { lastNameFallback, maskEmail, maskPhone, normalizeLastName, normalizeReference, progressFor } from "@/lib/booking-lookup";
+import { TurnstileTokenSchema } from "@/lib/validation";
+import { verifyTurnstile, turnstileRemoteIp } from "./bookings-turnstile";
+import { LOOKUP_CEILING, LOOKUP_POLICIES } from "./bookings-management-policy";
+import type { ManagedLookupData } from "@/types/contracts";
 
 export interface ManagementCommit<T> {
   result: LifecycleResult<T>;
   session?: { token: string; expiresAt: string };
 }
-export type ManagementOptions = CreateDayBookingOptions;
+// P1-32 test seams for the public lookup; never set from a request.
+export interface LookupSeams {
+  ceiling?: { failedPerHour: number; delayMs: number };
+  sleep?: (ms: number) => Promise<void>;
+}
+export type ManagementOptions = CreateDayBookingOptions & { lookup?: LookupSeams };
 type Tx = Prisma.TransactionClient;
 const include = {
   lineItems: true,
@@ -229,7 +240,7 @@ function view(b: Booking, now: Date): ManagedDayBookingView {
 }
 async function run<T>(
   options: ManagementOptions,
-  scope: "exchange" | "read" | "mutation" | "recovery",
+  scope: "exchange" | "read" | "mutation" | "recovery" | "lookup",
   work: (
     c: BookingConfiguration,
     h: Headers,
@@ -251,16 +262,19 @@ async function run<T>(
         ),
       );
     const client = sha256(trustedClientKey(h, c.identity));
-    leave = enterBooking(
-      scope === "exchange"
-        ? exchangeLimit
-        : scope === "recovery"
-          ? recoveryLimit
-          : scope === "read"
-            ? readClientLimit
-            : mutationClientLimit,
-      client,
-    );
+    leave =
+      scope === "lookup"
+        ? enterLookup(lookupClientLimit, client)
+        : enterBooking(
+            scope === "exchange"
+              ? exchangeLimit
+              : scope === "recovery"
+                ? recoveryLimit
+                : scope === "read"
+                  ? readClientLimit
+                  : mutationClientLimit,
+            client,
+          );
     const token =
       scope === "read" || scope === "mutation" ? claims(c, h) : null;
     if (token)
@@ -274,7 +288,7 @@ async function run<T>(
     return fail({
       ...e,
       commitState:
-        scope === "read" || scope === "exchange"
+        scope === "read" || scope === "exchange" || scope === "lookup"
           ? "NOT_APPLICABLE"
           : e.commitState,
     });
@@ -799,5 +813,149 @@ export async function getManagedDayAvailability(
       },
       options.signal,
     );
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// P1-32: the public "reference code + last name" lookup (airline style). Every failure is one answer.
+// ---------------------------------------------------------------------------------------------
+const GENERIC_NOT_FOUND = "We couldn't find that booking. Check the reference code and last name.";
+const TOO_MANY = "Too many tries. Use the link in your confirmation email, or call the shop.";
+const notFound = () => new BookingFailure(bookingError("NOT_FOUND", GENERIC_NOT_FOUND, { commitState: "NOT_APPLICABLE" }));
+const lookupClientLimit = createLoginLimiter(LOOKUP_POLICIES.client);
+const lookupReferenceLimit = createLoginLimiter(LOOKUP_POLICIES.reference);
+function enterLookup(limiter: ReturnType<typeof createLoginLimiter>, key: string): () => void {
+  const ticket = limiter.enter(key);
+  if (!ticket.ok)
+    throw new BookingFailure(bookingError("RATE_LIMITED", TOO_MANY, { retryable: true, retryAfterSeconds: ticket.retryAfterSeconds, commitState: "NOT_APPLICABLE" }));
+  return ticket.leave;
+}
+// One line per lookup: the outcome class only (no reference, name, phone, email, IP or token).
+type LookupOutcome = "found" | "legacy_match" | "not_found" | "rate_limited" | "turnstile_failed";
+const logLookup = (outcome: LookupOutcome) => (outcome === "found" || outcome === "legacy_match" ? console.info : console.warn)(JSON.stringify({ event: "booking.lookup", outcome }));
+// Failed lookups across the whole shop in the current hour. Past the ceiling every answer is slowed and
+// one alert line is logged per hour (the count only, no detail).
+interface Ceiling { start: number; failed: number; alerted: boolean }
+const defaultCeiling: Ceiling = { start: 0, failed: 0, alerted: false };
+const seamCeilings = new WeakMap<object, Ceiling>();
+const ceilingFor = (seams?: LookupSeams): [Ceiling, { failedPerHour: number; delayMs: number }] => {
+  if (!seams?.ceiling) return [defaultCeiling, LOOKUP_CEILING];
+  let state = seamCeilings.get(seams);
+  if (!state) seamCeilings.set(seams, (state = { start: 0, failed: 0, alerted: false }));
+  return [state, seams.ceiling];
+};
+const roll = (state: Ceiling, now: number) => {
+  if (now - state.start >= 3600000) {
+    state.start = now;
+    state.failed = 0;
+    state.alerted = false;
+  }
+};
+
+const digest = (s: string) => Buffer.from(sha256(s), "hex");
+// Same work for a found and an unknown booking: the digests are always computed and compared.
+const DUMMY = digest("no-such-booking");
+function nameMatches(supplied: string, b: Booking | null): boolean {
+  const want = normalizeLastName(supplied);
+  const have = b ? normalizeLastName(b.customerLastName ?? lastNameFallback(b.customerName) ?? "") : "";
+  const same = timingSafeEqual(digest(want), b ? digest(have) : DUMMY);
+  return b !== null && same && want.length > 0 && have.length > 0;
+}
+
+export async function lookupManagedBooking(
+  input: unknown,
+  options: ManagementOptions = {},
+): Promise<ManagementCommit<ManagedLookupData>> {
+  return run(options, "lookup", async (c, _h, client) => {
+    const [ceiling, limits] = ceilingFor(options.lookup);
+    roll(ceiling, Date.now());
+    if (ceiling.failed >= limits.failedPerHour) {
+      if (!ceiling.alerted) {
+        ceiling.alerted = true;
+        console.warn(JSON.stringify({ event: "booking.lookup_alert", failedLastHour: ceiling.failed }));
+      }
+      await (options.lookup?.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms))))(limits.delayMs);
+    }
+    const fail = (outcome: LookupOutcome, error: BookingFailure): never => {
+      if (outcome === "not_found") ceiling.failed++;
+      logLookup(outcome);
+      throw error;
+    };
+    const body = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+    // The security check is mandatory on every attempt and runs before anything about the booking is touched.
+    const token = TurnstileTokenSchema.safeParse(body.turnstileToken);
+    const challengeFailed = () =>
+      new BookingFailure(
+        bookingError("CHALLENGE_FAILED", "Complete the security check again.", {
+          retryable: true,
+          commitState: "NOT_APPLICABLE",
+          fieldErrors: { turnstileToken: ["Complete the security check again."] },
+        }),
+      );
+    if (!token.success) return fail("turnstile_failed", challengeFailed());
+    const verification = await verifyTurnstile(token.data, c.challenge, {
+      endpoint: options.turnstileEndpoint,
+      remoteip: turnstileRemoteIp(client),
+      signal: options.signal,
+      action: "booking_lookup",
+    });
+    if (verification === "UNAVAILABLE") throw unavailable();
+    if (verification !== "VERIFIED") return fail("turnstile_failed", challengeFailed());
+    // Per reference, from every IP, found or not: a stranger cannot grind through surnames on one code.
+    const reference = normalizeReference(body.referenceCode);
+    const supplied = typeof body.lastName === "string" && body.lastName.length <= 100 ? body.lastName : "";
+    let leaveReference: (() => void) | undefined;
+    try {
+      leaveReference = enterLookup(lookupReferenceLimit, sha256("ref:" + (reference ?? "invalid:" + client)));
+    } catch (e) {
+      logLookup("rate_limited");
+      throw e;
+    }
+    try {
+      if (!reference) return fail("not_found", notFound());
+      return await withBookingDb(
+        options.db ?? prisma,
+        "MANAGEMENT_EXCHANGE",
+        async (tx) => {
+          const at = await bookingDbNow(tx),
+            b = await tx.booking.findUnique({ where: { referenceCode: reference }, include });
+          const legacy = b !== null && b.customerLastName === null;
+          if (!b || !nameMatches(supplied, b)) return fail("not_found", notFound());
+          let shown: ManagedDayBookingView;
+          try {
+            shown = view(b, at);
+          } catch {
+            return fail("not_found", notFound());
+          }
+          const expiresAt = new Date(at.getTime() + 30 * 60000);
+          const grant = await tx.bookingManagementGrant.create({
+            data: { bookingId: b.id, credentialVersion: b.managementTokenVersion, kid: c.grant.activeKid, issuedAt: at, expiresAt },
+          });
+          const session = await tx.bookingManagementSession.create({
+            data: { bookingId: b.id, grantId: grant.id, credentialVersion: b.managementTokenVersion, kid: c.session.activeKid, grantKid: grant.kid, issuedAt: at, expiresAt },
+          });
+          logLookup(legacy ? "legacy_match" : "found");
+          return {
+            ...ok<ManagedLookupData>({
+              booking: shown,
+              progress: progressFor(b.status),
+              contact: { phone: maskPhone(b.customerPhone), email: maskEmail(b.customerEmail) },
+              sessionExpiresAt: expiresAt.toISOString(),
+            }),
+            session: {
+              token: signManagementToken(
+                "BOOKING_MANAGEMENT_SESSION",
+                { bookingId: b.id, credentialVersion: b.managementTokenVersion, issuedAt: session.issuedAt.toISOString(), expiresAt: expiresAt.toISOString(), grantKid: grant.kid },
+                c.session,
+              ),
+              expiresAt: expiresAt.toISOString(),
+            },
+          };
+        },
+        options.signal,
+      );
+    } finally {
+      leaveReference?.();
+    }
   });
 }

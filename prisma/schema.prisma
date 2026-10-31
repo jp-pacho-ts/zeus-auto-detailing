@@ -127,6 +127,8 @@ model Booking {
   id                          String                     @id @default(uuid())
   referenceCode               String                     @unique
   customerName                String
+  customerFirstName           String? // P1-32: NULL on bookings made before the split; customerName is the display name
+  customerLastName            String?
   customerPhone               String
   customerEmail               String?
   vehiclePlate                String?
