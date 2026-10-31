@@ -858,8 +858,16 @@ export async function setBay(
   });
 }
 
-// W15: "your turn is coming" (§18; D6). The attempt is audited and rate-limited in the
-// transaction; the email is sent after commit, holding no permit or lock.
+// W15: "your turn is coming" (§18; D6). P1-31 (LE 2026-10-30): the rate limit counts only emails that
+// were really sent, so a failed send never locks staff out. The check is read-only in the first
+// transaction, the email goes out holding no permit or lock, and the CUSTOMER_NOTIFIED audit row is
+// written in a second transaction only after a successful send (the audit table is append-only, so a
+// row written before the send could never be taken back).
+// Accepted trade-offs: (1) two clicks at once are stopped by the in-process set below, which assumes one
+// server process (Railway runs one instance); several instances could each send once. (2) If the
+// process dies between a successful send and the audit write, no row exists and the next click can
+// send again. The set is released in a finally, so an error can never lock a booking out.
+const notifying = new Set<string>();
 export async function notifyCustomer(
   actor: StaffActor,
   id: unknown,
@@ -869,6 +877,21 @@ export async function notifyCustomer(
   authorize(actor, "NOTIFY");
   const bookingId = parse(AdminIdSchema, id);
   const v = parse(NotifySchema, input);
+  if (notifying.has(bookingId))
+    throw new AdminServiceError("RATE_LIMITED", "An email for this booking is already being sent. Try again in a moment.", { retryAfterSeconds: 10 });
+  notifying.add(bookingId);
+  try {
+    return await notifyOnce(actor, bookingId, v, options);
+  } finally {
+    notifying.delete(bookingId);
+  }
+}
+async function notifyOnce(
+  actor: StaffActor,
+  bookingId: string,
+  v: { expectedRevision: number },
+  options: AdminOptions,
+): Promise<AdminNotifyResult> {
   const outcome = await mutate(options, "notify", async (tx) => {
     const b = await loadForWrite(tx, bookingId, v.expectedRevision);
     if (!OPEN.includes(b.status))
@@ -890,7 +913,6 @@ export async function notifyCustomer(
         { retryAfterSeconds: Math.max(60, Math.ceil(Number(w.wait ?? 1800))) },
       );
     }
-    await audit(tx, actor, { action: "CUSTOMER_NOTIFIED", bookingId });
     return { booking: await detailOrThrow(tx, bookingId), send: true };
   });
   if (!outcome.send)
@@ -900,6 +922,16 @@ export async function notifyCustomer(
     notice = await (options.sender ?? unavailableSender).send(bookingId);
   } catch {
     notice = "NOT_SENT";
+  }
+  if (notice === "SENT") {
+    try {
+      await mutate(options, "notify_record", (tx) =>
+        audit(tx, actor, { action: "CUSTOMER_NOTIFIED", bookingId }),
+      );
+    } catch {
+      // The email already went out: say so. Without the row the limit cannot see it (logged, no detail).
+      adminEvent("admin.booking.notified_unrecorded", { bookingId, actorStaffId: actor.staffId });
+    }
   }
   adminEvent("admin.booking.notified", {
     bookingId,

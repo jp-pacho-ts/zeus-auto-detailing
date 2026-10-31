@@ -94,3 +94,12 @@ export const statusLabel = (status: string) =>
     WAITING: "Waiting",
     DONE: "Done",
   })[status] ?? status;
+
+// P1-31: what staff read after pressing Notify customer. Plain words, no code labels.
+export const notifyNotice = (notice: "SENT" | "NOT_SENT" | "NO_EMAIL"): string =>
+  ({
+    SENT: "Email sent.",
+    NOT_SENT:
+      "Email could not be sent. The shop email is not set up or was refused, so nothing went out. Try again, or phone the customer.",
+    NO_EMAIL: "No customer email address is on file.",
+  })[notice];
