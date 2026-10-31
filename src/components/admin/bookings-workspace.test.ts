@@ -22,13 +22,13 @@ function render(component: string, props: Record<string, unknown> = {}) {
   }
 }
 
-test("Bookings owns customer bookings/calendar/history; the Kanban board is separate", () => {
+test("Bookings owns customer bookings/calendar/history; the Bay board is separate", () => {
   const html = render("portal", { initialTab: "Bookings" });
   const nav = html.match(/<nav[^>]*aria-label="Shop Operations Navigation"[\s\S]*?<\/nav>/)?.[0];
   assert.ok(nav);
   assert.match(nav, />Bookings<\/span>/);
   assert.doesNotMatch(nav, /Bay Calendar/);
-  assert.match(nav, />Kanban board<\/span>/);
+  assert.match(nav, />Bay board<\/span>/);
   assert.match(html, /id="bookings-view-BOOKINGS"[^>]*aria-pressed="true"/);
   assert.match(html, /id="bookings-view-CALENDAR"/);
   assert.match(html, />History<\/button>/);
@@ -58,7 +58,7 @@ test("customer history and bay setup stay ADMIN-only for non-admin roles", () =>
     assert.match(html, /aria-label="Calendar view"/);
     assert.doesNotMatch(html, />Bays<\/button>|>Opening hours<\/button>/);
     assert.doesNotMatch(html, />History<\/button>/);
-    const board = render("portal", { role, initialTab: "Kanban board" });
+    const board = render("portal", { role, initialTab: "Bay board" });
     assert.match(board, /Board day/);
     assert.doesNotMatch(board, />Bays<\/button>|>Opening hours<\/button>/);
   }
@@ -73,9 +73,9 @@ test("the calendar component starts at overview; history is a separate customer 
   assert.doesNotMatch(html, /aria-label="Calendar view"/);
 });
 
-test("Kanban board opens Kanban and retains bay/hour setup without customer booking tabs", () => {
-  const html = render("portal", { initialTab: "Kanban board" });
-  assert.match(html, /<h1[^>]*>Kanban board<\/h1>/);
+test("Bay board opens Kanban and retains bay/hour setup without customer booking tabs", () => {
+  const html = render("portal", { initialTab: "Bay board" });
+  assert.match(html, /<h1[^>]*>Bay board<\/h1>/);
   assert.match(html, /Board day/);
   assert.match(html, />Bays<\/button>/);
   assert.match(html, />Opening hours<\/button>/);

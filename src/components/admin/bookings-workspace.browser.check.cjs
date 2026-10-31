@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {test}=require('node:test');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-test('Bookings contains customers/calendar/history; Kanban board contains Kanban/setup; legacy and roles work', {timeout:180000},async()=>{
+test('Bookings contains customers/calendar/history; Bay board contains Kanban/setup; legacy and roles work', {timeout:180000},async()=>{
  const upstream=new URL(process.env.P120_BROWSER_ORIGIN),origin=new URL(process.env.P120_APP_ORIGIN).origin;
  assert.ok(['127.0.0.1','localhost','[::1]'].includes(upstream.hostname));assert.equal(upstream.origin,process.env.P120_BROWSER_ORIGIN);assert.equal(upstream.username+upstream.password,'');
  const fx=JSON.parse(fs.readFileSync(process.env.P127_FIXTURE,'utf8')),out=process.env.P127_EVIDENCE;assert.ok(out);fs.mkdirSync(out,{recursive:true});
@@ -23,7 +23,7 @@ test('Bookings contains customers/calendar/history; Kanban board contains Kanban
   }
   const views=p.getByRole('group',{name:'Bookings view'}),navigation=p.getByRole('navigation',{name:'Shop Operations Navigation'});
   assert.equal(await navigation.getByRole('button',{name:'Bay Calendar',exact:true}).count(),0);
-  assert.equal(await navigation.getByRole('button',{name:'Kanban board',exact:true}).count(),1);
+  assert.equal(await navigation.getByRole('button',{name:'Bay board',exact:true}).count(),1);
   await p.getByLabel('Queue day').waitFor();assert.equal(await p.getByLabel('Board day').count(),0);
   assert.equal(await views.getByRole('button',{name:'Bookings',exact:true}).getAttribute('aria-pressed'),'true');
   assert.equal(await p.getByRole('heading',{name:'Customer booking history',exact:true}).count(),0);
@@ -32,7 +32,7 @@ test('Bookings contains customers/calendar/history; Kanban board contains Kanban
    await p.setViewportSize({width,height});const overflow=await p.evaluate(()=>({width:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth,height:document.documentElement.scrollHeight,view:innerHeight}));assert.ok(overflow.scroll<=overflow.width);assert.ok(overflow.height<=overflow.view);results.widths.push({width,height,...overflow});await shot(p,width+'-bookings-after');
   }
   await views.getByRole('button',{name:'Calendar',exact:true}).focus();await p.keyboard.press('Enter');await p.getByRole('group',{name:'Calendar view'}).waitFor();assert.equal(await p.evaluate(()=>document.activeElement.id),'bookings-view-CALENDAR');
-  assert.equal(await p.getByRole('group',{name:'Kanban board sections'}).count(),0);assert.equal(await p.getByLabel('Queue day').count(),0);
+  assert.equal(await p.getByRole('group',{name:'Bay board sections'}).count(),0);assert.equal(await p.getByLabel('Queue day').count(),0);
   await p.getByRole('button',{name:'Next month',exact:true}).click();await p.getByRole('button',{name:'Previous month',exact:true}).click();
   // The app localizes date labels; target its labelled date toggles rather than guessing an English date order.
   const dayButton=p.locator('button[aria-label][aria-pressed]').first();
@@ -40,14 +40,14 @@ test('Bookings contains customers/calendar/history; Kanban board contains Kanban
   await dayButton.click();await p.getByRole('region',{name:/^Bookings on /}).waitFor();await shot(p,'1440-calendar-after');
   await p.setViewportSize({width:390,height:900});await shot(p,'390-calendar-after');
   await views.getByRole('button',{name:'History',exact:true}).click();await p.getByRole('heading',{name:'Customer booking history',exact:true}).waitFor();assert.equal(await p.getByLabel('Queue day').count(),0);assert.equal(await p.getByRole('button',{name:'Search bookings',exact:true}).count(),0);assert.equal(await p.evaluate(()=>document.activeElement.id),'bookings-view-HISTORY');await shot(p,'390-history-after');
-  await nav(p,'Kanban board');await p.getByLabel('Board day').waitFor();assert.equal(await views.count(),0);await p.getByLabel('Board day').fill(fixtureDay);await p.locator('section[aria-label$=" row"] article').first().waitFor();
+  await nav(p,'Bay board');await p.getByLabel('Board day').waitFor();assert.equal(await views.count(),0);await p.getByLabel('Board day').fill(fixtureDay);await p.locator('section[aria-label$=" row"] article').first().waitFor();
   await shot(p,'390-bay-board-after');await p.setViewportSize({width:1440,height:1000});await shot(p,'1440-bay-board-after');
-  const sections=p.getByRole('group',{name:'Kanban board sections'});await sections.getByRole('button',{name:'Bays',exact:true}).click();assert.equal(await p.evaluate(()=>document.activeElement.id),'bay-section-BAYS');await p.getByRole('heading',{name:'Add a bay',exact:true}).waitFor();await shot(p,'1440-bays-after');
+  const sections=p.getByRole('group',{name:'Bay board sections'});await sections.getByRole('button',{name:'Bays',exact:true}).click();assert.equal(await p.evaluate(()=>document.activeElement.id),'bay-section-BAYS');await p.getByRole('heading',{name:'Add a bay',exact:true}).waitFor();await shot(p,'1440-bays-after');
   await sections.getByRole('button',{name:'Opening hours',exact:true}).click();await p.getByRole('heading',{name:/opening hours/i}).waitFor();assert.equal(await p.evaluate(()=>document.activeElement.id),'bay-section-HOURS');
   await p.goto(origin+'/admin/calendar',{waitUntil:'networkidle'});await p.getByRole('heading',{name:'Bookings',exact:true}).waitFor();await p.getByRole('group',{name:'Calendar view'}).waitFor();assert.equal(await p.locator('#bookings-view-CALENDAR').getAttribute('aria-pressed'),'true');
   await p.reload({waitUntil:'networkidle'});assert.equal(await p.locator('#bookings-view-CALENDAR').getAttribute('aria-pressed'),'true');
-  results.checks.push('customer bookings/calendar/history separated from Kanban board; keyboard focus, legacy calendar reload, bay/hour access');await ctx.close();
-  const staffCtx=await context(),staff=await login(staffCtx,'DETAILER');assert.equal(await staff.getByRole('group',{name:'Bookings view'}).getByRole('button',{name:'History',exact:true}).count(),0);await nav(staff,'Kanban board');await staff.getByLabel('Board day').waitFor();await staff.getByLabel('Board day').fill(fixtureDay);await staff.locator('section[aria-label$=" row"] article').first().waitFor();assert.equal(await staff.getByRole('group',{name:'Kanban board sections'}).getByRole('button',{name:'Bays',exact:true}).count(),0);assert.equal(await staff.getByRole('button',{name:'Move car',exact:true}).count(),0);assert.equal(await staff.locator('article[draggable="true"]').count(),0);await staffCtx.close();results.checks.push('DETAILER retains read-only board, no private history/bay/hour/move controls');
+  results.checks.push('customer bookings/calendar/history separated from Bay board; keyboard focus, legacy calendar reload, bay/hour access');await ctx.close();
+  const staffCtx=await context(),staff=await login(staffCtx,'DETAILER');assert.equal(await staff.getByRole('group',{name:'Bookings view'}).getByRole('button',{name:'History',exact:true}).count(),0);await nav(staff,'Bay board');await staff.getByLabel('Board day').waitFor();await staff.getByLabel('Board day').fill(fixtureDay);await staff.locator('section[aria-label$=" row"] article').first().waitFor();assert.equal(await staff.getByRole('group',{name:'Bay board sections'}).getByRole('button',{name:'Bays',exact:true}).count(),0);assert.equal(await staff.getByRole('button',{name:'Move car',exact:true}).count(),0);assert.equal(await staff.locator('article[draggable="true"]').count(),0);await staffCtx.close();results.checks.push('DETAILER retains read-only board, no private history/bay/hour/move controls');
   assert.deepEqual(results.errors,[]);
  }finally{fs.writeFileSync(path.join(out,'results.json'),JSON.stringify(results,null,2));await browser.close();}
 });

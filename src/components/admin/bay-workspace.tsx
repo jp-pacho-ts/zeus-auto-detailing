@@ -25,7 +25,7 @@ export function BayWorkspace({ role }: { role: UserRole }) {
     document.getElementById("bay-section-" + section)?.focus();
   }, [section]);
   const sectionSwitch = (
-    <div role="group" aria-label="Kanban board sections" className="flex flex-wrap gap-2">
+    <div role="group" aria-label="Bay board sections" className="flex flex-wrap gap-2">
       {SECTIONS.filter(s => role === "ADMIN" || !s.adminOnly).map(s => (
         <Button key={s.id} id={"bay-section-" + s.id}
           variant={section === s.id ? "default" : "outline"} aria-pressed={section === s.id}

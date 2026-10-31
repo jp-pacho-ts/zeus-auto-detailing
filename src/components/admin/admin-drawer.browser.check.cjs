@@ -28,7 +28,7 @@ test('mobile drawer contains focus, makes background inert, restores focus and p
     await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
     const firstMenu = page.locator('button[aria-controls=admin-nav]');
     if (await firstMenu.isVisible()) await firstMenu.click();
-    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Kanban board', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
     const nav = page.locator('#admin-nav');
     const menu = page.locator('button[aria-controls=admin-nav]');

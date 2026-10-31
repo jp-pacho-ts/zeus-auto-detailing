@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-// P1-34 real-browser check: the page is called "Kanban board" and a car can be finished by dropping it on
+// P1-34 real-browser check: on the Bay board a car can be finished by dropping it on
 // Done (or choosing "Done (finish)" in its move control), after a plain-words confirm. Fixture as in
 // card-drag.browser.check.cjs: today has a car in a Wash bay and two waiting, one empty bay. P134_WIDTH
 // (default 1280) picks the viewport: 1280 drags with the mouse, 390 uses the keyboard path only.
@@ -9,10 +9,9 @@ const path = require('node:path');
 const { test } = require('node:test');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
-const OLD_NAME = 'Bay ' + 'board'; // the old page name, written in two parts so a search for it finds only real leftovers
 const confirmText = (ref) => `Finish ${ref}? All its services will be marked done and the booking completed. A finished car can't be moved back.`;
 
-test('the Kanban board: a car is finished by dropping it on Done, or from its move control, after a confirm', { timeout: 240_000 }, async () => {
+test('the Bay board: a car is finished by dropping it on Done, or from its move control, after a confirm', { timeout: 240_000 }, async () => {
   const width = Number(process.env.P134_WIDTH || 1280);
   const upstream = new URL(process.env.P120_BROWSER_ORIGIN);
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(upstream.hostname), 'Synthetic loopback app only');
@@ -53,12 +52,10 @@ test('the Kanban board: a car is finished by dropping it on Done, or from its mo
     const menu = page.locator('button[aria-controls=admin-nav]');
     if (await menu.isVisible()) await menu.click();
     const nav = page.getByRole('navigation', { name: 'Shop Operations Navigation' });
-    assert.equal(await nav.getByRole('button', { name: OLD_NAME }).count(), 0, 'the old page name is not in the sidebar');
-    await nav.getByRole('button', { name: 'Kanban board', exact: true }).click();
-    await page.getByRole('heading', { name: 'Kanban board', exact: true }).waitFor();
+    await nav.getByRole('button', { name: 'Bay board', exact: true }).click();
+    await page.getByRole('heading', { name: 'Bay board', exact: true }).waitFor();
     await page.getByLabel('Board day').waitFor();
-    assert.ok(!(await page.locator('body').innerText()).includes(OLD_NAME), 'the old page name is not on the page');
-    assert.equal(await page.getByRole('group', { name: 'Kanban board sections' }).count(), 1);
+    assert.equal(await page.getByRole('group', { name: 'Bay board sections' }).count(), 1);
     await shot(page, `p134-board-${width}`);
 
     const washRow = page.getByRole('region', { name: 'Wash row' });

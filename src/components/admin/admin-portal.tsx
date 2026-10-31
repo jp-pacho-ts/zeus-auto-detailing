@@ -27,7 +27,7 @@ import { brandConfig } from "@/config/brand";
 export type AdminTab =
   | "Bookings"
   | "Bay Calendar"
-  | "Kanban board"
+  | "Bay board"
   | "Team & Commissions"
   | "Supplies & Inventory"
   | "Sales Analytics";
@@ -42,7 +42,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { name: "Bookings", icon: ClipboardList },
-  { name: "Kanban board", icon: Columns3 },
+  { name: "Bay board", icon: Columns3 },
   { name: "Team & Commissions", icon: Users },
   { name: "Supplies & Inventory", icon: Boxes },
   { name: "Sales Analytics", icon: BarChart3 },
@@ -310,7 +310,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             {tab === "Bookings" && (
               <BookingsTab role={staff.role} initialView={initialTab === "Bay Calendar" ? "CALENDAR" : "BOOKINGS"} />
             )}
-            {tab === "Kanban board" && <BayWorkspace role={staff.role} />}
+            {tab === "Bay board" && <BayWorkspace role={staff.role} />}
             {tab === "Team & Commissions" && <DetailersTab />}
             {tab === "Supplies & Inventory" && <InventoryTab />}
             {tab === "Sales Analytics" && <AnalyticsTab />}

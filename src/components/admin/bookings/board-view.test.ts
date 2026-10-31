@@ -64,7 +64,7 @@ function render(role: "ADMIN" | "STAFF") {
     mock.restoreAll();
   }
 }
-test("Kanban board defaults to Kanban with four Waiting queues, eight bays, captured car/services/staff/progress and a column selector", () => {
+test("Bay board defaults to Kanban with four Waiting queues, eight bays, captured car/services/staff/progress and a column selector", () => {
   const html = render("ADMIN");
   assert.ok(html.includes('aria-pressed="true">Kanban'));
   for (const q of board.queues)
@@ -126,7 +126,7 @@ test("board groups Waiting queues beside compatible bays", () => {
 test("Board day and Refresh board sit in one toolbar with the view switch, before the helper text", () => {
   const html = render("ADMIN");
   const toolbar = html.search(
-    /<div class="[^"]*\blg:flex-row\b[^"]*\blg:justify-between\b[^"]*"><div role="group" aria-label="Kanban board sections"/,
+    /<div class="[^"]*\blg:flex-row\b[^"]*\blg:justify-between\b[^"]*"><div role="group" aria-label="Bay board sections"/,
   );
   assert.ok(toolbar >= 0, "the view switch opens a wrapping toolbar row");
   const day = html.indexOf('aria-label="Board day"', toolbar),
