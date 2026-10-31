@@ -53,11 +53,11 @@ test('the Kanban board: a car is finished by dropping it on Done, or from its mo
     const menu = page.locator('button[aria-controls=admin-nav]');
     if (await menu.isVisible()) await menu.click();
     const nav = page.getByRole('navigation', { name: 'Shop Operations Navigation' });
-    assert.equal(await nav.getByRole('button', { name: OLD_NAME }).count(), 0, 'no "Bay board" in the sidebar');
+    assert.equal(await nav.getByRole('button', { name: OLD_NAME }).count(), 0, 'the old page name is not in the sidebar');
     await nav.getByRole('button', { name: 'Kanban board', exact: true }).click();
     await page.getByRole('heading', { name: 'Kanban board', exact: true }).waitFor();
     await page.getByLabel('Board day').waitFor();
-    assert.ok(!(await page.locator('body').innerText()).includes(OLD_NAME), 'no "Bay board" text on the page');
+    assert.ok(!(await page.locator('body').innerText()).includes(OLD_NAME), 'the old page name is not on the page');
     assert.equal(await page.getByRole('group', { name: 'Kanban board sections' }).count(), 1);
     await shot(page, `p134-board-${width}`);
 

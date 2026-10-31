@@ -25,7 +25,6 @@ const manifest = readManifest();
 let releaseId = "";
 let ADMIN: StaffActor, STAFF: StaffActor;
 let seq = 0;
-const NOW = new Date("2027-03-01T02:00:00.000Z");
 const at = (day: string) => ({ db: app, now: () => new Date(day + "T02:00:00.000Z") });
 
 const lit = (x: unknown): string => x === null || x === undefined ? "NULL" : typeof x === "number" ? String(x) : `'${String(x).replace(/'/g, "''")}'`;
