@@ -31,54 +31,57 @@ export const comingSoonStyles = `
 .zeus-coming-soon p{
   margin:0}
 
-.zeus-home-header{
-  min-height:100px;
-  padding:0 5.55%;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  border-bottom:1px solid #ffffff24}
-.zeus-coming-soon__logo{
-  width:170px;
-  height:auto;
-  display:block}
-.zeus-home-header>div{
-  display:flex;
-  align-items:center;
-  gap:44px;
-  font-size:.75rem;
-  font-weight:600}
-.zeus-home-city{
-  color:#b0aaa1}
-.zeus-home-header a{
-  min-height:44px;
-  display:flex;
-  align-items:center;
-  gap:18px}
-.zeus-home-header>div>a{
-  border-bottom:1px solid var(--gold)}
-
+/* Full-screen hero: the video (over its poster) is the background, the logo sits centered at the top and the
+   notice and actions are an overlay at the bottom. No header or footer bars. */
 .zeus-hero{
   position:relative;
   isolation:isolate;
-  min-height:690px;
-  overflow:hidden}
-.zeus-hero-photo{
-  position:absolute;
-  inset:0 0 0 29%;
-  z-index:-2}
-.zeus-hero-photo img{
-  object-fit:cover;
-  object-position:47% 55%;
-  filter:contrast(1.1) saturate(.6) brightness(.83)}
-.zeus-hero-photo:after{
-  content:'';
+  min-height:100svh;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  align-items:stretch}
+.zeus-hero-media{
   position:absolute;
   inset:0;
-  background:linear-gradient(90deg,#0b0b0c 0%,#0b0b0cdb 10%,#0b0b0c60 35%,transparent 70%),linear-gradient(0deg,#0b0b0ce5,transparent 25%)}
+  z-index:-3;
+  background:var(--ink)}
+.zeus-hero-poster,.zeus-hero-video{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:50% 55%;
+  filter:contrast(1.05) saturate(.85) brightness(.95)}
+.zeus-hero-video{
+  opacity:0;
+  transition:opacity .8s ease}
+.zeus-hero-video[data-ready=true]{
+  opacity:1}
+/* The shade keeps text readable over a bright, moving picture: an even tint, a strong left and bottom fade where the
+   copy sits, and a soft top fade behind the logo. */
+.zeus-hero-shade{
+  position:absolute;
+  inset:0;
+  z-index:-2;
+  background:
+    linear-gradient(180deg,#0b0b0c99 0%,#0b0b0c40 18%,transparent 34%),
+    linear-gradient(0deg,#0b0b0cf0 0%,#0b0b0ccc 30%,#0b0b0c60 58%,transparent 80%),
+    linear-gradient(90deg,#0b0b0ce6 0%,#0b0b0cb0 38%,#0b0b0c40 65%,transparent 85%)}
+
+.zeus-hero-logo{
+  padding:36px 5.55% 0;
+  display:flex;
+  justify-content:center}
+.zeus-coming-soon__logo{
+  width:280px;
+  height:auto;
+  display:block}
 
 .zeus-hero-copy{
-  padding:42px 5.55% 55px;
+  padding:32px 5.55% 44px;
   position:relative;
   z-index:1;
   max-width:950px}
@@ -89,27 +92,27 @@ export const comingSoonStyles = `
   font-size:.75rem;
   font-weight:700;
   letter-spacing:.14em;
-  color:#d7b472}
+  color:#e1c183}
 .zeus-kicker:before{
   content:'';
   height:2px;
   width:32px;
   background:var(--gold)}
 .zeus-pretitle{
-  margin:45px 0 23px!important;
+  margin:24px 0 16px!important;
   font-size:.75rem;
   letter-spacing:.13em;
-  color:#bcb5ab;
+  color:#d6d0c6;
   text-transform:uppercase}
 
 .zeus-coming-soon h1{
   font-family:ZeusDisplay,Impact,sans-serif;
-  font-size:clamp(120px,13.4vw,200px);
+  font-size:clamp(88px,min(13.4vw,20svh),200px);
   font-weight:800;
   line-height:.77;
   letter-spacing:-.035em;
   text-transform:uppercase;
-  margin:0 0 40px}
+  margin:0 0 32px}
 .zeus-coming-soon h1 span{
   color:var(--gold)}
 .zeus-description{
@@ -120,7 +123,7 @@ export const comingSoonStyles = `
   font-size:.875rem;
   line-height:1.8;
   max-width:310px;
-  color:#bcb5ab}
+  color:#d6d0c6}
 .zeus-description p:first-child{
   flex:0 0 245px;
   color:var(--paper)}
@@ -129,7 +132,7 @@ export const comingSoonStyles = `
   gap:27px;
   align-items:center;
   flex-wrap:wrap;
-  margin-top:28px}
+  margin-top:24px}
 .zeus-coming-soon__call{
   background:var(--gold);
   color:var(--ink)!important;
@@ -156,68 +159,21 @@ export const comingSoonStyles = `
   transform:translateY(-2px)}
 .zeus-coming-soon__call:hover{
   background:#e1ab47}
-.zeus-photo-caption{
-  position:absolute;
-  right:5.55%;
-  top:30px;
-  color:#c0beb9;
-  font-size:.6875rem;
-  letter-spacing:.08em}
-.zeus-craft{
-  position:absolute;
-  right:5.55%;
-  bottom:30px;
-  width:280px;
-  margin:0}
-.zeus-craft img{
-  width:100%;
-  height:158px;
-  object-fit:cover;
-  filter:saturate(.58) contrast(1.15)}
-.zeus-craft figcaption{
-  font-size:.6875rem;
-  margin-top:10px;
-  color:#d4cec3;
+.zeus-contact-line{
+  margin-top:18px!important;
+  font-size:.8125rem;
+  color:#d6d0c6;
   display:flex;
-  justify-content:space-between;
-  gap:15px}
-.zeus-craft figcaption span{
-  color:#d2aa61}
-
-.zeus-contact-band{
-  background:var(--gold);
-  color:var(--ink);
-  padding:28px 5.55%;
-  display:grid;
-  grid-template-columns:1.3fr 1fr .65fr;
-  gap:30px;
-  align-items:center}
-.zeus-contact-band>div{
-  display:flex;
-  flex-direction:column;
-  gap:10px}
-.zeus-contact-band span,.zeus-contact-band p{
-  font-size:.75rem}
-.zeus-contact-band a{
-  font-size:.875rem;
-  font-weight:700;
-  min-height:30px;
-  display:flex;
-  align-items:center}
-.zeus-contact-band strong{
-  font-family:ZeusDisplay,Impact,sans-serif;
-  text-transform:uppercase;
-  font-size:1.25rem}
-.zeus-coming-soon__footer{
-  display:flex;
-  justify-content:space-between;
+  flex-wrap:wrap;
   align-items:center;
-  gap:16px;
-  padding:15px 5.55%;
-  font-size:.6875rem;
-  color:#aaa49b}
-.zeus-coming-soon__footer a{
-  padding-block:10px}
+  gap:0 6px}
+.zeus-contact-line a{
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  border-bottom:1px solid transparent}
+.zeus-contact-line a:hover{
+  border-bottom-color:var(--gold)}
 
 .zeus-intro[hidden]{
   display:none}
@@ -257,15 +213,6 @@ export const comingSoonStyles = `
   border:0;
   cursor:pointer}
 
-@media(min-width:1600px){
-  .zeus-hero{
-  min-height:760px}
-.zeus-hero-copy{
-  padding-top:60px}
-.zeus-craft{
-  width:320px}
-}
-
 @media(max-width:1100px){
   .zeus-description{
   flex-direction:column;
@@ -273,90 +220,36 @@ export const comingSoonStyles = `
   max-width:365px}
 .zeus-description p:first-child{
   flex:auto}
-.zeus-craft{
-  width:225px}
-.zeus-photo-caption{
-  font-size:.625rem}
-.zeus-hero{
-  min-height:730px}
 }
 
 @media(max-width:800px){
-  .zeus-home-header{
-  min-height:87px;
-  padding:10px 5%;
-  flex-wrap:wrap;
-  gap:4px 16px}
+  .zeus-hero-logo{
+  padding:28px 5% 0}
 .zeus-coming-soon__logo{
-  width:138px}
-.zeus-home-city{
-  display:none}
-.zeus-home-header>div{
-  font-size:.75rem}
-.zeus-hero{
-  min-height:1010px;
-  display:flex;
-  flex-direction:column}
-.zeus-hero-photo{
-  inset:0 0 30%}
-.zeus-hero-photo img{
-  object-position:55% center}
-.zeus-hero-photo:after{
-  background:linear-gradient(0deg,#0b0b0c 0%,#0b0b0cee 20%,#0b0b0c40 85%)}
+  width:200px}
 .zeus-hero-copy{
-  padding:245px 5% 32px;
+  padding:28px 5% 32px;
   max-width:650px}
 .zeus-pretitle{
-  margin-top:35px!important}
+  margin-top:20px!important}
 .zeus-coming-soon h1{
-  font-size:clamp(100px,22vw,170px);
-  margin-bottom:32px}
-.zeus-photo-caption{
-  right:5%;
-  top:22px;
-  left:5%;
-  text-align:right}
-/* F1: in flow below the actions, pushed to the bottom right as in the reference, so larger text grows the hero
-   instead of sliding the copy under the photo. */
-.zeus-craft{
-  position:relative;
-  right:auto;
-  bottom:auto;
-  width:180px;
-  margin:auto 5% 24px auto;
-  align-self:flex-end}
-.zeus-craft img{
-  height:100px}
-.zeus-craft figcaption{
-  flex-direction:column;
-  gap:4px}
-.zeus-contact-band{
-  grid-template-columns:1fr 1fr;
-  padding:28px 5%;
-  gap:24px}
-.zeus-contact-band>div:nth-child(2){
-  grid-row:2;
-  grid-column:1/-1}
-.zeus-coming-soon__footer{
-  flex-wrap:wrap;
-  padding:15px 5%}
-.zeus-coming-soon__footer>span:nth-child(2){
-  display:none}
+  font-size:clamp(88px,22vw,170px);
+  margin-bottom:26px}
+.zeus-hero-shade{
+  background:
+    linear-gradient(180deg,#0b0b0cb0 0%,#0b0b0c50 18%,transparent 32%),
+    linear-gradient(0deg,#0b0b0cf5 0%,#0b0b0ce6 45%,#0b0b0cb0 70%,#0b0b0c55 100%)}
 }
 
 @media(max-width:380px){
-  .zeus-home-header>div>a{
-  gap:5px}
-.zeus-coming-soon__logo{
-  width:115px}
-.zeus-hero-copy{
-  padding-top:220px}
-.zeus-hero{
-  min-height:1120px}
+  .zeus-coming-soon__logo{
+  width:170px}
 }
 
 @media(prefers-reduced-motion:reduce){
   .zeus-actions a{
+  transition:none}
+.zeus-hero-video{
   transition:none}
 }
 

@@ -157,48 +157,37 @@ test('F5: Escape or pagehide while the motion module is still loading cancels th
   }
 }));
 
-test('F1/F3: at 200% text nothing covers the actions and the header logo and link never touch', { timeout: 120000 }, () => withBrowser(async browser => {
+// P1-33: F1/F3 retargeted. The photo, the craft figure and the header bar no longer exist, so the same promise is kept
+// for what replaced them: at 200% text the logo, the headline and every action stay reachable and uncovered.
+// F6 (footer shows the visitor's year) is retired: the footer and its year line were removed by task design.
+test('F1/F3: at 200% text the logo covers nothing, every action and contact link is the element under its own centre', { timeout: 120000 }, () => withBrowser(async browser => {
   for (const [width, height] of [[320, 640], [390, 844], [768, 1024], [1280, 800], [1440, 900]]) {
     const ctx = await context(browser, { viewport: { width, height }, reducedMotion: 'reduce' });
     const page = await ctx.newPage();
     await page.goto(base.origin, { waitUntil: 'networkidle' });
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
-    await page.locator('.zeus-facebook').scrollIntoViewIfNeeded();
+    await page.locator('.zeus-contact-line').scrollIntoViewIfNeeded();
     const result = await page.evaluate(() => {
       const box = el => el.getBoundingClientRect();
       const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-      const craft = box(document.querySelector('.zeus-craft'));
-      const covered = [...document.querySelectorAll('.zeus-actions a')].filter(a => overlap(craft, box(a))).map(a => a.textContent);
-      const link = document.querySelector('.zeus-facebook');
-      const r = box(link);
-      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       const logo = box(document.querySelector('.zeus-coming-soon__logo'));
-      const contact = box(document.querySelector('.zeus-home-header > div > a'));
+      const copy = document.querySelector('.zeus-hero-copy');
+      const links = [...document.querySelectorAll('.zeus-actions a, .zeus-contact-line a')];
+      const unreachable = links.filter(link => {
+        const r = box(link);
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !(hit && link.contains(hit));
+      }).map(link => link.textContent.trim());
       return {
-        covered,
-        facebookHit: !!hit && link.contains(hit),
-        headerGap: contact.top >= logo.bottom - 1 ? 'wrapped' : contact.left - logo.right,
+        unreachable,
+        logoOverCopy: overlap(logo, box(copy)),
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       };
     });
     await page.screenshot({ path: path.join(out, `f1-${width}-text-200.png`), fullPage: true });
-    assert.deepEqual(result.covered, [], `${width}: photo covers no action`);
-    assert.equal(result.facebookHit, true, `${width}: Facebook link is the element under its own centre`);
-    assert.ok(result.headerGap === 'wrapped' || result.headerGap >= 8, `${width}: header gap ${result.headerGap}`);
+    assert.deepEqual(result.unreachable, [], `${width}: every link is the element under its own centre`);
+    assert.equal(result.logoOverCopy, false, `${width}: the logo does not overlap the notice`);
     assert.equal(result.overflow, false, `${width}: no horizontal overflow`);
     await ctx.close();
   }
-}));
-
-test('F6: the footer shows the visitor\'s current year, not the build year', { timeout: 60000 }, () => withBrowser(async browser => {
-  const ctx = await context(browser, { reducedMotion: 'reduce' });
-  await ctx.addInitScript(() => {
-    const Real = Date;
-    const fixed = Real.UTC(2031, 5, 1);
-    window.Date = class extends Real { constructor(...args) { super(...(args.length ? args : [fixed])); } static now() { return fixed; } };
-  });
-  const page = await ctx.newPage();
-  await page.goto(base.origin, { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => document.querySelector('.zeus-coming-soon__footer').textContent.includes('© 2031'), null, { timeout: 5000 });
-  await ctx.close();
 }));

@@ -63,10 +63,7 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
       await page.screenshot({ path: path.join(out, `${width}x${height}-after.png`), fullPage: true });
     }
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.keyboard.press('Tab');
-    assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Zeus Auto Detailing home');
-    await page.keyboard.press('Tab');
-    assert.match(await page.evaluate(() => document.activeElement.textContent), /Contact the shop/);
+    // P1-33: the header bar (logo link, "Contact the shop") is gone, so the first stop is the Call button.
     await page.keyboard.press('Tab');
     assert.match(await page.evaluate(() => document.activeElement.textContent), /Call the shop/);
     const focus = await page.evaluate(() => {
@@ -77,6 +74,8 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     await page.screenshot({ path: path.join(out, '390-keyboard.png'), fullPage: true });
     await page.keyboard.press('Tab');
     assert.match(await page.evaluate(() => document.activeElement.textContent), /Find us on Facebook/);
+    await page.keyboard.press('Tab');
+    assert.match(await page.evaluate(() => document.activeElement.textContent), /Brgy 95 Caibaan/);
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, '200% text zoom reflows');
     await page.screenshot({ path: path.join(out, '390-text-zoom.png'), fullPage: true });
