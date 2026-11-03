@@ -1,70 +1,38 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { HERO_PHONE_MAX_WIDTH, HERO_POSTER_FILES, chooseHeroVideo } from "./hero-video";
+import { HERO_PHONE_MAX_WIDTH, HERO_POSTER_FILES } from "./hero-video";
+import { attachHeroVideo } from "./hero-video-controller";
 
 type NetworkInformation = { saveData?: boolean; effectiveType?: string };
 
 /**
  * Full-screen background. The server HTML holds the poster and an empty <video> (no src, preload none), so nothing
  * but the poster is fetched before first paint. After the window load event the file for this screen is chosen and
- * played; reduced motion, data-saver and 2G keep the poster only. The poster and the video share one box, so there is
- * no layout jump when the video fades in.
+ * played; reduced motion, data-saver and 2G keep the poster only, and a tab opened in the background starts the video
+ * when it is first shown (see hero-video-controller). The poster and the video share one box, so there is no layout
+ * jump when the video fades in.
  */
 export function HomeVideo() {
   const video = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const element = video.current;
     if (!element) return;
-    const motion = matchMedia("(prefers-reduced-motion: reduce)");
-    let loaded = false;
-    let disposed = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let idle: number | undefined;
-    const showPoster = () => { delete element.dataset.ready; };
-    const playing = () => { element.dataset.ready = "true"; };
-    const stop = () => {
-      element.pause();
-      showPoster();
-    };
-    const start = () => {
-      if (disposed || document.hidden) return;
-      const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection;
-      const file = chooseHeroVideo({
-        width: window.innerWidth,
-        reducedMotion: motion.matches,
-        saveData: connection?.saveData === true,
-        effectiveType: connection?.effectiveType,
-      });
-      if (!file) return;
-      if (!element.getAttribute("src")) element.src = file;
-      // A refused or failed play leaves the poster in place; there is nothing to retry.
-      element.play().catch(showPoster);
-    };
-    const schedule = () => {
-      loaded = true;
-      if (typeof requestIdleCallback === "function") idle = requestIdleCallback(start, { timeout: 1500 });
-      else timer = setTimeout(start, 250);
-    };
-    const onMotion = () => (motion.matches ? stop() : loaded && start());
-    const onVisibility = () => (document.hidden ? element.pause() : loaded && !motion.matches && element.getAttribute("src") && start());
-    element.addEventListener("playing", playing);
-    element.addEventListener("error", showPoster);
-    motion.addEventListener("change", onMotion);
-    document.addEventListener("visibilitychange", onVisibility);
-    if (document.readyState === "complete") schedule();
-    else window.addEventListener("load", schedule, { once: true });
-    return () => {
-      disposed = true;
-      clearTimeout(timer);
-      if (idle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idle);
-      window.removeEventListener("load", schedule);
-      document.removeEventListener("visibilitychange", onVisibility);
-      motion.removeEventListener("change", onMotion);
-      element.removeEventListener("playing", playing);
-      element.removeEventListener("error", showPoster);
-      element.pause();
-    };
+    return attachHeroVideo(element, {
+      width: () => window.innerWidth,
+      document,
+      window,
+      motion: matchMedia("(prefers-reduced-motion: reduce)"),
+      connection: (navigator as Navigator & { connection?: NetworkInformation }).connection,
+      schedule: (callback) => {
+        if (typeof requestIdleCallback === "function") {
+          const handle = requestIdleCallback(callback, { timeout: 1500 });
+          return () => cancelIdleCallback(handle);
+        }
+        const timer = setTimeout(callback, 250);
+        return () => clearTimeout(timer);
+      },
+    });
   }, []);
   return <div className="zeus-hero-media" aria-hidden="true">
     {/* A plain picture, not next/image: the files are already encoded, and the optimizer would re-encode and re-route them. */}

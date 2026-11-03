@@ -217,3 +217,26 @@ test('the P1-26 intro still releases: video blocked, video slow, and a fresh ses
     await ctx.close();
   }
 }));
+
+test('F1: a page opened in a hidden tab loads no video, then plays it when the tab is first shown', { timeout: 120000 }, () => withBrowser(async browser => {
+  const ctx = await context(browser, {
+    init: () => {
+      // A simulated background tab: the page sees document.hidden === true until the test shows it.
+      window.__hidden = true;
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => window.__hidden });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window.__hidden ? 'hidden' : 'visible') });
+    },
+  });
+  const page = await ctx.newPage();
+  const log = track(page);
+  await page.goto(base.origin, { waitUntil: 'load' });
+  await delay(2500);
+  assert.deepEqual(log.media, [], 'hidden: no mp4 is requested');
+  assert.equal((await videoState(page)).src, null, 'hidden: no src');
+  await page.evaluate(() => { window.__hidden = false; document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForFunction(() => { const v = document.querySelector('.zeus-hero-video'); return v.readyState >= 3 && v.currentTime > 0.3 && v.dataset.ready === 'true'; }, null, { timeout: 15000 });
+  assert.deepEqual([...new Set(log.media)], [VIDEO.desktop], 'shown: the desktop file is requested once');
+  assert.deepEqual(log.errors, [], 'clean console');
+  assert.deepEqual(await page.evaluate(() => window.__csp), [], 'no CSP violations');
+  await ctx.close();
+}));

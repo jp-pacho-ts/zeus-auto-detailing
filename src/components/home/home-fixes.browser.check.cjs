@@ -23,17 +23,35 @@ async function withBrowser(fn) {
   try { await fn(browser); } finally { await browser.close(); }
 }
 // Only the loopback app is reachable. `hold` delays matching requests (the app's JavaScript) without failing them.
-async function context(browser, { hold, block, ...options } = {}) {
+async function context(browser, { hold, block, init, ...options } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...options });
+  if (init) await ctx.addInitScript(init);
   await ctx.route('**/*', async route => {
     const url = route.request().url();
     if (!url.startsWith(base.origin + '/')) return route.abort();
     if (block && block(route.request())) return route.abort();
-    if (hold && hold.test(url)) await delay(hold.ms);
+    // `hold.gate` (a promise the test resolves) holds a request until the test says so; `hold.ms` is a fixed delay.
+    if (hold && hold.test(url)) await (hold.gate ?? delay(hold.ms));
     return route.continue().catch(() => {});
   });
   return ctx;
 }
+// Deterministic time for tests that inspect the intro at leisure. The intro has two wall-clock inputs: the app script
+// refuses to start the intro after HOME_INTRO_LATEST_START_MS of performance.now(), and the pre-paint CSS fallback is an
+// animation with a 4s delay. Under load the test's own round trips can outlast both, which made these tests fail with
+// no change to the product. `freezeTime` pins performance.now and pauses CSS animations from the first frame;
+// `resumeTime` releases them. Nothing in the product is changed, only what the page's clock reads while the test looks.
+const freezeTime = () => {
+  const real = performance.now.bind(performance);
+  let frozenAt = real(), offset = 0;
+  performance.now = () => (frozenAt === null ? real() - offset : frozenAt);
+  const style = document.createElement('style');
+  style.textContent = '*,*::before,*::after{animation-play-state:paused!important}';
+  const attach = () => { if (document.documentElement) { document.documentElement.appendChild(style); return true; } return false; };
+  if (!attach()) new MutationObserver((_, observer) => { if (attach()) observer.disconnect(); }).observe(document, { childList: true });
+  window.__resumeTime = () => { if (frozenAt !== null) { offset += real() - frozenAt; frozenAt = null; } style.remove(); };
+};
+const resumeTime = page => page.evaluate(() => window.__resumeTime());
 const appScripts = ms => Object.assign(/\/_next\/static\/chunks\//, { ms });
 // Records every value of the intro state, so an intro that starts late can't slip between two polls.
 const recordIntroStates = () => {
@@ -56,8 +74,12 @@ async function curtainState(page) {
 }
 
 test('F2: fresh session shows the black curtain from the first frame, before the app script loads; focus stays out of hidden content', { timeout: 120000 }, () => withBrowser(async browser => {
-  // 1s hold: long enough to inspect the pre-hydration frame, short enough for the intro to start before 3.5s.
-  const ctx = await context(browser, { hold: appScripts(1000) });
+  // Time is frozen and the app scripts are held until this test releases them, so nothing below depends on how fast
+  // the machine is: the pre-hydration frame is inspected at leisure and the intro can still start (see freezeTime).
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  // Only the JavaScript chunks are held; the stylesheet lives in the same folder and the first frame needs it.
+  const ctx = await context(browser, { hold: Object.assign(/\/_next\/static\/chunks\/[^?]*\.js/, { gate }), init: freezeTime });
   const page = await ctx.newPage();
   const response = await page.goto(base.origin, { waitUntil: 'domcontentloaded' });
   // The real CSP applies. If it ever blocks the inline pre-paint script, the curtain assertions below fail.
@@ -73,8 +95,12 @@ test('F2: fresh session shows the black curtain from the first frame, before the
   assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Skip intro', 'first Tab reaches Skip');
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => !!document.activeElement.closest('[data-home-content]')), false, 'focus never lands in hidden content');
-  await page.locator('[data-home-intro="running"]').waitFor({ timeout: 8000 });
-  await page.locator('[data-home-intro="running"]').waitFor({ state: 'hidden', timeout: 9000 });
+  // Release the app scripts with the clock still frozen: hydration may take as long as it takes, and the intro still
+  // starts because performance.now() has not advanced. Then let time run and wait for the real end of the intro.
+  release();
+  await page.locator('[data-home-intro="running"]').waitFor({ timeout: 60000 });
+  await resumeTime(page);
+  await page.locator('[data-home-intro="running"]').waitFor({ state: 'hidden', timeout: 60000 });
   assert.equal(await page.locator('[data-home-content]').evaluate(el => el.inert), false);
   assert.equal((await curtainState(page)).contentVisibility, 'visible');
   assert.equal(await page.evaluate(() => document.getElementById('zeus-home-intro-pending')), null, 'pending style removed');
@@ -105,9 +131,26 @@ test('F2: if the app script never runs, the CSS fallback releases the page withi
   const page = await ctx.newPage();
   await page.goto(base.origin, { waitUntil: 'domcontentloaded' });
   assert.equal((await curtainState(page)).curtainShown, true, 'inline pre-paint still runs');
-  await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-home-curtain]')).visibility === 'hidden', null, { timeout: 6000 });
-  const releasedAt = await page.evaluate(() => performance.now());
-  assert.ok(releasedAt <= 4500, `released at ${Math.round(releasedAt)}ms`);
+  // The fallback is a CSS animation with a fixed 4s delay on the document timeline. Its end is read from the timeline
+  // itself, in the same milliseconds since navigation start as before, not from whenever this test happened to poll:
+  // under load a poll can land a second late with no change to the page (the old check saw 5137ms that way). The limit
+  // is still 4500ms, and the delay and the real release are both asserted.
+  const schedule = await page.evaluate(async () => {
+    const names = ['zeus-intro-release', 'zeus-content-release'];
+    const animations = document.getAnimations().filter(animation => names.includes(animation.animationName));
+    await Promise.all(animations.map(animation => animation.ready));
+    return animations.map(animation => {
+      const timing = animation.effect.getComputedTiming();
+      return { name: animation.animationName, delay: timing.delay, duration: timing.duration, scheduledEnd: animation.startTime + timing.endTime };
+    });
+  });
+  assert.deepEqual(schedule.map(item => item.name).sort(), ['zeus-content-release', 'zeus-intro-release'], 'both fallback animations exist');
+  for (const item of schedule) {
+    assert.equal(item.delay, 4000, `${item.name}: fixed 4s delay`);
+    assert.equal(item.duration, 0, `${item.name}: instant release`);
+    assert.ok(item.scheduledEnd <= 4500, `${item.name}: scheduled release at ${Math.round(item.scheduledEnd)}ms`);
+  }
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-home-curtain]')).visibility === 'hidden', null, { timeout: 60000 });
   assert.equal((await curtainState(page)).contentVisibility, 'visible');
   assert.ok(await page.getByRole('link', { name: /Call the shop/ }).isVisible());
   await ctx.close();
