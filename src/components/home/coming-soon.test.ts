@@ -53,7 +53,10 @@ test("temporary homepage renders the same complete static content in PAUSED and 
   assert.equal(scripts[0][1].trim(), `id="${HOME_INTRO_PREPAINT_ID}"`, "fixed id, no src or other attributes");
   assert.equal(scripts[0][2], HOME_INTRO_PREPAINT, "script text is byte-equal to the exported constant");
   const rest = content.replace(scripts[0][0], "");
-  assert.doesNotMatch(rest, /<script\b|<canvas\b|countdown|instagram\.com/);
+  // P1-46: the shop's Instagram is a plain link, so "instagram.com" may appear, but only as an <a href>. This still
+  // forbids every embed (iframe, instagram-media blockquote, embed script, widget), which is what this guard is for.
+  assert.doesNotMatch(rest, /<script\b|<canvas\b|countdown|<iframe\b|instagram-media|platform\.instagram|instagram\.com\/embed|embed\.js/);
+  assert.equal((rest.match(/instagram\.com/g) ?? []).length, (rest.match(/<a\b[^>]*href="https:\/\/www\.instagram\.com\/[^"]*"/g) ?? []).length, "every instagram.com is an <a href>");
   assert.equal(percentText(rest), false, "no visible percentage");
 });
 

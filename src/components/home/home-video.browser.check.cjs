@@ -65,21 +65,21 @@ const videoState = page => page.evaluate(() => {
 // is screenshotted (video frame + shade), and the 99th-percentile luminance of its pixels is used as the background.
 async function contrastOverFrame(browser, page, file) {
   // Each text element is measured over the area its own text occupies (a Range around its contents), not its box.
-  const targets = await page.evaluate(() => ['.zeus-pretitle', '.zeus-description p:first-child', '.zeus-description p:last-child', '.zeus-contact-line'].map(selector => {
+  const targets = await page.evaluate(() => ['.zeus-lede', '.zeus-contact-line'].map(selector => {
     const el = document.querySelector(selector);
     const range = document.createRange();
     range.selectNodeContents(el);
     const r = range.getBoundingClientRect();
     return { selector, colour: getComputedStyle(el).color, x: r.left, y: r.top, width: r.width, height: r.height };
   }));
-  await page.addStyleTag({ content: '.zeus-hero-copy{visibility:hidden!important}' });
+  await page.addStyleTag({ content: '.zeus-hero-body,.zeus-hero-foot,.zeus-hero-logo{visibility:hidden!important}' });
   const results = [];
   for (const target of targets) {
     const png = await page.screenshot({ clip: { x: target.x, y: target.y, width: target.width, height: target.height } });
     results.push(...await measure(browser, png, [target.colour], target.selector));
   }
   await page.screenshot({ path: file });
-  await page.addStyleTag({ content: '.zeus-hero-copy{visibility:visible!important}' });
+  await page.addStyleTag({ content: '.zeus-hero-body,.zeus-hero-foot,.zeus-hero-logo{visibility:visible!important}' });
   return results;
 }
 async function measure(browser, png, colours, selector) {
@@ -108,8 +108,8 @@ async function measure(browser, png, colours, selector) {
   return result.map(item => ({ ...item, colour: `${selector} ${item.colour}` }));
 }
 
-test('video plays at 390, 768, 1280 and 1440 under the real CSP: right file only, clean console, no sideways scroll, readable text', { timeout: 240000 }, () => withBrowser(async browser => {
-  for (const [width, height] of [[390, 844], [768, 1024], [1280, 800], [1440, 900]]) {
+test('video plays at 320, 360, 390, 412, 768, 1280 and 1440 under the real CSP: right file only, clean console, no sideways scroll, readable text', { timeout: 240000 }, () => withBrowser(async browser => {
+  for (const [width, height] of [[320, 640], [360, 740], [390, 844], [412, 915], [768, 1024], [1280, 800], [1440, 900]]) {
     const ctx = await context(browser, { viewport: { width, height } });
     const page = await ctx.newPage();
     const log = track(page);
