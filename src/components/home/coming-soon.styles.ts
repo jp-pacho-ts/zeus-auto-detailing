@@ -230,11 +230,12 @@ export const comingSoonStyles = `
     grid-row:1;
     grid-column:1/-1;
     font-size:min(calc((100vw - 56px) / 2.65),168px)}
-  .zeus-lede{
+  /* .zeus-coming-soon p{margin:0} (above) outranks a lone class, so the margin needs the parent in its selector */
+  .zeus-coming-soon .zeus-lede{
     grid-row:2;
     grid-column:1/-1;
     align-self:start;
-    margin-top:26px;
+    margin-top:16px;
     max-width:min(100%,440px)}
   .zeus-coming-soon__call{
     grid-row:3;
