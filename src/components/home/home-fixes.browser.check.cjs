@@ -214,7 +214,7 @@ test('F1/F3: at 200% text the logo covers nothing, every action and contact link
       const box = el => el.getBoundingClientRect();
       const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
       const logo = box(document.querySelector('.zeus-coming-soon__logo'));
-      const copy = document.querySelector('.zeus-hero-copy');
+      const copy = document.querySelector('.zeus-pretitle');
       const links = [...document.querySelectorAll('.zeus-actions a, .zeus-contact-line a')];
       const unreachable = links.filter(link => {
         const r = box(link);
@@ -229,7 +229,7 @@ test('F1/F3: at 200% text the logo covers nothing, every action and contact link
     });
     await page.screenshot({ path: path.join(out, `f1-${width}-text-200.png`), fullPage: true });
     assert.deepEqual(result.unreachable, [], `${width}: every link is the element under its own centre`);
-    assert.equal(result.logoOverCopy, false, `${width}: the logo does not overlap the notice`);
+    assert.equal(result.logoOverCopy, false, `${width}: the logo does not overlap the text below it`);
     assert.equal(result.overflow, false, `${width}: no horizontal overflow`);
     await ctx.close();
   }

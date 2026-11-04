@@ -15,9 +15,8 @@ export function ComingSoon() {
       <main className="zeus-hero" id="home" aria-labelledby="coming-soon-title">
         <HomeVideo />
         <div className="zeus-hero-shade" aria-hidden="true" />
-        <div className="zeus-hero-logo"><Image src={brandConfig.logoUrl} alt={brandConfig.businessName} width={715} height={275} priority sizes="(max-width: 800px) 200px, 280px" className="zeus-coming-soon__logo" /></div>
         <div className="zeus-hero-copy">
-          <p className="zeus-kicker">ZEUS AUTO DETAILING</p>
+          <div className="zeus-hero-logo"><Image src={brandConfig.logoUrl} alt={brandConfig.businessName} width={715} height={275} priority sizes="(max-width: 800px) 200px, 280px" className="zeus-coming-soon__logo" /></div>
           <p className="zeus-pretitle">Our new website. In progress.</p>
           <h1 id="coming-soon-title" aria-label="Coming soon">Coming<br />soon<span>.</span></h1>
           <div className="zeus-description"><p><strong>Our website is getting a new look.<br />The shop is open as usual.</strong></p><p>For paint correction, ceramic protection, and other detailing inquiries, get in touch with our team.</p></div>

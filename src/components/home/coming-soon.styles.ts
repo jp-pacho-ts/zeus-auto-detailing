@@ -72,32 +72,19 @@ export const comingSoonStyles = `
     linear-gradient(90deg,#0b0b0ce6 0%,#0b0b0cb0 38%,#0b0b0c40 65%,transparent 85%)}
 
 .zeus-hero-logo{
-  padding:36px 5.55% 0;
   display:flex;
-  justify-content:center}
+  justify-content:flex-start}
 .zeus-coming-soon__logo{
   width:280px;
   height:auto;
-  display:block}
+  display:block;
+  margin-left:-8px}
 
 .zeus-hero-copy{
   padding:32px 5.55% 44px;
   position:relative;
   z-index:1;
   max-width:950px}
-.zeus-kicker{
-  display:flex;
-  align-items:center;
-  gap:17px;
-  font-size:.75rem;
-  font-weight:700;
-  letter-spacing:.14em;
-  color:#e1c183}
-.zeus-kicker:before{
-  content:'';
-  height:2px;
-  width:32px;
-  background:var(--gold)}
 .zeus-pretitle{
   margin:24px 0 16px!important;
   font-size:.75rem;
@@ -223,8 +210,6 @@ export const comingSoonStyles = `
 }
 
 @media(max-width:800px){
-  .zeus-hero-logo{
-  padding:28px 5% 0}
 .zeus-coming-soon__logo{
   width:200px}
 .zeus-hero-copy{
