@@ -12,6 +12,9 @@ function FacebookIcon() {
 function InstagramIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.2" cy="6.8" r=".6" fill="currentColor" /></svg>;
 }
+function LocationIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.4" /></svg>;
+}
 
 export function ComingSoon() {
   const phone = `tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`;
@@ -33,8 +36,9 @@ export function ComingSoon() {
           <div className="zeus-social">
             <a href={brandConfig.facebookPageUrl} target="_blank" rel="noopener noreferrer" aria-label={`${brandConfig.businessName} on Facebook`}><FacebookIcon /></a>
             <a href={brandConfig.instagram} target="_blank" rel="noopener noreferrer" aria-label={`${brandConfig.businessName} on Instagram`}><InstagramIcon /></a>
+            {/* The address is a map-pin icon (P1-47). Its name and tooltip carry the address, so screen readers and a hover still get it. */}
+            <a href={map} target="_blank" rel="noopener noreferrer" aria-label={`${brandConfig.businessName} location: ${brandConfig.location}`} title={brandConfig.location}><LocationIcon /></a>
           </div>
-          <p className="zeus-contact-line"><a href={map} target="_blank" rel="noopener noreferrer">{brandConfig.location}</a></p>
         </div>
       </main>
     </div>

@@ -79,7 +79,8 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     await page.keyboard.press('Tab');
     assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Zeus Auto Detailing on Instagram');
     await page.keyboard.press('Tab');
-    assert.match(await page.evaluate(() => document.activeElement.textContent), /Brgy 95 Caibaan/);
+    // P1-47: the address is the location icon, named with the address.
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Zeus Auto Detailing location: Brgy 95 Caibaan, Tacloban City');
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, '200% text zoom reflows');
     await page.screenshot({ path: path.join(out, '390-text-zoom.png'), fullPage: true });

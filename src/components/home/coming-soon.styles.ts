@@ -121,12 +121,13 @@ export const comingSoonStyles = `
   background:#e1ab47;
   transform:translateY(-2px)}
 
-/* Bottom row: the two 44px targets (icons, address) stack, and the logo is centred on that block. The visible text and
-   icons span about 59px of the 88px block. */
+/* Bottom row: three 44px icon links (Facebook, Instagram, location) side by side, with the logo centred on that row.
+   The address is no longer text; the location link's name and tooltip carry it (P1-47). */
 .zeus-hero-foot{
   grid-column:1;
   grid-row:2;
-  align-self:end;
+  /* The logo (52px) is a little taller than the 44px icons, so the row is as tall as the logo; centring both keeps them level. */
+  align-self:center;
   min-width:0;
   display:flex;
   flex-direction:column;
@@ -152,19 +153,6 @@ export const comingSoonStyles = `
   width:20px;
   height:20px;
   display:block}
-.zeus-contact-line{
-  font-size:12px;
-  line-height:14.4px;
-  color:var(--mute)!important;
-  white-space:nowrap}
-.zeus-contact-line a{
-  min-height:44px;
-  display:inline-flex;
-  align-items:center;
-  border-bottom:1px solid transparent}
-.zeus-contact-line a:hover{
-  border-bottom-color:var(--gold)}
-
 .zeus-hero-logo{
   grid-column:2;
   grid-row:2;
@@ -244,12 +232,12 @@ export const comingSoonStyles = `
     margin:24px 0 10px}
   .zeus-hero-foot{
     grid-row:4}
-  /* the logo takes what is left of the row beside the text (178px), between 80px and 135px wide */
+  /* the logo takes what is left of the row beside the three icons (156px), between 80px and 135px wide */
   .zeus-hero-logo{
     grid-row:4}
   .zeus-coming-soon__logo{
     height:auto;
-    width:clamp(80px,calc(100vw - 56px - 16px - 178px),135px)}
+    width:clamp(80px,calc(100vw - 56px - 16px - 156px),135px)}
   .zeus-hero-shade{
     background:
       linear-gradient(180deg,#0b0b0cdd 0%,#0b0b0ccc 36%,#0b0b0c8c 50%,transparent 62%),
@@ -269,10 +257,6 @@ export const comingSoonStyles = `
     padding-right:24px}
   .zeus-coming-soon h1{
     font-size:calc((100vw - 48px) / 2.65)}
-  .zeus-contact-line{
-    white-space:normal}
-  .zeus-contact-line a{
-    max-width:96px}
 }
 
 @media(prefers-reduced-motion:reduce){
