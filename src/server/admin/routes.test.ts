@@ -45,6 +45,17 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["PUT", "/api/admin/schedule/hours", () => import("@/app/api/admin/schedule/hours/route"), {}],
   ["POST", "/api/admin/schedule/closed-dates", () => import("@/app/api/admin/schedule/closed-dates/route"), {}],
   ["DELETE", `/api/admin/schedule/closed-dates/${ID}`, () => import("@/app/api/admin/schedule/closed-dates/[id]/route"), { id: ID }],
+  // P1-37 Team and commissions.
+  ["GET", "/api/admin/team", () => import("@/app/api/admin/team/route"), {}],
+  ["POST", "/api/admin/team", () => import("@/app/api/admin/team/route"), {}],
+  ["PATCH", `/api/admin/team/${ID}`, () => import("@/app/api/admin/team/[id]/route"), { id: ID }],
+  ["POST", `/api/admin/team/${ID}/active`, () => import("@/app/api/admin/team/[id]/active/route"), { id: ID }],
+  ["POST", `/api/admin/team/${ID}/remove`, () => import("@/app/api/admin/team/[id]/remove/route"), { id: ID }],
+  ["GET", "/api/admin/commissions?from=2027-03-01&to=2027-03-07", () => import("@/app/api/admin/commissions/route"), {}],
+  ["GET", "/api/admin/commissions/settings", () => import("@/app/api/admin/commissions/settings/route"), {}],
+  ["PUT", "/api/admin/commissions/settings", () => import("@/app/api/admin/commissions/settings/route"), {}],
+  ["POST", "/api/admin/commissions/paid", () => import("@/app/api/admin/commissions/paid/route"), {}],
+  ["POST", "/api/admin/commissions/repair", () => import("@/app/api/admin/commissions/repair/route"), {}],
 ];
 const call = async (method: string, target: string, load: () => Promise<Record<string, unknown>>, params: Record<string, string>, headers: Record<string, string>, body?: string) => {
   const handler = (await load())[method] as Handler;

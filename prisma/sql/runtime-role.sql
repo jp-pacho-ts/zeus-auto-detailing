@@ -62,6 +62,7 @@ DO $$
 DECLARE
   migrated boolean := to_regclass('public._prisma_migrations') IS NOT NULL;
   g text[];
+  fn text;
 BEGIN
   IF to_regprocedure('public.publish_catalog(text, text, text, text)') IS NOT NULL THEN
     REVOKE ALL ON FUNCTION publish_catalog(text, text, text, text) FROM PUBLIC;
@@ -75,6 +76,23 @@ BEGIN
   ELSIF migrated THEN
     RAISE EXCEPTION 'delete_booking(text, text, integer, text) is missing: run this after prisma migrate deploy completes';
   END IF;
+  -- P1-37: the ADMIN writes of the Team and Commissions screens. Each is SECURITY DEFINER, re-checks an active
+  -- ADMIN or MANAGER actor and writes its audit row itself; zeus_app has no write privilege on staff or on the
+  -- commission tables. The internal functions (accrual, consistency check, trigger functions, commission_split,
+  -- admin_assert_actor) are executable by nobody but their owner.
+  FOREACH fn IN ARRAY ARRAY[
+    'admin_team_list(text)', 'admin_staff_create(text, text, text, text, integer)',
+    'admin_staff_update(text, text, text, text, text, text, integer, integer)', 'admin_staff_set_active(text, text, boolean, integer)',
+    'admin_staff_remove(text, text, integer)', 'admin_commission_default_set(text, integer, integer)',
+    'admin_commission_paid_set(text, text[], boolean)', 'admin_commission_repair(text)'
+  ] LOOP
+    IF to_regprocedure('public.' || fn) IS NOT NULL THEN
+      EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);
+      EXECUTE format('GRANT EXECUTE ON FUNCTION public.%s TO zeus_app', fn);
+    ELSIF migrated THEN
+      RAISE EXCEPTION '% is missing: run this after prisma migrate deploy completes', fn;
+    END IF;
+  END LOOP;
   FOREACH g SLICE 1 IN ARRAY ARRAY[
     -- Catalog and schedule: read (schedule writes follow).
     ['catalog_releases', 'SELECT'], ['catalog_head', 'SELECT'], ['catalog_service_versions', 'SELECT'],
@@ -123,6 +141,9 @@ BEGIN
     ['booking_deposit_proofs', 'SELECT, INSERT'],
     ['booking_deposit_proofs', 'UPDATE ("notifyState", "notifyAttempts", "notifyNextAttemptAt", "notifySentAt")'],
 
+    -- Commissions (P1-37): read only. Every write is an owner-run function or the accrual trigger.
+    ['commission_settings', 'SELECT'], ['commission_accruals', 'SELECT'], ['commission_entries', 'SELECT'],
+
     -- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
     -- owner URL, never by the app; the app reads no staff phone numbers.
     ['staff', 'SELECT (id, email, name, role, "isActive")'],
@@ -142,7 +163,8 @@ END $$;
 -- No privileges at all: _prisma_migrations, catalog_publishers, catalog_publication_events,
 -- catalog_hold_segments, booking_assignments, slot_capacity_overrides, commission_payouts,
 -- inventory_items, inventory_transactions, service_recipes, booking_delete_tokens (P1-29, written only
--- by delete_booking()), and EXECUTE on publish_catalog.
+-- by delete_booking()), admin_audit_events (P1-37, written only by the admin functions and the accrual
+-- trigger), and EXECUTE on publish_catalog.
 
 -- Owner default privileges for future tables (S-06). Each migration that adds a table revokes
 -- these and grants its exact list; this script, run after it, is the final word.
