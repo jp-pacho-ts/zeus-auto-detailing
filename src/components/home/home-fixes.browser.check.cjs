@@ -23,17 +23,35 @@ async function withBrowser(fn) {
   try { await fn(browser); } finally { await browser.close(); }
 }
 // Only the loopback app is reachable. `hold` delays matching requests (the app's JavaScript) without failing them.
-async function context(browser, { hold, block, ...options } = {}) {
+async function context(browser, { hold, block, init, ...options } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...options });
+  if (init) await ctx.addInitScript(init);
   await ctx.route('**/*', async route => {
     const url = route.request().url();
     if (!url.startsWith(base.origin + '/')) return route.abort();
     if (block && block(route.request())) return route.abort();
-    if (hold && hold.test(url)) await delay(hold.ms);
+    // `hold.gate` (a promise the test resolves) holds a request until the test says so; `hold.ms` is a fixed delay.
+    if (hold && hold.test(url)) await (hold.gate ?? delay(hold.ms));
     return route.continue().catch(() => {});
   });
   return ctx;
 }
+// Deterministic time for tests that inspect the intro at leisure. The intro has two wall-clock inputs: the app script
+// refuses to start the intro after HOME_INTRO_LATEST_START_MS of performance.now(), and the pre-paint CSS fallback is an
+// animation with a 4s delay. Under load the test's own round trips can outlast both, which made these tests fail with
+// no change to the product. `freezeTime` pins performance.now and pauses CSS animations from the first frame;
+// `resumeTime` releases them. Nothing in the product is changed, only what the page's clock reads while the test looks.
+const freezeTime = () => {
+  const real = performance.now.bind(performance);
+  let frozenAt = real(), offset = 0;
+  performance.now = () => (frozenAt === null ? real() - offset : frozenAt);
+  const style = document.createElement('style');
+  style.textContent = '*,*::before,*::after{animation-play-state:paused!important}';
+  const attach = () => { if (document.documentElement) { document.documentElement.appendChild(style); return true; } return false; };
+  if (!attach()) new MutationObserver((_, observer) => { if (attach()) observer.disconnect(); }).observe(document, { childList: true });
+  window.__resumeTime = () => { if (frozenAt !== null) { offset += real() - frozenAt; frozenAt = null; } style.remove(); };
+};
+const resumeTime = page => page.evaluate(() => window.__resumeTime());
 const appScripts = ms => Object.assign(/\/_next\/static\/chunks\//, { ms });
 // Records every value of the intro state, so an intro that starts late can't slip between two polls.
 const recordIntroStates = () => {
@@ -56,8 +74,12 @@ async function curtainState(page) {
 }
 
 test('F2: fresh session shows the black curtain from the first frame, before the app script loads; focus stays out of hidden content', { timeout: 120000 }, () => withBrowser(async browser => {
-  // 1s hold: long enough to inspect the pre-hydration frame, short enough for the intro to start before 3.5s.
-  const ctx = await context(browser, { hold: appScripts(1000) });
+  // Time is frozen and the app scripts are held until this test releases them, so nothing below depends on how fast
+  // the machine is: the pre-hydration frame is inspected at leisure and the intro can still start (see freezeTime).
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  // Only the JavaScript chunks are held; the stylesheet lives in the same folder and the first frame needs it.
+  const ctx = await context(browser, { hold: Object.assign(/\/_next\/static\/chunks\/[^?]*\.js/, { gate }), init: freezeTime });
   const page = await ctx.newPage();
   const response = await page.goto(base.origin, { waitUntil: 'domcontentloaded' });
   // The real CSP applies. If it ever blocks the inline pre-paint script, the curtain assertions below fail.
@@ -73,8 +95,12 @@ test('F2: fresh session shows the black curtain from the first frame, before the
   assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Skip intro', 'first Tab reaches Skip');
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => !!document.activeElement.closest('[data-home-content]')), false, 'focus never lands in hidden content');
-  await page.locator('[data-home-intro="running"]').waitFor({ timeout: 8000 });
-  await page.locator('[data-home-intro="running"]').waitFor({ state: 'hidden', timeout: 9000 });
+  // Release the app scripts with the clock still frozen: hydration may take as long as it takes, and the intro still
+  // starts because performance.now() has not advanced. Then let time run and wait for the real end of the intro.
+  release();
+  await page.locator('[data-home-intro="running"]').waitFor({ timeout: 60000 });
+  await resumeTime(page);
+  await page.locator('[data-home-intro="running"]').waitFor({ state: 'hidden', timeout: 60000 });
   assert.equal(await page.locator('[data-home-content]').evaluate(el => el.inert), false);
   assert.equal((await curtainState(page)).contentVisibility, 'visible');
   assert.equal(await page.evaluate(() => document.getElementById('zeus-home-intro-pending')), null, 'pending style removed');
@@ -105,9 +131,26 @@ test('F2: if the app script never runs, the CSS fallback releases the page withi
   const page = await ctx.newPage();
   await page.goto(base.origin, { waitUntil: 'domcontentloaded' });
   assert.equal((await curtainState(page)).curtainShown, true, 'inline pre-paint still runs');
-  await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-home-curtain]')).visibility === 'hidden', null, { timeout: 6000 });
-  const releasedAt = await page.evaluate(() => performance.now());
-  assert.ok(releasedAt <= 4500, `released at ${Math.round(releasedAt)}ms`);
+  // The fallback is a CSS animation with a fixed 4s delay on the document timeline. Its end is read from the timeline
+  // itself, in the same milliseconds since navigation start as before, not from whenever this test happened to poll:
+  // under load a poll can land a second late with no change to the page (the old check saw 5137ms that way). The limit
+  // is still 4500ms, and the delay and the real release are both asserted.
+  const schedule = await page.evaluate(async () => {
+    const names = ['zeus-intro-release', 'zeus-content-release'];
+    const animations = document.getAnimations().filter(animation => names.includes(animation.animationName));
+    await Promise.all(animations.map(animation => animation.ready));
+    return animations.map(animation => {
+      const timing = animation.effect.getComputedTiming();
+      return { name: animation.animationName, delay: timing.delay, duration: timing.duration, scheduledEnd: animation.startTime + timing.endTime };
+    });
+  });
+  assert.deepEqual(schedule.map(item => item.name).sort(), ['zeus-content-release', 'zeus-intro-release'], 'both fallback animations exist');
+  for (const item of schedule) {
+    assert.equal(item.delay, 4000, `${item.name}: fixed 4s delay`);
+    assert.equal(item.duration, 0, `${item.name}: instant release`);
+    assert.ok(item.scheduledEnd <= 4500, `${item.name}: scheduled release at ${Math.round(item.scheduledEnd)}ms`);
+  }
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-home-curtain]')).visibility === 'hidden', null, { timeout: 60000 });
   assert.equal((await curtainState(page)).contentVisibility, 'visible');
   assert.ok(await page.getByRole('link', { name: /Call the shop/ }).isVisible());
   await ctx.close();
@@ -157,48 +200,37 @@ test('F5: Escape or pagehide while the motion module is still loading cancels th
   }
 }));
 
-test('F1/F3: at 200% text nothing covers the actions and the header logo and link never touch', { timeout: 120000 }, () => withBrowser(async browser => {
+// P1-33: F1/F3 retargeted. The photo, the craft figure and the header bar no longer exist, so the same promise is kept
+// for what replaced them: at 200% text the logo, the headline and every action stay reachable and uncovered.
+// F6 (footer shows the visitor's year) is retired: the footer and its year line were removed by task design.
+test('F1/F3: at 200% text the logo covers nothing, every action and contact link is the element under its own centre', { timeout: 120000 }, () => withBrowser(async browser => {
   for (const [width, height] of [[320, 640], [390, 844], [768, 1024], [1280, 800], [1440, 900]]) {
     const ctx = await context(browser, { viewport: { width, height }, reducedMotion: 'reduce' });
     const page = await ctx.newPage();
     await page.goto(base.origin, { waitUntil: 'networkidle' });
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
-    await page.locator('.zeus-facebook').scrollIntoViewIfNeeded();
+    await page.locator('.zeus-contact-line').scrollIntoViewIfNeeded();
     const result = await page.evaluate(() => {
       const box = el => el.getBoundingClientRect();
       const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-      const craft = box(document.querySelector('.zeus-craft'));
-      const covered = [...document.querySelectorAll('.zeus-actions a')].filter(a => overlap(craft, box(a))).map(a => a.textContent);
-      const link = document.querySelector('.zeus-facebook');
-      const r = box(link);
-      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       const logo = box(document.querySelector('.zeus-coming-soon__logo'));
-      const contact = box(document.querySelector('.zeus-home-header > div > a'));
+      const copy = document.querySelector('.zeus-hero-copy');
+      const links = [...document.querySelectorAll('.zeus-actions a, .zeus-contact-line a')];
+      const unreachable = links.filter(link => {
+        const r = box(link);
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !(hit && link.contains(hit));
+      }).map(link => link.textContent.trim());
       return {
-        covered,
-        facebookHit: !!hit && link.contains(hit),
-        headerGap: contact.top >= logo.bottom - 1 ? 'wrapped' : contact.left - logo.right,
+        unreachable,
+        logoOverCopy: overlap(logo, box(copy)),
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       };
     });
     await page.screenshot({ path: path.join(out, `f1-${width}-text-200.png`), fullPage: true });
-    assert.deepEqual(result.covered, [], `${width}: photo covers no action`);
-    assert.equal(result.facebookHit, true, `${width}: Facebook link is the element under its own centre`);
-    assert.ok(result.headerGap === 'wrapped' || result.headerGap >= 8, `${width}: header gap ${result.headerGap}`);
+    assert.deepEqual(result.unreachable, [], `${width}: every link is the element under its own centre`);
+    assert.equal(result.logoOverCopy, false, `${width}: the logo does not overlap the notice`);
     assert.equal(result.overflow, false, `${width}: no horizontal overflow`);
     await ctx.close();
   }
-}));
-
-test('F6: the footer shows the visitor\'s current year, not the build year', { timeout: 60000 }, () => withBrowser(async browser => {
-  const ctx = await context(browser, { reducedMotion: 'reduce' });
-  await ctx.addInitScript(() => {
-    const Real = Date;
-    const fixed = Real.UTC(2031, 5, 1);
-    window.Date = class extends Real { constructor(...args) { super(...(args.length ? args : [fixed])); } static now() { return fixed; } };
-  });
-  const page = await ctx.newPage();
-  await page.goto(base.origin, { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => document.querySelector('.zeus-coming-soon__footer').textContent.includes('© 2031'), null, { timeout: 5000 });
-  await ctx.close();
 }));
