@@ -37,7 +37,8 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     assert.equal(await page.locator('form').count(), 0);
     assert.equal(await page.locator('h1').evaluate(el => getComputedStyle(el).opacity), '1');
     assert.ok(await page.getByRole('link', { name: /Call the shop/ }).getAttribute('href').then(href => href.startsWith('tel:')));
-    assert.equal(await page.getByRole('link', { name: 'Find us on Facebook' }).getAttribute('href'), 'https://www.facebook.com/zeusautodetailingtacloban');
+    assert.equal(await page.getByRole('link', { name: 'Zeus Auto Detailing on Facebook' }).getAttribute('href'), 'https://www.facebook.com/zeusautodetailingtacloban');
+    assert.equal(await page.getByRole('link', { name: 'Zeus Auto Detailing on Instagram' }).getAttribute('href'), 'https://www.instagram.com/zeus.otodetailing');
     assert.equal(await page.getByAltText('Zeus Auto Detailing').evaluate(el => el.complete && el.naturalWidth > 0), true);
   }
   try {
@@ -63,9 +64,10 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
       await page.screenshot({ path: path.join(out, `${width}x${height}-after.png`), fullPage: true });
     }
     await page.setViewportSize({ width: 390, height: 844 });
-    // P1-33: the header bar (logo link, "Contact the shop") is gone, so the first stop is the Call button.
+    // P1-33: the header bar is gone, so the first stop is the Call button. P1-46: then the Facebook and Instagram icons (named by
+    // aria-label, since they have no visible text), then the address. The Call link's spoken name carries the number.
     await page.keyboard.press('Tab');
-    assert.match(await page.evaluate(() => document.activeElement.textContent), /Call the shop/);
+    assert.match(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), /^Call the shop 0930 016 2234$/);
     const focus = await page.evaluate(() => {
       const style = getComputedStyle(document.activeElement);
       return { width: style.outlineWidth, style: style.outlineStyle };
@@ -73,7 +75,9 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     assert.equal(focus.style, 'solid'); assert.equal(focus.width, '3px');
     await page.screenshot({ path: path.join(out, '390-keyboard.png'), fullPage: true });
     await page.keyboard.press('Tab');
-    assert.match(await page.evaluate(() => document.activeElement.textContent), /Find us on Facebook/);
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Zeus Auto Detailing on Facebook');
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Zeus Auto Detailing on Instagram');
     await page.keyboard.press('Tab');
     assert.match(await page.evaluate(() => document.activeElement.textContent), /Brgy 95 Caibaan/);
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });

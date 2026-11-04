@@ -200,6 +200,8 @@ test('F5: Escape or pagehide while the motion module is still loading cancels th
   }
 }));
 
+// P1-46: the links are now the Call pill, the two social icons and the address; the logo sits bottom right, so it is checked
+// against the headline, the line and the Call pill (it must overlap none of them, and no link may be covered).
 // P1-33: F1/F3 retargeted. The photo, the craft figure and the header bar no longer exist, so the same promise is kept
 // for what replaced them: at 200% text the logo, the headline and every action stay reachable and uncovered.
 // F6 (footer shows the visitor's year) is retired: the footer and its year line were removed by task design.
@@ -214,8 +216,8 @@ test('F1/F3: at 200% text the logo covers nothing, every action and contact link
       const box = el => el.getBoundingClientRect();
       const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
       const logo = box(document.querySelector('.zeus-coming-soon__logo'));
-      const copy = document.querySelector('.zeus-pretitle');
-      const links = [...document.querySelectorAll('.zeus-actions a, .zeus-contact-line a')];
+      const others = ['h1', '.zeus-lede', '.zeus-coming-soon__call'].map(selector => box(document.querySelector(selector)));
+      const links = [...document.querySelectorAll('.zeus-coming-soon__call, .zeus-social a, .zeus-contact-line a')];
       const unreachable = links.filter(link => {
         const r = box(link);
         const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
@@ -223,7 +225,7 @@ test('F1/F3: at 200% text the logo covers nothing, every action and contact link
       }).map(link => link.textContent.trim());
       return {
         unreachable,
-        logoOverCopy: overlap(logo, box(copy)),
+        logoOverCopy: others.some(rect => overlap(logo, rect)),
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       };
     });
@@ -231,6 +233,60 @@ test('F1/F3: at 200% text the logo covers nothing, every action and contact link
     assert.deepEqual(result.unreachable, [], `${width}: every link is the element under its own centre`);
     assert.equal(result.logoOverCopy, false, `${width}: the logo does not overlap the text below it`);
     assert.equal(result.overflow, false, `${width}: no horizontal overflow`);
+    await ctx.close();
+  }
+}));
+
+// P1-46: the cinematic layout, measured in a real browser. Logo bottom right and centred on the icons and address beside
+// it; side margins; the headline as wide as the text column on phones; nothing clipped; the page itself does not scroll.
+test('P1-46: logo bottom right and centred on the icons and address, side margins, headline as wide as the text column, nothing clipped', { timeout: 240000 }, () => withBrowser(async browser => {
+  for (const [width, height] of [[320, 640], [360, 740], [390, 844], [412, 915], [768, 1024], [1280, 800], [1440, 900]]) {
+    const ctx = await context(browser, { viewport: { width, height }, reducedMotion: 'reduce' });
+    const page = await ctx.newPage();
+    await page.goto(base.origin, { waitUntil: 'networkidle' });
+    await page.evaluate(() => document.fonts.ready);
+    const m = await page.evaluate(() => {
+      const box = el => el.getBoundingClientRect();
+      const one = selector => document.querySelector(selector);
+      const h1 = one('h1');
+      const range = document.createRange();
+      range.setStart(h1.firstChild, 0);
+      range.setEnd(h1.firstChild, h1.firstChild.length);
+      const logo = box(one('.zeus-coming-soon__logo'));
+      const icons = box(one('.zeus-social'));
+      const address = box(one('.zeus-contact-line a'));
+      const call = box(one('.zeus-coming-soon__call'));
+      const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      return {
+        vw: innerWidth, vh: innerHeight, logo, icons, address, call,
+        coming: box(range) && range.getBoundingClientRect().toJSON(),
+        logoOverlaps: ['h1', '.zeus-lede', '.zeus-coming-soon__call'].filter(selector => overlap(logo, box(one(selector)))),
+        clipped: [...document.querySelectorAll('h1,p,a,img,svg,span,strong')].filter(e => { const r = box(e); return r.width > 0 && (r.right > innerWidth + 0.5 || r.left < -0.5); }).map(e => e.tagName),
+        small: [...document.querySelectorAll('a')].filter(a => { const r = box(a); return r.width < 43.5 || r.height < 43.5; }).map(a => a.getAttribute('aria-label') || a.textContent.trim()),
+        scrollW: document.documentElement.scrollWidth, scrollH: document.documentElement.scrollHeight,
+      };
+    });
+    const margin = width <= 340 ? 24 : width <= 800 ? 28 : width * 0.07;
+    const column = width - 2 * margin;
+    const near = (a, b, tolerance, message) => assert.ok(Math.abs(a - b) <= tolerance, `${width}: ${message} (${a.toFixed(1)} vs ${b.toFixed(1)})`);
+    assert.ok(m.logo.left > width * 0.45 && m.logo.top > height * 0.65, `${width}: logo is bottom right`);
+    near(m.logo.right, width - margin, 1.5, 'logo sits on the right margin');
+    near(m.logo.top + m.logo.height / 2, (m.icons.top + m.address.bottom) / 2, 3, 'logo is centred on the icons and address block');
+    near(m.icons.left, margin, 1.5, 'icons start on the left margin');
+    near(m.address.left, m.icons.left, 1.5, 'address shares the icons left edge');
+    near(m.coming.left, margin, 2, 'headline starts on the left margin');
+    if (width <= 800) {
+      near(m.call.left, margin, 1.5, 'Call pill starts on the left margin');
+      if (width <= 560) near(m.call.right, width - margin, 1.5, 'Call pill ends on the right margin');
+      else assert.ok(m.call.width <= 420.5, `${width}: on tablets the Call pill keeps a pill shape (${m.call.width.toFixed(0)}px)`);
+      if (width <= 560) assert.ok(m.coming.width >= column * 0.95 && m.coming.width <= column + 1, `${width}: COMING is as wide as the text column (${m.coming.width.toFixed(1)} of ${column})`);
+    }
+    assert.deepEqual(m.logoOverlaps, [], `${width}: the logo overlaps nothing`);
+    assert.deepEqual(m.clipped, [], `${width}: nothing is clipped at the sides`);
+    assert.deepEqual(m.small, [], `${width}: every link is at least 44px`);
+    assert.ok(m.scrollW <= width, `${width}: no sideways scroll`);
+    assert.ok(m.scrollH <= height + 1, `${width}: the page does not scroll vertically (${m.scrollH} of ${height})`);
+    await page.screenshot({ path: path.join(out, `p146-layout-${width}.png`) });
     await ctx.close();
   }
 }));

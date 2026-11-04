@@ -28,7 +28,7 @@ test('homepage intro: first session, replay prevention, accessibility and failur
     assert.equal(await page.locator('[data-home-intro] .word').count(), 0, 'SplitType reverted');
     await page.getByRole('heading', { name: 'Coming soon', exact: true }).waitFor();
     assert.equal(await page.getByRole('link', { name: /Call the shop/ }).getAttribute('href'), 'tel:+639300162234');
-    assert.ok(await page.getByRole('link', { name: 'Find us on Facebook' }).isVisible());
+    assert.ok(await page.getByRole('link', { name: 'Zeus Auto Detailing on Facebook' }).isVisible());
     assert.equal(await page.locator('main').count(), 1);
     assert.equal(await page.locator('h1').count(), 1);
     assert.equal(await page.locator('[data-home-content]').evaluate(el => getComputedStyle(el).transform), 'none');

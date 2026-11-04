@@ -1,0 +1,83 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { renderToStaticMarkup } from "react-dom/server";
+import { brandConfig } from "@/config/brand";
+import HomePage from "@/app/page";
+
+// P1-46: the redone coming-soon layout. One message, one primary action (Call), social icons, a quiet address.
+const html = () => renderToStaticMarkup(HomePage());
+const body = () => html().replace(/<style>[\s\S]*?<\/style>/g, "").replace(/<script\b[\s\S]*?<\/script>/g, "");
+const phone = `tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`;
+const INSTAGRAM = "https://www.instagram.com/zeus.otodetailing";
+// The opening tag of the first <a> whose tag text matches.
+const anchor = (content: string, pattern: RegExp) => content.match(new RegExp(`<a\\b[^>]*${pattern.source}[^>]*>[\\s\\S]*?</a>`));
+
+test("P1-46: the shop's real Instagram page is the one brand setting, not the bare instagram.com placeholder", () => {
+  assert.equal(brandConfig.instagram, INSTAGRAM);
+  assert.equal(brandConfig.instagramHandle, "@zeus.otodetailing");
+});
+
+test("P1-46: one short message says the website is coming and the shop is open, with no repeated lines", () => {
+  const content = body();
+  assert.equal((content.match(/<h1\b/g) ?? []).length, 1);
+  assert.match(content, /<p class="zeus-lede">Our new website is on the way\. The shop is open as usual\.<\/p>/);
+  assert.doesNotMatch(content, /zeus-pretitle|zeus-description|zeus-kicker|In progress|getting a new look/);
+  const text = content.replace(/<[^>]*>/g, " ");
+  assert.equal(text.split(brandConfig.displayPhone).length - 1, 1, "the phone number is shown once, on the Call button");
+});
+
+test("P1-46: Call is the one primary action and keeps its tel link, a spoken name with the number, and a short visible label", () => {
+  const call = anchor(body(), /class="zeus-coming-soon__call"/);
+  assert.ok(call, "Call link present");
+  assert.ok(call[0].includes(`href="${phone}"`));
+  assert.match(call[0], new RegExp(`aria-label="Call the shop ${brandConfig.displayPhone}"`));
+  assert.match(call[0], /<span>Call<\/span>/);
+  assert.ok(call[0].includes(brandConfig.displayPhone));
+});
+
+test("P1-46: Facebook and Instagram are icon links with spoken names, safe external attributes and decorative icons", () => {
+  const content = body();
+  const facebook = anchor(content, /aria-label="Zeus Auto Detailing on Facebook"/);
+  const instagram = anchor(content, /aria-label="Zeus Auto Detailing on Instagram"/);
+  assert.ok(facebook, "Facebook icon link");
+  assert.ok(instagram, "Instagram icon link");
+  assert.ok(facebook[0].includes(`href="${brandConfig.facebookPageUrl}"`));
+  assert.ok(instagram[0].includes(`href="${INSTAGRAM}"`));
+  for (const link of [facebook[0], instagram[0]]) {
+    assert.match(link, /target="_blank"/);
+    assert.match(link, /rel="noopener noreferrer"/);
+    assert.match(link, /<svg\b[^>]*aria-hidden="true"/, "the icon is hidden from screen readers; the link has its own name");
+  }
+  assert.doesNotMatch(content, /Message us on Facebook|Find us on Facebook/);
+});
+
+test("P1-46: the address is one quiet line with a Maps link and no phone number", () => {
+  const line = body().match(/<p class="zeus-contact-line">[\s\S]*?<\/p>/);
+  assert.ok(line, "address line");
+  assert.ok(line[0].includes(brandConfig.location));
+  assert.ok(line[0].includes("google.com/maps"));
+  assert.doesNotMatch(line[0], new RegExp(brandConfig.displayPhone));
+  assert.equal((line[0].match(/<a\b/g) ?? []).length, 1);
+});
+
+test("P1-46: reading order is logo, headline, Call, Facebook, Instagram, address; one logo image with its alt text", () => {
+  const content = body();
+  const at = (needle: string | RegExp) => (typeof needle === "string" ? content.indexOf(needle) : content.search(needle));
+  const order = [
+    at(`alt="${brandConfig.businessName}"`),
+    at("<h1"),
+    at('class="zeus-coming-soon__call"'),
+    at('aria-label="Zeus Auto Detailing on Facebook"'),
+    at('aria-label="Zeus Auto Detailing on Instagram"'),
+    at('class="zeus-contact-line"'),
+  ];
+  assert.ok(order.every((index) => index >= 0), `all present: ${order}`);
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "document order");
+  assert.equal(content.split(`alt="${brandConfig.businessName}"`).length - 1, 1);
+});
+
+test("P1-46: the page still has no header, footer, nav, form or second heading", () => {
+  const content = body();
+  assert.doesNotMatch(content, /<header\b|<footer\b|<nav\b|<form\b|<h2\b/);
+  assert.equal((content.match(/<main\b/g) ?? []).length, 1);
+});

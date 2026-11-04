@@ -15,6 +15,7 @@ export const comingSoonStyles = `
   --gold:#c39030;
   --paper:#f2eee7;
   --ink:#0b0b0c;
+  --mute:#d6d0c6;
   background:var(--ink);
   color:var(--paper);
   font-family:ZeusBody,Arial,sans-serif;
@@ -31,17 +32,20 @@ export const comingSoonStyles = `
 .zeus-coming-soon p{
   margin:0}
 
-/* Full-screen hero: the video (over its poster) is the background, the logo sits centered at the top and the
-   notice and actions are an overlay at the bottom. No header or footer bars. */
+/* P1-46 layout. A full-screen cinematic hero, no boxes: the picture is the page and soft fades carry the text.
+   Desktop: headline, one line and the Call pill sit left, vertically centred; the social icons and address sit bottom
+   left; the logo sits bottom right, centred on the icons and address beside it. The logo is first in reading order
+   and is placed by the grid. */
 .zeus-hero{
   position:relative;
   isolation:isolate;
   min-height:100svh;
   overflow:hidden;
-  display:flex;
-  flex-direction:column;
-  justify-content:space-between;
-  align-items:stretch}
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-rows:1fr auto;
+  column-gap:32px;
+  padding:max(72px,env(safe-area-inset-top)) 7% max(56px,env(safe-area-inset-bottom))}
 .zeus-hero-media{
   position:absolute;
   inset:0;
@@ -53,107 +57,106 @@ export const comingSoonStyles = `
   width:100%;
   height:100%;
   object-fit:cover;
-  object-position:50% 55%;
+  object-position:62% 55%;
   filter:contrast(1.05) saturate(.85) brightness(.95)}
 .zeus-hero-video{
   opacity:0;
   transition:opacity .8s ease}
 .zeus-hero-video[data-ready=true]{
   opacity:1}
-/* The shade keeps text readable over a bright, moving picture: an even tint, a strong left and bottom fade where the
-   copy sits, and a soft top fade behind the logo. */
+/* A long fade from the left edge carries the text and keeps the car clean on the right; a soft fade at the bottom
+   carries the icons and address, and one at the top keeps the picture from feeling cut off. */
 .zeus-hero-shade{
   position:absolute;
   inset:0;
   z-index:-2;
   background:
-    linear-gradient(180deg,#0b0b0c99 0%,#0b0b0c40 18%,transparent 34%),
-    linear-gradient(0deg,#0b0b0cf0 0%,#0b0b0ccc 30%,#0b0b0c60 58%,transparent 80%),
-    linear-gradient(90deg,#0b0b0ce6 0%,#0b0b0cb0 38%,#0b0b0c40 65%,transparent 85%)}
+    linear-gradient(90deg,#0b0b0cfa 0%,#0b0b0ce6 26%,#0b0b0c99 44%,#0b0b0c33 62%,transparent 78%),
+    linear-gradient(0deg,#0b0b0cd8 0%,#0b0b0c80 16%,transparent 34%)}
 
-.zeus-hero-logo{
-  display:flex;
-  justify-content:flex-start}
-.zeus-coming-soon__logo{
-  width:280px;
-  height:auto;
-  display:block;
-  margin-left:-8px}
-
-.zeus-hero-copy{
-  padding:32px 5.55% 44px;
-  position:relative;
-  z-index:1;
-  max-width:950px}
-.zeus-pretitle{
-  margin:24px 0 16px!important;
-  font-size:.75rem;
-  letter-spacing:.13em;
-  color:#d6d0c6;
-  text-transform:uppercase}
-
-.zeus-coming-soon h1{
-  font-family:ZeusDisplay,Impact,sans-serif;
-  font-size:clamp(88px,min(13.4vw,20svh),200px);
-  font-weight:800;
-  line-height:.77;
-  letter-spacing:-.035em;
-  text-transform:uppercase;
-  margin:0 0 32px}
-.zeus-coming-soon h1 span{
-  color:var(--gold)}
-.zeus-description{
-  display:flex;
-  gap:30px;
-  max-width:620px}
-.zeus-description p{
-  font-size:.875rem;
-  line-height:1.8;
-  max-width:310px;
-  color:#d6d0c6}
-.zeus-description p:first-child{
-  flex:0 0 245px;
-  color:var(--paper)}
-.zeus-actions{
-  display:flex;
-  gap:27px;
-  align-items:center;
-  flex-wrap:wrap;
-  margin-top:24px}
-.zeus-coming-soon__call{
-  background:var(--gold);
-  color:var(--ink)!important;
-  min-height:70px;
-  min-width:235px;
-  padding:14px 23px;
+.zeus-hero-body{
+  grid-column:1/-1;
+  grid-row:1;
+  align-self:center;
+  min-width:0;
+  max-width:520px;
   display:flex;
   flex-direction:column;
-  gap:5px}
-.zeus-coming-soon__call span{
-  font-size:.75rem;
-  font-weight:700}
-.zeus-coming-soon__call strong{
-  font-size:1rem}
-.zeus-facebook{
-  display:flex;
+  align-items:flex-start;
+  gap:22px}
+.zeus-coming-soon h1{
+  font-family:ZeusDisplay,Impact,sans-serif;
+  font-size:clamp(88px,9.6vw,150px);
+  font-weight:800;
+  line-height:.8;
+  letter-spacing:-.02em;
+  text-transform:uppercase;
+  margin:0}
+.zeus-coming-soon h1 span{
+  color:var(--gold)}
+.zeus-lede{
+  font-size:1rem;
+  line-height:1.6;
+  color:var(--paper);
+  max-width:30ch}
+
+.zeus-coming-soon__call{
+  display:inline-flex;
+  align-items:center;
   gap:12px;
-  align-items:center;
-  font-size:.8125rem;
-  min-height:44px}
-.zeus-actions a{
+  min-height:52px;
+  padding:0 28px;
+  border-radius:999px;
+  background:var(--gold);
+  color:var(--ink)!important;
+  box-shadow:0 10px 40px #0b0b0c80;
   transition:transform .2s,background .2s}
-.zeus-actions a:hover{
-  transform:translateY(-2px)}
+.zeus-coming-soon__call span{
+  font-size:.875rem;
+  font-weight:600}
+.zeus-coming-soon__call strong{
+  font-size:1.0625rem;
+  letter-spacing:.01em}
 .zeus-coming-soon__call:hover{
-  background:#e1ab47}
-.zeus-contact-line{
-  margin-top:18px!important;
-  font-size:.8125rem;
-  color:#d6d0c6;
+  background:#e1ab47;
+  transform:translateY(-2px)}
+
+/* Bottom row: the two 44px targets (icons, address) stack, and the logo is centred on that block. The visible text and
+   icons span about 59px of the 88px block. */
+.zeus-hero-foot{
+  grid-column:1;
+  grid-row:2;
+  align-self:end;
+  min-width:0;
   display:flex;
-  flex-wrap:wrap;
+  flex-direction:column;
+  align-items:flex-start;
+  position:relative;
+  z-index:1}
+.zeus-social{
+  display:flex;
+  gap:12px}
+.zeus-social a{
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  border:1px solid #f2eee799;
+  display:inline-flex;
   align-items:center;
-  gap:0 6px}
+  justify-content:center;
+  transition:background .2s,border-color .2s}
+.zeus-social a:hover{
+  border-color:var(--gold);
+  background:#c3903033}
+.zeus-social svg{
+  width:20px;
+  height:20px;
+  display:block}
+.zeus-contact-line{
+  font-size:12px;
+  line-height:14.4px;
+  color:var(--mute)!important;
+  white-space:nowrap}
 .zeus-contact-line a{
   min-height:44px;
   display:inline-flex;
@@ -161,6 +164,18 @@ export const comingSoonStyles = `
   border-bottom:1px solid transparent}
 .zeus-contact-line a:hover{
   border-bottom-color:var(--gold)}
+
+.zeus-hero-logo{
+  grid-column:2;
+  grid-row:2;
+  align-self:center;
+  justify-self:end;
+  position:relative;
+  z-index:1}
+.zeus-coming-soon__logo{
+  height:52px;
+  width:auto;
+  display:block}
 
 .zeus-intro[hidden]{
   display:none}
@@ -200,39 +215,68 @@ export const comingSoonStyles = `
   border:0;
   cursor:pointer}
 
-@media(max-width:1100px){
-  .zeus-description{
-  flex-direction:column;
-  gap:8px;
-  max-width:365px}
-.zeus-description p:first-child{
-  flex:auto}
-}
-
+/* Phones and tablets. The headline starts at the top, sized so the word COMING spans the text column; the clear band
+   between the line and the Call pill is where the car shows; Call and the icons, address and logo sit at the bottom.
+   One left edge, 28px side margins. The body wrapper disappears (display:contents) so the headline, line and Call
+   become grid rows of the hero. */
 @media(max-width:800px){
-.zeus-coming-soon__logo{
-  width:200px}
-.zeus-hero-copy{
-  padding:28px 5% 32px;
-  max-width:650px}
-.zeus-pretitle{
-  margin-top:20px!important}
-.zeus-coming-soon h1{
-  font-size:clamp(88px,22vw,170px);
-  margin-bottom:26px}
-.zeus-hero-shade{
-  background:
-    linear-gradient(180deg,#0b0b0cb0 0%,#0b0b0c50 18%,transparent 32%),
-    linear-gradient(0deg,#0b0b0cf5 0%,#0b0b0ce6 45%,#0b0b0cb0 70%,#0b0b0c55 100%)}
+  .zeus-hero{
+    grid-template-rows:auto 1fr auto auto;
+    column-gap:16px;
+    padding:max(56px,env(safe-area-inset-top)) 28px max(48px,env(safe-area-inset-bottom))}
+  .zeus-hero-body{
+    display:contents}
+  .zeus-coming-soon h1{
+    grid-row:1;
+    grid-column:1/-1;
+    font-size:min(calc((100vw - 56px) / 2.65),168px)}
+  /* .zeus-coming-soon p{margin:0} (above) outranks a lone class, so the margin needs the parent in its selector */
+  .zeus-coming-soon .zeus-lede{
+    grid-row:2;
+    grid-column:1/-1;
+    align-self:start;
+    margin-top:16px;
+    max-width:min(100%,440px)}
+  .zeus-coming-soon__call{
+    grid-row:3;
+    grid-column:1/-1;
+    justify-content:center;
+    margin:24px 0 10px}
+  .zeus-hero-foot{
+    grid-row:4}
+  /* the logo takes what is left of the row beside the text (178px), between 80px and 135px wide */
+  .zeus-hero-logo{
+    grid-row:4}
+  .zeus-coming-soon__logo{
+    height:auto;
+    width:clamp(80px,calc(100vw - 56px - 16px - 178px),135px)}
+  .zeus-hero-shade{
+    background:
+      linear-gradient(180deg,#0b0b0cdd 0%,#0b0b0ccc 36%,#0b0b0c8c 50%,transparent 62%),
+      linear-gradient(0deg,#0b0b0cf5 0%,#0b0b0ce6 20%,#0b0b0c88 32%,transparent 44%)}
 }
 
-@media(max-width:380px){
-  .zeus-coming-soon__logo{
-  width:170px}
+/* Tablets: the Call pill keeps a pill shape instead of spanning the whole width. */
+@media(min-width:561px) and (max-width:800px){
+  .zeus-coming-soon__call{
+    justify-self:start;
+    width:min(100%,420px)}
+}
+
+@media(max-width:340px){
+  .zeus-hero{
+    padding-left:24px;
+    padding-right:24px}
+  .zeus-coming-soon h1{
+    font-size:calc((100vw - 48px) / 2.65)}
+  .zeus-contact-line{
+    white-space:normal}
+  .zeus-contact-line a{
+    max-width:96px}
 }
 
 @media(prefers-reduced-motion:reduce){
-  .zeus-actions a{
+  .zeus-coming-soon__call,.zeus-social a{
   transition:none}
 .zeus-hero-video{
   transition:none}

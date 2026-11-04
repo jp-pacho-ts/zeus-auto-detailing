@@ -57,7 +57,8 @@ test("P1-33: the overlay keeps the notice, the Call and Facebook actions and one
   const line = content.match(/<p class="zeus-contact-line">[\s\S]*?<\/p>/);
   assert.ok(line, "one contact line in the overlay");
   assert.ok(line[0].includes(brandConfig.location));
-  assert.ok(line[0].includes(brandConfig.displayPhone));
+  // P1-46: the phone number lives on the Call button only, so the quiet address line no longer repeats it.
+  assert.ok(!line[0].includes(brandConfig.displayPhone));
   assert.equal((line[0].match(/<p\b/g) ?? []).length, 1);
 });
 
