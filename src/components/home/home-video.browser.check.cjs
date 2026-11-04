@@ -65,7 +65,7 @@ const videoState = page => page.evaluate(() => {
 // is screenshotted (video frame + shade), and the 99th-percentile luminance of its pixels is used as the background.
 async function contrastOverFrame(browser, page, file) {
   // Each text element is measured over the area its own text occupies (a Range around its contents), not its box.
-  const targets = await page.evaluate(() => ['.zeus-lede', '.zeus-contact-line'].map(selector => {
+  const targets = await page.evaluate(() => ['.zeus-lede'].map(selector => {
     const el = document.querySelector(selector);
     const range = document.createRange();
     range.selectNodeContents(el);

@@ -51,16 +51,22 @@ test("P1-46: Facebook and Instagram are icon links with spoken names, safe exter
   assert.doesNotMatch(content, /Message us on Facebook|Find us on Facebook/);
 });
 
-test("P1-46: the address is one quiet line with a Maps link and no phone number", () => {
-  const line = body().match(/<p class="zeus-contact-line">[\s\S]*?<\/p>/);
-  assert.ok(line, "address line");
-  assert.ok(line[0].includes(brandConfig.location));
-  assert.ok(line[0].includes("google.com/maps"));
-  assert.doesNotMatch(line[0], new RegExp(brandConfig.displayPhone));
-  assert.equal((line[0].match(/<a\b/g) ?? []).length, 1);
+test("P1-47: the address is a location icon link to Maps; its spoken name carries the address and no address text is shown", () => {
+  const content = body();
+  const location = anchor(content, /aria-label="Zeus Auto Detailing location: [^"]*"/);
+  assert.ok(location, "location icon link");
+  assert.ok(location[0].includes(`aria-label="${brandConfig.businessName} location: ${brandConfig.location}"`));
+  assert.ok(location[0].includes("google.com/maps"));
+  assert.match(location[0], /target="_blank"/);
+  assert.match(location[0], /rel="noopener noreferrer"/);
+  assert.match(location[0], /<svg\b[^>]*aria-hidden="true"/, "the icon is decorative; the link has its own name");
+  assert.doesNotMatch(location[0], new RegExp(brandConfig.displayPhone));
+  assert.doesNotMatch(content, /zeus-contact-line/);
+  const text = content.replace(/<[^>]*>/g, " ");
+  assert.ok(!text.includes(brandConfig.location), "the address is not visible text; it is in the link name");
 });
 
-test("P1-46: reading order is logo, headline, Call, Facebook, Instagram, address; one logo image with its alt text", () => {
+test("P1-46: reading order is logo, headline, Call, Facebook, Instagram, location; one logo image with its alt text", () => {
   const content = body();
   const at = (needle: string | RegExp) => (typeof needle === "string" ? content.indexOf(needle) : content.search(needle));
   const order = [
@@ -69,7 +75,7 @@ test("P1-46: reading order is logo, headline, Call, Facebook, Instagram, address
     at('class="zeus-coming-soon__call"'),
     at('aria-label="Zeus Auto Detailing on Facebook"'),
     at('aria-label="Zeus Auto Detailing on Instagram"'),
-    at('class="zeus-contact-line"'),
+    at('aria-label="Zeus Auto Detailing location'),
   ];
   assert.ok(order.every((index) => index >= 0), `all present: ${order}`);
   assert.deepEqual([...order].sort((a, b) => a - b), order, "document order");

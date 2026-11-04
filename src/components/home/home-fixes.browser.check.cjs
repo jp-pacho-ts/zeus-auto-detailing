@@ -211,18 +211,18 @@ test('F1/F3: at 200% text the logo covers nothing, every action and contact link
     const page = await ctx.newPage();
     await page.goto(base.origin, { waitUntil: 'networkidle' });
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
-    await page.locator('.zeus-contact-line').scrollIntoViewIfNeeded();
+    await page.locator('.zeus-social').scrollIntoViewIfNeeded();
     const result = await page.evaluate(() => {
       const box = el => el.getBoundingClientRect();
       const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
       const logo = box(document.querySelector('.zeus-coming-soon__logo'));
       const others = ['h1', '.zeus-lede', '.zeus-coming-soon__call'].map(selector => box(document.querySelector(selector)));
-      const links = [...document.querySelectorAll('.zeus-coming-soon__call, .zeus-social a, .zeus-contact-line a')];
+      const links = [...document.querySelectorAll('.zeus-coming-soon__call, .zeus-social a')];
       const unreachable = links.filter(link => {
         const r = box(link);
         const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         return !(hit && link.contains(hit));
-      }).map(link => link.textContent.trim());
+      }).map(link => link.getAttribute('aria-label') || link.textContent.trim());
       return {
         unreachable,
         logoOverCopy: others.some(rect => overlap(logo, rect)),
@@ -239,7 +239,7 @@ test('F1/F3: at 200% text the logo covers nothing, every action and contact link
 
 // P1-46: the cinematic layout, measured in a real browser. Logo bottom right and centred on the icons and address beside
 // it; side margins; the headline as wide as the text column on phones; nothing clipped; the page itself does not scroll.
-test('P1-46: logo bottom right and centred on the icons and address, side margins, headline as wide as the text column, nothing clipped', { timeout: 240000 }, () => withBrowser(async browser => {
+test('P1-46/47: logo bottom right and centred on the icon row, side margins, headline as wide as the text column, nothing clipped', { timeout: 240000 }, () => withBrowser(async browser => {
   for (const [width, height] of [[320, 640], [360, 740], [390, 844], [412, 915], [768, 1024], [1280, 800], [1440, 900]]) {
     const ctx = await context(browser, { viewport: { width, height }, reducedMotion: 'reduce' });
     const page = await ctx.newPage();
@@ -254,11 +254,11 @@ test('P1-46: logo bottom right and centred on the icons and address, side margin
       range.setEnd(h1.firstChild, h1.firstChild.length);
       const logo = box(one('.zeus-coming-soon__logo'));
       const icons = box(one('.zeus-social'));
-      const address = box(one('.zeus-contact-line a'));
+      const iconLinks = [...document.querySelectorAll('.zeus-social a')].map(a => box(a));
       const call = box(one('.zeus-coming-soon__call'));
       const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
       return {
-        vw: innerWidth, vh: innerHeight, logo, icons, address, call,
+        vw: innerWidth, vh: innerHeight, logo, icons, iconLinks, call,
         coming: box(range) && range.getBoundingClientRect().toJSON(),
         logoOverlaps: ['h1', '.zeus-lede', '.zeus-coming-soon__call'].filter(selector => overlap(logo, box(one(selector)))),
         clipped: [...document.querySelectorAll('h1,p,a,img,svg,span,strong')].filter(e => { const r = box(e); return r.width > 0 && (r.right > innerWidth + 0.5 || r.left < -0.5); }).map(e => e.tagName),
@@ -271,9 +271,11 @@ test('P1-46: logo bottom right and centred on the icons and address, side margin
     const near = (a, b, tolerance, message) => assert.ok(Math.abs(a - b) <= tolerance, `${width}: ${message} (${a.toFixed(1)} vs ${b.toFixed(1)})`);
     assert.ok(m.logo.left > width * 0.45 && m.logo.top > height * 0.65, `${width}: logo is bottom right`);
     near(m.logo.right, width - margin, 1.5, 'logo sits on the right margin');
-    near(m.logo.top + m.logo.height / 2, (m.icons.top + m.address.bottom) / 2, 3, 'logo is centred on the icons and address block');
+    // P1-47: the address is a third icon (location) in the row, so the row is the whole bottom block.
+    assert.equal(m.iconLinks.length, 3, `${width}: Facebook, Instagram and location icons`);
+    assert.ok(m.iconLinks.every(link => Math.abs(link.top - m.iconLinks[0].top) < 0.5), `${width}: the three icons share one row`);
+    near(m.logo.top + m.logo.height / 2, (m.icons.top + m.icons.bottom) / 2, 3, 'logo is centred on the icon row');
     near(m.icons.left, margin, 1.5, 'icons start on the left margin');
-    near(m.address.left, m.icons.left, 1.5, 'address shares the icons left edge');
     near(m.coming.left, margin, 2, 'headline starts on the left margin');
     if (width <= 800) {
       near(m.call.left, margin, 1.5, 'Call pill starts on the left margin');

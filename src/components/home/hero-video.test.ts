@@ -54,12 +54,12 @@ test("P1-33: the overlay keeps the notice, the Call and Facebook actions and one
   assert.match(content, /Our new website/);
   assert.ok(content.includes(`href="${phone}"`));
   assert.ok(content.includes(`href="${brandConfig.facebookPageUrl}"`));
-  const line = content.match(/<p class="zeus-contact-line">[\s\S]*?<\/p>/);
-  assert.ok(line, "one contact line in the overlay");
-  assert.ok(line[0].includes(brandConfig.location));
-  // P1-46: the phone number lives on the Call button only, so the quiet address line no longer repeats it.
-  assert.ok(!line[0].includes(brandConfig.displayPhone));
-  assert.equal((line[0].match(/<p\b/g) ?? []).length, 1);
+  // P1-47: the address is a location icon link (its spoken name carries the address), not a line of text, and the
+  // phone number stays on the Call button only (P1-46).
+  const location = content.match(/<a\b[^>]*aria-label="[^"]*location: [^"]*"[^>]*>/);
+  assert.ok(location, "one location link in the overlay");
+  assert.ok(location[0].includes(brandConfig.location));
+  assert.ok(!location[0].includes(brandConfig.displayPhone));
 });
 
 test("P1-33: the media files are the encoded local assets", () => {
