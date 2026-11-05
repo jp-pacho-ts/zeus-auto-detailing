@@ -555,3 +555,43 @@ test("C19 two lines at the maximum price: the total is 200,000,000, not clipped,
   await assert.rejects(db.$executeRawUnsafe(`INSERT INTO commission_entries ("bookingId", "staffId", "position", "baseCentavos", "rateBp", "amountCentavos") VALUES ('x', 'x', 1, 1000000000001, 1000, 1)`), /commission_entries_base_range/);
   await assert.rejects(db.$executeRawUnsafe(`INSERT INTO commission_entries ("bookingId", "staffId", "position", "baseCentavos", "rateBp", "amountCentavos") VALUES ('x', 'x', 1, 1, 1000, 1000000000001)`), /commission_entries_amount_range/);
 });
+
+// Codex F4 (Low). The commit-time check only compared sums, so a header of 100 shared by two people could hold shares of 100 and 0
+// (and amounts 10 and 0) and still commit. The check now also requires positions 1..n, the equal-split share for each position
+// and the leftover centavos on the largest remainders. Each case below is built by hand as the owner, as Codex did.
+test("C20 the commit-time check rejects shares that are not the equal split, wrong positions, and a wrong allocation of leftover centavos", { skip }, async () => {
+  const a = await person("Check Worker A", "10"), b = await person("Check Worker B", "10"), c = await person("Check Worker C", "12.5");
+  type Row = [staff: string, position: number, base: number, rate: number, amount: number];
+  const build = async (total: number, rows: Row[], expected: RegExp | null) => {
+    const booking = await book(select("S", "basic-wash"), nextDay());
+    class Rollback extends Error {}
+    const write = async (tx: { $executeRawUnsafe(q: string): Promise<number> }) => {
+      await tx.$executeRawUnsafe(`INSERT INTO commission_accruals ("bookingId", "serviceTotalCentavos", "unpricedLineCount", "creditedCount", "completedOn") VALUES ('${booking.id}', ${total}, 0, ${rows.length}, '2027-07-01')`);
+      for (const [staff, position, base, rate, amount] of rows)
+        await tx.$executeRawUnsafe(`INSERT INTO commission_entries ("bookingId", "staffId", "position", "baseCentavos", "rateBp", "amountCentavos") VALUES ('${booking.id}', '${staff}', ${position}, ${base}, ${rate}, ${amount})`);
+    };
+    if (expected) {
+      await assert.rejects(db.$transaction(write), expected);
+      assert.equal(await header(booking.id), null, "nothing was kept");
+    } else {
+      // A correct set must pass the check. Forced immediately and rolled back, so the immutable rows are not left behind.
+      await assert.rejects(db.$transaction(async (tx) => { await write(tx); await tx.$executeRawUnsafe("SET CONSTRAINTS ALL IMMEDIATE"); throw new Rollback("undo"); }), (e: unknown) => e instanceof Rollback);
+    }
+  };
+  // The reviewer's counterexample: total 100, two credited, shares 100 and 0 (sums are right, the split is not).
+  await build(100, [[a.id, 1, 100, 1000, 10], [b.id, 2, 0, 1000, 0]], /equal split/);
+  await build(100, [[a.id, 1, 0, 1000, 0], [b.id, 2, 100, 1000, 10]], /equal split/);
+  // Positions must be exactly 1..n: a gap, or a repeat.
+  await build(100, [[a.id, 1, 50, 1000, 5], [b.id, 3, 50, 1000, 5]], /equal split/);
+  await build(100, [[a.id, 1, 50, 1000, 5], [b.id, 1, 50, 1000, 5]], /equal split/);
+  // The extra centavo of an odd total goes to the first position, not the last.
+  await build(101, [[a.id, 1, 50, 1000, 5], [b.id, 2, 51, 1000, 5]], /equal split/);
+  // 100,000 centavos among three at 12.5%: the leftover centavos must go to positions 1 and 2 (remainders 7500 and 6250, then
+  // 6250 again, ties to the earlier position). Giving them to positions 2 and 3 has the right sum and is wrong.
+  await build(100_000, [[a.id, 1, 33_334, 1250, 4_166], [b.id, 2, 33_333, 1250, 4_167], [c.id, 3, 33_333, 1250, 4_167]], /largest remainders/);
+  // The correct sets pass: the equal split with its allocation, an odd total, and the maximum range.
+  await build(100, [[a.id, 1, 50, 1000, 5], [b.id, 2, 50, 1000, 5]], null);
+  await build(101, [[a.id, 1, 51, 1000, 5], [b.id, 2, 50, 1000, 5]], null);
+  await build(100_000, [[a.id, 1, 33_334, 1250, 4_167], [b.id, 2, 33_333, 1250, 4_167], [c.id, 3, 33_333, 1250, 4_166]], null);
+  await build(200_000_000, [[a.id, 1, 200_000_000, 1000, 20_000_000]], null);
+});

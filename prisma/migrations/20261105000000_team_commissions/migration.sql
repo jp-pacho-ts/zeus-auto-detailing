@@ -34,7 +34,10 @@ BEGIN;
 --    COMMISSION_ACCRUAL_FAILED audit row (SQLSTATE only, no personal data) is written, and
 --    admin_commission_repair() redoes the missing records. Emergency switch (owner only):
 --      ALTER TABLE bookings DISABLE TRIGGER commission_accrue_on_complete;
---  * A deferred constraint trigger re-verifies, independently of the accrual code, that the shares add up to the
+--  * A deferred constraint trigger re-verifies, independently of the accrual code (and of commission_split), the canonical
+--    allocation: positions 1..n, each share is the equal split of the total (floor(total / n), plus one centavo for the
+--    first total mod n positions), each amount is within one centavo of its exact share, and the leftover centavos sit on
+--    the largest remainders (Codex F4). It also checks that the shares add up to the
 --    total and the amounts add up to the rounded total.
 --  * delete_booking() is replaced with the same signature, SECURITY DEFINER, pinned search_path and ACL, plus one
 --    more ZD005 test: a booking with commission entries (money) cannot be deleted.
@@ -251,6 +254,26 @@ BEGIN
  IF c > 0 AND s_amt <> div(s_num + 5000, 10000)::bigint THEN RAISE EXCEPTION 'Commission amounts do not add up to the rounded total' USING ERRCODE = 'ZC009'; END IF;
  IF EXISTS(SELECT 1 FROM public.commission_entries WHERE "bookingId" = p_booking AND ("amountCentavos" < div("baseCentavos"::bigint * "rateBp", 10000)::bigint OR "amountCentavos" > div("baseCentavos"::bigint * "rateBp", 10000)::bigint + 1)) THEN
   RAISE EXCEPTION 'A commission amount is not within one centavo of its exact share' USING ERRCODE = 'ZC009';
+ END IF;
+ IF c > 0 THEN
+  -- The canonical allocation (Codex F4), written here independently of commission_split so a mistake in one cannot hide in the
+  -- other. Positions are exactly 1..c, and each share is the equal split: floor(total / c), plus one centavo for each of the
+  -- first (total mod c) positions. Sums alone would accept shares of 100 and 0 for a total of 100 shared by two people.
+  IF (SELECT count(DISTINCT "position") FROM public.commission_entries WHERE "bookingId" = p_booking) <> c
+     OR EXISTS(SELECT 1 FROM public.commission_entries e WHERE e."bookingId" = p_booking
+       AND (e."position" > c OR e."baseCentavos" <> h."serviceTotalCentavos" / c + CASE WHEN e."position" <= h."serviceTotalCentavos" % c THEN 1 ELSE 0 END)) THEN
+   RAISE EXCEPTION 'Commission shares are not the equal split of the service total' USING ERRCODE = 'ZC009';
+  END IF;
+  -- The leftover centavos go to the largest remainders (ties to the earlier position): no person left without the extra
+  -- centavo may have a larger remainder than a person who received it. (How many received it follows from the sums above.)
+  IF EXISTS(SELECT 1 FROM public.commission_entries x JOIN public.commission_entries y ON y."bookingId" = x."bookingId" AND y."id" <> x."id"
+     WHERE x."bookingId" = p_booking
+       AND x."amountCentavos" = div(x."baseCentavos"::bigint * x."rateBp", 10000)::bigint + 1
+       AND y."amountCentavos" = div(y."baseCentavos"::bigint * y."rateBp", 10000)::bigint
+       AND ((y."baseCentavos"::bigint * y."rateBp") % 10000 > (x."baseCentavos"::bigint * x."rateBp") % 10000
+         OR ((y."baseCentavos"::bigint * y."rateBp") % 10000 = (x."baseCentavos"::bigint * x."rateBp") % 10000 AND y."position" < x."position"))) THEN
+   RAISE EXCEPTION 'Leftover centavos were not given to the largest remainders' USING ERRCODE = 'ZC009';
+  END IF;
  END IF;
 END $$;
 REVOKE ALL ON FUNCTION commission_consistency_check(text) FROM PUBLIC;
