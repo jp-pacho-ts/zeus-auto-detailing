@@ -8,7 +8,7 @@ import type {
   AdminCommissionSummary,
 } from "@/types/admin-contracts";
 import { CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema } from "@/lib/admin-validation";
-import { percentToBasisPoints } from "@/lib/commission";
+import { percentToBasisPoints, safeCentavos } from "@/lib/commission";
 import { withStaffDb, type StaffTx } from "@/server/auth/db-admission";
 import { authorize, parse, type AdminOptions, type StaffActor } from "./context";
 import { AdminServiceError } from "./errors";
@@ -65,7 +65,7 @@ export async function setDefaultRate(actor: StaffActor, input: unknown, options:
 
 interface EntryRow {
   id: string; bookingReference: string; serviceName: string; completedOn: Date; staffId: string; staffName: string; position: number;
-  serviceTotalCentavos: number; shareCentavos: number; rateBp: number; amountCentavos: number; creditedCount: number; unpricedLineCount: number; paidAt: Date | null;
+  serviceTotalCentavos: bigint; shareCentavos: bigint; rateBp: number; amountCentavos: bigint; creditedCount: number; unpricedLineCount: number; paidAt: Date | null;
 }
 interface TotalRow { staffId: string; staffName: string; entryCount: number; earned: bigint; paid: bigint }
 
@@ -98,13 +98,15 @@ export async function listCommissions(actor: StaffActor, input: unknown, options
         (SELECT count(*)::integer FROM bookings bk WHERE bk.status = 'COMPLETED' AND bk."snapshotVersion" = 'QUEUE_V3' AND bk."terminalAt" >= ${new Date(settings.startsAt)}
           AND NOT EXISTS(SELECT 1 FROM commission_accruals x WHERE x."bookingId" = bk.id)) AS missing`;
     const totals: AdminCommissionPersonTotal[] = totalRows.map((r) => ({
-      staffId: r.staffId, staffName: r.staffName, entryCount: Number(r.entryCount), earnedCentavos: Number(r.earned), paidCentavos: Number(r.paid), unpaidCentavos: Number(r.earned) - Number(r.paid),
+      staffId: r.staffId, staffName: r.staffName, entryCount: Number(r.entryCount), earnedCentavos: safeCentavos(r.earned), paidCentavos: safeCentavos(r.paid), unpaidCentavos: safeCentavos(r.earned - r.paid),
     }));
-    const grand = totals.reduce((g, t) => ({ entryCount: g.entryCount + t.entryCount, earnedCentavos: g.earnedCentavos + t.earnedCentavos, paidCentavos: g.paidCentavos + t.paidCentavos, unpaidCentavos: g.unpaidCentavos + t.unpaidCentavos }),
+    // Exact even for absurdly large sums: added as bigint, and refused if the result could not be shown exactly.
+    const add = (x: number, y: number) => safeCentavos(BigInt(x) + BigInt(y));
+    const grand = totals.reduce((g, t) => ({ entryCount: g.entryCount + t.entryCount, earnedCentavos: add(g.earnedCentavos, t.earnedCentavos), paidCentavos: add(g.paidCentavos, t.paidCentavos), unpaidCentavos: add(g.unpaidCentavos, t.unpaidCentavos) }),
       { entryCount: 0, earnedCentavos: 0, paidCentavos: 0, unpaidCentavos: 0 });
     const shown: AdminCommissionEntry[] = entries.slice(0, ENTRY_LIMIT).map((r) => ({
       id: r.id, bookingReference: r.bookingReference, serviceName: r.serviceName, completedOn: r.completedOn.toISOString().slice(0, 10), staffId: r.staffId, staffName: r.staffName,
-      position: Number(r.position), serviceTotalCentavos: Number(r.serviceTotalCentavos), shareCentavos: Number(r.shareCentavos), rateBp: Number(r.rateBp), amountCentavos: Number(r.amountCentavos),
+      position: Number(r.position), serviceTotalCentavos: safeCentavos(r.serviceTotalCentavos), shareCentavos: safeCentavos(r.shareCentavos), rateBp: Number(r.rateBp), amountCentavos: safeCentavos(r.amountCentavos),
       creditedCount: Number(r.creditedCount), unpricedLineCount: Number(r.unpricedLineCount), paidAt: r.paidAt ? r.paidAt.toISOString() : null,
     }));
     return {

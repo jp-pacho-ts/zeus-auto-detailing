@@ -19,7 +19,7 @@ after(async () => { await db.$disconnect(); await root.$disconnect(); });
 interface Row { idx: number; share: number; amount: number }
 async function split(base: number, rates: number[]): Promise<Row[]> {
   const rows = await db.$queryRawUnsafe<{ idx: number; share_centavos: bigint; amount_centavos: bigint }[]>(
-    "SELECT idx, share_centavos, amount_centavos FROM commission_split($1::bigint, $2::integer[]) ORDER BY idx", base, rates);
+    "SELECT idx, share_centavos, amount_centavos FROM commission_split($1::bigint, $2::integer[]) ORDER BY idx", BigInt(base), rates);
   return rows.map((r) => ({ idx: Number(r.idx), share: Number(r.share_centavos), amount: Number(r.amount_centavos) }));
 }
 
@@ -75,6 +75,21 @@ test("P1-37 edge cases: zero total, zero percent, 100 percent, one centavo, the 
   const many = await split(100_000_000, Array.from({ length: 20 }, () => 10_000));
   assert.equal(amounts(many).reduce((a, b) => a + b, 0), 100_000_000);
   assert.equal(shares(many).reduce((a, b) => a + b, 0), 100_000_000);
+});
+
+// Codex F2: totals above 100,000,000 (several priced lines) are real and must never be clipped. The supported range is
+// 0 to 1,000,000,000,000 centavos; the rule is exact there and refuses what is above it.
+test("P1-37 large totals: twenty lines of 100,000,000 and the top of the supported range follow the reference exactly, nothing is clipped", { skip }, async () => {
+  assert.deepEqual(await split(2_000_000_000, [1000]), [{ idx: 1, share: 2_000_000_000, amount: 200_000_000 }], 'twenty lines of 100,000,000 at 10%');
+  assert.deepEqual(await split(200_000_000, [1000]), [{ idx: 1, share: 200_000_000, amount: 20_000_000 }], 'two lines of 100,000,000 at 10%');
+  const fifty = Array.from({ length: 50 }, (_, i) => (i * 197) % 10_001);
+  for (const base of [100_000_001, 200_000_000, 2_000_000_000, 4_999_999_999, 123_456_789_012, 1_000_000_000_000])
+    for (const rates of [[1000], [1000, 1000], [1250, 1250, 1250], [10_000, 10_000], Array.from({ length: 20 }, () => 10_000), fifty, Array.from({ length: 50 }, () => 10_000)]) {
+      const got = await split(base, rates);
+      assert.deepEqual(got, reference(base, rates), `base ${base}, ${rates.length} people`);
+      assert.equal(shares(got).reduce((a, b) => a + b, 0), base, 'the shares add up to the total');
+    }
+  await assert.rejects(split(1_000_000_000_001, [1000]), /Invalid commission base/);
 });
 
 test("P1-37 a negative or missing total is refused, not guessed", { skip }, async () => {

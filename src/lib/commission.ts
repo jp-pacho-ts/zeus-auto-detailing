@@ -17,8 +17,21 @@ export function basisPointsToPercent(bp: number): string {
   return `${whole}.${String(fraction).padStart(2, "0").replace(/0$/, "")}`;
 }
 
+/**
+ * Centavos read from the database (bigint columns come back as bigint, sums as bigint or numeric text) as a JS number.
+ * Every amount the database accepts (at most 1,000,000,000,000) is far below Number.MAX_SAFE_INTEGER, so this is exact;
+ * if a value ever were not, it throws instead of showing a rounded amount.
+ */
+export function safeCentavos(value: bigint | number | string): number {
+  const big = typeof value === "bigint" ? value : BigInt(value);
+  const limit = BigInt(Number.MAX_SAFE_INTEGER);
+  if (big > limit || big < -limit) throw new RangeError("An amount is too large to be shown exactly");
+  return Number(big);
+}
+
 /** 123456 to "₱1,234.56". Integer arithmetic on the centavos; never a float division. */
 export function formatPesos(centavos: number): string {
+  if (!Number.isSafeInteger(centavos)) throw new RangeError("An amount is too large to be shown exactly");
   const sign = centavos < 0 ? "-" : "";
   const abs = Math.abs(Math.trunc(centavos));
   const pesos = Math.floor(abs / 100), cents = abs % 100;

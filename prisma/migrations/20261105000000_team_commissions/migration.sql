@@ -10,7 +10,9 @@ BEGIN;
 --  * commission_settings: one row, the default percentage in basis points (1000 = 10.00%, the value the old
 --    schema already carried; the LE changes it in the screen) and "startsAt", the moment commissions began.
 --  * commission_accruals: one immutable header per completed QUEUE_V3 booking (the service total at completion,
---    how many people were credited, how many services had no final price).
+--    how many people were credited, how many services had no final price). Money columns are BIGINT centavos with a
+--    CHECK range of 0 to 1,000,000,000,000 (10 billion pesos): a booking can hold many lines of up to 100,000,000
+--    centavos each, and the total is never clipped (a total above the range fails visibly instead).
 --  * commission_entries: one row per credited person (their equal share of the total, the percentage used, the
 --    amount, and the paid state). Every column except the paid state is immutable; nothing is ever deleted.
 --  * admin_audit_events: a generic, insert-only audit table for staff and money writes (P1-38 to P1-40 reuse it).
@@ -103,8 +105,8 @@ ALTER TABLE "admin_audit_events" ADD CONSTRAINT admin_audit_shape CHECK (COALESC
     WHEN 'COMMISSION_RATE_SET' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "previousValue" ~ '^([0-9]{1,5}|DEFAULT)$' AND "newValue" ~ '^([0-9]{1,5}|DEFAULT)$'
     WHEN 'COMMISSION_ACCRUED' THEN "actorStaffId" IS NULL AND "bookingId" IS NOT NULL AND "entryCount" IS NOT NULL
     WHEN 'COMMISSION_ACCRUAL_FAILED' THEN "actorStaffId" IS NULL AND "bookingId" IS NOT NULL AND "reason" ~ '^SQLSTATE [0-9A-Z]{5}$'
-    WHEN 'COMMISSION_PAID' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "bookingId" IS NOT NULL AND "newValue" ~ '^[0-9]{1,9}$'
-    WHEN 'COMMISSION_UNPAID' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "bookingId" IS NOT NULL AND "newValue" ~ '^[0-9]{1,9}$'
+    WHEN 'COMMISSION_PAID' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "bookingId" IS NOT NULL AND "newValue" ~ '^[0-9]{1,13}$'
+    WHEN 'COMMISSION_UNPAID' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "bookingId" IS NOT NULL AND "newValue" ~ '^[0-9]{1,13}$'
     ELSE false END, false));
 
 -- txId is the inserting transaction and createdAt is stamped by the database, never by a caller.
@@ -143,14 +145,14 @@ CREATE TRIGGER commission_settings_no_truncate BEFORE TRUNCATE ON commission_set
 -- 4. Accrual headers and entries
 CREATE TABLE "commission_accruals" (
   "bookingId" TEXT NOT NULL,
-  "serviceTotalCentavos" INTEGER NOT NULL,
+  "serviceTotalCentavos" BIGINT NOT NULL,
   "unpricedLineCount" INTEGER NOT NULL,
   "creditedCount" INTEGER NOT NULL,
   "completedOn" DATE NOT NULL,
   "accruedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "txId" BIGINT NOT NULL DEFAULT txid_current(),
   CONSTRAINT "commission_accruals_pkey" PRIMARY KEY ("bookingId"),
-  CONSTRAINT "commission_accruals_total_range" CHECK ("serviceTotalCentavos" BETWEEN 0 AND 100000000),
+  CONSTRAINT "commission_accruals_total_range" CHECK ("serviceTotalCentavos" BETWEEN 0 AND 1000000000000),
   CONSTRAINT "commission_accruals_counts" CHECK ("unpricedLineCount" >= 0 AND "creditedCount" BETWEEN 0 AND 50)
 );
 ALTER TABLE "commission_accruals" ADD CONSTRAINT "commission_accruals_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -161,16 +163,16 @@ CREATE TABLE "commission_entries" (
   "bookingId" TEXT NOT NULL,
   "staffId" TEXT NOT NULL,
   "position" SMALLINT NOT NULL,
-  "baseCentavos" INTEGER NOT NULL,
+  "baseCentavos" BIGINT NOT NULL,
   "rateBp" INTEGER NOT NULL,
-  "amountCentavos" INTEGER NOT NULL,
+  "amountCentavos" BIGINT NOT NULL,
   "paidAt" TIMESTAMPTZ(3),
   "paidByStaffId" TEXT,
   "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "commission_entries_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "commission_entries_base_range" CHECK ("baseCentavos" BETWEEN 0 AND 100000000),
+  CONSTRAINT "commission_entries_base_range" CHECK ("baseCentavos" BETWEEN 0 AND 1000000000000),
   CONSTRAINT "commission_entries_rate_range" CHECK ("rateBp" BETWEEN 0 AND 10000),
-  CONSTRAINT "commission_entries_amount_range" CHECK ("amountCentavos" BETWEEN 0 AND 100000000),
+  CONSTRAINT "commission_entries_amount_range" CHECK ("amountCentavos" BETWEEN 0 AND 1000000000000),
   CONSTRAINT "commission_entries_position" CHECK ("position" BETWEEN 1 AND 50),
   CONSTRAINT "commission_entries_paid_pair" CHECK (("paidAt" IS NULL) = ("paidByStaffId" IS NULL))
 );
@@ -216,7 +218,7 @@ LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE n integer := COALESCE(array_length(p_rates, 1), 0);
 BEGIN
  IF n = 0 THEN RETURN; END IF;
- IF p_base IS NULL OR p_base < 0 OR EXISTS(SELECT 1 FROM unnest(p_rates) r WHERE r IS NULL OR r < 0 OR r > 10000) THEN
+ IF p_base IS NULL OR p_base < 0 OR p_base > 1000000000000 OR EXISTS(SELECT 1 FROM unnest(p_rates) r WHERE r IS NULL OR r < 0 OR r > 10000) THEN
   RAISE EXCEPTION 'Invalid commission base or rate' USING ERRCODE = 'ZC006';
  END IF;
  RETURN QUERY
@@ -274,7 +276,10 @@ BEGIN
  -- The same expression delete_booking() uses for its audit total, so the two always agree.
  SELECT COALESCE(sum(COALESCE("staffPriceCentavos", "subtotalCentavos")), 0)::bigint, count(*) FILTER (WHERE "staffPriceCentavos" IS NULL AND "subtotalCentavos" IS NULL)::integer
    INTO total, unpriced FROM public.booking_line_items WHERE "bookingId" = p_booking AND "removedAt" IS NULL;
- total := LEAST(total, 100000000);
+ -- Never clipped (Codex F2): a booking may hold many priced lines, each up to 100,000,000 centavos, so the total is a bigint
+ -- and the columns allow up to 1,000,000,000,000 (10 billion pesos). Above that the accrual FAILS visibly (audited,
+ -- shown on the screen, repairable) instead of silently paying less.
+ IF total > 1000000000000 THEN RAISE EXCEPTION 'The service total is above the supported commission range' USING ERRCODE = 'ZC006'; END IF;
  SELECT array_agg(w."staffId" ORDER BY w."assignedAt", w."staffId"), array_agg(COALESCE(s."commissionRateBp", default_bp) ORDER BY w."assignedAt", w."staffId")
    INTO ids, rates FROM public.booking_worker_assignments w JOIN public.staff s ON s.id = w."staffId" WHERE w."bookingId" = p_booking;
  n := COALESCE(array_length(ids, 1), 0);
@@ -565,6 +570,8 @@ BEGIN
     OR EXISTS(SELECT 1 FROM public.inventory_transactions WHERE "bookingId" = p_booking) THEN
   RAISE EXCEPTION 'A payout, assignment or stock record points at this booking' USING ERRCODE = 'ZD005';
  END IF;
+ -- The 100,000,000 cap below is only the DISPLAY value of the existing audit column booking_audit_events."newPriceCentavos"
+ -- (INTEGER, from P1-29). It is not an accounting figure; commission totals are bigint and never clipped (Codex F2).
  SELECT count(*), LEAST(sum(COALESCE("staffPriceCentavos", "subtotalCentavos")), 100000000) INTO line_count, total
    FROM public.booking_line_items WHERE "bookingId" = p_booking AND "removedAt" IS NULL;
  INSERT INTO public.booking_delete_tokens ("txId", "bookingId") VALUES (txid_current(), p_booking);

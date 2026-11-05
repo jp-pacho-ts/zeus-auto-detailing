@@ -332,7 +332,7 @@ model CommissionSettings {
 model CommissionAccrual {
   bookingId            String            @id
   booking              Booking           @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  serviceTotalCentavos Int
+  serviceTotalCentavos BigInt
   unpricedLineCount    Int
   creditedCount        Int
   completedOn          DateTime          @db.Date
@@ -352,9 +352,9 @@ model CommissionEntry {
   staffId        String
   staff          Staff             @relation("CommissionEarner", fields: [staffId], references: [id], onDelete: Restrict)
   position       Int               @db.SmallInt
-  baseCentavos   Int
+  baseCentavos   BigInt
   rateBp         Int
-  amountCentavos Int
+  amountCentavos BigInt
   paidAt         DateTime?         @db.Timestamptz(3)
   paidByStaffId  String?
   paidBy         Staff?            @relation("CommissionPaidBy", fields: [paidByStaffId], references: [id], onDelete: Restrict)

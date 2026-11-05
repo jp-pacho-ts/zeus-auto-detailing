@@ -99,8 +99,9 @@ async function finish(job: Job) {
   await s.setBookingStatus(ADMIN, job.id, { expectedRevision: await rev(job.id), status: "COMPLETED" }, o);
 }
 const completed = async (workers: string[], total?: number, withUnpriced = false) => { const j = await inProgress(workers, total, withUnpriced); await finish(j); return j; };
-const header = (bookingId: string) => db.commissionAccrual.findUnique({ where: { bookingId } });
-const entries = (bookingId: string) => db.commissionEntry.findMany({ where: { bookingId }, orderBy: { position: "asc" } });
+// The money columns are bigint in the database (Codex F2); these helpers hand the assertions plain numbers (all test amounts are small).
+const header = async (bookingId: string) => { const h = await db.commissionAccrual.findUnique({ where: { bookingId } }); return h && { ...h, serviceTotalCentavos: Number(h.serviceTotalCentavos) }; };
+const entries = async (bookingId: string) => (await db.commissionEntry.findMany({ where: { bookingId }, orderBy: { position: "asc" } })).map((e) => ({ ...e, baseCentavos: Number(e.baseCentavos), amountCentavos: Number(e.amountCentavos) }));
 const manilaDay = (d: Date) => new Date(d.getTime() + 8 * 3_600_000).toISOString().slice(0, 10);
 // A three-day window around today in Manila (completions use the real clock). The service allows ranges of a year at most.
 const shiftDay = (day: string, n: number) => new Date(Date.parse(day + "T00:00:00Z") + n * 86_400_000).toISOString().slice(0, 10);
@@ -388,7 +389,7 @@ test("C14 per-person totals come from stored centavos: earned, paid and unpaid, 
   const j1 = await completed([a.id, b.id], 100_000);
   await completed([a.id], 50_000);
   const all = await s.listCommissions(ADMIN, { ...aroundToday(), staffId: a.id }, opts());
-  const earned = (await db.commissionEntry.findMany({ where: { staffId: a.id } })).reduce((n, e) => n + e.amountCentavos, 0);
+  const earned = (await db.commissionEntry.findMany({ where: { staffId: a.id } })).reduce((n, e) => n + Number(e.amountCentavos), 0);
   assert.equal(all.totals.length, 1);
   assert.deepEqual([all.totals[0].earnedCentavos, all.totals[0].paidCentavos, all.totals[0].unpaidCentavos, all.totals[0].entryCount], [earned, 0, earned, 2]);
   const ea = (await entries(j1.id)).find((e) => e.staffId === a.id)!;
@@ -520,4 +521,37 @@ test("C18 a temporary type, table or function made by the runtime role cannot hi
   assert.equal(await count("staff", `name LIKE 'Hijack Probe%'`), 0);
   const [{ g }] = await db.$queryRawUnsafe<{ g: boolean }[]>(`SELECT has_table_privilege('zeus_app', 'public.staff', 'UPDATE') AS g`);
   assert.equal(g, false);
+});
+
+// Codex F2 (Medium). The migration used to clip the booking total at 100,000,000 centavos, but admin validation allows each
+// line price up to 100,000,000, so a booking with two such lines paid commission on half its value, silently. Here the real
+// services price two lines at the maximum, one 10% worker finishes the job, and the record must carry the whole amount.
+test("C19 two lines at the maximum price: the total is 200,000,000, not clipped, and the commission is 20,000,000", { skip }, async () => {
+  const w = await person("Big Total Worker", "10");
+  const day = nextDay();
+  const b = await book(select("S", "basic-wash"), day);
+  const o = at(day);
+  await s.addLine(ADMIN, b.id, { expectedRevision: await rev(b.id), serviceId: bySlug(r0(), "arcane-graphene").id, quantity: 1 }, o);
+  for (const l of await db.bookingLineItem.findMany({ where: { bookingId: b.id, removedAt: null } }))
+    await s.setLinePrice(ADMIN, b.id, l.id, { expectedRevision: await rev(b.id), priceCentavos: 100_000_000, reason: "P1-37 maximum price test" }, o);
+  await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "CONFIRMED" }, o);
+  const n = ++seq;
+  const bay = await s.createBay(ADMIN, { name: "Bay " + n, sortOrder: n, bayType: "WASH" }, o);
+  await s.setBay(ADMIN, b.id, { expectedRevision: await rev(b.id), date: day, bayId: bay.id }, o);
+  await s.assignWorker(ADMIN, b.id, w.id, { expectedRevision: await rev(b.id) }, o);
+  await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "IN_PROGRESS" }, o);
+  await finish({ ...b, day });
+  assert.equal((await db.bookingLineItem.count({ where: { bookingId: b.id, removedAt: null } })), 2);
+  const h = (await header(b.id))!;
+  assert.deepEqual([h.serviceTotalCentavos, h.creditedCount, h.unpricedLineCount], [200_000_000, 1, 0], "the whole total is recorded");
+  const e = await entries(b.id);
+  assert.deepEqual([e[0].baseCentavos, e[0].rateBp, e[0].amountCentavos], [200_000_000, 1000, 20_000_000]);
+  assert.equal(await count("admin_audit_events", `action = 'COMMISSION_ACCRUAL_FAILED' AND "bookingId" = ${lit(b.id)}`), 0, "no failure row");
+  // The screen reads it back exactly, and the money columns accept the supported range and nothing above it.
+  const list = await s.listCommissions(ADMIN, aroundToday(), opts());
+  const shown = list.entries.find((x) => x.id === e[0].id)!;
+  assert.deepEqual([shown.serviceTotalCentavos, shown.amountCentavos], [200_000_000, 20_000_000]);
+  await assert.rejects(db.$executeRawUnsafe(`INSERT INTO commission_accruals ("bookingId", "serviceTotalCentavos", "unpricedLineCount", "creditedCount", "completedOn") VALUES ('x', 1000000000001, 0, 0, '2027-01-01')`), /commission_accruals_total_range/);
+  await assert.rejects(db.$executeRawUnsafe(`INSERT INTO commission_entries ("bookingId", "staffId", "position", "baseCentavos", "rateBp", "amountCentavos") VALUES ('x', 'x', 1, 1000000000001, 1000, 1)`), /commission_entries_base_range/);
+  await assert.rejects(db.$executeRawUnsafe(`INSERT INTO commission_entries ("bookingId", "staffId", "position", "baseCentavos", "rateBp", "amountCentavos") VALUES ('x', 'x', 1, 1, 1000, 1000000000001)`), /commission_entries_amount_range/);
 });
