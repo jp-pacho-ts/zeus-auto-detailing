@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { basisPointsToPercent, formatPesos } from "@/lib/commission";
 import type { AdminCommissionPaidResult, AdminCommissionSummary, AdminTeam } from "@/types/admin-contracts";
 import { adminRequest } from "../bookings/client";
-import { fieldClass, LoadState, useAdminResource } from "../bookings/use-admin-resource";
+import { fieldClass, LoadState } from "../bookings/use-admin-resource";
+import { useKeptResource } from "./use-kept-resource";
 import { describeError } from "./team-panel";
 import { defaultRateLine, manilaToday, monthStart, rangeProblem, selectableIds, warningLines } from "./team-model";
 
@@ -18,7 +19,7 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
   const [staffId, setStaffId] = React.useState("");
   const problem = rangeProblem(from, to);
   const url = problem ? null : `/api/admin/commissions?from=${from}&to=${to}&status=${status}${staffId ? `&staffId=${staffId}` : ""}`;
-  const summary = useAdminResource<AdminCommissionSummary>(url);
+  const summary = useKeptResource<AdminCommissionSummary>(url);
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [editingRate, setEditingRate] = React.useState(false);

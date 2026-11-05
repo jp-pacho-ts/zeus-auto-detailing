@@ -41,10 +41,10 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
         className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative z-50 w-full max-w-lg rounded-lg border border-border bg-[#18181b] p-6 shadow-xl">
+      <div className="relative z-50 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-[#18181b] p-6 shadow-xl">
         <button
           onClick={() => onOpenChange(false)}
-          className="absolute right-4 top-4 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus:outline-none"
+          className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label="Close"
         >
           <X className="h-4 w-4" />

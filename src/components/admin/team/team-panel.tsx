@@ -115,10 +115,12 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                   {p.role === "DETAILER" ? "Detailer" : p.role === "MANAGER" ? "Manager" : "Admin"}
                   {p.phone ? ` · ${p.phone}` : ""}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Commission {ratePhrase(p, team.defaultRateBp)}
-                  {p.openJobs > 0 ? ` · ${p.openJobs} open ${p.openJobs === 1 ? "job" : "jobs"}` : ""}
-                </p>
+                {canManage(p) && (
+                  <p className="text-xs text-muted-foreground">
+                    Commission {ratePhrase(p, team.defaultRateBp)}
+                    {p.openJobs > 0 ? ` · ${p.openJobs} open ${p.openJobs === 1 ? "job" : "jobs"}` : ""}
+                  </p>
+                )}
               </div>
               {canManage(p) ? (
                 <div className="flex flex-wrap gap-2">

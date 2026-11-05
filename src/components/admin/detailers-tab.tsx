@@ -3,16 +3,17 @@
 import * as React from "react";
 import type { UserRole } from "@/types/contracts";
 import type { AdminTeam } from "@/types/admin-contracts";
-import { LoadState, useAdminResource } from "./bookings/use-admin-resource";
+import { LoadState } from "./bookings/use-admin-resource";
 import { CommissionsPanel } from "./team/commissions-panel";
 import { TeamPanel } from "./team/team-panel";
+import { useKeptResource } from "./team/use-kept-resource";
 
 type View = "TEAM" | "COMMISSIONS";
 
 // Money and phone numbers are for admins only; the server refuses everyone else, and this screen says so plainly first.
 export function DetailersTab({ role }: { role: UserRole }) {
   const isAdmin = role === "ADMIN";
-  const team = useAdminResource<AdminTeam>(isAdmin ? "/api/admin/team" : null);
+  const team = useKeptResource<AdminTeam>(isAdmin ? "/api/admin/team" : null);
   const [view, setView] = React.useState<View>("TEAM");
 
   if (!isAdmin)
