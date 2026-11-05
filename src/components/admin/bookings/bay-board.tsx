@@ -368,8 +368,10 @@ export function BayBoard({
 
   React.useEffect(() => {
     if (board && !resource.loading && focus.current && !busy) {
+      let revealedColumn: string | null = null;
       if (reveal.current) {
         const { lane, colId } = reveal.current;
+        revealedColumn = colId;
         reveal.current = null;
         const sc = scrollerRefs.current[lane];
         const col = sc
@@ -385,7 +387,18 @@ export function BayBoard({
           }
         }
       }
-      document.getElementById(focus.current)?.focus({ preventScroll: true });
+      const target = document.getElementById(focus.current);
+      target?.focus({ preventScroll: true });
+      if (!target || document.activeElement !== target) {
+        // The target is missing, hidden or not focusable (for example in a column that is not shown): never leave focus on
+        // BODY. Fall back to the visible heading of the revealed column, then to the board's status message.
+        const heading = revealedColumn
+          ? Array.from(document.querySelectorAll<HTMLElement>("[data-board-column]"))
+              .find((el) => el.getAttribute("data-board-column") === revealedColumn && el.getClientRects().length > 0)
+              ?.querySelector<HTMLElement>("h3")
+          : null;
+        (heading ?? document.getElementById("board-status"))?.focus({ preventScroll: true });
+      }
       focus.current = null;
     }
   }, [board, resource.loading, busy, syncRowCue]);
@@ -530,6 +543,74 @@ export function BayBoard({
       if (mounted.current) setBusy(false);
     }
   }
+  // P1-34 (LE 2026-10-31): drop a car on Done, or choose "Done (finish)" in its move control. Every service
+  // is marked done and the booking completed in one server write, after a confirm in plain words. A car
+  // must be in a bay or in service (the server decides too; this only spares a pointless request).
+  const canFinishCard = (card: AdminBoardCard) =>
+    role === "ADMIN" && (card.assignedBayId !== null || card.status === "IN_PROGRESS");
+  async function finish(card: AdminBoardCard) {
+    if (role !== "ADMIN" || writing.current || locked) return;
+    const lane =
+      board?.queues.find((q) => q.code === card.queueCode)?.bayType ?? null;
+    if (!canFinishCard(card)) {
+      setBoardGen((g) => g + 1);
+      showStatus("Move this car into a bay before finishing it.", true, lane);
+      return;
+    }
+    const sure = window.confirm(
+      "Finish " + card.referenceCode + "? All its services will be marked done and the booking completed. A finished car can't be moved back.",
+    );
+    if (!sure) {
+      setBoardGen((g) => g + 1); // the card snaps back to where it was
+      return;
+    }
+    writing.current = true;
+    setBusy(true);
+    showStatus("Finishing car...", false);
+    try {
+      await adminRequest<AdminWriteResult>(
+        "/api/admin/bookings/" + card.id + "/finish",
+        { method: "POST", body: { expectedRevision: card.revision } },
+      );
+      if (!mounted.current) return;
+      // P1-34 F1: the finished car now lives in this lane's Done column. Below md only the picked column is shown, so
+      // select it (the same mechanism move() uses) before focus is restored; otherwise the card's button is in a
+      // display:none column and focus is lost to BODY.
+      if (lane) {
+        setPicked((p) => ({ ...p, [lane]: "DONE-" + lane }));
+        reveal.current = { lane, colId: "DONE-" + lane };
+      }
+      focus.current = "board-card-" + card.id;
+      await reloadBoard();
+      showStatus("Car finished.", false);
+    } catch (e) {
+      if (!mounted.current) return;
+      if (e instanceof AdminRequestError && e.status === 401) {
+        window.location.replace("/admin/login");
+        return;
+      }
+      const feedback = writeFeedback(
+        e instanceof AdminRequestError
+          ? e.detail
+          : { message: "Could not verify the finish. Refresh before trying again." },
+      );
+      focus.current =
+        (feedback.review || !(e instanceof AdminRequestError) || e.commitState === "UNKNOWN"
+          ? "board-card-"
+          : "board-move-") + card.id;
+      if (e instanceof AdminRequestError && feedback.review) {
+        setBlocked(true);
+        setReview(card.id);
+      }
+      if (!(e instanceof AdminRequestError) || e.commitState === "UNKNOWN")
+        setBlocked(true);
+      await resource.reload();
+      showStatus(feedback.message, true, lane);
+    } finally {
+      writing.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
   const cards = board
     ? [
         ...board.queues.flatMap((q) => q.waiting),
@@ -579,8 +660,28 @@ export function BayBoard({
     return null;
   }
 
+  function dropOnDone(e: React.DragEvent, bayType: string) {
+    e.preventDefault();
+    const card = drag.current;
+    clearDrag();
+    if (!card || busy || locked || role !== "ADMIN") return;
+    const cardLane =
+      board?.queues.find((q) => q.code === card.queueCode)?.bayType ?? null;
+    if (cardLane !== bayType) {
+      setBoardGen((g) => g + 1);
+      showStatus("A car is finished in its own row's Done column.", true, cardLane);
+      return;
+    }
+    void finish(card);
+  }
+  // A drag may land on Done only from an ADMIN who can act right now.
+  const acceptsDrops = () => role === "ADMIN" && !busy && !locked;
   function dropOnColumnId(e: React.DragEvent, colId: string) {
-    if (!board || colId.startsWith("DONE-")) {
+    if (board && colId.startsWith("DONE-")) {
+      dropOnDone(e, colId.slice("DONE-".length));
+      return;
+    }
+    if (!board) {
       clearDrag();
       return;
     }
@@ -768,7 +869,8 @@ export function BayBoard({
             onSubmit={(e) => {
               e.preventDefault();
               const value = String(new FormData(e.currentTarget).get("bay"));
-              void move(card, value || null);
+              if (value === "DONE") void finish(card);
+              else void move(card, value || null);
             }}
           >
             <p className="text-[11px] leading-tight text-muted-foreground">
@@ -800,6 +902,7 @@ export function BayBoard({
                       {!b.isActive ? " · Inactive" : ""}
                     </option>
                   ))}
+                {canFinishCard(card) && <option value="DONE">Done (finish)</option>}
               </select>
               <Button
                 id={"board-move-" + card.id}
@@ -878,9 +981,11 @@ export function BayBoard({
         }
       >
         <p
+          id="board-status"
+          tabIndex={-1}
           role="status"
           aria-live="polite"
-          className="min-w-0 flex-1 break-words text-sm"
+          className="min-w-0 flex-1 break-words text-sm focus:outline-none"
         >
           {message}
         </p>
@@ -1027,11 +1132,9 @@ export function BayBoard({
                           "min-w-0 flex-col gap-3 rounded border border-border bg-[#121214] p-3 md:flex md:w-60 md:shrink-0"
                         }
                         onDragOver={(e) => {
-                          if (!c.done && role === "ADMIN" && !busy && !locked)
-                            e.preventDefault();
+                          if (acceptsDrops()) e.preventDefault();
                         }}
                         onDrop={(e) => {
-                          if (c.done) return;
                           dropOnColumnId(e, c.id);
                         }}
                       >
@@ -1096,13 +1199,7 @@ export function BayBoard({
                     data-board-fade="left"
                     onDragOver={(e) => {
                       const colId = columnIdUnderPoint(e.clientX, e.clientY);
-                      if (
-                        colId &&
-                        !colId.startsWith("DONE-") &&
-                        role === "ADMIN" &&
-                        !busy &&
-                        !locked
-                      ) {
+                      if (colId && acceptsDrops()) {
                         e.preventDefault();
                       }
                     }}
@@ -1150,13 +1247,7 @@ export function BayBoard({
                     data-board-fade="right"
                     onDragOver={(e) => {
                       const colId = columnIdUnderPoint(e.clientX, e.clientY);
-                      if (
-                        colId &&
-                        !colId.startsWith("DONE-") &&
-                        role === "ADMIN" &&
-                        !busy &&
-                        !locked
-                      ) {
+                      if (colId && acceptsDrops()) {
                         e.preventDefault();
                       }
                     }}
