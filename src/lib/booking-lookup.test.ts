@@ -57,3 +57,14 @@ test("P1-32: progress is status-level only, in plain words (the 2026-10-21 rulin
   assert.deepEqual(progressFor("COMPLETED").step, 4);
   assert.deepEqual(progressFor("CANCELLED"), { label: "Cancelled", step: 0, steps: ["Received", "Confirmed", "In service", "Completed"], cancelled: true });
 });
+
+// Codex note (P1-32): only the approved separators are dropped; other symbols must match as typed.
+test("P1-32: names match across case, accents, spaces, hyphens, apostrophes and dots, and across nothing else", () => {
+  for (const same of [["O'Neil", "o-neil"], ["O'Neil", "O Neil"], ["O'Neil", "o.neil"], ["O'Neil", "ONeil"], ["O'Neil", "O" + String.fromCharCode(0x2019) + "Neil"], ["de la Cruz", "D" + String.fromCharCode(0xc9) + "  LA   cruz"], ["Dela-Cruz", "dela cruz"], [String.fromCharCode(0xd1) + "and" + String.fromCharCode(0xfa), "NANDU"]])
+    assert.equal(lastNamesMatch(same[0], same[1]), true, same.join(" vs "));
+  for (const different of [["O/Neil", "ONeil"], ["Anne&Marie", "AnneMarie"], ["Smith_Jones", "SmithJones"], ["Cruz+Reyes", "CruzReyes"], ["Cruz", "Cruzz"], ["Santos", "Sant"]])
+    assert.equal(lastNamesMatch(different[0], different[1]), false, different.join(" vs "));
+  assert.equal(lastNamesMatch("Anne&Marie", "anne & marie"), true, "the same symbol still matches itself, with spacing and case ignored");
+  assert.equal(lastNamesMatch("...", "---"), false, "a name that normalizes to nothing never matches");
+  assert.equal(normalizeLastName("O/Neil"), "o/neil");
+});

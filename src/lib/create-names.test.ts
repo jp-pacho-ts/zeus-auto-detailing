@@ -30,3 +30,10 @@ test("P1-32: a missing, half-given, oversized or control-character name is refus
 test("P1-32: first and last win over a single name sent with them", () => {
   assert.equal(ok({ customerName: "Someone Else", customerFirstName: "Ana", customerLastName: "Cruz" }).customerName, "Ana Cruz");
 });
+
+// Codex F2: the old single-name path keeps the bytes the release-1 parser produced (it only trimmed).
+test("P1-32: an old single name keeps its inner spacing exactly; only first and last are normalized", () => {
+  assert.deepEqual(ok({ customerName: "Ana  Santos" }), { customerName: "Ana  Santos" });
+  assert.deepEqual(ok({ customerName: "  Juan   De  La Cruz  " }), { customerName: "Juan   De  La Cruz" });
+  assert.equal(ok({ customerFirstName: "Ana", customerLastName: "De   La Cruz" }).customerName, "Ana De La Cruz", "a new-style name is still composed and normalized");
+});

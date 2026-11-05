@@ -10,10 +10,12 @@ export function normalizeReference(input: unknown): string | null {
   return REFERENCE.test(code) ? code : null;
 }
 
-// Case, accents, spacing, hyphens, apostrophes and dots do not matter: "De la Cruz" = "dé  la CRUZ".
+// Case, accents and these separators do not matter, and nothing else: spaces, hyphens and dashes, apostrophes (straight or curly)
+// and dots. "De la Cruz" = "dé  la CRUZ", "O'Neil" = "o-neil". Any other symbol is kept, so it has to match as typed: "O/Neil" and
+// "Anne&Marie" do NOT match "ONeil" and "AnneMarie" (Codex note on the earlier rule, which erased every non-letter).
 export function normalizeLastName(input: unknown): string {
   if (typeof input !== "string") return "";
-  return input.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  return input.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[\s\p{Pd}'\u2018\u2019\u02BC\u0060\u00B4.]/gu, "");
 }
 // An empty name never matches anything, not even another empty one.
 export function lastNamesMatch(a: unknown, b: unknown): boolean {
@@ -28,10 +30,12 @@ export function lastNameFallback(customerName: string): string | null {
 }
 
 const one = (s: string) => s.trim().replace(/\s+/g, " ");
-// The display name stored in customerName: "First Last", or an old-style single name as sent.
+// The display name stored in customerName: "First Last", or an old-style single name EXACTLY as the schema trimmed it.
+// Codex F2: the old path must not collapse inner spaces. The release-1 parser only trimmed, existing receipts bind the hash of
+// those bytes, and a stale exact retry of "Ana  Santos" must hash as it did before, not conflict with its own receipt.
 export function composeCustomerName(input: { customerName?: string; customerFirstName?: string; customerLastName?: string }): string {
   if (input.customerFirstName && input.customerLastName) return one(input.customerFirstName) + " " + one(input.customerLastName);
-  return one(input.customerName ?? "");
+  return input.customerName ?? "";
 }
 
 export function maskPhone(phone: string): string {
