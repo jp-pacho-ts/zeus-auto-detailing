@@ -49,7 +49,15 @@ export function ManagedBookingDetails({
   onCancel: () => void;
   onChangeDay: () => void;
 }) {
-  const total = quoteTotal(view);
+  // A booking opened by reference code and last name carries no money at all (P1-32 F1): show no price and no total then.
+  const total =
+    view.totalPriceCentavos === undefined
+      ? null
+      : quoteTotal({
+          totalPriceCentavos: view.totalPriceCentavos,
+          estimatedTotalCentavos: view.estimatedTotalCentavos ?? null,
+          lines: view.lines.map((l) => ({ priceStatus: l.priceStatus ?? "PRICED" })),
+        });
   const notice = selfServiceNotice(view);
   return (
     <section aria-labelledby="booking-title" className={panel}>
@@ -90,17 +98,23 @@ export function ManagedBookingDetails({
                     {l.name}
                     {l.quantity > 1 ? ` × ${l.quantity}` : ""}
                   </span>{" "}
-                  <span className="text-sm text-muted-foreground">· {lineAmount(l)}</span>
+                  {l.priceStatus !== undefined && l.subtotalCentavos !== undefined && l.referenceSubtotalCentavos !== undefined && (
+                    <span className="text-sm text-muted-foreground">
+                      · {lineAmount({ priceStatus: l.priceStatus, subtotalCentavos: l.subtotalCentavos, referenceSubtotalCentavos: l.referenceSubtotalCentavos })}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
           </dd>
         </div>
+        {total && (
         <div className="py-3">
           <dt className="text-sm text-muted-foreground">{total.label}</dt>
           <dd className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">{total.amount}</dd>
           {total.note && <p className="mt-0.5 text-sm text-muted-foreground">{total.note}</p>}
         </div>
+        )}
       </dl>
 
       {notice ? (

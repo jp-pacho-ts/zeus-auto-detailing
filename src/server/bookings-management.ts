@@ -9,6 +9,7 @@ import {
   ManagedDayAvailabilitySchema,
 } from "@/lib/validation";
 import type {
+  DayBookingView,
   ManagedDayBookingView,
   ManagedDepositView,
   ManagementMutationData,
@@ -156,13 +157,16 @@ async function load(tx: Tx, id: string): Promise<Booking> {
   return b;
 }
 // Stable authorization helper for P1-18: call only inside a customer DB permit/transaction.
+// P1-32 F1: LINK sessions (private link) show prices; LOOKUP sessions (reference code and last name) never show money.
+export type ManagementOrigin = "LINK" | "LOOKUP";
+export type OriginBooking = Booking & { managementOrigin: ManagementOrigin };
 export async function requireManagementBooking(
   tx: Tx,
   token: ManagementClaims,
   c: BookingConfiguration,
   now: Date,
   bookingId?: string,
-): Promise<Booking> {
+): Promise<OriginBooking> {
   if (
     !token.kid ||
     !c.session.keys.has(token.kid) ||
@@ -194,7 +198,8 @@ export async function requireManagementBooking(
     !c.grant.keys.has(session.grantKid)
   )
     throw auth();
-  return b;
+  // Fail closed: anything but an explicit LINK is treated as a lookup session (no money).
+  return Object.assign(b, { managementOrigin: session.origin === "LINK" ? ("LINK" as const) : ("LOOKUP" as const) });
 }
 function eligible(b: Booking, now: Date) {
   return (
@@ -217,10 +222,19 @@ function depositView(b: Booking): ManagedDepositView {
     message: b.depositStatus === "REJECTED" ? "Please contact the shop." : null,
   };
 }
-export function managedBookingView(b: Booking, now: Date): ManagedDayBookingView {
-  return view(b, now);
+export function managedBookingView(b: OriginBooking, now: Date): ManagedDayBookingView {
+  return view(b, now, b.managementOrigin);
 }
-function view(b: Booking, now: Date): ManagedDayBookingView {
+// The lookup projection (LE: the airline-style lookup shows NO money at all). An allow-list, not a spread: reference, status,
+// day, vehicle size and service names only. A new price field on the public view can never reach a lookup session by accident.
+function lookupBooking(v: DayBookingView): Omit<ManagedDayBookingView, "selfServiceAllowed" | "selfServiceCutoff" | "deposit"> {
+  return {
+    id: v.id, referenceCode: v.referenceCode, status: v.status, revision: v.revision, bookingDate: v.bookingDate, timezone: v.timezone,
+    vehicleCategoryId: v.vehicleCategoryId, vehicleCategoryName: v.vehicleCategoryName,
+    lines: v.lines.map((l) => ({ serviceId: l.serviceId, name: l.name, quantity: l.quantity })),
+  };
+}
+function view(b: Booking, now: Date, origin: ManagementOrigin): ManagedDayBookingView {
   if (b.snapshotVersion !== "QUEUE_V3")
     throw new BookingFailure(
       bookingError(
@@ -229,8 +243,9 @@ function view(b: Booking, now: Date): ManagedDayBookingView {
         { commitState: "NOT_APPLICABLE" },
       ),
     );
+  const shown = publicDayBooking(b);
   return {
-    ...publicDayBooking(b),
+    ...(origin === "LOOKUP" ? lookupBooking(shown) : shown),
     selfServiceAllowed: eligible(b, now),
     selfServiceCutoff: customerCutoff(
       b.bookingDate.toISOString().slice(0, 10),
@@ -246,6 +261,8 @@ async function run<T>(
     h: Headers,
     client: string,
     token: ManagementClaims | null,
+    // The trusted visitor address, NOT hashed: only for the provider challenge (Codex F3). Every limiter key stays the digest.
+    address: string,
   ) => Promise<ManagementCommit<T>>,
 ): Promise<ManagementCommit<T>> {
   let leave: (() => void) | undefined, leaveBooking: (() => void) | undefined;
@@ -261,7 +278,8 @@ async function run<T>(
           { commitState: scope === "exchange" ? "NOT_APPLICABLE" : "UNKNOWN" },
         ),
       );
-    const client = sha256(trustedClientKey(h, c.identity));
+    const address = trustedClientKey(h, c.identity);
+    const client = sha256(address);
     leave =
       scope === "lookup"
         ? enterLookup(lookupClientLimit, client)
@@ -282,7 +300,7 @@ async function run<T>(
         scope === "read" ? readBookingLimit : mutationBookingLimit,
         token.bookingId,
       );
-    return await work(c, h, client, token);
+    return await work(c, h, client, token, address);
   } catch (cause) {
     const e = cause instanceof BookingFailure ? cause.error : unavailable();
     return fail({
@@ -361,7 +379,7 @@ export async function exchangeManagementAccess(
           });
         const expiresAt = session.expiresAt.toISOString();
         return {
-          ...ok({ booking: view(b, now), sessionExpiresAt: expiresAt }),
+          ...ok({ booking: view(b, now, "LINK"), sessionExpiresAt: expiresAt }),
           session: {
             token: signManagementToken(
               "BOOKING_MANAGEMENT_SESSION",
@@ -391,9 +409,8 @@ export async function readManagedBooking(
       "MANAGEMENT_READ",
       async (tx) => {
         const now = await bookingDbNow(tx);
-        return ok(
-          view(await requireManagementBooking(tx, token!, c, now), now),
-        );
+        const access = await requireManagementBooking(tx, token!, c, now);
+        return ok(view(access, now, access.managementOrigin));
       },
       options.signal,
     ),
@@ -449,8 +466,9 @@ export async function recoverBookingOperation(
         write: boolean,
       ): Promise<ManagementCommit<RecoveredBookingOperation> | null> => {
         let now = await bookingDbNow(tx);
-        if (token)
-          await requireManagementBooking(tx, token, c, now, v.bookingId!);
+        const origin: ManagementOrigin = token
+          ? (await requireManagementBooking(tx, token, c, now, v.bookingId!)).managementOrigin
+          : "LINK";
         // F-03: the authority window and DB clock come from the very same ledger statement.
         const rows = await tx.$queryRaw<
           (BookingOperation & { dbNow: Date })[]
@@ -471,7 +489,7 @@ export async function recoverBookingOperation(
             return ok({
               state: "COMMITTED",
               operationKind: v.operationKind,
-              booking: view(b, now),
+              booking: view(b, now, origin),
               managementAccess: null,
             });
           const denied = recoveryAuthority(op, b.managementTokenVersion, now);
@@ -488,7 +506,7 @@ export async function recoverBookingOperation(
             ...ok<RecoveredBookingOperation>({
               state: "COMMITTED",
               operationKind: "CREATE",
-              booking: view(b, now),
+              booking: view(b, now, origin),
               managementAccess: issued.managementAccess,
             }),
             ...(issued.session ? { session: issued.session } : {}),
@@ -594,7 +612,7 @@ async function mutation(
             return fail<ManagementMutationData>({
               ...receiptError(op),
               ...(op.rejectionCode === "VERSION_CONFLICT"
-                ? { currentBooking: view(b, now) }
+                ? { currentBooking: view(b, now, b.managementOrigin) }
                 : {}),
             });
           if (op.outcome === "CLOSED_WITHOUT_COMMIT")
@@ -607,7 +625,7 @@ async function mutation(
             );
           return ok({
             operationKind: kind,
-            booking: view(b, now),
+            booking: view(b, now, b.managementOrigin),
             replayed: true,
             noChange: op.noChange ?? false,
           });
@@ -637,7 +655,7 @@ async function mutation(
           return fail<ManagementMutationData>({
             ...error,
             ...(code === "VERSION_CONFLICT"
-              ? { currentBooking: view(b, now) }
+              ? { currentBooking: view(b, now, b.managementOrigin) }
               : {}),
           });
         };
@@ -745,7 +763,7 @@ async function mutation(
         });
         return ok({
           operationKind: kind,
-          booking: view(updated, now),
+          booking: view(updated, now, b.managementOrigin),
           replayed: false,
           noChange,
         });
@@ -866,7 +884,7 @@ export async function lookupManagedBooking(
   input: unknown,
   options: ManagementOptions = {},
 ): Promise<ManagementCommit<ManagedLookupData>> {
-  return run(options, "lookup", async (c, _h, client) => {
+  return run(options, "lookup", async (c, _h, client, _token, address) => {
     const [ceiling, limits] = ceilingFor(options.lookup);
     roll(ceiling, Date.now());
     if (ceiling.failed >= limits.failedPerHour) {
@@ -895,7 +913,7 @@ export async function lookupManagedBooking(
     if (!token.success) return fail("turnstile_failed", challengeFailed());
     const verification = await verifyTurnstile(token.data, c.challenge, {
       endpoint: options.turnstileEndpoint,
-      remoteip: turnstileRemoteIp(client),
+      remoteip: turnstileRemoteIp(address),
       signal: options.signal,
       action: "booking_lookup",
     });
@@ -923,7 +941,7 @@ export async function lookupManagedBooking(
           if (!b || !nameMatches(supplied, b)) return fail("not_found", notFound());
           let shown: ManagedDayBookingView;
           try {
-            shown = view(b, at);
+            shown = view(b, at, "LOOKUP");
           } catch {
             return fail("not_found", notFound());
           }
@@ -932,7 +950,7 @@ export async function lookupManagedBooking(
             data: { bookingId: b.id, credentialVersion: b.managementTokenVersion, kid: c.grant.activeKid, issuedAt: at, expiresAt },
           });
           const session = await tx.bookingManagementSession.create({
-            data: { bookingId: b.id, grantId: grant.id, credentialVersion: b.managementTokenVersion, kid: c.session.activeKid, grantKid: grant.kid, issuedAt: at, expiresAt },
+            data: { bookingId: b.id, grantId: grant.id, credentialVersion: b.managementTokenVersion, kid: c.session.activeKid, grantKid: grant.kid, issuedAt: at, expiresAt, origin: "LOOKUP" },
           });
           logLookup(legacy ? "legacy_match" : "found");
           return {

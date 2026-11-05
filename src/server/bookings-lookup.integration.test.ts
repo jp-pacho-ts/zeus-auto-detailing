@@ -3,7 +3,9 @@
 // the SMTP-free path are loopback. Without T007_TEST_DATABASE_URL these tests skip.
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
+import fs from "node:fs";
 import { createServer, type Server } from "node:http";
+import { isIP } from "node:net";
 import path from "node:path";
 import { after, before, test } from "node:test";
 import { PrismaClient } from "@prisma/client";
@@ -14,6 +16,7 @@ import { createDayBooking } from "./bookings-create";
 import { parseBookingConfiguration } from "./bookings-credentials";
 import * as management from "./bookings-management";
 import { managementHttp } from "./bookings-management-http";
+import { verifyTurnstile } from "./bookings-turnstile";
 
 const url = process.env.T007_TEST_DATABASE_URL, skip = !url;
 const lookupUrl = url ? siblingDatabaseUrl(url, "lookup") : "postgresql://unused@localhost/zeus_t007_unused_lookup";
@@ -29,6 +32,8 @@ const c = parseBookingConfiguration({
   APP_ORIGIN: "http://localhost:3000", CLIENT_IP_SOURCE: "PROXY_HOPS", TRUSTED_PROXY_HOPS: "1", NODE_ENV: "test",
 });
 const manifest = readManifest(), release = releaseFromManifest();
+// Every remoteip the simulated Siteverify received (null when the field was omitted).
+const seen: (string | null)[] = [];
 let server: Server, endpoint = "", seq = 0, challenge: { success: boolean; action: string } = { success: true, action: "booking_create" };
 const day = (n = 4) => new Date(Date.now() + 8 * 3600000 + n * 86400000).toISOString().slice(0, 10);
 const ip = () => "198.51." + Math.floor(++seq / 250) + "." + ((seq % 250) + 1);
@@ -47,10 +52,19 @@ before(async () => {
   await publish(db, manifest, tooling.stableId);
   await db.scheduleConfig.create({ data: { effectiveDate: new Date("2000-01-01") } });
   await db.timeSlot.createMany({ data: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, startTime: "08:00", endTime: "18:00", maxVehicleCapacity: 2 })) });
+  // Like Cloudflare's Siteverify: remoteip is optional, but when present it must be a visitor IP address (Codex F3: the old
+  // simulator ignored the body, so a 64-character digest sent as remoteip went unnoticed).
   server = createServer((req, res) => {
-    req.resume();
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ success: challenge.success, action: challenge.action, hostname: "localhost" }));
+    const chunks: Buffer[] = [];
+    req.on("data", (d: Buffer) => chunks.push(d));
+    req.on("end", () => {
+      const remote = new URLSearchParams(Buffer.concat(chunks).toString("utf8")).get("remoteip");
+      seen.push(remote);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify(remote !== null && isIP(remote) === 0
+        ? { success: false, "error-codes": ["invalid-input-remoteip"] }
+        : { success: challenge.success, action: challenge.action, hostname: "localhost" }));
+    });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   endpoint = "http://127.0.0.1:" + (server.address() as { port: number }).port;
@@ -61,7 +75,7 @@ after(async () => {
   if (server) { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); }
 });
 
-interface Made { id: string; reference: string; phone: string; email: string | null }
+interface Made { id: string; reference: string; phone: string; email: string | null; grant: string | null }
 // A real customer create (as zeus_app) with the given name fields.
 async function book(names: Record<string, string>, extra: Record<string, unknown> = {}): Promise<Made> {
   const selection = { vehicleCategoryId: sizeId(release, "S"), lines: [{ serviceId: bySlug(release, "basic-wash").id, quantity: 1 }] };
@@ -78,7 +92,7 @@ async function book(names: Record<string, string>, extra: Record<string, unknown
   }, opts());
   assert.ok(commit.result.ok, JSON.stringify(commit.result));
   const data = commit.result.ok ? commit.result.data : (null as never);
-  return { id: data.booking.id, reference: data.booking.referenceCode, phone, email: "juan.delacruz" + n + "@gmail.com" };
+  return { id: data.booking.id, reference: data.booking.referenceCode, phone, email: "juan.delacruz" + n + "@gmail.com", grant: data.managementAccess?.accessToken ?? null };
 }
 const lookup = (referenceCode: string, lastName: string, extra: Record<string, unknown> = {}, o: Record<string, unknown> = {}, client?: string) => {
   challenge = { success: true, action: "booking_lookup" };
@@ -225,4 +239,132 @@ test("L10 the lookup writes only a grant and a session; nothing else about the b
   const after = await db.booking.findUniqueOrThrow({ where: { id: b.id } });
   assert.deepEqual(after, before);
   assert.equal(await db.bookingManagementGrant.count({ where: { bookingId: b.id } }), grants + 1);
+});
+
+// Codex F1 (P1-32, Medium). The lookup view spread publicDayBooking, so a stranger who guessed a reference and surname got the
+// total, the estimate, the currency and every line price, and the session cookie it issued read the same money back. The LE's
+// rule: the airline-style lookup shows NO money at all. The lookup, and every read, cancel or refusal made with the session
+// it issues, use an allow-listed view with the money keys absent (not zero); a private-link session keeps its prices.
+const MONEY = /price|total|subtotal|amount|centavo|currency|cost|fee|estimate|quote|php/i;
+function moneyKeys(value: unknown, trail = ""): string[] {
+  if (Array.isArray(value)) return value.flatMap((v, i) => moneyKeys(v, trail + "[" + i + "]"));
+  if (value && typeof value === "object")
+    // A money-named key counts only when it carries a value: every error envelope has a null currentQuote, which is no money.
+    return Object.entries(value).flatMap(([k, v]) => (MONEY.test(k) && v !== null && v !== undefined ? [trail + "." + k] : []).concat(moneyKeys(v, trail + "." + k)));
+  return [];
+}
+const BOOKING_KEYS = ["bookingDate", "deposit", "id", "lines", "referenceCode", "revision", "selfServiceAllowed", "selfServiceCutoff", "status", "timezone", "vehicleCategoryId", "vehicleCategoryName"];
+
+test("L11 the lookup and every read, cancel and refusal made with its session show no money at all; a private-link session still does", { skip }, async () => {
+  const b = await book({ customerFirstName: "Mara", customerLastName: "Villanueva" });
+  const r = await lookup(b.reference, "villanueva");
+  assert.ok(r.result.ok, JSON.stringify(r.result));
+  if (!r.result.ok) return;
+  assert.deepEqual(moneyKeys(r.result.data), [], "the lookup response carries no monetary key");
+  assert.deepEqual(Object.keys(r.result.data.booking).sort(), BOOKING_KEYS, "an allow-list: exactly these booking keys");
+  assert.deepEqual(r.result.data.booking.lines.map((l) => Object.keys(l).sort()), [["name", "quantity", "serviceId"]], "a line is its name and quantity only");
+  assert.equal(r.result.data.booking.lines[0].name.length > 0, true, "service names are shown");
+  const session = (r as { session?: { token: string } }).session!;
+  const cookie = "booking-management=" + session.token;
+  const withSession = (extra: Record<string, unknown> = {}) => ({ db: app, config: c, headers: headers(ip(), cookie), ...extra });
+
+  // The cookie read (the manage page loads it) is money-free too.
+  const read = await management.readManagedBooking(withSession());
+  assert.ok(read.result.ok, JSON.stringify(read.result));
+  assert.deepEqual(moneyKeys(read.result), [], "the session read carries no monetary key");
+  assert.deepEqual(Object.keys(read.result.ok ? read.result.data : {}).sort(), BOOKING_KEYS);
+
+  // A stale cancel is refused WITH the current booking: that booking is money-free as well.
+  const stale = await management.cancelManagedBooking({ bookingId: b.id, idempotencyKey: randomUUID(), expectedRevision: 99 }, withSession());
+  assert.equal(stale.result.ok, false);
+  assert.equal(!stale.result.ok && stale.result.error.code, "VERSION_CONFLICT");
+  assert.ok(!stale.result.ok && stale.result.error.currentBooking, "the refusal carries the current booking");
+  assert.deepEqual(moneyKeys(stale.result), [], "a refusal with the current booking carries no monetary key");
+
+  // A real cancel and its replay answer without money.
+  const revision = read.result.ok ? read.result.data.revision : 0;
+  const key = randomUUID();
+  const done = await management.cancelManagedBooking({ bookingId: b.id, idempotencyKey: key, expectedRevision: revision }, withSession());
+  assert.ok(done.result.ok, JSON.stringify(done.result));
+  assert.deepEqual(moneyKeys(done.result), [], "the cancel result carries no monetary key");
+  const replay = await management.cancelManagedBooking({ bookingId: b.id, idempotencyKey: key, expectedRevision: revision }, withSession());
+  assert.ok(replay.result.ok && replay.result.data.replayed, JSON.stringify(replay.result));
+  assert.deepEqual(moneyKeys(replay.result), [], "the replayed result carries no monetary key");
+
+  // The session is recorded as a lookup session, and that can never be changed.
+  const sessions = await db.bookingManagementSession.findMany({ where: { bookingId: b.id } });
+  assert.deepEqual(sessions.map((x) => x.origin).sort(), ["LINK", "LOOKUP"], "the create's own private-link session and the one the lookup opened");
+  const lookupSession = sessions.find((x) => x.origin === "LOOKUP")!;
+  await assert.rejects(db.$executeRawUnsafe(`UPDATE booking_management_sessions SET origin = 'LINK' WHERE id = '${lookupSession.id}'`), /immutable/i);
+  await assert.rejects(db.$executeRawUnsafe(`INSERT INTO booking_management_sessions (id, "bookingId", "grantId", "credentialVersion", kid, "grantKid", "issuedAt", "expiresAt", origin) SELECT gen_random_uuid()::text, "bookingId", "grantId", "credentialVersion", kid, "grantKid", "issuedAt", "expiresAt", 'WEB' FROM booking_management_sessions LIMIT 1`), /booking_management_session_origin/);
+
+  // Control: a session opened with the private link keeps its prices (the manage page for the person who holds the link).
+  const linked = await book({ customerFirstName: "Mara", customerLastName: "Villanueva" });
+  assert.ok(linked.grant, "the create returned a private link");
+  const exchanged = await management.exchangeManagementAccess({ accessToken: linked.grant! }, opts());
+  assert.ok(exchanged.result.ok && exchanged.session, JSON.stringify(exchanged.result));
+  const linkRead = await management.readManagedBooking({ db: app, config: c, headers: headers(ip(), "booking-management=" + exchanged.session!.token) });
+  assert.ok(linkRead.result.ok, JSON.stringify(linkRead.result));
+  const view = linkRead.result.ok ? linkRead.result.data : (null as never);
+  assert.equal(typeof view.totalPriceCentavos, "number", "a private-link session still shows the total");
+  assert.ok(view.lines.every((l) => l.priceStatus !== undefined && l.subtotalCentavos !== undefined), "and the line prices");
+  assert.ok((await db.bookingManagementSession.findMany({ where: { bookingId: linked.id } })).every((x) => x.origin === "LINK"), "no lookup session was opened for it");
+});
+
+// Codex F3 (P1-32, Medium). The lookup passed the limiter's 64-character SHA-256 digest to Siteverify as remoteip (run() hashed
+// the client key before the callback saw it). remoteip is the visitor's IP address and is optional. Hashing stays for limiter
+// keys only; the provider gets the real trusted address or nothing, and the simulator now refuses anything that is not an IP.
+test("L12 Siteverify receives the visitor's real address or none, never the limiter digest; the verifier refuses a non-IP", { skip }, async () => {
+  const noAddress = new Headers({ origin: c.origin, "x-zeus-booking": "1", "content-type": "application/json" });
+  seen.length = 0;
+  const b = await book({ customerFirstName: "Rina", customerLastName: "Montoya" });
+  assert.ok(seen.length >= 1 && seen.every((x) => x === null || isIP(x) !== 0), "the create path sends real addresses: " + JSON.stringify(seen));
+
+  // 1. A lookup from a trusted forwarded address sends exactly that address, once.
+  seen.length = 0;
+  const r1 = await lookup(b.reference, "montoya", {}, {}, "203.0.113.77");
+  assert.ok(r1.result.ok, failure(r1));
+  assert.deepEqual(seen, ["203.0.113.77"], "exactly one provider call, with the visitor address");
+  assert.equal(seen[0]!.length < 64 && isIP(seen[0]!) !== 0, true, "a real IP address, not a 64-character digest");
+
+  // 2. With no trusted address the field is omitted and the lookup still works.
+  seen.length = 0;
+  const r2 = await lookup(b.reference, "montoya", {}, { headers: noAddress });
+  assert.ok(r2.result.ok, failure(r2));
+  assert.deepEqual(seen, [null], "remoteip omitted, not a placeholder");
+
+  // 3. An IPv6 visitor is anonymized to a /64 for the limiters, which is not an address: omitted, never sent half-formed.
+  seen.length = 0;
+  const r3 = await lookup(b.reference, "montoya", {}, {}, "2001:db8:aaaa:bbbb:cccc:dddd:eeee:ffff");
+  assert.ok(r3.result.ok, failure(r3));
+  assert.deepEqual(seen, [null]);
+
+  // 4. The limiters still key on the digest (the per-IP cap holds), so hashing was not removed where it belongs.
+  // 5. The simulated verifier refuses a digest, so any future regression fails every lookup test instead of passing silently.
+  seen.length = 0;
+  challenge = { success: true, action: "booking_lookup" };
+  const verdict = await verifyTurnstile("token", c.challenge, { endpoint, remoteip: "a".repeat(64), action: "booking_lookup" });
+  assert.equal(verdict, "INVALID", "a 64-character non-IP remoteip is refused by the verifier");
+  assert.deepEqual(seen, ["a".repeat(64)]);
+});
+
+// The release rule: migration first, then a READ-ONLY check, then the code. prisma/sql/p1-32-readonly-check.sql is that check.
+test("L13 the read-only release check passes on the migrated database, is one SELECT, and names a missing default or constraint", { skip }, async () => {
+  const script = fs.readFileSync(path.join(process.cwd(), "prisma", "sql", "p1-32-readonly-check.sql"), "utf8");
+  type Row = { name: string; ok: boolean; detail: string };
+  const run = () => db.$queryRawUnsafe<Row[]>(script);
+  const failing = async () => (await run()).filter((r) => !r.ok && r.name !== "VERDICT").map((r) => r.name);
+  const rows = await run();
+  assert.deepEqual(rows.filter((r) => !r.ok), []);
+  assert.deepEqual(rows.find((r) => r.name === "VERDICT"), { name: "VERDICT", ok: true, detail: "ALL_OK" });
+  const code = script.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n").replace(/'[^']*'/g, "''");
+  assert.doesNotMatch(code, /\b(INSERT|UPDATE|DELETE|TRUNCATE|DROP|ALTER|CREATE|GRANT|REVOKE|COMMIT)\b/i, "one read-only SELECT");
+  // Each break is undone straight away.
+  await db.$executeRawUnsafe("ALTER TABLE booking_management_sessions ALTER COLUMN origin DROP DEFAULT");
+  try { assert.deepEqual(await failing(), ["booking_management_sessions.origin is text NOT NULL default LINK"]); }
+  finally { await db.$executeRawUnsafe("ALTER TABLE booking_management_sessions ALTER COLUMN origin SET DEFAULT 'LINK'"); }
+  await db.$executeRawUnsafe("ALTER TABLE booking_management_sessions DROP CONSTRAINT booking_management_session_origin");
+  try { assert.deepEqual((await failing()).sort(), ["constraint booking_management_session_origin exists and is validated", "the origin CHECK allows only LINK and LOOKUP"]); }
+  finally { await db.$executeRawUnsafe("ALTER TABLE booking_management_sessions ADD CONSTRAINT booking_management_session_origin CHECK (origin IN ('LINK', 'LOOKUP'))"); }
+  assert.deepEqual(await failing(), [], "restored");
 });

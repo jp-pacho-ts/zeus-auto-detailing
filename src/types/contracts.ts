@@ -221,7 +221,15 @@ export interface DayBookingView { id: UUID; referenceCode: string; status: Booki
 export type DayBookingResponse = import("./catalog-contracts").LifecycleResult<{ booking: DayBookingView; managementAccess: { accessToken: string; expiresAt: ISOInstant } | null; commitState: "COMMITTED"; replayed: boolean }>;
 
 // P1-04 stable session/API boundary for P1-05 and P1-18. Progress/checklist is deferred.
-export interface ManagedDayBookingView extends DayBookingView {
+// P1-32 F1: a booking opened through the reference-code-and-last-name lookup (and every later read, cancel or proof upload
+// made with the session that lookup issued) carries NO money: the total, the estimate, the currency and every per-line price
+// and price status are ABSENT, not zero. A booking opened through its private link keeps them.
+export interface ManagedLineView {serviceId:UUID;name:string;quantity:number;priceStatus?:"PRICED"|"FOR_QUOTE";subtotalCentavos?:number|null;referenceSubtotalCentavos?:number|null}
+export interface ManagedDayBookingView extends Omit<DayBookingView, "lines"|"totalPriceCentavos"|"estimatedTotalCentavos"|"currency"> {
+ lines:ManagedLineView[];
+ totalPriceCentavos?:number;
+ estimatedTotalCentavos?:number|null;
+ currency?:"PHP";
  selfServiceAllowed:boolean;
  selfServiceCutoff:ISOInstant;
  deposit:ManagedDepositView;

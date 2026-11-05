@@ -75,8 +75,9 @@ export function isManagedView(v: unknown): v is ManagedDayBookingView {
     isDay(v.bookingDate) &&
     typeof v.timezone === "string" &&
     typeof v.vehicleCategoryName === "string" &&
-    isInt(v.totalPriceCentavos) &&
-    (v.estimatedTotalCentavos === null || isInt(v.estimatedTotalCentavos)) &&
+    (v.totalPriceCentavos === undefined
+      ? v.estimatedTotalCentavos === undefined && v.currency === undefined
+      : isInt(v.totalPriceCentavos) && (v.estimatedTotalCentavos === null || isInt(v.estimatedTotalCentavos))) &&
     typeof v.selfServiceAllowed === "boolean" &&
     typeof v.selfServiceCutoff === "string" &&
     !Number.isNaN(Date.parse(v.selfServiceCutoff)) &&
@@ -86,9 +87,11 @@ export function isManagedView(v: unknown): v is ManagedDayBookingView {
         typeof l.serviceId === "string" &&
         typeof l.name === "string" &&
         isInt(l.quantity, 1) &&
-        (l.priceStatus === "PRICED" || l.priceStatus === "FOR_QUOTE") &&
-        (l.subtotalCentavos === null || isInt(l.subtotalCentavos)) &&
-        (l.referenceSubtotalCentavos === null || isInt(l.referenceSubtotalCentavos)),
+        (l.priceStatus === undefined
+          ? l.subtotalCentavos === undefined && l.referenceSubtotalCentavos === undefined
+          : (l.priceStatus === "PRICED" || l.priceStatus === "FOR_QUOTE") &&
+            (l.subtotalCentavos === null || isInt(l.subtotalCentavos)) &&
+            (l.referenceSubtotalCentavos === null || isInt(l.referenceSubtotalCentavos))),
     ) &&
     isDepositStatus(d.status) &&
     isInt(d.proofsSent) &&

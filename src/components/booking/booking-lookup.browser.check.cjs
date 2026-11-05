@@ -15,8 +15,9 @@ const LIMIT = 'Too many tries. Use the link in your confirmation email, or call 
 const future = new Date(Date.now() + 8 * 3600_000 + 5 * 86_400_000).toISOString().slice(0, 10);
 const view = (status) => ({
   id: '0f8fad5b-d9cb-469f-a165-70867728950e', referenceCode: 'ZEUS-ABC123', status, revision: 2, bookingDate: future, timezone: 'Asia/Manila',
-  vehicleCategoryId: '0f8fad5b-d9cb-469f-a165-70867728950f', vehicleCategoryName: 'Small', currency: 'PHP', totalPriceCentavos: 18000, estimatedTotalCentavos: 18000,
-  lines: [{ serviceId: '0f8fad5b-d9cb-469f-a165-708677289510', name: 'Basic Wash', quantity: 1, priceStatus: 'PRICED', subtotalCentavos: 18000, referenceSubtotalCentavos: null }],
+  vehicleCategoryId: '0f8fad5b-d9cb-469f-a165-70867728950f', vehicleCategoryName: 'Small',
+  // Codex F1: the lookup and the session it opens carry NO money keys at all (no total, estimate, currency or line price).
+  lines: [{ serviceId: '0f8fad5b-d9cb-469f-a165-708677289510', name: 'Basic Wash', quantity: 1 }],
   selfServiceAllowed: true, selfServiceCutoff: new Date(Date.now() + 3 * 86_400_000).toISOString(),
   deposit: { status: 'NONE', proofsSent: 0, proofsAllowed: 3, message: null },
 });
@@ -99,6 +100,8 @@ test('the Manage booking page: reference code + last name, one generic failure, 
       assert.equal(await page.getByText('j•••@gmail.com').count(), 1, 'masked email');
       const body = await page.locator('body').innerText();
       for (const secret of ['bay', 'Bay', 'worker', 'Worker', 'checklist']) assert.ok(!body.includes(secret), width + 'px nothing about ' + secret);
+      assert.ok(body.includes('Basic Wash'), width + 'px the service name is shown');
+      assert.ok(!/₱|PHP|Total|Estimated|For quote|180/.test(body), width + 'px no price, total or estimate anywhere on the page');
       assert.equal(lookups.length, 4);
       assert.ok(lookups.every((l) => typeof l.turnstileToken === 'string' && l.turnstileToken.startsWith('synthetic-')), 'every attempt carries a security-check token');
       assert.equal(new Set(lookups.map((l) => l.turnstileToken)).size, 4, 'a fresh token for every attempt');
