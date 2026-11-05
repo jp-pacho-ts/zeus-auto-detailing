@@ -623,8 +623,13 @@ REVOKE ALL ON FUNCTION delete_booking(text, text, integer, text) FROM PUBLIC;
 -- implicit) can therefore be made to run attacker code with the owner's rights. Every function this migration creates
 -- puts pg_temp LAST and schema-qualifies what it touches. This block does the same for the functions that earlier
 -- migrations created in schema public (and that this role owns, and that no extension owns):
---   * every SECURITY DEFINER function, whatever its current path: the existing path is kept exactly as it is, with
---     pg_temp moved to the end (or added); a definer with no pinned path gets "pg_catalog, public, pg_temp".
+--   * every SECURITY DEFINER function, whatever its current path. The path is read as a list of identifiers (Codex F5): a
+--     comma inside a double-quoted schema name is part of the name, not a separator, and a doubled quote inside a quoted name
+--     is a quote. Every token keeps its original text byte for byte; only a bare pg_temp token (any case; PostgreSQL always
+--     stores it as lowercase pg_temp, and an uppercase "PG_TEMP" in quotes is a different schema that is kept) is removed
+--     wherever it stands, and pg_temp is appended last. Everything else is identical, so the function behaves as before. A
+--     path that already ends in one pg_temp is not touched at all. A definer with no pinned path gets
+--     "pg_catalog, public, pg_temp"; an empty path (stored as "") becomes pg_temp.
 --     Nothing aborts: a surprising path is fixed, never a reason to fail a live apply, and each change is reported
 --     below as a NOTICE (visible in the migrate output) and in the release check, which lists every definer with its path.
 --   * a non-definer function (a trigger function, which runs as the table owner whenever a definer function fires it)
@@ -632,7 +637,7 @@ REVOKE ALL ON FUNCTION delete_booking(text, text, integer, text) FROM PUBLIC;
 -- Known today: publish_catalog, booking_delete_authorised and delete_booking (definers), plus the trigger functions.
 -- Run prisma/sql/p1-37-definer-inventory.sql (one read-only SELECT) before this migration to see exactly what it will touch.
 DO $$
-DECLARE f record; cfg text; items text[]; newcfg text; changed integer := 0;
+DECLARE f record; cfg text; tokens text[]; kept text[]; newtokens text[]; changed integer := 0;
 BEGIN
  FOR f IN
   SELECT p.oid::regprocedure AS sig, p.prosecdef, p.proconfig
@@ -641,23 +646,28 @@ BEGIN
     AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
   ORDER BY p.oid::regprocedure::text
  LOOP
-  -- The stored value after "search_path=", for example 'pg_catalog, public'.
+  -- The stored value after "search_path=", for example 'pg_catalog, public' or '"qsa,scope", pg_catalog'.
   SELECT substr(c, 13) INTO cfg FROM unnest(COALESCE(f.proconfig, ARRAY[]::text[])) c WHERE c LIKE 'search_path=%' LIMIT 1;
-  newcfg := NULL;
+  -- Identifier-aware tokens: a token is a run of quoted segments (a doubled quote inside is an escaped quote) and any other
+  -- characters except a comma or a quote. Whitespace outside quotes is trimmed; nothing inside quotes is touched.
+  tokens := ARRAY(SELECT btrim(t.m[1]) FROM regexp_matches(COALESCE(cfg, ''), '((?:"(?:[^"]|"")*"|[^,"])+)', 'g') WITH ORDINALITY AS t(m, n)
+                  WHERE btrim(t.m[1]) <> '' ORDER BY t.n);
+  newtokens := NULL;
   IF f.prosecdef THEN
    IF cfg IS NULL THEN
-    newcfg := 'pg_catalog, public, pg_temp';
+    newtokens := ARRAY['pg_catalog', 'public', 'pg_temp'];
    ELSE
-    items := ARRAY(SELECT btrim(i) FROM unnest(string_to_array(cfg, ',')) i WHERE btrim(i) <> 'pg_temp' AND btrim(i) <> '');
-    newcfg := array_to_string(array_append(items, 'pg_temp'), ', ');
+    -- Drop only a bare pg_temp (any case) and the empty-path marker "", keep every other token as written, append pg_temp.
+    kept := ARRAY(SELECT x FROM unnest(tokens) WITH ORDINALITY u(x, i) WHERE lower(x) <> 'pg_temp' AND x <> '""' ORDER BY i);
+    newtokens := array_append(kept, 'pg_temp');
    END IF;
-  ELSIF regexp_replace(COALESCE(cfg, ''), '\s', '', 'g') = 'pg_catalog,public' THEN
-   newcfg := 'pg_catalog, public, pg_temp';
+  ELSIF tokens = ARRAY['pg_catalog', 'public'] THEN
+   newtokens := ARRAY['pg_catalog', 'public', 'pg_temp'];
   END IF;
-  IF newcfg IS NOT NULL AND regexp_replace(COALESCE(cfg, ''), '\s', '', 'g') <> regexp_replace(newcfg, '\s', '', 'g') THEN
-   EXECUTE format('ALTER FUNCTION %s SET search_path = %s', f.sig, newcfg);
+  IF newtokens IS NOT NULL AND tokens IS DISTINCT FROM newtokens THEN
+   EXECUTE format('ALTER FUNCTION %s SET search_path = %s', f.sig, array_to_string(newtokens, ', '));
    changed := changed + 1;
-   RAISE NOTICE 'P1-37 8b: % % search_path "%" -> "%"', CASE WHEN f.prosecdef THEN 'SECURITY DEFINER' ELSE 'function' END, f.sig, COALESCE(cfg, '(none)'), newcfg;
+   RAISE NOTICE 'P1-37 8b: % % search_path "%" -> "%"', CASE WHEN f.prosecdef THEN 'SECURITY DEFINER' ELSE 'function' END, f.sig, COALESCE(cfg, '(none)'), array_to_string(newtokens, ', ');
   END IF;
  END LOOP;
  RAISE NOTICE 'P1-37 8b: % function(s) changed', changed;
