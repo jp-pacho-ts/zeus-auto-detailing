@@ -46,13 +46,15 @@ checks(name, ok, detail) AS (
   UNION ALL SELECT 'zeus_app reads ' || t, (SELECT present FROM role) AND has_table_privilege('zeus_app', 'public.' || t, 'SELECT'), ''
     FROM unnest(ARRAY['commission_settings', 'commission_accruals', 'commission_entries']) t
   UNION ALL SELECT 'zeus_app cannot write ' || t,
-    (SELECT present FROM role) AND NOT has_table_privilege('zeus_app', 'public.' || t, 'INSERT') AND NOT has_any_column_privilege('zeus_app', 'public.' || t, 'UPDATE')
-      AND NOT has_table_privilege('zeus_app', 'public.' || t, 'DELETE') AND NOT has_table_privilege('zeus_app', 'public.' || t, 'TRUNCATE'), ''
+    -- Column-aware for INSERT and UPDATE (Codex F3): a grant on one column is a write path even when the table-level privilege is absent.
+    (SELECT present FROM role) AND NOT has_any_column_privilege('zeus_app', 'public.' || t, 'INSERT') AND NOT has_any_column_privilege('zeus_app', 'public.' || t, 'UPDATE')
+      AND NOT has_table_privilege('zeus_app', 'public.' || t, 'DELETE') AND NOT has_table_privilege('zeus_app', 'public.' || t, 'TRUNCATE')
+      AND NOT has_any_column_privilege('zeus_app', 'public.' || t, 'REFERENCES') AND NOT has_table_privilege('zeus_app', 'public.' || t, 'TRIGGER'), ''
     FROM unnest(ARRAY['commission_settings', 'commission_accruals', 'commission_entries', 'admin_audit_events']) t
   UNION ALL SELECT 'zeus_app cannot read admin_audit_events',
     (SELECT present FROM role) AND NOT has_any_column_privilege('zeus_app', 'public.admin_audit_events', 'SELECT'), ''
   UNION ALL SELECT 'zeus_app cannot write staff or read phones',
-    (SELECT present FROM role) AND NOT has_table_privilege('zeus_app', 'public.staff', 'INSERT') AND NOT has_table_privilege('zeus_app', 'public.staff', 'DELETE')
+    (SELECT present FROM role) AND NOT has_any_column_privilege('zeus_app', 'public.staff', 'INSERT') AND NOT has_table_privilege('zeus_app', 'public.staff', 'DELETE')
       AND NOT has_any_column_privilege('zeus_app', 'public.staff', 'UPDATE') AND NOT has_column_privilege('zeus_app', 'public.staff', 'phone', 'SELECT'), ''
   UNION ALL SELECT 'trigger ' || tbl || '.' || name || ' is enabled',
     EXISTS(SELECT 1 FROM pg_trigger g WHERE g.tgrelid = ('public.' || tbl)::regclass AND g.tgname = name AND g.tgenabled IN ('O', 'A') AND NOT g.tgisinternal), ''

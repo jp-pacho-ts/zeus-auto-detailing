@@ -4,6 +4,8 @@
 // sibling databases of the T007 test database; nothing is dropped.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { after, before, test } from "node:test";
 import { PrismaClient } from "@prisma/client";
 import { createAndMigrate, createDatabase, migrateDatabase, provisionRuntimeRole, runRuntimeRoleScript, runtimeRoleUrl, siblingDatabaseUrl } from "../catalog-db.fixture";
@@ -180,6 +182,52 @@ test("S-06 check: passes for zeus_app; names every problem for the owner, a wide
   try { assert.deepEqual(await check(app), ["triggers"]); }
   finally { await owner.$executeRawUnsafe("ALTER TABLE booking_audit_events ENABLE TRIGGER booking_audit_no_truncate"); }
   assert.deepEqual(await check(app), []);
+});
+
+// Codex F3 (P1-37). The S-06 gate used to look only at booking_audit_events, and the release check looked at table-level INSERT
+// only, so a grant on a few COLUMNS of admin_audit_events let the app forge audit rows while both reported all clear.
+test("a column-only INSERT grant on admin_audit_events (a forged audit row) or on staff fails the S-06 check AND the release check", { skip }, async () => {
+  const check = (db: PrismaClient) => db.$transaction((tx) => checkAuditPrivileges(tx));
+  const release = fs.readFileSync(path.join(process.cwd(), "prisma", "sql", "p1-37-readonly-check.sql"), "utf8");
+  const verdict = async () => {
+    const rows = await owner.$queryRawUnsafe<{ name: string; ok: boolean; detail: string }[]>(release);
+    return { ok: rows.find((r) => r.name === "VERDICT")!.ok, failing: rows.filter((r) => !r.ok && r.name !== "VERDICT").map((r) => r.name) };
+  };
+  assert.deepEqual(await check(app), [], "baseline: the intended privileges pass the gate");
+  assert.deepEqual(await verdict(), { ok: true, failing: [] }, "baseline: the release check is ALL_OK");
+
+  const person = await owner.staff.create({ data: { name: "Forgery Probe", phone: "", email: `forge-${randomUUID()}@example.test`, role: "ADMIN" } });
+  await owner.$executeRawUnsafe(`GRANT INSERT (action, "actorStaffId", "targetStaffId", reason) ON admin_audit_events TO zeus_app`);
+  try {
+    assert.equal((await owner.$queryRawUnsafe<{ t: boolean }[]>(`SELECT has_table_privilege('zeus_app', 'public.admin_audit_events', 'INSERT') AS t`))[0].t, false, "no table-level INSERT, the blind spot");
+    // The hole is real: the app can write a forged event with a canary in reason (rolled back so the immutable table stays clean).
+    class Rollback extends Error {}
+    let accepted = false;
+    await assert.rejects(app.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`INSERT INTO admin_audit_events (action, "actorStaffId", "targetStaffId", reason) VALUES ('STAFF_CREATED', '${person.id}', '${person.id}', 'FORGED-CANARY')`);
+      accepted = true;
+      throw new Rollback("undo");
+    }), (e: unknown) => e instanceof Rollback);
+    assert.equal(accepted, true, "the forged row was accepted by the database");
+    assert.deepEqual(await check(app), ["admin_audit_insert"], "the S-06 check names it");
+    const v = await verdict();
+    assert.equal(v.ok, false);
+    assert.deepEqual(v.failing, ["zeus_app cannot write admin_audit_events"], "the release check names it");
+  } finally {
+    await owner.$executeRawUnsafe(`REVOKE INSERT (action, "actorStaffId", "targetStaffId", reason) ON admin_audit_events FROM zeus_app`);
+  }
+  assert.deepEqual(await check(app), []);
+  assert.deepEqual(await verdict(), { ok: true, failing: [] });
+  // The same blind spot on staff, and on a money table.
+  for (const [grant, revoke, expected] of [
+    [`GRANT INSERT (name) ON staff TO zeus_app`, `REVOKE INSERT (name) ON staff FROM zeus_app`, "zeus_app cannot write staff or read phones"],
+    [`GRANT INSERT ("paidAt") ON commission_entries TO zeus_app`, `REVOKE INSERT ("paidAt") ON commission_entries FROM zeus_app`, "zeus_app cannot write commission_entries"],
+    [`GRANT SELECT (action) ON admin_audit_events TO zeus_app`, `REVOKE SELECT (action) ON admin_audit_events FROM zeus_app`, "zeus_app cannot read admin_audit_events"],
+  ] as const) {
+    await owner.$executeRawUnsafe(grant);
+    try { assert.deepEqual((await verdict()).failing, [expected], grant); } finally { await owner.$executeRawUnsafe(revoke); }
+  }
+  assert.deepEqual(await verdict(), { ok: true, failing: [] }, "restored");
 });
 
 test("in production a failed check refuses staff mutations before any write (503, NOT_COMMITTED, logged); reads and zeus_app writes work", { skip }, async () => {
