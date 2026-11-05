@@ -36,8 +36,9 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
     setError(null);
     try {
       const message = await work();
-      setNotice(message);
+      // The message appears with the fresh list, never above stale data.
       await reload();
+      setNotice(message);
       return true;
     } catch (e) {
       setError(describeError(e));

@@ -37,8 +37,10 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
     setBusy(true);
     setError(null);
     try {
-      setNotice(await work());
+      const message = await work();
+      // The message appears with the fresh totals, never above stale ones.
       await Promise.all([summary.reload(), reloadTeam()]);
+      setNotice(message);
       return true;
     } catch (e) {
       setError(describeError(e));
