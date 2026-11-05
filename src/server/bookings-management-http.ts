@@ -16,6 +16,7 @@ import {
   recoverBookingOperation,
   readManagedBooking,
   exchangeManagementAccess,
+  lookupManagedBooking,
   getManagedDayAvailability,
   forgetManagementSession,
   managementCookieName,
@@ -24,6 +25,7 @@ import {
 type Action =
   | "read"
   | "exchange"
+  | "lookup"
   | "forget"
   | "recovery"
   | "cancel"
@@ -118,6 +120,8 @@ export async function managementHttp(
     const result =
       action === "exchange"
         ? await exchangeManagementAccess(input, opts)
+        : action === "lookup"
+          ? await lookupManagedBooking(input, opts)
         : action === "recovery"
           ? await recoverBookingOperation(input, opts)
           : action === "cancel"

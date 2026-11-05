@@ -7,6 +7,8 @@ import { Logo } from "@/components/ui/logo";
 import { isMultiDay } from "@/components/booking/day-booking";
 import { DayPicker, dateLabel, todayInManila } from "@/components/booking/day-picker";
 import { DepositProofSection } from "@/components/booking/deposit-proof";
+import { BookingLookupForm } from "@/components/booking/booking-lookup-form";
+import { BookingProgress } from "@/components/booking/booking-progress";
 import { ContactShop, ManagedBookingDetails } from "@/components/booking/managed-booking-details";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import { reveal } from "@/components/booking/reveal";
@@ -25,7 +27,7 @@ import {
   type FrozenRequest,
 } from "@/components/booking/manage-booking";
 import type { BookingCatalogResponse } from "@/types/catalog-contracts";
-import type { ManagedDayAvailabilityData, ManagedDayBookingView } from "@/types/contracts";
+import type { ManagedDayAvailabilityData, ManagedDayBookingView, ManagedLookupData } from "@/types/contracts";
 
 // P1-05 second pass: the private booking page (ADR-002, P1-04 contract). No URL parameters: the
 // saved code is exchanged once for the HttpOnly session cookie, and every later call relies on that
@@ -47,6 +49,8 @@ export function ManageBooking() {
   const [readError, setReadError] = React.useState("");
   const [readVersion, setReadVersion] = React.useState(0);
   const [view, setView] = React.useState<ManagedDayBookingView | null>(null);
+  // P1-32: the masked phone and email shown after "reference code + last name" (never the full details).
+  const [lookupContact, setLookupContact] = React.useState<ManagedLookupData["contact"] | null>(null);
   const [multiDay, setMultiDay] = React.useState(false);
   const [code, setCode] = React.useState("");
   const [codeError, setCodeError] = React.useState("");
@@ -73,6 +77,7 @@ export function ManageBooking() {
   const toCode = React.useCallback((notice: string) => {
     unconfirmedAction.current = null;
     setView(null);
+    setLookupContact(null);
     setMode("view");
     setAction(null);
     setActionError("");
@@ -342,6 +347,13 @@ export function ManageBooking() {
 
           {phase === "code" && (
             <>
+              <BookingLookupForm
+                onFound={(data) => {
+                  setLookupContact(data.contact);
+                  setView(data.booking);
+                  setPhase("booking");
+                }}
+              />
               <form onSubmit={(e) => void openCode(e)} className={panel} aria-labelledby="code-form-title">
                 <h2 id="code-form-title" className="text-lg font-bold text-foreground">
                   Enter your private code
@@ -426,6 +438,19 @@ export function ManageBooking() {
                 </div>
               )}
 
+              <BookingProgress status={view.status} />
+              {lookupContact && (
+                <p className="rounded border border-border bg-card p-4 text-sm text-muted-foreground">
+                  Contact details on file: <span className="font-semibold text-foreground">{lookupContact.phone}</span>
+                  {lookupContact.email && (
+                    <>
+                      {" · "}
+                      <span className="font-semibold text-foreground">{lookupContact.email}</span>
+                    </>
+                  )}
+                  . To change them, contact the shop.
+                </p>
+              )}
               <ManagedBookingDetails
                 view={view}
                 multiDay={multiDay}

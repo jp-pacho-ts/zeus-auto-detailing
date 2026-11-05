@@ -127,6 +127,8 @@ model Booking {
   id                          String                     @id @default(uuid())
   referenceCode               String                     @unique
   customerName                String
+  customerFirstName           String? // P1-32: NULL on bookings made before the split; customerName is the display name
+  customerLastName            String?
   customerPhone               String
   customerEmail               String?
   vehiclePlate                String?
@@ -853,6 +855,8 @@ model BookingManagementSession {
   issuedAt          DateTime               @db.Timestamptz(3)
   expiresAt         DateTime               @db.Timestamptz(3)
   revokedAt         DateTime?              @db.Timestamptz(3)
+  // P1-32 F1: LINK (opened with the private link, shows prices) or LOOKUP (opened with reference code and last name, never shows money).
+  origin            String                 @default("LINK")
 
   @@index([bookingId, expiresAt])
   @@map("booking_management_sessions")

@@ -337,3 +337,16 @@ test("F2: a complete reply with an impossible date is unconfirmed and keeps the 
   assert.equal(new Set(bodies).size, 1, "every attempt sends the identical body and key");
   assert.equal(JSON.parse(String(bodies[0])).idempotencyKey, "k-cal");
 });
+
+// Codex F1 (P1-32): a booking opened by lookup carries no money keys at all; money is all or nothing.
+test("a view without money still validates, and a half-money view does not", () => {
+  const { totalPriceCentavos: _t, estimatedTotalCentavos: _e, currency: _c, ...rest } = view();
+  void _t; void _e; void _c;
+  const moneyless = { ...rest, lines: [{ serviceId: "22222222-2222-4222-8222-222222222222", name: "Basic Wash", quantity: 1 }] };
+  assert.equal(isManagedView(moneyless), true);
+  assert.equal(isSessionData({ booking: moneyless, sessionExpiresAt: "2026-11-04T00:00:00.000Z" }), true);
+  assert.equal(isManagedView({ ...moneyless, estimatedTotalCentavos: 5 }), false, "an estimate without a total");
+  assert.equal(isManagedView({ ...moneyless, currency: "PHP" }), false, "a currency without a total");
+  assert.equal(isManagedView({ ...moneyless, lines: [{ ...moneyless.lines[0], subtotalCentavos: 5 }] }), false, "a line price without its status");
+  assert.equal(isManagedView(view()), true, "a view with all its money still validates");
+});

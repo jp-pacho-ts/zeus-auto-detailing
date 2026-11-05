@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
+import { z } from "zod";
 import { test } from "node:test";
 import { CreateDayBookingSchema, DayAvailabilitySchema } from "@/lib/validation";
 import { bySlug, releaseFromManifest, sizeId } from "./catalog.fixture";
@@ -92,4 +93,26 @@ test("daily shop and pending alert configuration defaults and explicit positive 
    assert.throws(()=>parseBookingConfiguration({...e,[name]:value}),name+"="+value);
   }
  }
+});
+
+// Codex F2 (P1-32, Medium). The release-1 request schema only trimmed customerName (z.string().trim()...). The candidate collapsed
+// inner spaces even for an old single name, so the same valid request "Ana  Santos" hashed differently and a stale exact retry
+// of a committed receipt could hit an idempotency conflict. The hash must bind the bytes the release-1 parser produced.
+test("an old single-name request hashes exactly as the release-1 parser and hash did, so a stale retry replays", () => {
+  const releaseOneName = (raw: string) => z.string().trim().min(2).max(100).parse(raw); // the release-1 rule, stated here
+  for (const raw of ["Ana  Santos", "  Ana   Santos  ", "Juan De  La   Cruz", "Ana Santos", "Mary-Ann  O'Neil"]) {
+    const expected = releaseOneName(raw);
+    const parsed = CreateDayBookingSchema.parse({ ...request(), customerName: raw });
+    assert.equal(parsed.customerName, expected, JSON.stringify(raw));
+    assert.equal(parsed.customerFirstName, undefined);
+    assert.equal(parsed.customerLastName, undefined);
+    // The hash of the new parse equals the hash of a request carrying the release-1 bytes and no name parts.
+    const { customerFirstName: _a, customerLastName: _b, ...releaseOne } = { ...parsed, customerName: expected } as typeof parsed;
+    void _a; void _b;
+    assert.equal(bookingRequestHash(parsed), bookingRequestHash(releaseOne as typeof parsed), JSON.stringify(raw));
+  }
+  // Two requests that differ only in inner spacing are different old requests: they must NOT collide on one hash.
+  const a = CreateDayBookingSchema.parse({ ...request(), customerName: "Ana  Santos" });
+  const b = CreateDayBookingSchema.parse({ ...request(), customerName: "Ana Santos" });
+  assert.notEqual(bookingRequestHash(a), bookingRequestHash(b));
 });
