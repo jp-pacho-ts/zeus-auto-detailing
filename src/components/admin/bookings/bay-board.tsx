@@ -368,8 +368,10 @@ export function BayBoard({
 
   React.useEffect(() => {
     if (board && !resource.loading && focus.current && !busy) {
+      let revealedColumn: string | null = null;
       if (reveal.current) {
         const { lane, colId } = reveal.current;
+        revealedColumn = colId;
         reveal.current = null;
         const sc = scrollerRefs.current[lane];
         const col = sc
@@ -385,7 +387,18 @@ export function BayBoard({
           }
         }
       }
-      document.getElementById(focus.current)?.focus({ preventScroll: true });
+      const target = document.getElementById(focus.current);
+      target?.focus({ preventScroll: true });
+      if (!target || document.activeElement !== target) {
+        // The target is missing, hidden or not focusable (for example in a column that is not shown): never leave focus on
+        // BODY. Fall back to the visible heading of the revealed column, then to the board's status message.
+        const heading = revealedColumn
+          ? Array.from(document.querySelectorAll<HTMLElement>("[data-board-column]"))
+              .find((el) => el.getAttribute("data-board-column") === revealedColumn && el.getClientRects().length > 0)
+              ?.querySelector<HTMLElement>("h3")
+          : null;
+        (heading ?? document.getElementById("board-status"))?.focus({ preventScroll: true });
+      }
       focus.current = null;
     }
   }, [board, resource.loading, busy, syncRowCue]);
@@ -560,6 +573,13 @@ export function BayBoard({
         { method: "POST", body: { expectedRevision: card.revision } },
       );
       if (!mounted.current) return;
+      // P1-34 F1: the finished car now lives in this lane's Done column. Below md only the picked column is shown, so
+      // select it (the same mechanism move() uses) before focus is restored; otherwise the card's button is in a
+      // display:none column and focus is lost to BODY.
+      if (lane) {
+        setPicked((p) => ({ ...p, [lane]: "DONE-" + lane }));
+        reveal.current = { lane, colId: "DONE-" + lane };
+      }
       focus.current = "board-card-" + card.id;
       await reloadBoard();
       showStatus("Car finished.", false);
@@ -961,9 +981,11 @@ export function BayBoard({
         }
       >
         <p
+          id="board-status"
+          tabIndex={-1}
           role="status"
           aria-live="polite"
-          className="min-w-0 flex-1 break-words text-sm"
+          className="min-w-0 flex-1 break-words text-sm focus:outline-none"
         >
           {message}
         </p>

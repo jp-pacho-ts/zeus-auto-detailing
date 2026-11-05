@@ -149,11 +149,17 @@ test('the Bay board: a car is finished by dropping it on Done, or from its move 
     await seated.getByLabel('Move ' + ref2 + ' to bay').selectOption({ label: 'Done (finish)' });
     await seated.getByRole('button', { name: 'Move car', exact: true }).focus();
     await page.keyboard.press('Enter');
-    await show('Done · Wash');
-    await doneCol.getByRole('article', { name: ref2, exact: true }).waitFor({ timeout: 15_000 });
+    // Codex F1 (P1-34): the test must NOT switch columns itself after submitting (it used to call show('Done · Wash') here, which
+    // made the target visible and hid the defect). The board has to reveal the Done column on its own: at 390 px only the picked
+    // column is shown, so a finish that leaves another column picked puts the result in a display:none column and focus on BODY.
+    await doneCol.getByRole('article', { name: ref2, exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
     assert.equal(finishes.length, sent + 1);
+    assert.equal(await doneCol.isVisible(), true, 'the Done column is revealed after a keyboard finish, without any further selection');
     const doneBtn = doneCol.getByRole('article', { name: ref2, exact: true }).getByRole('button', { name: ref2, exact: true });
-    assert.equal(await page.evaluate(() => document.activeElement?.id), await doneBtn.getAttribute('id'), 'focus lands on the finished card');
+    assert.equal(await doneBtn.isVisible(), true, 'the finished card is visible');
+    const focused = await page.evaluate(() => ({ id: document.activeElement?.id || '', tag: document.activeElement?.tagName || '' }));
+    assert.notEqual(focused.tag, 'BODY', 'focus is not lost to BODY after a keyboard finish');
+    assert.equal(focused.id, await doneBtn.getAttribute('id'), 'focus lands on the finished card');
     await shot(page, `p134-finished-keyboard-${width}`);
 
     // ---- 4. An uncertain finish locks the board (P1-25): no further moves or finishes until a good reload ----
