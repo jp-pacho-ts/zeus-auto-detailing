@@ -621,27 +621,46 @@ REVOKE ALL ON FUNCTION delete_booking(text, text, integer, text) FROM PUBLIC;
 -- for types and relations unless "pg_temp" is named in the search_path, and zeus_app may create temporary objects. A
 -- SECURITY DEFINER function that names an application type or table without a schema (or whose path leaves pg_temp
 -- implicit) can therefore be made to run attacker code with the owner's rights. Every function this migration creates
--- puts pg_temp LAST and schema-qualifies what it touches. The same fix is applied here to every function that earlier
--- migrations created in schema public with the pinned path "pg_catalog, public" (publish_catalog,
--- booking_delete_authorised, delete_booking, and the trigger functions, which run as the table owner whenever a definer
--- function fires them): only pg_temp is added, last, so behaviour is otherwise identical. Fails closed: a SECURITY
--- DEFINER function whose path is anything else stops the migration so a person looks at it.
+-- puts pg_temp LAST and schema-qualifies what it touches. This block does the same for the functions that earlier
+-- migrations created in schema public (and that this role owns, and that no extension owns):
+--   * every SECURITY DEFINER function, whatever its current path: the existing path is kept exactly as it is, with
+--     pg_temp moved to the end (or added); a definer with no pinned path gets "pg_catalog, public, pg_temp".
+--     Nothing aborts: a surprising path is fixed, never a reason to fail a live apply, and each change is reported
+--     below as a NOTICE (visible in the migrate output) and in the release check, which lists every definer with its path.
+--   * a non-definer function (a trigger function, which runs as the table owner whenever a definer function fires it)
+--     only when its path is exactly "pg_catalog, public", the pinned path every earlier migration used: pg_temp is added.
+-- Known today: publish_catalog, booking_delete_authorised and delete_booking (definers), plus the trigger functions.
+-- Run prisma/sql/p1-37-definer-inventory.sql (one read-only SELECT) before this migration to see exactly what it will touch.
 DO $$
-DECLARE f record; cfg text;
+DECLARE f record; cfg text; items text[]; newcfg text; changed integer := 0;
 BEGIN
  FOR f IN
   SELECT p.oid::regprocedure AS sig, p.prosecdef, p.proconfig
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
   WHERE n.nspname = 'public' AND p.prokind = 'f' AND p.proowner = (SELECT r.oid FROM pg_roles r WHERE r.rolname = current_user)
     AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+  ORDER BY p.oid::regprocedure::text
  LOOP
-  SELECT regexp_replace(c, '\s', '', 'g') INTO cfg FROM unnest(COALESCE(f.proconfig, ARRAY[]::text[])) c WHERE c LIKE 'search_path=%';
-  IF cfg = 'search_path=pg_catalog,public' THEN
-   EXECUTE format('ALTER FUNCTION %s SET search_path = pg_catalog, public, pg_temp', f.sig);
-  ELSIF f.prosecdef AND cfg IS DISTINCT FROM 'search_path=pg_catalog,public,pg_temp' THEN
-   RAISE EXCEPTION 'SECURITY DEFINER function % has an unexpected search_path (%); review it before releasing', f.sig, COALESCE(cfg, 'none');
+  -- The stored value after "search_path=", for example 'pg_catalog, public'.
+  SELECT substr(c, 13) INTO cfg FROM unnest(COALESCE(f.proconfig, ARRAY[]::text[])) c WHERE c LIKE 'search_path=%' LIMIT 1;
+  newcfg := NULL;
+  IF f.prosecdef THEN
+   IF cfg IS NULL THEN
+    newcfg := 'pg_catalog, public, pg_temp';
+   ELSE
+    items := ARRAY(SELECT btrim(i) FROM unnest(string_to_array(cfg, ',')) i WHERE btrim(i) <> 'pg_temp' AND btrim(i) <> '');
+    newcfg := array_to_string(array_append(items, 'pg_temp'), ', ');
+   END IF;
+  ELSIF regexp_replace(COALESCE(cfg, ''), '\s', '', 'g') = 'pg_catalog,public' THEN
+   newcfg := 'pg_catalog, public, pg_temp';
+  END IF;
+  IF newcfg IS NOT NULL AND regexp_replace(COALESCE(cfg, ''), '\s', '', 'g') <> regexp_replace(newcfg, '\s', '', 'g') THEN
+   EXECUTE format('ALTER FUNCTION %s SET search_path = %s', f.sig, newcfg);
+   changed := changed + 1;
+   RAISE NOTICE 'P1-37 8b: % % search_path "%" -> "%"', CASE WHEN f.prosecdef THEN 'SECURITY DEFINER' ELSE 'function' END, f.sig, COALESCE(cfg, '(none)'), newcfg;
   END IF;
  END LOOP;
+ RAISE NOTICE 'P1-37 8b: % function(s) changed', changed;
 END $$;
 
 -- 9. Privileges. No default privileges for the new tables; the runtime role reads the three commission tables and has
