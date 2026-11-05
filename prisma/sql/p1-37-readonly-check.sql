@@ -59,12 +59,19 @@ checks(name, ok, detail) AS (
     FROM trg
   UNION ALL SELECT 'function ' || sig || ': exists, owner, SECURITY DEFINER, pinned search_path, ACL',
     p.oid IS NOT NULL
-      AND (NOT fn.definer OR (p.prosecdef AND EXISTS(SELECT 1 FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) c WHERE c LIKE 'search_path=%pg_catalog%public%')))
+      AND (NOT fn.definer OR (p.prosecdef AND EXISTS(SELECT 1 FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) c WHERE c ~ '^search_path=pg_catalog, ?public, ?pg_temp$')))
       AND pg_get_userbyid(p.proowner) = pg_get_userbyid((SELECT relowner FROM pg_class WHERE oid = 'public.bookings'::regclass))
       AND NOT EXISTS(SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
       AND (NOT (SELECT present FROM role) OR has_function_privilege('zeus_app', p.oid, 'EXECUTE') = fn.app_exec),
     CASE WHEN p.oid IS NULL THEN 'missing' ELSE '' END
     FROM fn LEFT JOIN pg_proc p ON p.oid = to_regprocedure('public.' || fn.sig)
+  -- Codex F1: a SECURITY DEFINER function whose path does not end in pg_temp (or is not pinned) can be hijacked with a
+  -- temporary type or table. Covers every definer function in public, old ones included. The detail names offenders.
+  UNION ALL SELECT 'every SECURITY DEFINER function in public pins search_path with pg_temp last',
+    NOT EXISTS(SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.prosecdef
+      AND NOT EXISTS(SELECT 1 FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) c WHERE c ~ '^search_path=pg_catalog, ?public, ?pg_temp$')),
+    COALESCE((SELECT string_agg(p.oid::regprocedure::text, ', ') FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.prosecdef
+      AND NOT EXISTS(SELECT 1 FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) c WHERE c ~ '^search_path=pg_catalog, ?public, ?pg_temp$')), '')
   UNION ALL SELECT 'delete_booking() carries the commission check and the delete token logic',
     COALESCE((SELECT prosrc LIKE '%commission_entries%' AND prosrc LIKE '%booking_delete_tokens%' AND prosrc LIKE '%ZD005%' AND prosrc LIKE '%commission_accruals%'
       FROM pg_proc WHERE oid = to_regprocedure('public.delete_booking(text, text, integer, text)')), false), ''

@@ -462,3 +462,62 @@ test("C17 deactivating or removing a person who still has an open job is refused
   assert.equal(removed.outcome, "DEACTIVATED", "they have commission history now, so they are deactivated, not erased");
   assert.equal((await entries(job.id)).length, 1, "their earnings are still there");
 });
+
+// Codex F1 (High). The runtime role may create temporary objects, and PostgreSQL searches the temporary schema FIRST for types
+// and relations unless pg_temp is named last in a function's search_path. Without that, a temporary domain called
+// "AdminAuditAction" made its CHECK run inside the SECURITY DEFINER function, with the owner's rights, and it granted the app
+// UPDATE on staff. Here the app role builds that trap (plus temporary tables that shadow every table the functions use), runs
+// every admin function and delete_booking on the same connection, and must neither gain the privilege nor lose any function.
+test("C18 a temporary type, table or function made by the runtime role cannot hijack any admin function or delete_booking", { skip }, async () => {
+  const w = await person("Hijack Worker", "10");
+  const job = await completed([w.id], 100_000);
+  const entry = (await entries(job.id))[0];
+  const pending = await book(select("S", "basic-wash"), nextDay());
+  const pendingRevision = await rev(pending.id);
+  const [{ r: settingsRevision }] = await db.$queryRawUnsafe<{ r: number }[]>(`SELECT revision AS r FROM commission_settings WHERE id = 1`);
+  const actor = lit(ADMIN.staffId);
+  const seen: string[] = [];
+  class Done extends Error {}
+  await assert.rejects(app.$transaction(async (tx) => {
+    function q<R>(sql: string) { return tx.$queryRawUnsafe<R[]>(sql); }
+    const gained = async (label: string) => {
+      const [{ g }] = await q<{ g: boolean }>(`SELECT has_table_privilege('zeus_app', 'public.staff', 'UPDATE') AS g`);
+      assert.equal(g, false, `${label}: the runtime role must not gain UPDATE on staff`);
+      seen.push(label);
+    };
+    // The trap: a temporary function that would grant the app write access, run by a temporary domain's CHECK.
+    await tx.$executeRawUnsafe(`CREATE FUNCTION pg_temp.evil(v text) RETURNS boolean LANGUAGE plpgsql AS $$ BEGIN GRANT UPDATE ON public.staff TO zeus_app; RETURN true; END $$`);
+    await tx.$executeRawUnsafe(`CREATE DOMAIN pg_temp."AdminAuditAction" AS public."AdminAuditAction" CHECK (pg_temp.evil(VALUE::text))`);
+    // Temporary tables that would capture any unqualified table name inside the functions.
+    for (const t of ["staff", "bookings", "staff_credentials", "staff_sessions", "booking_worker_assignments", "commission_entries", "commission_accruals", "commission_settings", "admin_audit_events", "booking_line_items"])
+      await tx.$executeRawUnsafe(`CREATE TEMP TABLE "${t}" (id text)`);
+    await gained("traps set");
+
+    const [{ n }] = await q<{ n: number }>(`SELECT count(*)::int AS n FROM public.admin_team_list(${actor})`);
+    assert.ok(n >= 2, "admin_team_list still works"); await gained("admin_team_list");
+    const [{ id }] = await q<{ id: string }>(`SELECT public.admin_staff_create(${actor}, 'Hijack Probe', '', '', NULL) AS id`);
+    assert.ok(id, "admin_staff_create still works"); await gained("admin_staff_create");
+    const [{ u }] = await q<{ u: { changed: boolean } }>(`SELECT public.admin_staff_update(${actor}, ${lit(id)}, 'Hijack Probe 2', NULL, NULL, 'SET', 1500, 1) AS u`);
+    assert.equal(u.changed, true, "admin_staff_update still works"); await gained("admin_staff_update");
+    const [{ a }] = await q<{ a: { changed: boolean } }>(`SELECT public.admin_staff_set_active(${actor}, ${lit(id)}, false, 2) AS a`);
+    assert.equal(a.changed, true, "admin_staff_set_active (deactivate) still works"); await gained("admin_staff_set_active deactivate");
+    const [{ b }] = await q<{ b: { changed: boolean } }>(`SELECT public.admin_staff_set_active(${actor}, ${lit(id)}, true, 3) AS b`);
+    assert.equal(b.changed, true, "admin_staff_set_active (reactivate) still works"); await gained("admin_staff_set_active reactivate");
+    const [{ d }] = await q<{ d: { changed: boolean } }>(`SELECT public.admin_commission_default_set(${actor}, 1100, ${settingsRevision}) AS d`);
+    assert.equal(d.changed, true, "admin_commission_default_set still works"); await gained("admin_commission_default_set");
+    const [{ p }] = await q<{ p: { changed: number } }>(`SELECT public.admin_commission_paid_set(${actor}, ARRAY[${lit(entry.id)}]::text[], true) AS p`);
+    assert.equal(p.changed, 1, "admin_commission_paid_set still works"); await gained("admin_commission_paid_set");
+    const [{ rp }] = await q<{ rp: { repaired: number } }>(`SELECT public.admin_commission_repair(${actor}) AS rp`);
+    assert.equal(typeof rp.repaired, "number", "admin_commission_repair still works"); await gained("admin_commission_repair");
+    const [{ rm }] = await q<{ rm: string }>(`SELECT public.admin_staff_remove(${actor}, ${lit(id)}, 4) AS rm`);
+    assert.equal(rm, "DELETED", "admin_staff_remove still works"); await gained("admin_staff_remove");
+    const [{ del }] = await q<{ del: { reference: string } }>(`SELECT public.delete_booking(${lit(pending.id)}, ${actor}, ${pendingRevision}, ${lit(pending.reference)}) AS del`);
+    assert.equal(del.reference, pending.reference, "delete_booking still works"); await gained("delete_booking");
+    throw new Done("roll back every probe");
+  }), (e: unknown) => e instanceof Done);
+  assert.equal(seen.length, 11, `every function was exercised: ${seen.join(", ")}`);
+  // The rolled-back probes left nothing behind and the privilege is still absent for new connections.
+  assert.equal(await count("staff", `name LIKE 'Hijack Probe%'`), 0);
+  const [{ g }] = await db.$queryRawUnsafe<{ g: boolean }[]>(`SELECT has_table_privilege('zeus_app', 'public.staff', 'UPDATE') AS g`);
+  assert.equal(g, false);
+});

@@ -20,7 +20,10 @@ BEGIN;
 -- How it is protected
 --  * The runtime role (zeus_app) gets SELECT on the three commission tables and NOTHING on admin_audit_events,
 --    and no new privilege at all on staff. Every write is a SECURITY DEFINER function owned by the migration
---    owner (pinned search_path, EXECUTE for zeus_app only), the same model as delete_booking() in P1-29.
+--    owner (search_path pg_catalog, public, pg_temp with pg_temp LAST, every application object schema-qualified,
+--    EXECUTE for zeus_app only), the same model as delete_booking() in P1-29. Section 8b applies the same
+--    pg_temp-last path to the functions earlier migrations created (Codex F1: a temporary type could otherwise run
+--    code with the owner's rights).
 --  * Each ADMIN function takes the shop lock (746001, 1) first, requires an active ADMIN or MANAGER actor
 --    (ZT004), checks the expected revision, and writes its rows and its audit row in one transaction.
 --  * The accrual is a trigger on bookings, so every completion path (setBookingStatus, P1-34 finishBooking,
@@ -105,7 +108,7 @@ ALTER TABLE "admin_audit_events" ADD CONSTRAINT admin_audit_shape CHECK (COALESC
     ELSE false END, false));
 
 -- txId is the inserting transaction and createdAt is stamped by the database, never by a caller.
-CREATE FUNCTION guard_admin_audit_insert() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
+CREATE FUNCTION guard_admin_audit_insert() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
 BEGIN
  IF NEW."txId" IS DISTINCT FROM txid_current() THEN RAISE EXCEPTION 'Admin audit txId must be the inserting transaction'; END IF;
  IF NEW."targetStaffId" IS NOT NULL AND NEW."action"::text <> 'STAFF_REMOVED' AND NOT EXISTS(SELECT 1 FROM public.staff WHERE id = NEW."targetStaffId") THEN
@@ -115,7 +118,7 @@ BEGIN
  RETURN NEW;
 END $$;
 CREATE TRIGGER admin_audit_insert BEFORE INSERT ON admin_audit_events FOR EACH ROW EXECUTE FUNCTION guard_admin_audit_insert();
-CREATE FUNCTION reject_admin_audit_change() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Admin audit is append-only'; END $$;
+CREATE FUNCTION reject_admin_audit_change() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$ BEGIN RAISE EXCEPTION 'Admin audit is append-only'; END $$;
 CREATE TRIGGER admin_audit_immutable BEFORE UPDATE OR DELETE ON admin_audit_events FOR EACH ROW EXECUTE FUNCTION reject_admin_audit_change();
 CREATE TRIGGER admin_audit_no_truncate BEFORE TRUNCATE ON admin_audit_events FOR EACH STATEMENT EXECUTE FUNCTION reject_admin_audit_change();
 
@@ -133,7 +136,7 @@ CREATE TABLE "commission_settings" (
 );
 ALTER TABLE "commission_settings" ADD CONSTRAINT "commission_settings_updatedByStaffId_fkey" FOREIGN KEY ("updatedByStaffId") REFERENCES "staff"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 INSERT INTO "commission_settings" ("id", "defaultRateBp") VALUES (1, 1000);
-CREATE FUNCTION guard_commission_settings_change() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'The commission settings row cannot be deleted'; END $$;
+CREATE FUNCTION guard_commission_settings_change() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$ BEGIN RAISE EXCEPTION 'The commission settings row cannot be deleted'; END $$;
 CREATE TRIGGER commission_settings_keep BEFORE DELETE ON commission_settings FOR EACH ROW EXECUTE FUNCTION guard_commission_settings_change();
 CREATE TRIGGER commission_settings_no_truncate BEFORE TRUNCATE ON commission_settings FOR EACH STATEMENT EXECUTE FUNCTION guard_commission_settings_change();
 
@@ -179,7 +182,7 @@ ALTER TABLE "commission_entries" ADD CONSTRAINT "commission_entries_staffId_fkey
 ALTER TABLE "commission_entries" ADD CONSTRAINT "commission_entries_paidByStaffId_fkey" FOREIGN KEY ("paidByStaffId") REFERENCES "staff"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- Entries change only their paid state; they are never deleted.
-CREATE FUNCTION guard_commission_entry_change() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
+CREATE FUNCTION guard_commission_entry_change() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
 BEGIN
  IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'Commission entries cannot be deleted'; END IF;
  IF NEW."id" IS DISTINCT FROM OLD."id" OR NEW."bookingId" IS DISTINCT FROM OLD."bookingId" OR NEW."staffId" IS DISTINCT FROM OLD."staffId"
@@ -194,7 +197,7 @@ CREATE TRIGGER commission_entry_change BEFORE UPDATE OR DELETE ON commission_ent
 CREATE TRIGGER commission_entry_no_truncate BEFORE TRUNCATE ON commission_entries FOR EACH STATEMENT EXECUTE FUNCTION reject_admin_audit_change();
 
 -- A header never changes. It can go only with its booking through delete_booking(), and only when no entry exists.
-CREATE FUNCTION guard_commission_accrual_change() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
+CREATE FUNCTION guard_commission_accrual_change() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
 BEGIN
  IF TG_OP = 'UPDATE' THEN RAISE EXCEPTION 'Commission records are immutable'; END IF;
  IF public.booking_delete_authorised(OLD."bookingId") AND NOT EXISTS(SELECT 1 FROM public.commission_entries WHERE "bookingId" = OLD."bookingId") THEN RETURN OLD; END IF;
@@ -209,7 +212,7 @@ CREATE TRIGGER commission_accrual_no_truncate BEFORE TRUNCATE ON commission_accr
 --   each person gets floor(num_i / 10000); the L = T - sum of floors leftover centavos (0 <= L <= n) go one each to
 --   the largest remainders (num_i mod 10000), ties to the earlier position. The amounts add up to exactly T.
 CREATE FUNCTION commission_split(p_base bigint, p_rates integer[]) RETURNS TABLE(idx integer, share_centavos bigint, amount_centavos bigint)
-LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE n integer := COALESCE(array_length(p_rates, 1), 0);
 BEGIN
  IF n = 0 THEN RETURN; END IF;
@@ -231,7 +234,7 @@ REVOKE ALL ON FUNCTION commission_split(bigint, integer[]) FROM PUBLIC;
 -- 6. Consistency check, the accrual, and its trigger
 -- Re-verifies one booking's records from the stored rows alone: the entry count matches the header; the shares add up
 -- to the total; the amounts add up to the rounded total; each amount is within one centavo of its exact share.
-CREATE FUNCTION commission_consistency_check(p_booking text) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+CREATE FUNCTION commission_consistency_check(p_booking text) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE h public.commission_accruals; c integer; s_base bigint; s_amt bigint; s_num bigint;
 BEGIN
  SELECT * INTO h FROM public.commission_accruals WHERE "bookingId" = p_booking;
@@ -250,7 +253,7 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION commission_consistency_check(text) FROM PUBLIC;
 
-CREATE FUNCTION check_commission_consistency() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+CREATE FUNCTION check_commission_consistency() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 BEGIN PERFORM public.commission_consistency_check(NEW."bookingId"); RETURN NULL; END $$;
 REVOKE ALL ON FUNCTION check_commission_consistency() FROM PUBLIC;
 CREATE CONSTRAINT TRIGGER commission_entries_consistent AFTER INSERT ON commission_entries DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION check_commission_consistency();
@@ -260,7 +263,7 @@ CREATE CONSTRAINT TRIGGER commission_accruals_consistent AFTER INSERT ON commiss
 -- people the Bay board credited), their rates and the default. Returns the number of people credited; 0 when the
 -- booking is not eligible, was already recorded, or had nobody assigned (a header with creditedCount 0 is written
 -- in that last case, so "nobody credited" is visible).
-CREATE FUNCTION commission_accrue(p_booking text) RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+CREATE FUNCTION commission_accrue(p_booking text) RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE b public.bookings; total bigint; unpriced integer; default_bp integer; ids text[]; rates integer[]; n integer;
 BEGIN
  SELECT * INTO b FROM public.bookings WHERE id = p_booking;
@@ -289,7 +292,7 @@ REVOKE ALL ON FUNCTION commission_accrue(text) FROM PUBLIC;
 
 -- Fires only on the transition into COMPLETED for a QUEUE_V3 booking (nothing else on bookings reaches it). A failure
 -- is caught: the completion still commits, and the failure is audited with the SQLSTATE only.
-CREATE FUNCTION commission_accrue_on_complete() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+CREATE FUNCTION commission_accrue_on_complete() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 BEGIN
  BEGIN
   PERFORM public.commission_accrue(NEW.id);
@@ -306,7 +309,7 @@ CREATE TRIGGER commission_accrue_on_complete AFTER UPDATE OF status ON bookings 
 -- 7. ADMIN functions. Each: shop lock first, an active ADMIN or MANAGER actor, validation, the expected revision, the
 -- write and its audit row in one transaction. Only DETAILER people can be changed (ADMIN and MANAGER accounts, their
 -- passwords and role changes stay with the operator CLI, ADR-003); an ADMIN or MANAGER row accepts only a rate.
-CREATE FUNCTION admin_assert_actor(p_actor text) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+CREATE FUNCTION admin_assert_actor(p_actor text) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 BEGIN
  IF p_actor IS NULL OR p_actor = '' THEN RAISE EXCEPTION 'Missing or invalid input' USING ERRCODE = 'ZT006'; END IF;
  IF NOT EXISTS(SELECT 1 FROM public.staff WHERE id = p_actor AND "isActive" AND role IN ('ADMIN', 'MANAGER')) THEN
@@ -317,7 +320,7 @@ REVOKE ALL ON FUNCTION admin_assert_actor(text) FROM PUBLIC;
 
 CREATE FUNCTION admin_team_list(p_actor text)
 RETURNS TABLE(id text, name text, phone text, email text, role text, "isActive" boolean, "commissionRateBp" integer, "hasCredential" boolean, "openJobs" integer, "hasHistory" boolean, revision integer, "createdAt" timestamp)
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 BEGIN
  PERFORM public.admin_assert_actor(p_actor);
  RETURN QUERY
@@ -337,7 +340,7 @@ BEGIN
 END $$;
 
 CREATE FUNCTION admin_staff_create(p_actor text, p_name text, p_phone text, p_email text, p_rate_bp integer) RETURNS text
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE v_id text := gen_random_uuid()::text; v_name text := btrim(COALESCE(p_name, '')); v_phone text := btrim(COALESCE(p_phone, '')); v_email text := lower(btrim(COALESCE(p_email, '')));
 BEGIN
  PERFORM pg_advisory_xact_lock(746001, 1);
@@ -360,7 +363,7 @@ END $$;
 -- p_rate_mode: KEEP leaves the rate alone, DEFAULT clears it (use the default), SET uses p_rate_bp. A NULL name, phone or
 -- email means "leave it". Nothing changed means no write, no revision bump and no audit row.
 CREATE FUNCTION admin_staff_update(p_actor text, p_id text, p_name text, p_phone text, p_email text, p_rate_mode text, p_rate_bp integer, p_revision integer) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE s public.staff; v_name text; v_phone text; v_email text; changed text[] := ARRAY[]::text[]; new_rate integer; prev_label text; new_label text;
 BEGIN
  PERFORM pg_advisory_xact_lock(746001, 1);
@@ -414,7 +417,7 @@ BEGIN
 END $$;
 
 CREATE FUNCTION admin_staff_set_active(p_actor text, p_id text, p_active boolean, p_revision integer) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE s public.staff;
 BEGIN
  PERFORM pg_advisory_xact_lock(746001, 1);
@@ -435,14 +438,14 @@ BEGIN
  IF NOT p_active THEN
   UPDATE public.staff_sessions SET "revokedAt" = statement_timestamp(), "revokedReason" = 'DEACTIVATED' WHERE "staffId" = p_id AND "revokedAt" IS NULL;
  END IF;
- INSERT INTO public.admin_audit_events (action, "actorStaffId", "targetStaffId") VALUES (CASE WHEN p_active THEN 'STAFF_REACTIVATED' ELSE 'STAFF_DEACTIVATED' END::"AdminAuditAction", p_actor, p_id);
+ INSERT INTO public.admin_audit_events (action, "actorStaffId", "targetStaffId") VALUES (CASE WHEN p_active THEN 'STAFF_REACTIVATED' ELSE 'STAFF_DEACTIVATED' END::public."AdminAuditAction", p_actor, p_id);
  RETURN jsonb_build_object('revision', s.revision + 1, 'changed', true);
 END $$;
 
 -- Deletes a person who has no history; otherwise deactivates them. The delete is attempted and a foreign-key
 -- or restrict violation means history exists (this stays right for tables added later). Returns DELETED or DEACTIVATED.
 CREATE FUNCTION admin_staff_remove(p_actor text, p_id text, p_revision integer) RETURNS text
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE s public.staff; deleted boolean := false;
 BEGIN
  PERFORM pg_advisory_xact_lock(746001, 1);
@@ -477,7 +480,7 @@ BEGIN
 END $$;
 
 CREATE FUNCTION admin_commission_default_set(p_actor text, p_rate_bp integer, p_revision integer) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE c public.commission_settings;
 BEGIN
  PERFORM pg_advisory_xact_lock(746001, 1);
@@ -494,7 +497,7 @@ END $$;
 -- Marks entries paid (or not paid). Unknown ids are counted, not errors; an entry already in the wanted state is left
 -- alone. Entries are locked in id order so two callers cannot deadlock. One audit row per entry that changed.
 CREATE FUNCTION admin_commission_paid_set(p_actor text, p_ids text[], p_paid boolean) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE e public.commission_entries; v_id text; changed integer := 0; unknown integer := 0;
 BEGIN
  PERFORM pg_advisory_xact_lock(746001, 1);
@@ -512,7 +515,7 @@ BEGIN
    UPDATE public.commission_entries SET "paidAt" = NULL, "paidByStaffId" = NULL WHERE id = v_id;
   END IF;
   INSERT INTO public.admin_audit_events (action, "actorStaffId", "targetStaffId", "bookingId", "newValue")
-   VALUES (CASE WHEN p_paid THEN 'COMMISSION_PAID' ELSE 'COMMISSION_UNPAID' END::"AdminAuditAction", p_actor, e."staffId", e."bookingId", e."amountCentavos"::text);
+   VALUES (CASE WHEN p_paid THEN 'COMMISSION_PAID' ELSE 'COMMISSION_UNPAID' END::public."AdminAuditAction", p_actor, e."staffId", e."bookingId", e."amountCentavos"::text);
   changed := changed + 1;
  END LOOP;
  RETURN jsonb_build_object('changed', changed, 'unknown', unknown);
@@ -521,7 +524,7 @@ END $$;
 -- Redoes the records of completed bookings that have none (an accrual that failed). Only bookings completed since the
 -- commission start are touched, so history before the release is never back-filled. Up to 200 per call; idempotent.
 CREATE FUNCTION admin_commission_repair(p_actor text) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE b record; repaired integer := 0; starts timestamptz;
 BEGIN
  PERFORM pg_advisory_xact_lock(746001, 1);
@@ -541,7 +544,7 @@ END $$;
 -- is refused with the existing ZD005, and a header with no entries is deleted with its booking. Signature, SECURITY
 -- DEFINER, pinned search_path, owner and ACL are as before (CREATE OR REPLACE keeps them; they are restated below).
 CREATE OR REPLACE FUNCTION delete_booking(p_booking text, p_actor text, p_revision integer, p_reference text) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE b public.bookings; line_count integer; total bigint;
 BEGIN
  -- Every input is required, before any lock or write (a NULL compares as unknown, never as different).
@@ -583,6 +586,33 @@ BEGIN
  RETURN jsonb_build_object('reference', b."referenceCode", 'status', b.status::text, 'lines', line_count);
 END $$;
 REVOKE ALL ON FUNCTION delete_booking(text, text, integer, text) FROM PUBLIC;
+
+-- 8b. Temp-schema hardening of the EXISTING functions (Codex F1). PostgreSQL searches the session's temporary schema FIRST
+-- for types and relations unless "pg_temp" is named in the search_path, and zeus_app may create temporary objects. A
+-- SECURITY DEFINER function that names an application type or table without a schema (or whose path leaves pg_temp
+-- implicit) can therefore be made to run attacker code with the owner's rights. Every function this migration creates
+-- puts pg_temp LAST and schema-qualifies what it touches. The same fix is applied here to every function that earlier
+-- migrations created in schema public with the pinned path "pg_catalog, public" (publish_catalog,
+-- booking_delete_authorised, delete_booking, and the trigger functions, which run as the table owner whenever a definer
+-- function fires them): only pg_temp is added, last, so behaviour is otherwise identical. Fails closed: a SECURITY
+-- DEFINER function whose path is anything else stops the migration so a person looks at it.
+DO $$
+DECLARE f record; cfg text;
+BEGIN
+ FOR f IN
+  SELECT p.oid::regprocedure AS sig, p.prosecdef, p.proconfig
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.prokind = 'f' AND p.proowner = (SELECT r.oid FROM pg_roles r WHERE r.rolname = current_user)
+    AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+ LOOP
+  SELECT regexp_replace(c, '\s', '', 'g') INTO cfg FROM unnest(COALESCE(f.proconfig, ARRAY[]::text[])) c WHERE c LIKE 'search_path=%';
+  IF cfg = 'search_path=pg_catalog,public' THEN
+   EXECUTE format('ALTER FUNCTION %s SET search_path = pg_catalog, public, pg_temp', f.sig);
+  ELSIF f.prosecdef AND cfg IS DISTINCT FROM 'search_path=pg_catalog,public,pg_temp' THEN
+   RAISE EXCEPTION 'SECURITY DEFINER function % has an unexpected search_path (%); review it before releasing', f.sig, COALESCE(cfg, 'none');
+  END IF;
+ END LOOP;
+END $$;
 
 -- 9. Privileges. No default privileges for the new tables; the runtime role reads the three commission tables and has
 -- nothing on admin_audit_events. The functions are executable by zeus_app only (the internal ones by nobody).

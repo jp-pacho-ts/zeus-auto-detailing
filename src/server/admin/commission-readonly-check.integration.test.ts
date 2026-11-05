@@ -35,7 +35,7 @@ test("RO1 on a migrated, provisioned database every check passes and the verdict
   assert.ok(rows.length >= 50, `a thorough check (${rows.length} rows)`);
   const named = (needle: string) => rows.some((r) => r.name.includes(needle) && r.ok);
   for (const needle of ["delete_booking(text, text, integer, text): exists, owner, SECURITY DEFINER, pinned search_path, ACL", "legacy object kept: commission_payouts",
-    "zeus_app cannot write staff", "trigger bookings.commission_accrue_on_complete is enabled", "commission_settings has exactly one valid row", "migration applied"])
+    "every SECURITY DEFINER function in public pins search_path with pg_temp last", "zeus_app cannot write staff", "trigger bookings.commission_accrue_on_complete is enabled", "commission_settings has exactly one valid row", "migration applied"])
     assert.ok(named(needle), needle);
   assert.equal(rows.find((r) => r.name === "info: commission default rate (basis points)")!.detail, "1000");
 });
@@ -73,7 +73,12 @@ test("RO3 it names the problem: an extra grant to the app, a disabled trigger, a
   await breakIt(`GRANT EXECUTE ON FUNCTION commission_accrue(text) TO zeus_app`, [`REVOKE ALL ON FUNCTION commission_accrue(text) FROM PUBLIC`, `REVOKE ALL ON FUNCTION commission_accrue(text) FROM zeus_app`], "function commission_accrue(text)");
   await breakIt(`REVOKE EXECUTE ON FUNCTION delete_booking(text, text, integer, text) FROM zeus_app`, `GRANT EXECUTE ON FUNCTION delete_booking(text, text, integer, text) TO zeus_app`, "function delete_booking(text, text, integer, text)");
   await breakIt(`ALTER FUNCTION delete_booking(text, text, integer, text) SECURITY INVOKER`, `ALTER FUNCTION delete_booking(text, text, integer, text) SECURITY DEFINER`, "function delete_booking(text, text, integer, text)");
-  await breakIt(`ALTER FUNCTION admin_team_list(text) RESET search_path`, `ALTER FUNCTION admin_team_list(text) SET search_path = pg_catalog, public`, "function admin_team_list(text)");
+  await breakIt(`ALTER FUNCTION admin_team_list(text) RESET search_path`, `ALTER FUNCTION admin_team_list(text) SET search_path = pg_catalog, public, pg_temp`, "function admin_team_list(text)");
+  // Codex F1: a path without pg_temp LAST is a failure, for a new function and for an old one from an earlier migration.
+  await breakIt(`ALTER FUNCTION admin_staff_set_active(text, text, boolean, integer) SET search_path = pg_catalog, public`, `ALTER FUNCTION admin_staff_set_active(text, text, boolean, integer) SET search_path = pg_catalog, public, pg_temp`, "function admin_staff_set_active(text, text, boolean, integer)");
+  await breakIt(`ALTER FUNCTION admin_staff_set_active(text, text, boolean, integer) SET search_path = pg_temp, pg_catalog, public`, `ALTER FUNCTION admin_staff_set_active(text, text, boolean, integer) SET search_path = pg_catalog, public, pg_temp`, "every SECURITY DEFINER function in public pins search_path with pg_temp last");
+  await breakIt(`ALTER FUNCTION publish_catalog(text, text, text, text) SET search_path = pg_catalog, public`, `ALTER FUNCTION publish_catalog(text, text, text, text) SET search_path = pg_catalog, public, pg_temp`, "every SECURITY DEFINER function in public pins search_path with pg_temp last");
+  await breakIt(`ALTER FUNCTION booking_delete_authorised(text) RESET search_path`, `ALTER FUNCTION booking_delete_authorised(text) SET search_path = pg_catalog, public, pg_temp`, "every SECURITY DEFINER function in public pins search_path with pg_temp last");
 });
 
 test("RO4 the script also fails closed when the migration is missing or the runtime role is absent (a database before the migration)", { skip }, async () => {
