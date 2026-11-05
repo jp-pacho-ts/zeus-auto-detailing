@@ -311,7 +311,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               <BookingsTab role={staff.role} initialView={initialTab === "Bay Calendar" ? "CALENDAR" : "BOOKINGS"} />
             )}
             {tab === "Bay board" && <BayWorkspace role={staff.role} />}
-            {tab === "Team & Commissions" && <DetailersTab />}
+            {tab === "Team & Commissions" && <DetailersTab role={staff.role} />}
             {tab === "Supplies & Inventory" && <InventoryTab />}
             {tab === "Sales Analytics" && <AnalyticsTab />}
           </div>
