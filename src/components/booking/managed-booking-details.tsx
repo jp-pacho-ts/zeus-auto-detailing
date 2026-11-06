@@ -2,6 +2,7 @@ import { CalendarClock, MessageSquare, Phone, ShieldCheck, XCircle } from "lucid
 import { brandConfig } from "@/config/brand";
 import { lineAmount, quoteTotal } from "@/components/booking/day-booking";
 import { dateLabel } from "@/components/booking/day-picker";
+import { BookingProgress } from "@/components/booking/booking-progress";
 import { bookingStatusWords, selfServiceNotice } from "@/components/booking/manage-booking";
 import type { ManagedDayBookingView } from "@/types/contracts";
 
@@ -42,12 +43,14 @@ export function ManagedBookingDetails({
   busy,
   onCancel,
   onChangeDay,
+  contact,
 }: {
   view: ManagedDayBookingView;
   multiDay: boolean;
   busy: boolean;
   onCancel: () => void;
   onChangeDay: () => void;
+  contact?: { phone: string; email: string | null } | null;
 }) {
   // A booking opened by reference code and last name carries no money at all (P1-32 F1): show no price and no total then.
   const total =
@@ -72,6 +75,10 @@ export function ManagedBookingDetails({
           </div>
         </div>
         <p className="rounded bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">{bookingStatusWords(view.status)}</p>
+      </div>
+
+      <div className="border-b border-border py-5">
+        <BookingProgress status={view.status} />
       </div>
 
       <dl className="mt-4 divide-y divide-border/60 text-sm">
@@ -116,6 +123,19 @@ export function ManagedBookingDetails({
         </div>
         )}
       </dl>
+
+      {contact && (
+        <p className="border-t border-border/60 py-3 text-sm text-muted-foreground">
+          Contact details on file: <span className="font-semibold text-foreground">{contact.phone}</span>
+          {contact.email && (
+            <>
+              {" · "}
+              <span className="font-semibold text-foreground">{contact.email}</span>
+            </>
+          )}
+          . To change them, contact the shop.
+        </p>
+      )}
 
       {notice ? (
         <div className="mt-4 rounded border border-border/80 bg-[#121214] p-4">
