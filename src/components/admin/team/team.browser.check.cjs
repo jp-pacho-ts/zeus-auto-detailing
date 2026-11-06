@@ -189,9 +189,17 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   const toDate = page.getByLabel('To', { exact: true }), fromDate = page.getByLabel('From', { exact: true });
   await toDate.fill('2000-01-01');
   await page.getByRole('alert').filter({ hasText: "can't be before" }).waitFor();
-  await toDate.fill(await fromDate.inputValue()); // same day is allowed
+  // Wait for each range answer itself (the old rows stay on screen meanwhile, so 'By person' alone proves nothing).
+  const answered = () => page.waitForResponse((r) => r.url().includes('/api/admin/commissions?') && r.ok());
+  // A range of one day (today, where the fixture's jobs completed) is allowed. It must be a day WITH data: the first day of the month has none,
+  // and the page then shows no 'By person' list at all.
+  const monthFrom = await fromDate.inputValue();
+  const today = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
+  await fromDate.fill(today);
+  await Promise.all([answered(), toDate.fill(today)]);
   await page.getByText('By person').waitFor();
-  await toDate.fill(new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10));
+  await Promise.all([answered(), fromDate.fill(monthFrom)]);
+  await page.getByText('By person').waitFor();
 
   // Mark Ben's two jobs paid; the totals and the filter agree, and it survives a reload.
   await page.waitForLoadState('networkidle'); // let the range refetch finish before ticking, or the ticks can land on rows that are about to be replaced
