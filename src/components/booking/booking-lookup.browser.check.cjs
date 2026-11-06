@@ -92,9 +92,16 @@ test('the Manage booking page: reference code + last name, one generic failure, 
       await page.waitForTimeout(150);
       await submit.click();
       await page.getByRole('heading', { name: 'Booking progress' }).waitFor();
-      assert.match(await page.getByText('Current status:').innerText(), /Confirmed/);
+      assert.match(await page.getByText('Your booking is confirmed').innerText(), /confirmed/);
+      const bar = page.getByRole('progressbar', { name: 'Booking progress' });
+      assert.equal(await bar.getAttribute('aria-valuetext'), 'Step 2 of 4: Confirmed');
+      // The bar animates in from empty to the middle of step 2 (37.5% of the bar), then stays.
+      await page.waitForFunction(() => { const f = document.querySelector('[role=progressbar] > div'); return f && f.style.width === '37.5%'; });
+      await page.waitForTimeout(1700);
+      const fillRatio = await bar.evaluate((el) => el.firstElementChild.getBoundingClientRect().width / el.getBoundingClientRect().width);
+      assert.ok(Math.abs(fillRatio - 0.375) < 0.01, width + 'px the fill settles on step 2: ' + fillRatio);
       const steps = page.getByRole('list', { name: 'Progress steps' }).getByRole('listitem');
-      assert.deepEqual(await steps.allInnerTexts().then((t) => t.map((x) => x.replace(/\s*\(done\)/, '').trim())), ['Received', 'Confirmed', 'In service', 'Completed']);
+      assert.deepEqual(await steps.allInnerTexts().then((t) => t.map((x) => x.replace(/\s*\((?:done|current step)\)/, '').trim())), ['Received', 'Confirmed', 'In service', 'Completed']);
       assert.equal(await steps.nth(1).getAttribute('aria-current'), 'step');
       assert.equal(await page.getByText('+63 9•• ••• 4567').count(), 1, 'masked phone');
       assert.equal(await page.getByText('j•••@gmail.com').count(), 1, 'masked email');

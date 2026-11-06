@@ -8,7 +8,6 @@ import { isMultiDay } from "@/components/booking/day-booking";
 import { DayPicker, dateLabel, todayInManila } from "@/components/booking/day-picker";
 import { DepositProofSection } from "@/components/booking/deposit-proof";
 import { BookingLookupForm } from "@/components/booking/booking-lookup-form";
-import { BookingProgress } from "@/components/booking/booking-progress";
 import { ContactShop, ManagedBookingDetails } from "@/components/booking/managed-booking-details";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import { reveal } from "@/components/booking/reveal";
@@ -345,21 +344,9 @@ export function ManageBooking() {
                 </div>
               )}
 
-              <BookingProgress status={view.status} />
-              {lookupContact && (
-                <p className="rounded border border-border bg-card p-4 text-sm text-muted-foreground">
-                  Contact details on file: <span className="font-semibold text-foreground">{lookupContact.phone}</span>
-                  {lookupContact.email && (
-                    <>
-                      {" · "}
-                      <span className="font-semibold text-foreground">{lookupContact.email}</span>
-                    </>
-                  )}
-                  . To change them, contact the shop.
-                </p>
-              )}
               <ManagedBookingDetails
                 view={view}
+                contact={lookupContact}
                 multiDay={multiDay}
                 busy={locked || mode !== "view"}
                 onCancel={() => {
