@@ -160,7 +160,7 @@ test("T9 update: the email of a person who can sign in is the operator's to chan
   assert.equal((await db.staff.findUniqueOrThrow({ where: { id: p.id } })).email, "now.real@example.test");
 });
 
-test("T10 ADMIN and MANAGER accounts accept only a percentage; their name, phone, email, active state and removal are the operator's", { skip }, async () => {
+test("T10 ADMIN and MANAGER accounts cannot be changed from the Team screen at all, not even a percentage (P1-61: they are not staff and are never credited)", { skip }, async () => {
   const before = await db.staff.findUniqueOrThrow({ where: { id: managerRow.id } });
   await refused(s.updatePerson(ADMIN, managerRow.id, { expectedRevision: before.revision, name: "Renamed Manager" }, opts()), "NOT_ALLOWED", "name");
   await refused(s.updatePerson(ADMIN, managerRow.id, { expectedRevision: before.revision, phone: "0917" }, opts()), "NOT_ALLOWED", "phone");
@@ -169,9 +169,11 @@ test("T10 ADMIN and MANAGER accounts accept only a percentage; their name, phone
   await refused(s.setPersonActive(ADMIN, adminRow.id, { expectedRevision: 1, active: false }, opts()), "NOT_ALLOWED", "yourself");
   const after = await db.staff.findUniqueOrThrow({ where: { id: managerRow.id } });
   assert.deepEqual([after.name, after.isActive, after.revision, after.role], [before.name, true, before.revision, "MANAGER"]);
-  const rated = await s.updatePerson(ADMIN, managerRow.id, { expectedRevision: before.revision, ratePercent: "20" }, opts());
-  assert.equal(rated.commissionRateBp, 2000);
-  assert.equal(rated.name, "Team Manager");
+  // P1-61: before, a percentage was accepted for these rows (the old rule: "only a rate"). The admin is never credited, so now it is refused too.
+  await refused(s.updatePerson(ADMIN, managerRow.id, { expectedRevision: before.revision, ratePercent: "20" }, opts()), "NOT_ALLOWED", "rate");
+  await refused(s.updatePerson(ADMIN, adminRow.id, { expectedRevision: 1, ratePercent: "20" }, opts()), "NOT_ALLOWED", "admin rate");
+  const unrated = await db.staff.findUniqueOrThrow({ where: { id: managerRow.id } });
+  assert.deepEqual([unrated.commissionRateBp, unrated.revision, unrated.name], [null, before.revision, "Team Manager"]);
 });
 
 test("T11 deactivate and reactivate: sessions are revoked, the revision moves, a repeat is a no-op, and each change is audited once", { skip }, async () => {
@@ -227,8 +229,10 @@ test("T13 the list: phones for ADMIN only, default rate and revision, sign-in an
   assert.equal(byId.get(withHistory.id)!.hasHistory, true);
   assert.equal(byId.get(clean.id)!.hasHistory, false);
   assert.equal(byId.get(clean.id)!.email, null);
-  assert.equal(byId.get(adminRow.id)!.phone, "09170000001");
-  assert.equal(byId.get(adminRow.id)!.role, "ADMIN");
+  // P1-61: before, the admin row was listed with its phone and role. The Team holds staff names only, so the admin and manager rows are not listed.
+  assert.equal(byId.has(adminRow.id), false, "the admin is not on the Team");
+  assert.equal(byId.has(managerRow.id), false, "a manager is not on the Team");
+  assert.ok(team.people.every((p) => p.role === "DETAILER"));
   // Active people first, then by role and name.
   const inactiveAt = team.people.findIndex((p) => !p.isActive);
   assert.ok(team.people.slice(inactiveAt).every((p) => !p.isActive), "inactive people sort last");

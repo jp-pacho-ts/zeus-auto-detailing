@@ -46,12 +46,22 @@ const toPerson = (r: TeamRow): AdminTeamPerson => ({
   canSignIn: r.hasCredential, openJobs: Number(r.openJobs), hasHistory: r.hasHistory, revision: Number(r.revision), createdAt: r.createdAt.toISOString(),
 });
 
+// P1-61 (LE 2026-11-07): the Team holds the staff names the admin typed and nothing else. The admin and any manager account are never
+// staff here: they are not listed, cannot be found by id, and (see workers-write.ts) cannot be assigned to a booking or credited.
 async function teamRows(tx: StaffTx, actor: StaffActor): Promise<TeamRow[]> {
-  try { return await tx.$queryRaw<TeamRow[]>`SELECT * FROM admin_team_list(${actor.staffId})`; } catch (error) { return mapTeamError(error); }
+  try { return (await tx.$queryRaw<TeamRow[]>`SELECT * FROM admin_team_list(${actor.staffId})`).filter((r) => r.role === "DETAILER"); } catch (error) { return mapTeamError(error); }
 }
 async function settings(tx: StaffTx): Promise<SettingsRow> {
   const [row] = await tx.$queryRaw<SettingsRow[]>`SELECT "defaultRateBp", revision FROM commission_settings WHERE id = 1`;
   return { defaultRateBp: Number(row.defaultRateBp), revision: Number(row.revision) };
+}
+// P1-61: nothing on the Team screen can change the admin or a manager account, not even a commission percentage: they are not staff and
+// are never credited. An unknown id is left to the database function to report as not found.
+async function staffNameOnly(tx: StaffTx, actor: StaffActor, id: string): Promise<void> {
+  let all: { id: string; role: string }[];
+  try { all = await tx.$queryRaw<{ id: string; role: string }[]>`SELECT id, role::text AS role FROM admin_team_list(${actor.staffId})`; } catch (error) { return mapTeamError(error); }
+  const row = all.find((r) => r.id === id);
+  if (row && row.role !== "DETAILER") throw new AdminServiceError("NOT_ALLOWED", "Only staff names can be changed here.");
 }
 async function personOrThrow(tx: StaffTx, actor: StaffActor, id: string): Promise<AdminTeamPerson> {
   const row = (await teamRows(tx, actor)).find((r) => r.id === id);
@@ -96,6 +106,7 @@ export async function updatePerson(actor: StaffActor, id: unknown, input: unknow
   const mode = v.ratePercent === undefined ? "KEEP" : v.ratePercent === null ? "DEFAULT" : "SET";
   const rate = v.ratePercent == null ? null : bp(v.ratePercent);
   return mutate(options, "team_update", async (tx) => {
+    await staffNameOnly(tx, actor, staffId);
     let changed: boolean;
     try {
       const [row] = await tx.$queryRaw<{ r: { changed: boolean } }[]>`SELECT admin_staff_update(${actor.staffId}, ${staffId}, ${v.name ?? null}, ${v.phone ?? null}, ${v.email ?? null}, ${mode}, ${rate}::integer, ${v.expectedRevision}::integer) AS r`;
@@ -110,6 +121,7 @@ export async function setPersonActive(actor: StaffActor, id: unknown, input: unk
   authorize(actor, "TEAM_WRITE");
   const staffId = parse(AdminIdSchema, id), v = parse(TeamActiveSchema, input);
   return mutate(options, "team_active", async (tx) => {
+    await staffNameOnly(tx, actor, staffId);
     let changed: boolean;
     try {
       const [row] = await tx.$queryRaw<{ r: { changed: boolean } }[]>`SELECT admin_staff_set_active(${actor.staffId}, ${staffId}, ${v.active}, ${v.expectedRevision}::integer) AS r`;
@@ -125,6 +137,7 @@ export async function removePerson(actor: StaffActor, id: unknown, input: unknow
   authorize(actor, "TEAM_WRITE");
   const staffId = parse(AdminIdSchema, id), v = parse(TeamRemoveSchema, input);
   return mutate(options, "team_remove", async (tx) => {
+    await staffNameOnly(tx, actor, staffId);
     let outcome: AdminTeamRemoveOutcome;
     try {
       const [row] = await tx.$queryRaw<{ r: AdminTeamRemoveOutcome }[]>`SELECT admin_staff_remove(${actor.staffId}, ${staffId}, ${v.expectedRevision}::integer) AS r`;

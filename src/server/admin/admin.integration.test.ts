@@ -1199,11 +1199,15 @@ test("P1-17 board: large days are complete, future waiting excluded, inactive oc
   await s.unassignWorker(ADMIN, ids[1], worker.id, { expectedRevision: 2 }, opts());
   await refused(s.assignWorker(ADMIN, ids[1], worker.id, { expectedRevision: 3 }, opts()), "SCHEDULE_CONFLICT", "inactive reassign");
   await refused(s.assignWorker(ADMIN, ids[3], randomUUID(), { expectedRevision: 1 }, opts()), "NOT_FOUND", "unknown worker");
-  await s.assignWorker(ADMIN, ids[2], ADMIN.staffId, { expectedRevision: 1 }, opts());
+  // P1-61: this used to assign the ADMIN account as the worker. The admin is not staff and is never a worker, so it is refused; the
+  // completed-history checks below use a staff name (a DETAILER row) instead, with every assertion unchanged.
+  await refused(s.assignWorker(ADMIN, ids[2], ADMIN.staffId, { expectedRevision: 1 }, opts()), "SCHEDULE_CONFLICT", "the admin is never a worker");
+  const keeper = await db.staff.create({ data: { name: "Completed history worker", email: "history161@example.test", phone: "", role: "DETAILER" } });
+  await s.assignWorker(ADMIN, ids[2], keeper.id, { expectedRevision: 1 }, opts());
   await s.setLineStatus(STAFF, ids[2], (await lineIds(ids[2]))[0], { expectedRevision: 2, workStatus: "DONE" }, at(day));
   const done = await s.setBookingStatus(STAFF, ids[2], { expectedRevision: 3, status: "COMPLETED" }, at(day));
-  assert.equal(done.booking.assignedWorkers[0].staffId, ADMIN.staffId);
-  await refused(s.unassignWorker(ADMIN, ids[2], ADMIN.staffId, { expectedRevision: 4 }, opts()), "BOOKING_NOT_MANAGEABLE", "completed history stays assigned");
+  assert.equal(done.booking.assignedWorkers[0].staffId, keeper.id);
+  await refused(s.unassignWorker(ADMIN, ids[2], keeper.id, { expectedRevision: 4 }, opts()), "BOOKING_NOT_MANAGEABLE", "completed history stays assigned");
   assert.ok(!(await s.getDayBoard(STAFF, { date: day }, opts())).queues.flatMap(q => q.waiting).some(c => c.id === ids[2]));
 });
 

@@ -36,19 +36,21 @@ async function worker(
       return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
     const staff = await tx.staff.findUnique({
       where: { id: targetStaffId },
-      select: { id: true, isActive: true },
+      select: { id: true, isActive: true, role: true },
     });
     if (!staff) throw new AdminServiceError("NOT_FOUND");
     const key = { bookingId_staffId: { bookingId, staffId: targetStaffId } };
     const current = await tx.bookingWorkerAssignment.findUnique({ where: key });
     if (!!current === !remove)
       return { booking: await detailOrThrow(tx, bookingId), noChange: true };
-    if (!remove && !staff.isActive)
+    // P1-61 (LE 2026-11-07): only an active staff name from the Team list can be newly assigned, so only such a name can be credited
+    // commission. The admin and managers are not staff. Removing an assignment stays possible for anyone (clean-up of old data).
+    if (!remove && (!staff.isActive || staff.role !== "DETAILER"))
       return conflict(
         tx,
         "SCHEDULE_CONFLICT",
         bookingId,
-        "Choose an active worker.",
+        "Choose an active staff member from the Team list.",
       );
     await bump(tx, bookingId, v.expectedRevision);
     if (remove) await tx.bookingWorkerAssignment.delete({ where: key });

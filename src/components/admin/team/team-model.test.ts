@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { COMMISSION_RULE_LINE, canManage, lineSummary, defaultRateLine, manilaToday, monthStart, pesoRange, rangeProblem, ratePhrase, removeResult, removeWarning, selectableIds, warningLines } from "./team-model";
+import { ADD_STAFF, COMMISSION_RULE_LINE, TEAM_EMPTY, TEAM_INTRO, canManage, lineSummary, defaultRateLine, manilaToday, monthStart, pesoRange, rangeProblem, ratePhrase, removeResult, removeWarning, selectableIds, warningLines } from "./team-model";
 
 test("today is the Manila day, even when UTC is still the day before", () => {
   assert.equal(manilaToday(new Date("2027-03-01T17:30:00Z")), "2027-03-02");
@@ -71,4 +71,10 @@ test("round 4: car-wash-only bookings get their own plain sentence, and the coun
   assert.deepEqual(summary, { counted: "Regular Tint ₱1,000.00, Eclipse (no price yet)", notCounted: "Basic Wash ₱400.00 (car wash does not earn commission)" });
   assert.deepEqual(lineSummary([]), { counted: null, notCounted: null });
   assert.match(COMMISSION_RULE_LINE, /car wash earns none/i);
+});
+
+test("P1-61: the Team screen copy is plain words for names only, with no role, account, email or code labels", () => {
+  assert.equal(ADD_STAFF, "Add staff");
+  assert.equal(TEAM_INTRO, "Add the names of your staff. They have no login.");
+  for (const text of [ADD_STAFF, TEAM_INTRO, TEAM_EMPTY]) assert.doesNotMatch(text.replace("no login", ""), /detailer|manager|admin|sign-in|sign in|account|e-?mail|password/i, text);
 });
