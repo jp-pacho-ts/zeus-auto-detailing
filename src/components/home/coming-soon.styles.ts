@@ -100,26 +100,80 @@ export const comingSoonStyles = `
   color:var(--paper);
   max-width:30ch}
 
-.zeus-coming-soon__call{
+/* P1-57: two separate round buttons side by side. Book now is the gold one, Manage booking the dark one. Each has a
+   thin bright edge that travels around its border (a conic gradient on an animated angle, painted in the border box
+   behind the fill) and a gold halo that breathes. The halo level is a registered number, so hover and focus can raise
+   it with a transition without fighting the animation. */
+@property --zeus-edge{
+  syntax:'<angle>';
+  inherits:false;
+  initial-value:0deg}
+@property --zeus-glow{
+  syntax:'<number>';
+  inherits:false;
+  initial-value:.8}
+@property --zeus-boost{
+  syntax:'<number>';
+  inherits:false;
+  initial-value:1}
+@keyframes zeus-edge-spin{
+  to{--zeus-edge:360deg}}
+@keyframes zeus-glow-breathe{
+  from{--zeus-glow:.55}
+  to{--zeus-glow:1}}
+.zeus-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  max-width:100%}
+.zeus-btn{
+  --zeus-halo:232 180 74;
+  --zeus-halo-alpha:.28;
+  position:relative;
+  flex:1 1 auto;
   display:inline-flex;
   align-items:center;
-  gap:12px;
+  justify-content:center;
+  gap:8px;
+  min-width:0;
   min-height:52px;
-  padding:0 28px;
+  padding:8px 26px;
+  border:2px solid transparent;
   border-radius:999px;
-  background:var(--gold);
-  color:var(--ink)!important;
-  box-shadow:0 10px 40px #0b0b0c80;
-  transition:transform .2s,background .2s}
-.zeus-coming-soon__call span{
-  font-size:.875rem;
-  font-weight:600}
-.zeus-coming-soon__call strong{
-  font-size:1.0625rem;
-  letter-spacing:.01em}
-.zeus-coming-soon__call:hover{
-  background:#e1ab47;
-  transform:translateY(-2px)}
+  font-size:.9375rem;
+  font-weight:600;
+  line-height:1.25;
+  text-align:center;
+  background:
+    linear-gradient(#100f0d,#100f0d) padding-box,
+    conic-gradient(from var(--zeus-edge),#f2eee724 0deg,#f2eee724 200deg,#c58b1b 250deg,#e8b44a 295deg,#fbe3a0 330deg,#e8b44a 345deg,#f2eee724 360deg) border-box;
+  box-shadow:
+    0 0 calc(18px * var(--zeus-boost)) rgb(var(--zeus-halo) / calc(var(--zeus-halo-alpha) * var(--zeus-glow) * var(--zeus-boost))),
+    0 10px 30px #0b0b0c80;
+  animation:zeus-edge-spin 4s linear infinite,zeus-glow-breathe 3.6s ease-in-out infinite alternate;
+  transition:--zeus-boost .25s,filter .2s,color .2s}
+.zeus-btn svg{
+  width:18px;
+  height:18px;
+  flex:none;
+  color:#e8b44a}
+.zeus-btn--primary{
+  --zeus-halo-alpha:.6;
+  background:
+    linear-gradient(135deg,#fbe3a0 0%,#e8b44a 55%,#c58b1b 100%) padding-box,
+    conic-gradient(from var(--zeus-edge),#c58b1b 0deg,#c58b1b 200deg,#e8b44a 250deg,#fff6dc 330deg,#e8b44a 350deg,#c58b1b 360deg) border-box}
+/* .zeus-coming-soon a{color:inherit} (above) outranks a lone class, so the label colours need the parent in the selector */
+.zeus-coming-soon .zeus-btn{
+  color:var(--paper)}
+.zeus-coming-soon .zeus-btn--primary{
+  color:#1a1305}
+.zeus-btn--primary svg{
+  color:#1a1305}
+.zeus-btn:hover,.zeus-coming-soon a.zeus-btn:focus-visible{
+  --zeus-boost:1.7;
+  filter:brightness(1.1)}
+.zeus-coming-soon .zeus-btn:not(.zeus-btn--primary):hover{
+  color:#fff3d0}
 
 /* Bottom row: three 44px icon links (Facebook, Instagram, location) side by side, with the logo centred on that row.
    The address is no longer text; the location link's name and tooltip carry it (P1-47). */
@@ -209,7 +263,8 @@ export const comingSoonStyles = `
    become grid rows of the hero. */
 @media(max-width:800px){
   .zeus-hero{
-    grid-template-rows:auto 1fr auto auto;
+    --zeus-stack-gap:24px;
+    grid-template-rows:auto auto 1fr auto auto;
     column-gap:16px;
     padding:max(56px,env(safe-area-inset-top)) 28px max(48px,env(safe-area-inset-bottom))}
   .zeus-hero-body{
@@ -225,30 +280,52 @@ export const comingSoonStyles = `
     align-self:start;
     margin-top:16px;
     max-width:min(100%,440px)}
-  .zeus-coming-soon__call{
-    grid-row:3;
+  /* P1-59: the two buttons are stacked at the full width of the text column, 12px apart, and sit directly above the
+     icon row and logo with one fixed gap (the token above), never an auto margin. */
+  .zeus-actions{
+    grid-row:4;
     grid-column:1/-1;
-    justify-content:center;
-    margin:24px 0 10px}
+    flex-direction:column;
+    flex-wrap:nowrap;
+    width:100%;
+    margin:0 0 var(--zeus-stack-gap)}
+  .zeus-btn{
+    flex:none;
+    width:100%}
   .zeus-hero-foot{
-    grid-row:4}
-  /* the logo takes what is left of the row beside the three icons (156px), between 80px and 135px wide */
+    grid-row:5}
+  .zeus-social{
+    gap:8px}
+  /* the logo takes what is left of the row beside the four icons (200px with 8px gaps), between 80px and 135px wide */
   .zeus-hero-logo{
-    grid-row:4}
+    grid-row:5}
   .zeus-coming-soon__logo{
     height:auto;
-    width:clamp(80px,calc(100vw - 56px - 16px - 156px),135px)}
+    width:clamp(80px,calc(100vw - 56px - 16px - 200px),135px)}
   .zeus-hero-shade{
     background:
       linear-gradient(180deg,#0b0b0cdd 0%,#0b0b0ccc 36%,#0b0b0c8c 50%,transparent 62%),
       linear-gradient(0deg,#0b0b0cf5 0%,#0b0b0ce6 20%,#0b0b0c88 32%,transparent 44%)}
 }
 
-/* Tablets: the Call pill keeps a pill shape instead of spanning the whole width. */
+/* Tablets: the stack keeps a sensible width (at most 420px), left aligned, instead of spanning the whole row. */
 @media(min-width:561px) and (max-width:800px){
-  .zeus-coming-soon__call{
+  .zeus-actions{
     justify-self:start;
     width:min(100%,420px)}
+}
+
+/* Under 352px the logo (80px minimum) no longer fits beside the four icons, so it sits on its own row below them. */
+@media(max-width:351px){
+  .zeus-hero{
+    grid-template-rows:auto auto 1fr auto auto auto}
+  .zeus-hero-logo{
+    grid-row:6;
+    grid-column:1;
+    justify-self:start;
+    margin-top:14px}
+  .zeus-coming-soon__logo{
+    width:100px}
 }
 
 @media(max-width:340px){
@@ -260,8 +337,12 @@ export const comingSoonStyles = `
 }
 
 @media(prefers-reduced-motion:reduce){
-  .zeus-coming-soon__call,.zeus-social a{
+  .zeus-btn,.zeus-social a{
   transition:none}
+.zeus-btn{
+  animation:none;
+  --zeus-edge:20deg;
+  --zeus-glow:.8}
 .zeus-hero-video{
   transition:none}
 }

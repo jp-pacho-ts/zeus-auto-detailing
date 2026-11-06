@@ -1,6 +1,7 @@
 import "server-only";
 import { readProviderJson } from "./bookings-provider";
 import { randomUUID } from "node:crypto";
+import { isIP } from "node:net";
 import { createSemaphore } from "./auth/semaphore";
 const permits = createSemaphore({
     maxActive: 4, maxQueued: 8, maxWaitMs: 1000
@@ -14,6 +15,8 @@ export async function verifyTurnstile(token: string, config: {
     timeoutMs?: number;
     remoteip?: string;
     signal?: AbortSignal;
+    // P1-32: the widget's action must match, so a booking-create token cannot be replayed on the lookup.
+    action?: "booking_create" | "booking_lookup";
 } = {}): Promise<"VERIFIED" | "INVALID" | "UNAVAILABLE"> {
     let release: (() => void) | undefined;
     try {
@@ -35,7 +38,7 @@ export async function verifyTurnstile(token: string, config: {
             return "UNAVAILABLE";
         if ("error-codes" in result && Array.isArray(result["error-codes"]) && result["error-codes"].includes("internal-error"))
             return "UNAVAILABLE";
-        return result.success === true && "action" in result && result.action === "booking_create" && "hostname" in result && typeof result.hostname === "string" && config.hostnames.includes(result.hostname) ? "VERIFIED" : "INVALID";
+        return result.success === true && "action" in result && result.action === (options.action ?? "booking_create") && "hostname" in result && typeof result.hostname === "string" && config.hostnames.includes(result.hostname) ? "VERIFIED" : "INVALID";
     }
     catch {
         return "UNAVAILABLE";
@@ -45,5 +48,6 @@ export async function verifyTurnstile(token: string, config: {
     }
 }
 
-// trustedClientKey anonymizes IPv6 to /64; Siteverify remoteip is optional and needs a full visitor address.
-export function turnstileRemoteIp(key: string): string | undefined { return key === "local" || key === "untrusted" || key.includes("/") ? undefined : key; }
+// trustedClientKey anonymizes IPv6 to /64; Siteverify remoteip is optional and needs a full visitor address. Only a real IP
+// address is ever sent (Codex F3): a hash, a label such as "local" or "untrusted", or an anonymized /64 is omitted instead.
+export function turnstileRemoteIp(key: string): string | undefined { return isIP(key) !== 0 ? key : undefined; }

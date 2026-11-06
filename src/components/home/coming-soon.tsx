@@ -1,4 +1,6 @@
 import Image from "next/image";
+import Link from "next/link";
+import { CalendarCheck, Ticket } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { comingSoonStyles } from "./coming-soon.styles";
 import { HomeIntro } from "./home-intro";
@@ -11,6 +13,9 @@ function FacebookIcon() {
 }
 function InstagramIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.2" cy="6.8" r=".6" fill="currentColor" /></svg>;
+}
+function PhoneIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" /></svg>;
 }
 function LocationIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.4" /></svg>;
@@ -30,10 +35,14 @@ export function ComingSoon() {
         <div className="zeus-hero-body">
           <h1 id="coming-soon-title" aria-label="Coming soon">Coming<br />soon<span>.</span></h1>
           <p className="zeus-lede">Our new website is on the way. The shop is open as usual.</p>
-          <a className="zeus-coming-soon__call" href={phone} aria-label={`Call the shop ${brandConfig.displayPhone}`}><span>Call</span><strong>{brandConfig.displayPhone}</strong></a>
+          <div className="zeus-actions">
+            <Link className="zeus-btn zeus-btn--primary" href="/book" prefetch={false}><CalendarCheck aria-hidden="true" />Book now</Link>
+            <Link className="zeus-btn" href="/book/manage" prefetch={false}><Ticket aria-hidden="true" />Manage booking</Link>
+          </div>
         </div>
         <div className="zeus-hero-foot">
           <div className="zeus-social">
+            <a href={phone} aria-label={`Call the shop ${brandConfig.displayPhone}`}><PhoneIcon /></a>
             <a href={brandConfig.facebookPageUrl} target="_blank" rel="noopener noreferrer" aria-label={`${brandConfig.businessName} on Facebook`}><FacebookIcon /></a>
             <a href={brandConfig.instagram} target="_blank" rel="noopener noreferrer" aria-label={`${brandConfig.businessName} on Instagram`}><InstagramIcon /></a>
             {/* The address is a map-pin icon (P1-47). Its name and tooltip carry the address, so screen readers and a hover still get it. */}

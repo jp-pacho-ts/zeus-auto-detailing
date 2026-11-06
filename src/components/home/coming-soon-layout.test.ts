@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { brandConfig } from "@/config/brand";
 import HomePage from "@/app/page";
+import { comingSoonStyles } from "@/components/home/coming-soon.styles";
 
 // P1-46: the redone coming-soon layout. One message, one primary action (Call), social icons, a quiet address.
 const html = () => renderToStaticMarkup(HomePage());
@@ -22,17 +23,69 @@ test("P1-46: one short message says the website is coming and the shop is open, 
   assert.equal((content.match(/<h1\b/g) ?? []).length, 1);
   assert.match(content, /<p class="zeus-lede">Our new website is on the way\. The shop is open as usual\.<\/p>/);
   assert.doesNotMatch(content, /zeus-pretitle|zeus-description|zeus-kicker|In progress|getting a new look/);
-  const text = content.replace(/<[^>]*>/g, " ");
-  assert.equal(text.split(brandConfig.displayPhone).length - 1, 1, "the phone number is shown once, on the Call button");
 });
 
-test("P1-46: Call is the one primary action and keeps its tel link, a spoken name with the number, and a short visible label", () => {
-  const call = anchor(body(), /class="zeus-coming-soon__call"/);
-  assert.ok(call, "Call link present");
+test("P1-57: Book now (to /book) and Manage booking (to /book/manage) are two separate buttons in one plain row, not one merged pill", () => {
+  const content = body();
+  const row = content.match(/<div class="zeus-actions">([\s\S]*?)<\/div>/);
+  assert.ok(row, "actions row present");
+  const links = [...row[1].matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/g)].map((match) => match[0]);
+  assert.equal(links.length, 2, "exactly two actions");
+  assert.match(links[0], /href="\/book"/);
+  assert.match(links[0], />Book now<\/a>/);
+  assert.match(links[0], /zeus-btn--primary/);
+  assert.match(links[1], /href="\/book\/manage"/);
+  assert.match(links[1], />Manage booking<\/a>/);
+  assert.doesNotMatch(links[1], /zeus-btn--primary/, "Manage booking is the secondary button");
+  for (const link of links) {
+    assert.match(link, /class="zeus-btn\b/, "each link is its own button");
+    assert.match(link, /<svg\b[^>]*aria-hidden="true"/, "decorative icon before the label");
+  }
+  // The row is only a gap holder: no shared fill, border, radius, animation or divider (P1-57).
+  const rowRule = comingSoonStyles.match(/\.zeus-actions\{[^}]*\}/);
+  assert.ok(rowRule, "row rule present");
+  assert.doesNotMatch(rowRule[0], /background|border|animation|box-shadow/);
+  assert.doesNotMatch(comingSoonStyles, /zeus-btn \+ \.zeus-btn::before/, "no divider");
+});
+
+test("P1-59: on phones the two buttons are stacked at full width with one fixed gap above the bottom row", () => {
+  const phone = comingSoonStyles.slice(comingSoonStyles.indexOf("@media(max-width:800px)"));
+  const phoneBlock = phone.slice(0, phone.indexOf("\n}\n"));
+  assert.match(comingSoonStyles, /--zeus-stack-gap:24px/, "one token for the gap");
+  const actions = phoneBlock.match(/\.zeus-actions\{[^}]*\}/);
+  assert.ok(actions, "phone actions rule present");
+  assert.match(actions[0], /flex-direction:column/);
+  assert.match(actions[0], /width:100%/);
+  assert.match(actions[0], /margin:0 0 var\(--zeus-stack-gap\)/, "the gap is the token, not an auto margin");
+  assert.doesNotMatch(actions[0], /margin[^;}]*auto/);
+  assert.match(phoneBlock, /grid-template-rows:auto auto 1fr auto auto/, "the picture band sits between the paragraph and the stack");
+  assert.doesNotMatch(comingSoonStyles, /min-width:380px/, "no two-column rule");
+});
+
+test("P1-57: both buttons glow (a gold halo that breathes and a travelling edge) and the glow is still when motion is reduced", () => {
+  const button = comingSoonStyles.match(/\.zeus-btn\{[^}]*\}/);
+  assert.ok(button, "button rule present");
+  assert.match(button[0], /box-shadow:/, "halo");
+  assert.match(button[0], /animation:[^;}]*zeus-edge-spin[^;}]*zeus-glow-breathe/, "edge sweep and glow pulse");
+  assert.match(comingSoonStyles, /\.zeus-btn--primary\{[^}]*(linear|gradient)/, "primary has a gold gradient face");
+  const reduced = comingSoonStyles.slice(comingSoonStyles.indexOf("@media(prefers-reduced-motion:reduce)"));
+  assert.match(reduced, /\.zeus-btn\{[^}]*animation:none/);
+  assert.match(reduced, /--zeus-glow:/, "a fixed glow level");
+});
+
+test("P1-56: Call is a phone icon inside the social row with its tel link, a spoken name with the number, a decorative icon and no visible number", () => {
+  const content = body();
+  const social = content.match(/<div class="zeus-social">([\s\S]*?)<\/div>/);
+  assert.ok(social, "social row present");
+  const call = anchor(social[1], /href="tel:[^"]*"/);
+  assert.ok(call, "Call link is inside the social row");
   assert.ok(call[0].includes(`href="${phone}"`));
   assert.match(call[0], new RegExp(`aria-label="Call the shop ${brandConfig.displayPhone}"`));
-  assert.match(call[0], /<span>Call<\/span>/);
-  assert.ok(call[0].includes(brandConfig.displayPhone));
+  assert.match(call[0], /<svg\b[^>]*aria-hidden="true"/);
+  assert.equal((content.match(/href="tel:/g) ?? []).length, 1, "one phone link on the page");
+  assert.doesNotMatch(content, /zeus-coming-soon__call/);
+  const text = content.replace(/<[^>]*>/g, " ");
+  assert.ok(!text.includes(brandConfig.displayPhone), "the number is in the link name, not visible text");
 });
 
 test("P1-46: Facebook and Instagram are icon links with spoken names, safe external attributes and decorative icons", () => {
@@ -66,13 +119,15 @@ test("P1-47: the address is a location icon link to Maps; its spoken name carrie
   assert.ok(!text.includes(brandConfig.location), "the address is not visible text; it is in the link name");
 });
 
-test("P1-46: reading order is logo, headline, Call, Facebook, Instagram, location; one logo image with its alt text", () => {
+test("P1-56: reading order is logo, headline, Book now, Manage booking, Call, Facebook, Instagram, location; one logo image with its alt text", () => {
   const content = body();
   const at = (needle: string | RegExp) => (typeof needle === "string" ? content.indexOf(needle) : content.search(needle));
   const order = [
     at(`alt="${brandConfig.businessName}"`),
     at("<h1"),
-    at('class="zeus-coming-soon__call"'),
+    at('href="/book"'),
+    at('href="/book/manage"'),
+    at('aria-label="Call the shop'),
     at('aria-label="Zeus Auto Detailing on Facebook"'),
     at('aria-label="Zeus Auto Detailing on Instagram"'),
     at('aria-label="Zeus Auto Detailing location'),

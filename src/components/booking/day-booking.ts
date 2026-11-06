@@ -48,7 +48,9 @@ export const arrivalWords = () =>
 
 // W4: what each customer field error says, in plain words. One message per field.
 export const FIELD_COPY: Record<string, string> = {
-  customerName: "Enter your name (at least 2 letters).",
+  customerFirstName: "Enter your first name.",
+  customerLastName: "Enter your last name.",
+  customerName: "Enter your first and last name.",
   customerPhone: "Enter a Philippine mobile number, like 0917 000 0000.",
   customerEmail: "Check the email address, or leave it empty.",
   vehicleModel: "Enter your car's make and model (for example Toyota Vios).",
@@ -149,6 +151,13 @@ export function isMultiDay(catalog: BookingCatalog, serviceIds: string[]): boole
   );
 }
 
+// P1-54: a size name such as "Small · Compact / Sedan" reads better as a title and a second line. A display split of the same text:
+// nothing is added, and a name without a middle dot stays whole.
+export function splitSizeName(name: string): { head: string; tail: string } {
+  const at = name.indexOf(" · ");
+  return at < 0 ? { head: name, tail: "" } : { head: name.slice(0, at), tail: name.slice(at + 3) };
+}
+
 // Website links use the size code, its name, or the home page's older words.
 const SIZE_ALIASES: Record<string, string> = { sedan: "S", motorcycle: "MOTOR", motor: "MOTOR" };
 export function resolveDeepLink(catalog: BookingCatalog, vehicle?: string, service?: string) {
@@ -167,7 +176,8 @@ export function resolveDeepLink(catalog: BookingCatalog, vehicle?: string, servi
 }
 
 export interface DetailsForm {
-  customerName: string;
+  customerFirstName: string;
+  customerLastName: string;
   customerPhone: string;
   customerEmail: string;
   vehicleModel: string;
@@ -198,7 +208,8 @@ export function createDayRequest(input: {
     bookingDate: input.bookingDate,
     acceptedQuote: quote,
     turnstileToken: input.turnstileToken,
-    customerName: form.customerName,
+    customerFirstName: form.customerFirstName,
+    customerLastName: form.customerLastName,
     customerPhone: normalizePhone(form.customerPhone),
     customerEmail: blankToUndefined(form.customerEmail),
     vehicleModel: form.vehicleModel,
@@ -216,7 +227,7 @@ export function createDayRequest(input: {
 
 export type WizardStep = "SIZE" | "SERVICES" | "DAY" | "DETAILS";
 // Only the customer's own form fields are ever echoed back.
-const FORM_FIELDS = new Set(["customerName", "customerPhone", "customerEmail", "vehicleModel", "vehiclePlate", "specialRequests", "turnstileToken", "bookingDate"]);
+const FORM_FIELDS = new Set(["customerName", "customerFirstName", "customerLastName", "customerPhone", "customerEmail", "vehicleModel", "vehiclePlate", "specialRequests", "turnstileToken", "bookingDate"]);
 
 // The server's errors default commitState to UNKNOWN, including refusals made before any commit
 // (challenge, budgets, pause, validation). Only RETRYABLE_ERROR leaves the outcome unconfirmed: then

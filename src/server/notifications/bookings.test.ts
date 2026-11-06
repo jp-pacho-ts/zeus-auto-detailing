@@ -33,3 +33,12 @@ test("P1-24: receipt uses committed date and content allowlist, never unexpected
     assert.equal(message.subject.includes(canary), false);
   }
 });
+test("P1-32: the confirmation email carries the reference code and says how to check progress with it and the last name", () => {
+  const message = customerConfirmationMessage(booking, "https://synthetic.example.invalid");
+  const lines = message.text.split("\n");
+  assert.ok(lines.includes("Booking reference: ZEUS-TEST01"));
+  assert.ok(lines.includes("Manage your booking: https://synthetic.example.invalid/book/manage"));
+  assert.ok(lines.includes("To check your booking's progress, open that page and enter your reference code and last name."));
+  assert.ok(lines.indexOf("To check your booking's progress, open that page and enter your reference code and last name.") > lines.indexOf("Manage your booking: https://synthetic.example.invalid/book/manage"));
+  assert.equal(message.text.includes("last name:"), false, "the email never carries the customer's own last name");
+});

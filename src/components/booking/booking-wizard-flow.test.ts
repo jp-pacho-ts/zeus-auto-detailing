@@ -3,12 +3,17 @@
 // one-round errors and the disabled-Submit reason (W4, W5), the kept or explained day (W10) and the
 // confirmation landing (W1/L10).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, test } from "node:test";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { BookingCatalog, BookingQuote, ServicePackage } from "@/types/catalog-contracts";
 import type { PublicDay } from "@/types/contracts";
 import { mountHooks } from "./render-hooks.fixture";
 import { BookingWizard } from "./booking-wizard";
+import { BookingTicket } from "./booking-ticket";
+import { splitSizeName } from "./day-booking";
+import { GOLD_GRADIENT_ID, VehicleDrawing, VehicleDrawingDefs } from "./vehicle-drawing";
 import { DayPicker } from "./day-picker";
 import { TurnstileChallenge } from "./turnstile";
 
@@ -303,7 +308,8 @@ test("W4: one round of checking with plain words; no browser bubble, no programm
   form.props.onSubmit({ preventDefault() {} });
   await h.settle();
   const t = h.text();
-  assert.match(t, /Enter your name \(at least 2 letters\)\./);
+  assert.match(t, /Enter your first name\./);
+  assert.match(t, /Enter your last name\./);
   assert.match(t, /Enter a Philippine mobile number, like 0917 000 0000\./);
   assert.match(t, /Enter your car's make and model/);
   assert.doesNotMatch(t, /Too small|expected|>=|string/);
@@ -334,7 +340,7 @@ test("W5: a server message is shown once, not repeated as its own field line", a
   network({ create: () => ({ ok: false, error: { code: "CHALLENGE_FAILED", message: "Complete the security check again.", fieldErrors: { turnstileToken: ["Complete the security check again."] }, retryable: true, commitState: "UNKNOWN", currentQuote: null, currentBooking: null, retryAfterSeconds: null } }) });
   const h = mountHooks(BookingWizard, {});
   await toDetails(h);
-  for (const [field, value] of [["customerName", "Test Customer"], ["customerPhone", "0917 000 0000"], ["vehicleModel", "Toyota Vios"]])
+  for (const [field, value] of [["customerFirstName", "Test"], ["customerLastName", "Customer"], ["customerPhone", "0917 000 0000"], ["vehicleModel", "Toyota Vios"]])
     h.all().find((e) => e.props.id === field)!.props.onChange({ target: { value } });
   fire(h.child(TurnstileChallenge), "onToken", "token-1");
   await h.settle();
@@ -348,7 +354,7 @@ test("W1/L10: after Submit the customer lands on 'Booking received' with the arr
   const posts = network();
   const h = mountHooks(BookingWizard, {});
   await toDetails(h);
-  for (const [field, value] of [["customerName", "Test Customer"], ["customerPhone", "0917 000 0000"], ["vehicleModel", "Toyota Vios"]])
+  for (const [field, value] of [["customerFirstName", "Test"], ["customerLastName", "Customer"], ["customerPhone", "0917 000 0000"], ["vehicleModel", "Toyota Vios"]])
     h.all().find((e) => e.props.id === field)!.props.onChange({ target: { value } });
   fire(h.child(TurnstileChallenge), "onToken", "token-1");
   await h.settle();
@@ -358,8 +364,13 @@ test("W1/L10: after Submit the customer lands on 'Booking received' with the arr
   assert.equal(posts.length, 1);
   assert.equal(heading(h), "Booking received");
   assert.deepEqual(revealed, ["scroll:wizard-step-title", "focus:wizard-step-title"]);
-  assert.match(h.text(), /Waiting for confirmation/);
-  assert.match(h.text(), /Bring your car any time during opening hours, 8\u00a0AM–6\u00a0PM, on your chosen day\./);
+  // P1-52: the confirmation is the ticket component; its markup carries the reference, the status and the arrival hours.
+  const ticketText = renderToStaticMarkup(createElement(BookingTicket, h.child(BookingTicket)!.props as never))
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[ \t\r\n]+/g, " ");
+  assert.match(ticketText, /ZEUS-TEST01/);
+  assert.match(ticketText, /Waiting for confirmation/);
+  assert.match(ticketText, /Bring your car any time during opening hours, 8\u00a0AM–6\u00a0PM, on your chosen day\./);
   h.unmount();
 });
 
@@ -441,4 +452,240 @@ test("QA F1: keyboard focus scrolling keeps clear of the fixed action bar, at it
   assert.equal(rootStyle.scrollPaddingBottom, "", "cleared when the wizard leaves the page");
   assert.equal(resized.length, 0);
   assert.equal(focusListeners.length, 0);
+});
+
+// ---- P1-52 (LE 2026-11-06): the Showroom layout. Same steps and same submit; new panel, calendar, ticket and corners. ----
+
+test("P1-52: step 1 shows a drawn outline for each size, inline, with the size's name and description", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  assert.equal(h.all().filter((e) => e.type === VehicleDrawing).length, 2, "one drawing per size");
+  const svg = renderToStaticMarkup(createElement(VehicleDrawing, { code: "S" }));
+  assert.match(svg, /^<svg[^>]*aria-hidden="true"/);
+  assert.doesNotMatch(svg, /<img|<image/);
+  h.unmount();
+});
+
+test("P1-52: the side panel counts four steps, marks the current one and lists what is chosen with a Change for each finished step", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await toDay(h);
+  const list = h.all().find((e) => e.type === "ol" && e.props["aria-label"] === "Progress steps")!;
+  const items = (list.props.children as { props: Record<string, unknown> }[]).filter(Boolean);
+  assert.equal(items.length, 4);
+  assert.deepEqual(items.map((li) => li.props["aria-current"]), [undefined, undefined, "step", undefined]);
+  const sheet = textOf(list);
+  assert.match(sheet, /Vehicle size/);
+  assert.match(sheet, /Small · Compact \/ Sedan/);
+  assert.match(sheet, /Basic Wash/);
+  const changes = h.all().filter((e) => e.type === "button" && typeof e.props["aria-label"] === "string" && /^Change /.test(e.props["aria-label"] as string));
+  assert.deepEqual(changes.map((b) => b.props["aria-label"]), ["Change vehicle size", "Change services"]);
+  const bar = h.all().find((e) => e.props.role === "progressbar")!;
+  assert.equal(bar.props["aria-valuenow"], 3);
+  assert.equal(bar.props["aria-valuetext"], "Step 3 of 4: Day");
+  h.unmount();
+});
+
+test("P1-52: the details step keeps ONE submit: the review sits under the fields, no fifth step, same submit button text", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await toDetails(h);
+  assert.equal(h.all().filter((e) => e.type === "form").length, 1, "one form on the page");
+  const submits = h.all().filter((e) => e.type === "button" && e.props.type === "submit");
+  assert.ok(submits.length >= 1 && submits.every((b) => b.props.form === "booking-details" && /Submit booking request/.test(textOf(b.props.children))), "every submit button is the one submit");
+  assert.doesNotMatch(h.text(), /Step 5|Step 4 of 5|of 5/);
+  const form = h.all().find((e) => e.type === "form")!;
+  const formText = textOf(form);
+  assert.match(formText, /About you/);
+  assert.match(formText, /Your vehicle/);
+  assert.match(formText, /Check your booking/);
+  assert.match(formText, /Look it over\. Send it when it is right\./);
+  assert.ok(formText.indexOf("Your vehicle") < formText.indexOf("Check your booking"), "review after the fields");
+  assert.ok(formText.indexOf("Check your booking") < formText.indexOf("Security check"), "security check after the review");
+  assert.ok(h.all().some((e) => e.props["data-part"] === "review"));
+  assert.match(formText, /Basic Wash/, "the review lists the services");
+  for (const field of ["customerFirstName", "customerLastName"]) assert.ok(h.all().some((e) => e.props.id === field && e.props.name === field), field + " keeps its id and name");
+  h.unmount();
+});
+
+test("P1-52: the day step shows a Monday-first month calendar: weekday heads, faded neighbours, Chosen on the picked day", () => {
+  const days: PublicDay[] = Array.from({ length: 14 }, (_, i) => ({ date: "2026-11-" + String(6 + i).padStart(2, "0"), state: i === 2 ? "FULLY_BOOKED" : i === 5 ? "CLOSED" : "AVAILABLE" }));
+  const m = renderToStaticMarkup(DayPicker({ data: { days, nextAvailableDay: "2026-11-06", onlineBookingStatus: "OPEN" }, error: "", onRetry: () => {}, selected: "2026-11-10", onSelect: () => {}, fromDate: "2026-11-06", onPage: () => {}, multiDay: false }) as never);
+  const t = m.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  assert.match(t, /Mon Tue Wed Thu Fri Sat Sun/);
+  assert.equal([...m.matchAll(/name="booking-day"/g)].length, 14);
+  assert.equal([...m.matchAll(/aria-hidden="true" class="flex min-h-\[64px\] lg:min-h-\[clamp\(64px,9vh,84px\)\] items-center justify-center/g)].length, 7, "Nov 6 is a Friday: four faded days before; Nov 19 is a Thursday: three after");
+  assert.match(t, /Chosen/);
+  assert.match(t, /Fully booked/);
+  assert.match(t, /Crossed-out days are fully booked or closed\./);
+  assert.match(m, /aria-label="[^"]*November 10, 2026: Available"[^>]*checked/);
+  for (const [, c] of m.matchAll(/class="([^"]*)"/g)) assert.doesNotMatch(c, /(^| )rounded( |$)/, "no 4 px corner: " + c);
+});
+
+test("P1-52: no 4 px corner is left in the booking wizard's own files (Manage booking corner family)", () => {
+  for (const file of ["booking-wizard.tsx", "day-picker.tsx", "booking-ticket.tsx", "management-code.tsx", "payment-instructions.tsx", "vehicle-drawing.tsx"]) {
+    const source = readFileSync("src/components/booking/" + file, "utf8");
+    const plain = [...source.matchAll(/["'`{ ]rounded(?=[\s"'`}])/g)].map((m) => m.index);
+    assert.deepEqual(plain, [], file + " has a plain `rounded` (4 px) class");
+  }
+  const wizard = readFileSync("src/components/booking/booking-wizard.tsx", "utf8");
+  assert.match(wizard, /rounded-xl/);
+  assert.match(wizard, /rounded-2xl/);
+  assert.match(wizard, /rounded-full/);
+});
+
+test("P1-52: the confirmation is the ticket, and Copy reference and Print receipt still work from it", async () => {
+  const posts = network();
+  const h = mountHooks(BookingWizard, {});
+  await toDetails(h);
+  for (const [field, value] of [["customerFirstName", "Test"], ["customerLastName", "Customer"], ["customerPhone", "0917 000 0000"], ["vehicleModel", "Toyota Vios"]])
+    h.all().find((e) => e.props.id === field)!.props.onChange({ target: { value } });
+  fire(h.child(TurnstileChallenge), "onToken", "token-1");
+  await h.settle();
+  h.all().find((e) => e.type === "form")!.props.onSubmit({ preventDefault() {} });
+  await h.settle();
+  assert.equal(posts.length, 1, "the submit flow is unchanged: one request");
+  const ticket = h.child(BookingTicket)!;
+  assert.equal((ticket.props.booking as { referenceCode: string }).referenceCode, "ZEUS-TEST01");
+  let printed = 0;
+  (g.window as Record<string, unknown>).print = () => printed++;
+  fire(ticket, "onPrint");
+  assert.equal(printed, 1);
+  assert.equal(typeof ticket.props.onCopy, "function");
+  assert.doesNotMatch(h.text(), /private\.code|private code/i, "the management code is still never shown");
+  h.unmount();
+});
+
+test("P1-52 (LE): Back and the other labelled buttons are rounded-xl (12 px), not pills; the Close X and the chips stay round", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await toDay(h);
+  const backs = h.all().filter((e) => e.type === "button" && textOf(e.props.children).trim() === "Back");
+  assert.ok(backs.length >= 1);
+  for (const b of backs) {
+    assert.match(String(b.props.className), /rounded-xl/);
+    assert.doesNotMatch(String(b.props.className), /rounded-full/);
+    assert.match(String(b.props.className), /min-h-\[52px\]/, "P1-55: as tall as Continue (was 44 px)");
+    assert.match(String(b.props.className), /border border-input/, "still outlined");
+  }
+  const picker = renderToStaticMarkup(DayPicker(h.child(DayPicker)!.props as never) as never);
+  for (const label of ["Earlier days", "Later days"]) {
+    const button = new RegExp('<button[^>]*class="([^"]*)"[^>]*>(?:(?!</button>).)*' + label).exec(picker);
+    assert.ok(button, label);
+    assert.match(button![1], /rounded-xl/);
+    assert.doesNotMatch(button![1], /rounded-full/);
+  }
+  const close = h.all().find((e) => e.props["aria-label"] === "Cancel and return to home")!;
+  assert.match(String(close.props.className), /rounded-full/, "the icon-only Close X keeps its round shape");
+  h.unmount();
+});
+
+
+test("P1-52 (LE, mock F): the vehicle icons are gold extruded 3D: one shared gradient, seven darker layers under the face, all decorative", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  assert.equal(h.all().filter((e) => e.type === VehicleDrawingDefs).length, 1, "the gradient is defined once per page, not once per tile");
+  const defs = renderToStaticMarkup(createElement(VehicleDrawingDefs));
+  assert.equal([...defs.matchAll(new RegExp('id="' + GOLD_GRADIENT_ID + '"', "g"))].length, 1);
+  assert.match(defs, /aria-hidden="true"/);
+  for (const stop of ["#fbe3a0", "#e8b44a", "#c58b1b", "#8a5a0b"]) assert.match(defs, new RegExp(stop));
+  const shapes = new Set<string>();
+  for (const code of ["MOTOR", "S", "M", "L", "XL"]) {
+    const svg = renderToStaticMarkup(createElement(VehicleDrawing, { code }));
+    assert.match(svg, /^<svg[^>]*aria-hidden="true"/);
+    assert.match(svg, /overflow="visible"/, "the extrusion is never clipped");
+    assert.doesNotMatch(svg, / id=/, "no id inside a tile, so no duplicate ids");
+    const paths = [...svg.matchAll(/<path d="([^"]+)"[^>]*fill="([^"]+)"/g)];
+    assert.equal(paths.length, 8, code + ": seven extrusion layers and the face");
+    assert.equal(new Set(paths.map((p) => p[1])).size, 1, "every layer is the same shape");
+    assert.equal(paths.at(-1)![2], "url(#" + GOLD_GRADIENT_ID + ")", "the face is the gold gradient, on top");
+    assert.ok(paths.slice(0, 7).every((p) => /^#[0-9a-f]{6}$/i.test(p[2])), "the layers are solid darker golds");
+    assert.match(svg, /translate\(11\.2 11\.2\)/, "the farthest layer is 7 steps of 1.6 down and right");
+    shapes.add(paths[0][1]);
+  }
+  assert.equal(shapes.size, 5, "five different shapes");
+  const source = readFileSync("src/components/booking/vehicle-drawing.tsx", "utf8");
+  assert.match(source, /Phosphor Icons[^\n]*MIT License/, "the third-party credit stays with the copied paths");
+  h.unmount();
+});
+
+test("P1-53: the empty total is small muted text, the title and a price use calm height-based sizes", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  const empty = h.all().find((e) => e.type === "p" && textOf(e.props.children) === "Choose a size")!;
+  assert.match(String(empty.props.className), /text-sm/);
+  assert.match(String(empty.props.className), /text-muted-foreground/);
+  assert.doesNotMatch(String(empty.props.className), /text-(3|4|5)xl|text-\[(3|4)\d/, "no big type for a placeholder");
+  const title = h.all().find((e) => e.type === "h1")!;
+  assert.match(String(title.props.className), /lg:text-\[clamp\(28px,3\.6vh,32px\)\]/, "28 to 32 px by screen height on laptops");
+  assert.doesNotMatch(String(title.props.className), /lg:text-\[40px\]/);
+  await toServices(h);
+  byLabelText(h, "Premium Carwash")!.props.onClick();
+  await h.settle();
+  inputs(h, "checkbox").find((e) => e.props.value === basic.id)!.props.onChange({});
+  await h.settle();
+  const price = h.all().find((e) => e.type === "p" && /^₱/.test(textOf(e.props.children)) && /tabular-nums/.test(String(e.props.className)))!;
+  assert.match(String(price.props.className), /text-\[clamp\(28px,3\.4vh,32px\)\]/, "a price is 28 to 32 px");
+  h.unmount();
+});
+
+test("P1-53/P1-54: the size tiles and their icons are sized by screen height on laptops (a card grid, three tiles then two wider ones)", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  const tiles = h.all().filter((e) => e.type === "label" && /--ic/.test(String(e.props.className)));
+  assert.equal(tiles.length, 2, "one tile per size");
+  for (const tile of tiles) {
+    assert.match(String(tile.props.className), /lg:\[--ic:clamp\(64px,13vh,120px\)\]/, "the icon size follows the screen height");
+    assert.match(String(tile.props.className), /rounded-2xl/);
+  }
+  const mark = h.all().find((e) => e.props["data-part"] === "vehicle-mark")!;
+  assert.match(String(mark.props.className), /h-\[calc\(var\(--ic\)\*1\.3\)\]/);
+  const grid = h.all().find((e) => e.type === "div" && /lg:grid-cols-6/.test(String(e.props.className)))!;
+  assert.match(String(grid.props.className), /grid-cols-2/, "two columns on phones");
+  h.unmount();
+});
+
+test("P1-54: a size name is split into a title and a second line, and nothing else is added or lost", () => {
+  assert.deepEqual(splitSizeName("Small · Compact / Sedan"), { head: "Small", tail: "Compact / Sedan" });
+  assert.deepEqual(splitSizeName("X-Large · Fullsize SUV / Pick-up / Van"), { head: "X-Large", tail: "Fullsize SUV / Pick-up / Van" });
+  assert.deepEqual(splitSizeName("Motor / Motorcycle"), { head: "Motor / Motorcycle", tail: "" });
+  for (const n of ["Small · Compact / Sedan", "Medium · Compact SUV / Crossover", "Large · SUV / Pick-up", "Motor / Motorcycle"]) {
+    const { head, tail } = splitSizeName(n);
+    assert.equal(tail ? head + " · " + tail : head, n, "the two parts give the name back");
+  }
+});
+
+test("P1-54: step 1 tiles keep every size's full name for screen readers and the panel; the grid is 3 + 2 wide on laptops", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  const tile = h.all().filter((e) => e.type === "label" && /--ic/.test(String(e.props.className)));
+  assert.match(textOf(tile[1]), /Small[ ·]*Compact \/ Sedan/);
+  assert.match(String(tile[0].props.className), /lg:col-span-3/);
+  assert.match(String(tile[1].props.className), /lg:col-span-3/, "with two sizes the tiles are each half the row");
+  inputs(h, "radio").find((e) => e.props.value === S)!.props.onChange({});
+  await h.settle();
+  assert.match(h.text(), /Small · Compact \/ Sedan/, "the panel still names the size in full");
+  const main = h.all().find((e) => e.type === "main")!;
+  assert.match(String(main.props.className), /lg:min-h-\[100dvh\][^"]*lg:justify-center/, "step 1 is centered between top and bottom");
+  assert.match(String(h.all().find((e) => /lg:max-w-\[1080px\]/.test(String(e.props.className)))!.props.className), /max-w-\[760px\]/, "phones keep the 760 px column");
+  h.unmount();
+});
+
+test("P1-55 (LE): Back uses the same height class as Continue and Submit, so the pair is level on every step", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await toDetails(h);
+  const height = (el: { props: Record<string, unknown> }) => /min-h-\[(\d+)px\]/.exec(String(el.props.className))?.[1];
+  const backs = h.all().filter((e) => e.type === "button" && textOf(e.props.children).trim() === "Back");
+  const mains = h.all().filter((e) => e.type === "button" && /^(Continue|Submit booking request)$/.test(textOf(e.props.children).trim()));
+  assert.ok(backs.length >= 1 && mains.length >= 1);
+  const wanted = height(mains[0]);
+  assert.ok(wanted && Number(wanted) >= 44);
+  for (const el of [...backs, ...mains]) assert.equal(height(el), wanted, "same height class: " + textOf(el.props.children));
+  h.unmount();
 });

@@ -26,10 +26,14 @@ export const ADMIN_OPS = [
   "DEPOSIT_STATUS", // P1-18: ADMIN only; STAFF reads proofs through READ
   "SCHEDULE", // P1-20: opening hours and closed days, ADMIN only
   "DELETE_BOOKING", // P1-29: ADMIN only; the database function repeats the check
+<<<<<<< HEAD
   "TEAM_READ", // P1-37: ADMIN only (the list carries phone numbers); the database function repeats the check
   "TEAM_WRITE", // P1-37: add, edit, deactivate and remove detailers; ADMIN only
   "COMMISSION_READ", // P1-37: money; ADMIN only
   "COMMISSION_WRITE", // P1-37: default rate, mark paid, repair; ADMIN only
+=======
+  "FINISH_BOOKING", // P1-34: ADMIN only; drop a car on Done
+>>>>>>> dev
 ] as const;
 export type AdminOp = (typeof ADMIN_OPS)[number];
 

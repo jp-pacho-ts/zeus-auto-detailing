@@ -5,27 +5,23 @@ import Link from "next/link";
 import {
   AlertCircle,
   ArrowRight,
-  Bike,
-  Car,
-  CarFront,
   Check,
   ChevronDown,
   ChevronLeft,
-  Copy,
   Droplets,
   MessageSquare,
   Phone,
-  Printer,
   ShieldCheck,
   Sparkles,
-  Truck,
   Wind,
   X,
 } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
 import { TurnstileChallenge, type ChallengeStatus } from "@/components/booking/turnstile";
-import { DayPicker, DAYS_PER_PAGE, dateLabel, todayInManila } from "@/components/booking/day-picker";
+import { DayPicker, DAYS_PER_PAGE, dateLabel, shortDayLabel, todayInManila } from "@/components/booking/day-picker";
+import { BookingTicket } from "@/components/booking/booking-ticket";
+import { VehicleDrawing, VehicleDrawingDefs } from "@/components/booking/vehicle-drawing";
 import { ManagementCode } from "@/components/booking/management-code";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import { bookingStatusWords } from "@/components/booking/manage-booking";
@@ -43,6 +39,7 @@ import {
   publicCreateError,
   quoteTotal,
   resolveDeepLink,
+  splitSizeName,
   selectionLines,
   serviceDetail,
   type DetailsForm,
@@ -65,13 +62,6 @@ import type {
   ManagementAccessGrant,
 } from "@/types/contracts";
 
-function getVehicleCategoryIcon(code: string) {
-  if (code === "MOTOR") return Bike;
-  if (code === "L" || code === "XL") return Truck;
-  if (code === "M") return CarFront;
-  return Car;
-}
-
 function getServiceDisciplineIcon(category: string) {
   if (category === "WASH") return Droplets;
   if (category === "DETAILING") return Wind;
@@ -82,16 +72,25 @@ function getServiceDisciplineIcon(category: string) {
 const linesQuery = (lines: ServicePick[]) => lines.map((l) => l.serviceId + ":" + l.quantity).join(",");
 const BOOKING_HEADERS = { "content-type": "application/json", "x-zeus-booking": "1" };
 
+// P1-52 (LE 2026-11-06): the Manage booking corner family. Fields, buttons and bands are 12 px (rounded-xl), cards 16 px
+// (rounded-2xl), chips and the Back and Close controls are pills. Nothing is a 4 px corner.
 const control =
-  "mt-2 min-h-[48px] w-full rounded border border-input bg-card px-4 py-3 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 transition-colors";
+  "mt-2 min-h-[52px] w-full rounded-xl border border-input bg-card px-4 py-3 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60 transition-colors";
 // L9: less padding on phones so the security check fits a 320 px screen.
-const panel = "rounded border border-border bg-card p-4 sm:p-8";
-// L5: option cards have a visible edge (input token, 6.9:1) and a focus ring on the whole card.
+const panel = "rounded-2xl border border-border bg-card p-4 sm:p-8";
+// L5: option bands have a visible edge (input token, 6.9:1) and a focus ring on the whole band. The picked band gets a second inner line.
 const optionCard = (selected: boolean) =>
-  "flex cursor-pointer items-center justify-between gap-4 rounded border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring sm:p-5 " +
-  (selected ? "border-primary bg-primary/5" : "border-input bg-card hover:border-primary");
+  "flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:p-5 lg:px-5 lg:py-[clamp(8px,1.5vh,20px)] " +
+  (selected ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary");
 const changeLink =
-  "inline-flex min-h-[44px] min-w-[44px] items-center justify-end text-sm font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-[44px] min-w-[44px] items-center justify-end rounded-xl px-2 text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+// P1-55 (LE): Back is as tall as Continue and Submit: both use this height.
+const actionHeight = "min-h-[52px]";
+const outlineButton =
+  "inline-flex items-center justify-center gap-1 rounded-xl border border-input px-4 text-sm font-semibold text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+const pillLink =
+  "inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-input text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const groupTitle = "mb-4 border-b border-border pb-2 text-sm font-bold text-primary";
 
 function formatPhilippinePhone(raw: string): string {
   if (!raw) return "";
@@ -144,7 +143,8 @@ export function BookingWizard({
   const [days, setDays] = React.useState<{ key: string; data: DayAvailabilityData | null; error: string } | null>(null);
   const [daysVersion, setDaysVersion] = React.useState(0);
   const [form, setForm] = React.useState<DetailsForm>({
-    customerName: "",
+    customerFirstName: "",
+    customerLastName: "",
     customerPhone: "",
     customerEmail: "",
     vehicleModel: "",
@@ -213,7 +213,8 @@ export function BookingWizard({
 
   // Inline validation checks for Step 4
   const isPhoneValid = /^(09\d{9}|\+639\d{9})$/.test(form.customerPhone.replace(/[\s()\-]/g, ""));
-  const isNameValid = form.customerName.trim().length >= 2;
+  const isFirstNameValid = form.customerFirstName.trim().length >= 1;
+  const isLastNameValid = form.customerLastName.trim().length >= 1;
   const isModelValid = form.vehicleModel.trim().length >= 2;
 
   // Moves to a step. The service step opens the category of the first chosen main service.
@@ -530,7 +531,7 @@ export function BookingWizard({
         }
       }}
       disabled={primaryDisabled}
-      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-5 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+      className={actionHeight + " inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"}
     >
       {pending ? "Submitting request…" : step === 4 ? (uncertain ? "Retry same submission" : "Submit booking request") : "Continue"}
       <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -542,7 +543,7 @@ export function BookingWizard({
         type="button"
         disabled={locked}
         onClick={() => goTo(step - 1)}
-        className="inline-flex min-h-[44px] items-center gap-1 px-1 text-sm font-semibold text-foreground underline-offset-4 hover:underline disabled:opacity-50"
+        className={outlineButton + " " + actionHeight}
       >
         <ChevronLeft aria-hidden="true" className="h-4 w-4" />
         Back
@@ -561,8 +562,7 @@ export function BookingWizard({
     );
   const renderReason = () => (submitReason ? <p className="mt-2 text-sm text-muted-foreground" role="status">{submitReason}</p> : null);
 
-  // The single review: the desktop summary card (with the primary action) and, on phones, the block
-  // after the details (L2). Each Change returns to its step.
+  // The single review, under the details fields (L2, P1-52). Each Change returns to its step; on desktop the side panel has them.
   const renderReview = () => (
     <dl className="space-y-3 text-sm">
       <div className="flex items-start justify-between gap-3">
@@ -570,7 +570,7 @@ export function BookingWizard({
           <dt className="text-muted-foreground">Vehicle size</dt>
           <dd className="font-bold text-foreground">{vehicle?.name ?? "—"}</dd>
         </div>
-        <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink} aria-label="Change vehicle size">
+        <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink + " lg:hidden"} aria-label="Change vehicle size">
           Change
         </button>
       </div>
@@ -597,7 +597,7 @@ export function BookingWizard({
             </dd>
           </div>
           {step > 2 && (
-            <button type="button" onClick={() => goTo(2)} disabled={locked} className={changeLink} aria-label="Change services">
+            <button type="button" onClick={() => goTo(2)} disabled={locked} className={changeLink + " lg:hidden"} aria-label="Change services">
               Change
             </button>
           )}
@@ -610,7 +610,7 @@ export function BookingWizard({
             <dd className="font-bold text-foreground">{chosenDay ? dateLabel(chosenDay) : "Not chosen yet"}</dd>
           </div>
           {step > 3 && (
-            <button type="button" onClick={() => goTo(3)} disabled={locked} className={changeLink} aria-label="Change day">
+            <button type="button" onClick={() => goTo(3)} disabled={locked} className={changeLink + " lg:hidden"} aria-label="Change day">
               Change
             </button>
           )}
@@ -624,26 +624,48 @@ export function BookingWizard({
     </dl>
   );
 
-  // Desktop: the summary stays in view beside the choices and holds the primary action (L1).
-  const renderSummarySidebar = () => (
-    <aside aria-label="Your booking" className="hidden lg:col-span-4 lg:block">
-      <div className="sticky top-6 rounded border border-border bg-[#121214] p-6">
-        <h2 className="mb-4 text-base font-bold text-foreground">Your booking</h2>
-        {renderReview()}
-        {showPrimary && <div className="mt-6 flex flex-col gap-2 [&>button]:w-full">{renderPrimary()}</div>}
-        {renderReason()}
-        <div className="mt-3">{renderBack()}</div>
-      </div>
-    </aside>
-  );
+  // P1-52: the build sheet in the side panel: the four steps, what is chosen so far and a Change for each finished one.
+  const renderSheet = () => {
+    const values = [vehicle?.name ?? "", servicesSummary, chosenDay ? shortDayLabel(chosenDay) : "", ""];
+    return (
+      <ol aria-label="Progress steps" className="mt-6 border-t border-border lg:mt-[clamp(10px,3vh,32px)]">
+        {STEP_LABELS.map((label, index) => {
+          const n = index + 1;
+          const state = n < step ? "done" : n === step ? "current" : "next";
+          return (
+            <li key={label} aria-current={state === "current" ? "step" : undefined} className="flex items-start gap-3 border-b border-border py-3 text-sm lg:py-[clamp(6px,1.1vh,12px)]">
+              <span aria-hidden="true" className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center">
+                {state === "done" ? (
+                  <Check className="h-4 w-4 text-primary" />
+                ) : (
+                  <span className={"h-2.5 w-2.5 rounded-full border-2 " + (state === "current" ? "border-primary bg-primary" : "border-muted-foreground/60")} />
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={"block " + (state === "current" ? "font-bold text-foreground" : "text-muted-foreground")}>{label}</span>
+                {state === "done" && values[index] && <span className="block break-words font-bold text-foreground">{values[index]}</span>}
+                {state === "done" && <span className="sr-only">(done)</span>}
+                {state === "current" && <span className="sr-only">(current step)</span>}
+              </span>
+              {state === "done" && (
+                <button type="button" onClick={() => goTo(n)} disabled={locked} className={changeLink} aria-label={"Change " + label.toLowerCase()}>
+                  Change
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    );
+  };
 
   // Phones, services and day steps: what is chosen so far, above the choices.
   const renderMobileSummaryTray = () => (
-    <div className="mb-6 rounded border border-border bg-[#121214] p-4 text-sm lg:hidden">
+    <div className="mb-6 rounded-xl border border-border bg-muted p-4 text-sm lg:hidden">
       <p className="font-bold text-foreground">{vehicle?.name}</p>
       <p className="break-words text-muted-foreground">{servicesSummary || "No service chosen yet"}</p>
       {step === 3 && chosenDay && <p className="text-muted-foreground">{dateLabel(chosenDay)}</p>}
-      <button type="button" onClick={() => goTo(1)} disabled={locked} className="mt-1 inline-flex min-h-[44px] items-center font-semibold text-primary hover:underline disabled:opacity-50">
+      <button type="button" onClick={() => goTo(1)} disabled={locked} className="mt-1 inline-flex min-h-[44px] items-center rounded-xl font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
         Change size
       </button>
     </div>
@@ -666,11 +688,11 @@ export function BookingWizard({
     const detail = serviceDetail(s);
     const extras = nested ? [] : addOnsUnder(s);
     return (
-      <li key={s.id}>
+      <li key={s.id} className={nested ? undefined : "lg:contents"}>
         <label className={optionCard(Boolean(pick)) + " min-h-[80px]"}>
           <div className="flex items-start gap-3.5">
             {!nested && (
-              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-[#18181b]">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted">
                 <Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
               </div>
             )}
@@ -694,7 +716,7 @@ export function BookingWizard({
           />
         </label>
         {pick && s.unit === "PANEL" && (
-          <div className="mt-2 rounded border border-border bg-[#121214] p-4">
+          <div className="mt-2 rounded-xl border border-border bg-muted p-4 lg:col-span-3">
             <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
               Number of panels for {s.name}
             </label>
@@ -730,9 +752,9 @@ export function BookingWizard({
           </div>
         )}
         {extras.length > 0 && (
-          <fieldset className="ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4">
+          <fieldset className="ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4 lg:col-span-3">
             <legend className="mb-2 text-sm font-semibold text-foreground">Extras for {s.name}</legend>
-            <ul className="space-y-2">{extras.map((a) => renderService(a, true))}</ul>
+            <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{extras.map((a) => renderService(a, true))}</ul>
           </fieldset>
         )}
       </li>
@@ -760,14 +782,14 @@ export function BookingWizard({
           const chosen = lines.filter((l) => serviceById(l.serviceId)?.category === category).length;
           const regionId = "category-" + category.toLowerCase();
           return (
-            <section key={category} className="rounded border border-input bg-card">
+            <section key={category} className="rounded-2xl border border-input bg-card">
               <h2>
                 <button
                   type="button"
                   aria-expanded={open}
                   aria-controls={regionId}
                   onClick={() => setOpenCategory(open ? null : category)}
-                  className="flex min-h-[64px] w-full items-center justify-between gap-3 rounded px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex min-h-[64px] w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="min-w-0">
                     <span className="block text-base font-bold text-foreground">{CATEGORY_NAMES[category]}</span>
@@ -780,7 +802,7 @@ export function BookingWizard({
                 </button>
               </h2>
               <div id={regionId} role="region" aria-label={CATEGORY_NAMES[category]} hidden={!open} className="border-t border-border p-3 sm:p-4">
-                {open && <ul className="space-y-3">{services.map((s) => renderService(s))}</ul>}
+                {open && <ul className="space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0">{services.map((s) => renderService(s))}</ul>}
               </div>
             </section>
           );
@@ -802,17 +824,52 @@ export function BookingWizard({
     "",
   ][step - 1];
   const statusWords = booking ? bookingStatusWords(booking.view.status) : "";
+  const stepLabel = STEP_LABELS[Math.min(step, 4) - 1];
 
-  return (
-    <div className="min-h-screen bg-background text-foreground">
-      <style>{`
+  // P1-52: the running total in the side panel, as big as the Manage booking reference.
+  const renderPanelTotal = () =>
+    step === 1 ? (
+      vehicle ? (
+        <>
+          <p className="text-sm text-muted-foreground">Vehicle size</p>
+          <p className="mt-0.5 text-lg font-bold leading-snug text-foreground">{vehicle.name}</p>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">Choose a size</p>
+      )
+    ) : lines.length ? (
+      <>
+        <p className="text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</p>
+        <p className="mt-1 text-[clamp(28px,3.4vh,32px)] font-extrabold leading-none tracking-tight tabular-nums text-foreground">{total ? total.amount : "Pricing…"}</p>
+        {total?.note && <p className="mt-2 text-sm text-muted-foreground">{total.note}</p>}
+      </>
+    ) : (
+      <p className="text-sm text-muted-foreground">Nothing chosen yet</p>
+    );
+
+  const ticket = booking
+    ? {
+        referenceCode: booking.view.referenceCode,
+        statusWords,
+        confirmed: booking.view.status === "CONFIRMED",
+        dayLabel: dateLabel(booking.view.bookingDate),
+        arrival: arrivalWords(),
+        multiDay: booking.multiDay,
+        lines: booking.view.lines.map((l) => ({ id: l.serviceId, name: l.name, quantity: l.quantity, amount: lineAmount(l) })),
+        vehicle: `${booking.view.vehicleCategoryName} · ${booking.vehicleModel}${booking.vehiclePlate ? " · " + booking.vehiclePlate : ""}`,
+        contact: `${booking.customerName} · ${booking.customerPhone}`,
+        total: quoteTotal(booking.view),
+      }
+    : null;
+
+  const printCss = `
         @media print {
           header,
           .no-print,
           .wizard-footer {
             display: none !important;
           }
-          body, main {
+          .wizard-root, body, main {
             background: #ffffff !important;
             color: #000000 !important;
             padding: 0 !important;
@@ -820,6 +877,7 @@ export function BookingWizard({
           }
           .print-receipt-card {
             border: 1px solid #000000 !important;
+            border-radius: 0 !important;
             background: #ffffff !important;
             color: #000000 !important;
             box-shadow: none !important;
@@ -829,498 +887,545 @@ export function BookingWizard({
             color: #000000 !important;
             border-color: #cccccc !important;
           }
+          .print-receipt-card [data-part="stub"] {
+            background: #ffffff !important;
+            padding: 12px 0 0 !important;
+          }
+          .print-receipt-card [data-part="stub"]::before,
+          .print-receipt-card [data-part="stub"]::after {
+            display: none !important;
+          }
         }
-      `}</style>
-      <header className="border-b border-border bg-card no-print">
-        <div className="mx-auto flex h-20 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center">
-            <Logo />
-          </Link>
-          <span className="text-center text-sm text-muted-foreground">
-            {step < 5 ? `Step ${step} of 4 · ${STEP_LABELS[step - 1]}` : "Booking received"}
-          </span>
-          {!locked && (
-            <Link href="/" aria-label="Cancel and return to home" className="flex min-h-[44px] min-w-[44px] items-center justify-center">
-              <X aria-hidden="true" className="h-5 w-5" />
-            </Link>
-          )}
-        </div>
-        <div className="h-1 bg-border">
-          <div className="h-full bg-primary motion-safe:transition-all" style={{ width: (step < 5 ? step * 25 : 100) + "%" }} />
-        </div>
-      </header>
+      `;
 
-      <main className="mx-auto max-w-5xl px-4 pb-32 pt-8 sm:px-6 sm:pt-14 lg:pb-14">
-        <div className="mb-6 max-w-3xl">
-          <h1 id="wizard-step-title" tabIndex={-1} className="scroll-mt-28 text-2xl font-bold focus-visible:outline-none sm:text-3xl">
-            {HEADINGS[step - 1]}
-          </h1>
-          {intro && <p className="mt-2 text-base text-muted-foreground">{intro}</p>}
+  const notices = (
+    <>
+      {message && (
+        <div ref={errorSummary} tabIndex={-1} role="alert" className="mb-6 rounded-xl border border-destructive p-4 text-sm text-destructive">
+          <p className="font-semibold">{message}</p>
+          {Object.entries(fieldErrors)
+            .filter(([, errors]) => errors.join(" ") !== message)
+            .map(([field, errors]) => (
+              <p key={field} className="mt-1">
+                <a className="inline-flex min-h-[44px] items-center underline" href={step === 4 ? "#" + field : "#booking-days"}>
+                  {errors.join(" ")}
+                </a>
+              </p>
+            ))}
         </div>
+      )}
 
-        {message && (
-          <div ref={errorSummary} tabIndex={-1} role="alert" className="mb-6 rounded border border-destructive p-4 text-sm text-destructive">
-            <p className="font-semibold">{message}</p>
-            {Object.entries(fieldErrors)
-              .filter(([, errors]) => errors.join(" ") !== message)
-              .map(([field, errors]) => (
-                <p key={field} className="mt-1">
-                  <a className="inline-flex min-h-[44px] items-center underline" href={step === 4 ? "#" + field : "#booking-days"}>
-                    {errors.join(" ")}
-                  </a>
-                </p>
+      {!catalog && !catalogError && (
+        <div role="status" className={panel}>
+          Loading the shop service menu…
+        </div>
+      )}
+      {catalogError && (
+        <div role="alert" className={panel}>
+          <p>{catalogError}</p>
+          <button type="button" onClick={retryCatalog} className="mt-4 min-h-[44px] underline">
+            Retry service menu
+          </button>
+        </div>
+      )}
+    </>
+  );
+
+  // The five possible texts of one field: its label with a "Looks good" tick, the input and its error line.
+  const tick = (ok: boolean) =>
+    ok ? (
+      <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-400">
+        <Check className="h-3.5 w-3.5" aria-hidden="true" /> Looks good
+      </span>
+    ) : null;
+
+  return (
+    <div className="wizard-root min-h-screen bg-background text-foreground">
+      <style>{printCss}</style>
+
+      {step < 5 && (
+        <div className="lg:grid lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)]">
+          {/* P1-52 (LE 2026-11-06, mock C): the side panel. Desktop: logo, step, title, the build sheet, the big total and the
+              actions, kept in view. Phone: the same panel is the header (logo, segmented progress, step, title); the total
+              and the action sit in the bar at the bottom. */}
+          <div
+            data-part="panel"
+            className="no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-[clamp(14px,3vh,32px)] lg:pt-[clamp(14px,2.6vh,28px)]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <Logo />
+              </Link>
+              {!locked && (
+                <Link href="/" aria-label="Cancel and return to home" className={pillLink + " h-11 w-11"}>
+                  <X aria-hidden="true" className="h-5 w-5" />
+                </Link>
+              )}
+            </div>
+            <div
+              role="progressbar"
+              aria-label="Booking progress"
+              aria-valuemin={1}
+              aria-valuemax={4}
+              aria-valuenow={step}
+              aria-valuetext={`Step ${step} of 4: ${stepLabel}`}
+              className="mt-3 grid grid-cols-4 gap-1 lg:hidden"
+            >
+              {STEP_LABELS.map((label, index) => (
+                <span
+                  key={label}
+                  aria-hidden="true"
+                  className={
+                    "h-1.5 rounded-full motion-safe:transition-colors motion-safe:duration-500 " +
+                    (index + 1 < step ? "bg-primary" : index + 1 === step ? "bg-gradient-to-r from-primary from-50% to-border to-50%" : "bg-border")
+                  }
+                />
               ))}
-          </div>
-        )}
-
-        {!catalog && !catalogError && (
-          <div role="status" className={panel}>
-            Loading the shop service menu…
-          </div>
-        )}
-        {catalogError && (
-          <div role="alert" className={panel}>
-            <p>{catalogError}</p>
-            <button type="button" onClick={retryCatalog} className="mt-4 min-h-[44px] underline">
-              Retry service menu
-            </button>
-          </div>
-        )}
-
-        {/* Step 1: vehicle size */}
-        {catalog && step === 1 && (
-          <div className="max-w-3xl">
-            {linkWarning && (
-              <div role="alert" className="mb-6 flex items-start justify-between gap-3 rounded border border-warning/50 bg-warning/10 p-4 text-sm text-warning">
-                <div className="flex items-start gap-2.5">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                  <p>{linkWarning}</p>
+            </div>
+            <p className="mt-4 text-sm text-muted-foreground lg:mt-[clamp(10px,4.5vh,56px)]">
+              <strong className="font-bold text-primary">Step {step} of 4</strong> · {stepLabel}
+            </p>
+            <h1
+              id="wizard-step-title"
+              tabIndex={-1}
+              className="mt-1 scroll-mt-28 text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none lg:text-[clamp(28px,3.6vh,32px)] lg:leading-[1.1]"
+            >
+              {HEADINGS[step - 1]}
+            </h1>
+            {intro && <p className="mt-2 text-base text-muted-foreground lg:max-w-none lg:text-[clamp(14px,1.9vh,16px)]">{intro}</p>}
+            <div className="hidden lg:block">{renderSheet()}</div>
+            <div className="hidden flex-1 lg:block" />
+            <div className="hidden lg:block lg:pt-[clamp(8px,2vh,32px)]">
+              <div className="border-t-2 border-primary pt-4">{renderPanelTotal()}</div>
+              {showPrimary && (
+                <div className="mt-4 flex items-center gap-2">
+                  {renderBack()}
+                  <div className="min-w-0 flex-1 [&>button]:w-full">{renderPrimary()}</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setLinkWarning("")}
-                  aria-label="Dismiss warning"
-                  className="-mr-2 -mt-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-warning hover:opacity-80"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-            )}
-            <fieldset className="space-y-3">
-              <legend className="sr-only">Vehicle size</legend>
-              {catalog.vehicleCategories.map((v) => {
-                const VehicleIcon = getVehicleCategoryIcon(v.code);
-                return (
-                  <label key={v.id} className={optionCard(vehicleId === v.id) + " min-h-[72px]"}>
-                    <div className="flex items-start gap-3.5">
-                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-[#18181b]">
-                        <VehicleIcon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-                      </div>
-                      <div>
-                        <span className="block font-bold text-foreground">{v.name}</span>
-                        {v.description && <span className="text-sm text-muted-foreground">{v.description}</span>}
-                      </div>
-                    </div>
-                    <input
-                      type="radio"
-                      name="vehicle-category"
-                      value={v.id}
-                      checked={vehicleId === v.id}
-                      onChange={() => {
-                        setVehicleId(v.id);
-                        setLinkWarning("");
-                      }}
-                      className="h-5 w-5 shrink-0 accent-primary"
-                    />
-                  </label>
-                );
-              })}
-            </fieldset>
-            <div className="mt-8 hidden items-center justify-end gap-4 lg:flex">{renderPrimary()}</div>
+              )}
+              {renderReason()}
+            </div>
           </div>
-        )}
 
-        {/* Steps 2-4: choices beside the summary */}
-        {catalog && step >= 2 && step <= 4 && (
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-            <div className="min-w-0 lg:col-span-8">
-              {step < 4 && renderMobileSummaryTray()}
+          <main
+            className={
+              "min-w-0 px-4 pb-40 pt-4 sm:px-6 lg:px-[clamp(24px,3.5vw,56px)] lg:pb-[clamp(16px,4vh,64px)] lg:pt-[clamp(16px,5vh,56px)]" +
+              (step === 1 ? " lg:flex lg:min-h-[100dvh] lg:flex-col lg:justify-center" : "")
+            }
+          >
+            <div className="mx-auto w-full max-w-[760px] lg:max-w-[1080px]">
+              {notices}
 
-              {step === 2 && (
-                <div className="space-y-6">
-                  {renderCategories()}
-                  {quoteState?.key === selectionKey && quoteState.error && (
-                    <div role="alert" className="text-sm text-destructive">
-                      <p>{quoteState.error}</p>
-                      <button type="button" onClick={() => setQuoteVersion((v) => v + 1)} className="mt-2 min-h-[44px] text-sm underline">
-                        Retry pricing
+              {/* Step 1: vehicle size */}
+              {catalog && step === 1 && (
+                <div>
+                  {linkWarning && (
+                    <div role="alert" className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-warning/50 bg-warning/10 p-4 text-sm text-warning">
+                      <div className="flex items-start gap-2.5">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                        <p>{linkWarning}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setLinkWarning("")}
+                        aria-label="Dismiss warning"
+                        className="-mr-2 -mt-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-warning hover:opacity-80"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
                       </button>
                     </div>
                   )}
-                </div>
-              )}
-
-              {step === 3 && (
-                <>
-                  {dayNote && (
-                    <p role="status" className="mb-4 rounded border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
-                      {dayNote}
-                    </p>
-                  )}
-                  <DayPicker
-                    data={liveDays?.data ?? null}
-                    error={liveDays?.error ?? ""}
-                    onRetry={() => setDaysVersion((v) => v + 1)}
-                    selected={chosenDay}
-                    onSelect={setDay}
-                    fromDate={fromDate}
-                    onPage={setFromDate}
-                    multiDay={multiDay}
-                  />
-                </>
-              )}
-
-              {step === 4 && (
-                <form
-                  id="booking-details"
-                  noValidate
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void next();
-                  }}
-                  className={panel}
-                >
-                  {uncertain && (
-                    <p className="mb-6 rounded border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
-                      Your submitted details are held unchanged while the confirmation is uncertain. Retry to safely recover your booking request.
-                    </p>
-                  )}
-
-                  <fieldset disabled={locked} className="space-y-5">
-                    <legend className="sr-only">Your details and your vehicle</legend>
-
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <label htmlFor="customerName" className="text-sm font-semibold text-foreground">
-                          Your name
-                        </label>
-                        {isNameValid && (
-                          <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-400">
-                            <Check className="h-3.5 w-3.5" aria-hidden="true" /> Looks good
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        id="customerName"
-                        name="customerName"
-                        type="text"
-                        autoComplete="name"
-                        enterKeyHint="next"
-                        maxLength={100}
-                        value={form.customerName}
-                        onChange={(e) => setForm((prev) => ({ ...prev, customerName: e.target.value }))}
-                        placeholder="e.g. Juan dela Cruz"
-                        aria-invalid={Boolean(errorFor("customerName"))}
-                        aria-describedby={errorFor("customerName") ? "customerName-error" : undefined}
-                        className={`${control} ${errorFor("customerName") ? "border-destructive ring-1 ring-destructive" : ""}`}
-                      />
-                      {errorFor("customerName") && (
-                        <p id="customerName-error" className="mt-1.5 text-sm text-destructive">
-                          {errorFor("customerName")}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <label htmlFor="customerPhone" className="text-sm font-semibold text-foreground">
-                          Philippine mobile number
-                        </label>
-                        {isPhoneValid && (
-                          <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-400">
-                            <Check className="h-3.5 w-3.5" aria-hidden="true" /> Looks good
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        id="customerPhone"
-                        name="customerPhone"
-                        type="tel"
-                        inputMode="tel"
-                        autoComplete="tel"
-                        enterKeyHint="next"
-                        maxLength={32}
-                        value={form.customerPhone}
-                        onChange={(e) => setForm((prev) => ({ ...prev, customerPhone: formatPhilippinePhone(e.target.value) }))}
-                        placeholder="0917 000 0000"
-                        aria-invalid={Boolean(errorFor("customerPhone"))}
-                        aria-describedby={errorFor("customerPhone") ? "customerPhone-help customerPhone-error" : "customerPhone-help"}
-                        className={`${control} ${errorFor("customerPhone") ? "border-destructive ring-1 ring-destructive" : ""}`}
-                      />
-                      <p id="customerPhone-help" className="mt-1.5 text-sm text-muted-foreground">
-                        The shop texts or calls this number about your booking.
-                      </p>
-                      {errorFor("customerPhone") && (
-                        <p id="customerPhone-error" className="mt-1 text-sm text-destructive">
-                          {errorFor("customerPhone")}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label htmlFor="customerEmail" className="text-sm font-semibold text-foreground">
-                        Email address <span className="font-normal text-muted-foreground">(optional)</span>
-                      </label>
-                      <input
-                        id="customerEmail"
-                        name="customerEmail"
-                        type="email"
-                        inputMode="email"
-                        autoComplete="email"
-                        enterKeyHint="next"
-                        maxLength={254}
-                        value={form.customerEmail}
-                        onChange={(e) => setForm((prev) => ({ ...prev, customerEmail: e.target.value }))}
-                        placeholder="juan@example.ph"
-                        aria-invalid={Boolean(errorFor("customerEmail"))}
-                        aria-describedby={errorFor("customerEmail") ? "customerEmail-error" : undefined}
-                        className={`${control} ${errorFor("customerEmail") ? "border-destructive ring-1 ring-destructive" : ""}`}
-                      />
-                      {errorFor("customerEmail") && (
-                        <p id="customerEmail-error" className="mt-1.5 text-sm text-destructive">
-                          {errorFor("customerEmail")}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <label htmlFor="vehicleModel" className="text-sm font-semibold text-foreground">
-                          Vehicle make, model and year
-                        </label>
-                        {isModelValid && (
-                          <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-400">
-                            <Check className="h-3.5 w-3.5" aria-hidden="true" /> Looks good
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        id="vehicleModel"
-                        name="vehicleModel"
-                        type="text"
-                        autoComplete="off"
-                        enterKeyHint="next"
-                        maxLength={100}
-                        value={form.vehicleModel}
-                        onChange={(e) => setForm((prev) => ({ ...prev, vehicleModel: e.target.value }))}
-                        placeholder="e.g. Toyota Vios 2020"
-                        aria-invalid={Boolean(errorFor("vehicleModel"))}
-                        aria-describedby={errorFor("vehicleModel") ? "vehicleModel-error" : undefined}
-                        className={`${control} ${errorFor("vehicleModel") ? "border-destructive ring-1 ring-destructive" : ""}`}
-                      />
-                      {errorFor("vehicleModel") && (
-                        <p id="vehicleModel-error" className="mt-1.5 text-sm text-destructive">
-                          {errorFor("vehicleModel")}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label htmlFor="vehiclePlate" className="text-sm font-semibold text-foreground">
-                        Plate or conduction number <span className="font-normal text-muted-foreground">(optional)</span>
-                      </label>
-                      <input
-                        id="vehiclePlate"
-                        name="vehiclePlate"
-                        type="text"
-                        autoComplete="off"
-                        enterKeyHint="next"
-                        maxLength={20}
-                        value={form.vehiclePlate}
-                        onChange={(e) => setForm((prev) => ({ ...prev, vehiclePlate: e.target.value }))}
-                        placeholder="e.g. ABC 1234"
-                        aria-invalid={Boolean(errorFor("vehiclePlate"))}
-                        aria-describedby={errorFor("vehiclePlate") ? "vehiclePlate-error" : undefined}
-                        className={`${control} ${errorFor("vehiclePlate") ? "border-destructive ring-1 ring-destructive" : ""}`}
-                      />
-                      {errorFor("vehiclePlate") && (
-                        <p id="vehiclePlate-error" className="mt-1.5 text-sm text-destructive">
-                          {errorFor("vehiclePlate")}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label htmlFor="specialRequests" className="text-sm font-semibold text-foreground">
-                        Special requests or paint history <span className="font-normal text-muted-foreground">(optional)</span>
-                      </label>
-                      <textarea
-                        id="specialRequests"
-                        name="specialRequests"
-                        rows={3}
-                        maxLength={1000}
-                        enterKeyHint="done"
-                        value={form.specialRequests}
-                        onChange={(e) => setForm((prev) => ({ ...prev, specialRequests: e.target.value }))}
-                        placeholder="Scratches, an earlier coating, interior stains…"
-                        aria-invalid={Boolean(errorFor("specialRequests"))}
-                        aria-describedby={errorFor("specialRequests") ? "specialRequests-error" : undefined}
-                        className={control}
-                      />
-                      {errorFor("specialRequests") && (
-                        <p id="specialRequests-error" className="mt-1.5 text-sm text-destructive">
-                          {errorFor("specialRequests")}
-                        </p>
-                      )}
-                    </div>
-
-                    <div id="turnstileToken">
-                      <span className="text-sm font-semibold text-foreground">Security check</span>
-                      <div className="mt-2">
-                        {turnstileSiteKey ? (
-                          <TurnstileChallenge
-                            key={challenge.version}
-                            siteKey={turnstileSiteKey}
-                            onToken={onToken}
-                            onStatus={onChallengeStatus}
-                            size={narrow ? "compact" : "normal"}
-                          />
-                        ) : (
-                          <p className="text-sm text-destructive">
-                            Online booking is not available right now. Please call the shop at {brandConfig.displayPhone}.
-                          </p>
-                        )}
-                      </div>
-                      {errorFor("turnstileToken") && errorFor("turnstileToken") !== message && (
-                        <p className="mt-1.5 text-sm text-destructive">{errorFor("turnstileToken")}</p>
-                      )}
+                  <VehicleDrawingDefs />
+                  <fieldset>
+                    <legend className="sr-only">Vehicle size</legend>
+                    {/* P1-54 (LE 2026-11-06, mock M1): a card grid that uses the width: three tiles, then two wider ones. Phones: two columns. */}
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-6 lg:gap-[clamp(10px,1.8vh,16px)]">
+                      {catalog.vehicleCategories.map((v, index, all) => {
+                        const name = splitSizeName(v.name);
+                        const picked = vehicleId === v.id;
+                        const lastOdd = all.length % 2 === 1 && index === all.length - 1;
+                        const wide = all.length === 5 ? index >= 3 : all.length % 3 !== 0;
+                        return (
+                          <label
+                            key={v.id}
+                            className={
+                              "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors [--ic:64px] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:[--ic:88px] lg:[--ic:clamp(64px,13vh,120px)] " +
+                              (lastOdd ? "col-span-2 " : "") +
+                              (wide ? "lg:col-span-3 " : "lg:col-span-2 ") +
+                              (picked ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
+                            }
+                          >
+                            <span
+                              data-part="vehicle-mark"
+                              className={
+                                "grid h-[calc(var(--ic)*1.3)] place-items-center rounded-xl " +
+                                (picked ? "bg-[radial-gradient(circle_at_50%_30%,#2b2210,#0d0d0e)]" : "bg-[radial-gradient(circle_at_50%_30%,#1d1a14,#0d0d0e)]")
+                              }
+                            >
+                              <VehicleDrawing code={v.code} className="h-[var(--ic)] w-[var(--ic)]" />
+                            </span>
+                            <span className="block px-1.5 pb-1.5">
+                              <span className="block text-base font-extrabold leading-tight text-foreground lg:text-lg">{name.head}</span>
+                              {name.tail && (
+                                <>
+                                  <span className="sr-only"> · </span>
+                                  <span className="block text-sm leading-snug text-muted-foreground">{name.tail}</span>
+                                </>
+                              )}
+                              {v.description && <span className="block text-sm text-muted-foreground">{v.description}</span>}
+                            </span>
+                            <input
+                              type="radio"
+                              name="vehicle-category"
+                              value={v.id}
+                              checked={picked}
+                              onChange={() => {
+                                setVehicleId(v.id);
+                                setLinkWarning("");
+                              }}
+                              className="absolute right-[22px] top-[22px] h-5 w-5 accent-primary"
+                            />
+                          </label>
+                        );
+                      })}
                     </div>
                   </fieldset>
-
-                  <div className="mt-8 border-t border-border pt-6 lg:hidden">
-                    <h2 className="mb-3 text-base font-bold text-foreground">Check your booking</h2>
-                    {renderReview()}
-                  </div>
-                  <p className="mt-6 text-sm text-muted-foreground">
-                    Sending adds your car to that day&apos;s list as a request. The shop reviews it and contacts you to confirm.
-                  </p>
-                </form>
-              )}
-            </div>
-
-            {renderSummarySidebar()}
-          </div>
-        )}
-
-        {/* Step 5: booking received (L10: status and next step, then the private code, then details) */}
-        {step === 5 && booking && (
-          <div className="max-w-3xl space-y-6">
-            <section aria-labelledby="reference-title" className={`${panel} print-receipt-card`}>
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <ShieldCheck aria-hidden="true" className="h-8 w-8 shrink-0 text-primary" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Booking reference</p>
-                    <h2 id="reference-title" className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground sm:text-3xl">
-                      {booking.view.referenceCode}
-                    </h2>
-                  </div>
                 </div>
-                <p className="rounded bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">{statusWords}</p>
-              </div>
-              <p className="mt-4 text-base text-foreground">
-                {booking.view.status === "CONFIRMED"
-                  ? "Your booking is confirmed."
-                  : "Your request is sent. The shop will text or call you to confirm."}
-              </p>
-              <p className="mt-2 text-base text-foreground">
-                <strong>{dateLabel(booking.view.bookingDate)}.</strong> {arrivalWords()}
-                {booking.multiDay && " This job takes more than one day: this is your drop-off day, and the shop tells you when your car is ready."}
-              </p>
-              <div className="no-print mt-4 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={copyReference}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-input bg-card px-3.5 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary"
-                  aria-label="Copy booking reference"
-                >
-                  {copied ? (
+              )}
+
+              {/* Steps 2-4 */}
+              {catalog && step >= 2 && step <= 4 && (
+                <div className="min-w-0">
+                  {step < 4 && renderMobileSummaryTray()}
+
+                  {step === 2 && (
+                    <div className="space-y-6">
+                      {renderCategories()}
+                      {quoteState?.key === selectionKey && quoteState.error && (
+                        <div role="alert" className="text-sm text-destructive">
+                          <p>{quoteState.error}</p>
+                          <button type="button" onClick={() => setQuoteVersion((v) => v + 1)} className="mt-2 min-h-[44px] text-sm underline">
+                            Retry pricing
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {step === 3 && (
                     <>
-                      <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-                      <span className="text-emerald-400">Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4" aria-hidden="true" />
-                      <span>Copy reference</span>
+                      {dayNote && (
+                        <p role="status" className="mb-4 rounded-xl border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
+                          {dayNote}
+                        </p>
+                      )}
+                      <DayPicker
+                        data={liveDays?.data ?? null}
+                        error={liveDays?.error ?? ""}
+                        onRetry={() => setDaysVersion((v) => v + 1)}
+                        selected={chosenDay}
+                        onSelect={setDay}
+                        fromDate={fromDate}
+                        onPage={setFromDate}
+                        multiDay={multiDay}
+                      />
                     </>
                   )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (typeof window !== "undefined") window.print();
-                  }}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-input bg-card px-3.5 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary"
-                >
-                  <Printer className="h-4 w-4" aria-hidden="true" />
-                  <span>Print receipt</span>
-                </button>
-              </div>
-            </section>
+
+                  {step === 4 && (
+                    <form
+                      id="booking-details"
+                      noValidate
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void next();
+                      }}
+                    >
+                      {uncertain && (
+                        <p className="mb-6 rounded-xl border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
+                          Your submitted details are held unchanged while the confirmation is uncertain. Retry to safely recover your booking request.
+                        </p>
+                      )}
+
+                      <fieldset disabled={locked}>
+                        <legend className="sr-only">Your details and your vehicle</legend>
+                        <div className="space-y-8 lg:grid lg:grid-cols-2 lg:gap-x-[clamp(24px,3vw,48px)] lg:gap-y-8 lg:space-y-0">
+
+                        <div>
+                          <h2 className={groupTitle}>About you</h2>
+                          <div className="space-y-5">
+                            <div className="grid gap-5 sm:grid-cols-2">
+                              <div>
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="customerFirstName" className="text-sm font-semibold text-foreground">
+                                    First name
+                                  </label>
+                                  {tick(isFirstNameValid)}
+                                </div>
+                                <input
+                                  id="customerFirstName"
+                                  name="customerFirstName"
+                                  type="text"
+                                  autoComplete="given-name"
+                                  enterKeyHint="next"
+                                  maxLength={50}
+                                  value={form.customerFirstName}
+                                  onChange={(e) => setForm((prev) => ({ ...prev, customerFirstName: e.target.value }))}
+                                  placeholder="e.g. Juan"
+                                  aria-invalid={Boolean(errorFor("customerFirstName"))}
+                                  aria-describedby={errorFor("customerFirstName") ? "customerFirstName-error" : undefined}
+                                  className={`${control} ${errorFor("customerFirstName") ? "border-destructive ring-1 ring-destructive" : ""}`}
+                                />
+                                {errorFor("customerFirstName") && (
+                                  <p id="customerFirstName-error" className="mt-1.5 text-sm text-destructive">
+                                    {errorFor("customerFirstName")}
+                                  </p>
+                                )}
+                              </div>
+                              <div>
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="customerLastName" className="text-sm font-semibold text-foreground">
+                                    Last name
+                                  </label>
+                                  {tick(isLastNameValid)}
+                                </div>
+                                <input
+                                  id="customerLastName"
+                                  name="customerLastName"
+                                  type="text"
+                                  autoComplete="family-name"
+                                  enterKeyHint="next"
+                                  maxLength={50}
+                                  value={form.customerLastName}
+                                  onChange={(e) => setForm((prev) => ({ ...prev, customerLastName: e.target.value }))}
+                                  placeholder="e.g. dela Cruz"
+                                  aria-invalid={Boolean(errorFor("customerLastName"))}
+                                  aria-describedby={errorFor("customerLastName") ? "customerLastName-error" : undefined}
+                                  className={`${control} ${errorFor("customerLastName") ? "border-destructive ring-1 ring-destructive" : ""}`}
+                                />
+                                {errorFor("customerLastName") && (
+                                  <p id="customerLastName-error" className="mt-1.5 text-sm text-destructive">
+                                    {errorFor("customerLastName")}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <label htmlFor="customerPhone" className="text-sm font-semibold text-foreground">
+                                  Philippine mobile number
+                                </label>
+                                {tick(isPhoneValid)}
+                              </div>
+                              <input
+                                id="customerPhone"
+                                name="customerPhone"
+                                type="tel"
+                                inputMode="tel"
+                                autoComplete="tel"
+                                enterKeyHint="next"
+                                maxLength={32}
+                                value={form.customerPhone}
+                                onChange={(e) => setForm((prev) => ({ ...prev, customerPhone: formatPhilippinePhone(e.target.value) }))}
+                                placeholder="0917 000 0000"
+                                aria-invalid={Boolean(errorFor("customerPhone"))}
+                                aria-describedby={errorFor("customerPhone") ? "customerPhone-help customerPhone-error" : "customerPhone-help"}
+                                className={`${control} ${errorFor("customerPhone") ? "border-destructive ring-1 ring-destructive" : ""}`}
+                              />
+                              <p id="customerPhone-help" className="mt-1.5 text-sm text-muted-foreground">
+                                The shop texts or calls this number about your booking.
+                              </p>
+                              {errorFor("customerPhone") && (
+                                <p id="customerPhone-error" className="mt-1 text-sm text-destructive">
+                                  {errorFor("customerPhone")}
+                                </p>
+                              )}
+                            </div>
+
+                            <div>
+                              <label htmlFor="customerEmail" className="text-sm font-semibold text-foreground">
+                                Email address <span className="font-normal text-muted-foreground">(optional)</span>
+                              </label>
+                              <input
+                                id="customerEmail"
+                                name="customerEmail"
+                                type="email"
+                                inputMode="email"
+                                autoComplete="email"
+                                enterKeyHint="next"
+                                maxLength={254}
+                                value={form.customerEmail}
+                                onChange={(e) => setForm((prev) => ({ ...prev, customerEmail: e.target.value }))}
+                                placeholder="juan@example.ph"
+                                aria-invalid={Boolean(errorFor("customerEmail"))}
+                                aria-describedby={errorFor("customerEmail") ? "customerEmail-error" : undefined}
+                                className={`${control} ${errorFor("customerEmail") ? "border-destructive ring-1 ring-destructive" : ""}`}
+                              />
+                              {errorFor("customerEmail") && (
+                                <p id="customerEmail-error" className="mt-1.5 text-sm text-destructive">
+                                  {errorFor("customerEmail")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h2 className={groupTitle}>Your vehicle</h2>
+                          <div className="space-y-5">
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <label htmlFor="vehicleModel" className="text-sm font-semibold text-foreground">
+                                  Vehicle make, model and year
+                                </label>
+                                {tick(isModelValid)}
+                              </div>
+                              <input
+                                id="vehicleModel"
+                                name="vehicleModel"
+                                type="text"
+                                autoComplete="off"
+                                enterKeyHint="next"
+                                maxLength={100}
+                                value={form.vehicleModel}
+                                onChange={(e) => setForm((prev) => ({ ...prev, vehicleModel: e.target.value }))}
+                                placeholder="e.g. Toyota Vios 2020"
+                                aria-invalid={Boolean(errorFor("vehicleModel"))}
+                                aria-describedby={errorFor("vehicleModel") ? "vehicleModel-error" : undefined}
+                                className={`${control} ${errorFor("vehicleModel") ? "border-destructive ring-1 ring-destructive" : ""}`}
+                              />
+                              {errorFor("vehicleModel") && (
+                                <p id="vehicleModel-error" className="mt-1.5 text-sm text-destructive">
+                                  {errorFor("vehicleModel")}
+                                </p>
+                              )}
+                            </div>
+
+                            <div>
+                              <label htmlFor="vehiclePlate" className="text-sm font-semibold text-foreground">
+                                Plate or conduction number <span className="font-normal text-muted-foreground">(optional)</span>
+                              </label>
+                              <input
+                                id="vehiclePlate"
+                                name="vehiclePlate"
+                                type="text"
+                                autoComplete="off"
+                                enterKeyHint="next"
+                                maxLength={20}
+                                value={form.vehiclePlate}
+                                onChange={(e) => setForm((prev) => ({ ...prev, vehiclePlate: e.target.value }))}
+                                placeholder="e.g. ABC 1234"
+                                aria-invalid={Boolean(errorFor("vehiclePlate"))}
+                                aria-describedby={errorFor("vehiclePlate") ? "vehiclePlate-error" : undefined}
+                                className={`${control} ${errorFor("vehiclePlate") ? "border-destructive ring-1 ring-destructive" : ""}`}
+                              />
+                              {errorFor("vehiclePlate") && (
+                                <p id="vehiclePlate-error" className="mt-1.5 text-sm text-destructive">
+                                  {errorFor("vehiclePlate")}
+                                </p>
+                              )}
+                            </div>
+
+                            <div>
+                              <label htmlFor="specialRequests" className="text-sm font-semibold text-foreground">
+                                Special requests or paint history <span className="font-normal text-muted-foreground">(optional)</span>
+                              </label>
+                              <textarea
+                                id="specialRequests"
+                                name="specialRequests"
+                                rows={3}
+                                maxLength={1000}
+                                enterKeyHint="done"
+                                value={form.specialRequests}
+                                onChange={(e) => setForm((prev) => ({ ...prev, specialRequests: e.target.value }))}
+                                placeholder="Scratches, an earlier coating, interior stains…"
+                                aria-invalid={Boolean(errorFor("specialRequests"))}
+                                aria-describedby={errorFor("specialRequests") ? "specialRequests-error" : undefined}
+                                className={control}
+                              />
+                              {errorFor("specialRequests") && (
+                                <p id="specialRequests-error" className="mt-1.5 text-sm text-destructive">
+                                  {errorFor("specialRequests")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* One Submit on this step (LE 2026-11-06, safe default): the review sits under the fields, the security check
+                            under the review, and the Submit button is the panel's action (the bar on phones). */}
+                        <section data-part="review" aria-labelledby="review-title" className="rounded-2xl border border-border bg-card p-4 sm:p-6">
+                          <h2 id="review-title" className="text-base font-bold text-foreground">
+                            Check your booking
+                          </h2>
+                          <p className="mb-4 mt-1 text-sm text-muted-foreground">Look it over. Send it when it is right.</p>
+                          {renderReview()}
+                        </section>
+
+                        <div id="turnstileToken">
+                          <span className="text-sm font-semibold text-foreground">Security check</span>
+                          <div className="mt-2">
+                            {turnstileSiteKey ? (
+                              <TurnstileChallenge
+                                key={challenge.version}
+                                siteKey={turnstileSiteKey}
+                                onToken={onToken}
+                                onStatus={onChallengeStatus}
+                                size={narrow ? "compact" : "normal"}
+                              />
+                            ) : (
+                              <p className="text-sm text-destructive">
+                                Online booking is not available right now. Please call the shop at {brandConfig.displayPhone}.
+                              </p>
+                            )}
+                          </div>
+                          {errorFor("turnstileToken") && errorFor("turnstileToken") !== message && (
+                            <p className="mt-1.5 text-sm text-destructive">{errorFor("turnstileToken")}</p>
+                          )}
+                        </div>
+                        </div>
+                      </fieldset>
+
+                      <p className="mt-6 text-sm text-muted-foreground">
+                        Sending adds your car to that day&apos;s list as a request. The shop reviews it and contacts you to confirm.
+                      </p>
+                    </form>
+                  )}
+                </div>
+              )}
+            </div>
+          </main>
+        </div>
+      )}
+
+      {/* Step 5: booking received (L10), as a ticket like Manage booking: status and next step, then how to manage it, then help */}
+      {step === 5 && ticket && booking && (
+        <div className="mx-auto max-w-3xl px-4 pb-14 pt-3 sm:px-6">
+          <header className="no-print flex items-center justify-between gap-3">
+            <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Logo />
+            </Link>
+          </header>
+          <div className="mt-6 flex items-center gap-4">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
+              <Check aria-hidden="true" className="h-6 w-6" />
+            </span>
+            <h1 id="wizard-step-title" tabIndex={-1} className="scroll-mt-28 text-balance text-3xl font-extrabold tracking-tight focus-visible:outline-none">
+              {HEADINGS[4]}
+            </h1>
+          </div>
+          <div className="mt-6 space-y-6">
+            <BookingTicket
+              booking={ticket}
+              copied={copied}
+              onCopy={copyReference}
+              onPrint={() => {
+                if (typeof window !== "undefined") window.print();
+              }}
+            />
 
             <ManagementCode referenceCode={booking.view.referenceCode} bookingDate={booking.view.bookingDate} access={booking.access} />
-
-            <section aria-labelledby="details-title" className={`${panel} print-receipt-card`}>
-              <h2 id="details-title" className="text-base font-bold text-foreground">
-                Booking details
-              </h2>
-              <dl className="mt-3 divide-y divide-border/60 text-sm">
-                <div className="py-3">
-                  <dt className="text-muted-foreground">Services</dt>
-                  <dd className="mt-0.5 text-foreground">
-                    <ul className="space-y-1">
-                      {booking.view.lines.map((l) => (
-                        <li key={l.serviceId} className="break-words">
-                          <span className="font-semibold">
-                            {l.name}
-                            {l.quantity > 1 ? ` × ${l.quantity}` : ""}
-                          </span>{" "}
-                          <span className="text-muted-foreground">· {lineAmount(l)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </dd>
-                </div>
-                <div className="py-3">
-                  <dt className="text-muted-foreground">Vehicle</dt>
-                  <dd className="mt-0.5 break-words text-foreground">
-                    {booking.view.vehicleCategoryName} · {booking.vehicleModel}
-                    {booking.vehiclePlate ? " · " + booking.vehiclePlate : ""}
-                  </dd>
-                </div>
-                <div className="py-3">
-                  <dt className="text-muted-foreground">Your contact</dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {booking.customerName} · {booking.customerPhone}
-                  </dd>
-                </div>
-                <div className="py-3">
-                  <dt className="text-muted-foreground">{quoteTotal(booking.view).label}</dt>
-                  <dd className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">{quoteTotal(booking.view).amount}</dd>
-                  {quoteTotal(booking.view).note && <p className="mt-0.5 text-sm text-muted-foreground">{quoteTotal(booking.view).note}</p>}
-                </div>
-                <div className="py-3">
-                  <dt className="text-muted-foreground">Shop</dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {brandConfig.address} ·{" "}
-                    <a href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`} className="inline-flex min-h-[44px] items-center font-semibold text-primary hover:underline">
-                      {brandConfig.displayPhone}
-                    </a>
-                  </dd>
-                </div>
-              </dl>
-            </section>
 
             <details className={`${panel} no-print`}>
               <summary className="flex min-h-[44px] cursor-pointer items-center text-base font-bold text-foreground">
@@ -1333,10 +1438,11 @@ export function BookingWizard({
 
             <div className={`${panel} no-print`}>
               <h2 className="text-base font-bold text-foreground">Questions about this booking?</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{brandConfig.address}</p>
               <div className="mt-3 flex flex-wrap gap-3">
                 <a
                   href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-input bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-input bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <Phone className="h-4 w-4 text-primary" aria-hidden="true" />
                   Call {brandConfig.displayPhone}
@@ -1345,7 +1451,7 @@ export function BookingWizard({
                   href={`${brandConfig.facebookMessengerUrl}?text=${encodeURIComponent(`Hi, I have a question about booking ${booking.view.referenceCode}.`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded border border-input bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-input bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
                   Message us on Messenger
@@ -1353,18 +1459,18 @@ export function BookingWizard({
               </div>
             </div>
 
-            <Link href="/" className="no-print inline-flex min-h-[44px] items-center text-sm font-semibold text-foreground underline-offset-4 hover:underline">
+            <Link href="/" className={outlineButton + " min-h-[44px] no-print"}>
               Return to home
             </Link>
           </div>
-        )}
-      </main>
+        </div>
+      )}
 
       {/* L1: on phones the running total and the main action stay under the thumb. */}
       {step < 5 && (
         <div
           id="wizard-action-bar"
-          className="wizard-footer no-print fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:hidden"
+          className="wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur lg:hidden"
         >
           {/* One row: Back, total, action. On phones (below 480 px): total and Back, then the action full width, so the
               total is never squeezed out. */}

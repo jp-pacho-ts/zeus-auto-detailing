@@ -154,7 +154,7 @@ test("server refusals of an upload read clearly; only unconfirmed outcomes retry
     message: "This booking cannot take a screenshot now. Please contact the shop.", retrySame: false, signedOut: false,
   });
   assert.deepEqual(proofUploadError(error("UNAUTHENTICATED")), {
-    message: "Your booking page closed. Enter your private code again.", retrySame: false, signedOut: true,
+    message: "Your booking page closed. Enter your reference code and last name again.", retrySame: false, signedOut: true,
   });
   assert.deepEqual(proofUploadError(error("RATE_LIMITED", { commitState: "UNKNOWN", retryAfterSeconds: 42 })), {
     message: "Too many tries. Wait 42 seconds, then retry the same screenshot.", retrySame: true, signedOut: false,
@@ -188,7 +188,7 @@ test("cancel and reschedule errors: unconfirmed retries the same key; a changed 
   assert.equal(manageActionError(error("DAY_CLOSED", { commitState: "NOT_COMMITTED" })).message, "That day is no longer available. Choose another day.");
   const out = manageActionError(error("UNAUTHENTICATED"));
   assert.equal(out.signedOut, true);
-  assert.equal(out.message, "Your booking page closed. Enter your private code again.");
+  assert.equal(out.message, "Your booking page closed. Enter your reference code and last name again.");
 });
 
 test("the saved code file holds the code, reference, day and where to use it; no name or phone", () => {
@@ -336,4 +336,17 @@ test("F2: a complete reply with an impossible date is unconfirmed and keeps the 
   }
   assert.equal(new Set(bodies).size, 1, "every attempt sends the identical body and key");
   assert.equal(JSON.parse(String(bodies[0])).idempotencyKey, "k-cal");
+});
+
+// Codex F1 (P1-32): a booking opened by lookup carries no money keys at all; money is all or nothing.
+test("a view without money still validates, and a half-money view does not", () => {
+  const { totalPriceCentavos: _t, estimatedTotalCentavos: _e, currency: _c, ...rest } = view();
+  void _t; void _e; void _c;
+  const moneyless = { ...rest, lines: [{ serviceId: "22222222-2222-4222-8222-222222222222", name: "Basic Wash", quantity: 1 }] };
+  assert.equal(isManagedView(moneyless), true);
+  assert.equal(isSessionData({ booking: moneyless, sessionExpiresAt: "2026-11-04T00:00:00.000Z" }), true);
+  assert.equal(isManagedView({ ...moneyless, estimatedTotalCentavos: 5 }), false, "an estimate without a total");
+  assert.equal(isManagedView({ ...moneyless, currency: "PHP" }), false, "a currency without a total");
+  assert.equal(isManagedView({ ...moneyless, lines: [{ ...moneyless.lines[0], subtotalCentavos: 5 }] }), false, "a line price without its status");
+  assert.equal(isManagedView(view()), true, "a view with all its money still validates");
 });

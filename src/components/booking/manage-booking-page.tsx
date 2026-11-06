@@ -2,39 +2,37 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, FileText, LogOut, RefreshCw, X } from "lucide-react";
-import { Logo } from "@/components/ui/logo";
+import { ArrowLeft, LogOut, RefreshCw } from "lucide-react";
 import { isMultiDay } from "@/components/booking/day-booking";
 import { DayPicker, dateLabel, todayInManila } from "@/components/booking/day-picker";
 import { DepositProofSection } from "@/components/booking/deposit-proof";
+import { BookingLookupForm } from "@/components/booking/booking-lookup-form";
 import { ContactShop, ManagedBookingDetails } from "@/components/booking/managed-booking-details";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import { reveal } from "@/components/booking/reveal";
 import {
   MANAGE_HEADERS,
   canSendProof,
-  codeFromText,
   freezeRequest,
   isAvailabilityData,
   isManagedView,
   isMutationData,
-  isSessionData,
   manageActionError,
   parseLifecycle,
   sendFrozen,
   type FrozenRequest,
 } from "@/components/booking/manage-booking";
 import type { BookingCatalogResponse } from "@/types/catalog-contracts";
-import type { ManagedDayAvailabilityData, ManagedDayBookingView } from "@/types/contracts";
+import type { ManagedDayAvailabilityData, ManagedDayBookingView, ManagedLookupData } from "@/types/contracts";
 
 // P1-05 second pass: the private booking page (ADR-002, P1-04 contract). No URL parameters: the
 // saved code is exchanged once for the HttpOnly session cookie, and every later call relies on that
 // cookie. The code stays in memory only while it is typed and is dropped after the exchange.
 const panel = "rounded border border-border bg-card p-6 sm:p-8";
 const primary =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50";
 const secondary =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded border border-border bg-card px-5 py-3 text-sm font-bold text-foreground transition-colors hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-border bg-card px-5 py-3 text-sm font-bold text-foreground transition-colors hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50";
 
 type Phase = "loading" | "code" | "booking" | "error";
 type Mode = "view" | "cancel" | "day";
@@ -47,11 +45,10 @@ export function ManageBooking() {
   const [readError, setReadError] = React.useState("");
   const [readVersion, setReadVersion] = React.useState(0);
   const [view, setView] = React.useState<ManagedDayBookingView | null>(null);
+  // P1-32: the masked phone and email shown after "reference code + last name" (never the full details).
+  const [lookupContact, setLookupContact] = React.useState<ManagedLookupData["contact"] | null>(null);
   const [multiDay, setMultiDay] = React.useState(false);
-  const [code, setCode] = React.useState("");
-  const [codeError, setCodeError] = React.useState("");
   const [codeNotice, setCodeNotice] = React.useState("");
-  const [codePending, setCodePending] = React.useState(false);
   const [mode, setMode] = React.useState<Mode>("view");
   const [action, setAction] = React.useState<Action | null>(null);
   const [actionError, setActionError] = React.useState("");
@@ -66,13 +63,13 @@ export function ManageBooking() {
   // Synchronous guards (review F1): handlers from one render cannot both pass a state check, so a
   // rapid repeat tap is refused here, before any key is minted or request sent.
   const actionBusy = React.useRef(false);
-  const codeBusy = React.useRef(false);
   // The unconfirmed change, if any: only its own retry may run until it settles (same key).
   const unconfirmedAction = React.useRef<Action | null>(null);
 
   const toCode = React.useCallback((notice: string) => {
     unconfirmedAction.current = null;
     setView(null);
+    setLookupContact(null);
     setMode("view");
     setAction(null);
     setActionError("");
@@ -145,8 +142,8 @@ export function ManageBooking() {
   }, [mode, bookingId, fromDate, daysKey, toCode]);
 
   React.useEffect(() => {
-    if (actionError || codeError) alertRef.current?.focus();
-  }, [actionError, codeError]);
+    if (actionError) alertRef.current?.focus();
+  }, [actionError]);
 
   // P1-19 W7: an opened panel and a finished change come into view with focus on their heading.
   React.useEffect(() => {
@@ -156,51 +153,6 @@ export function ManageBooking() {
   React.useEffect(() => {
     if (done) reveal("manage-result");
   }, [done]);
-
-  const openCode = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (codeBusy.current) return;
-    setCodeNotice("");
-    const accessToken = codeFromText(code);
-    if (!accessToken) {
-      setCodeError("Enter your full private code. It is long: paste it, or open the file you saved.");
-      return;
-    }
-    codeBusy.current = true;
-    setCodePending(true);
-    setCodeError("");
-    try {
-      const result = await sendFrozen(fetch, freezeRequest("/api/bookings/manage/session", { accessToken }), isSessionData);
-      if (result.ok) {
-        setCode("");
-        setView(result.data.booking);
-        setPhase("booking");
-        return;
-      }
-      const e = result.error;
-      setCodeError(
-        e.code === "UNAUTHENTICATED" || e.code === "VALIDATION_ERROR"
-          ? "This code did not open a booking. Check that you copied all of it, or contact the shop."
-          : e.code === "RATE_LIMITED"
-            ? waitText(e.retryAfterSeconds)
-            : e.code === "BOOKING_NOT_MANAGEABLE"
-              ? "Please contact the shop about this booking."
-              : "Your booking could not be opened right now. Try again.",
-      );
-    } finally {
-      codeBusy.current = false;
-      setCodePending(false);
-    }
-  };
-
-  const readCodeFile = async (file: File | undefined) => {
-    if (!file) return;
-    if (file.size > 16 * 1024) return setCodeError("This is not a private code file.");
-    const found = codeFromText(await file.text());
-    if (!found) return setCodeError("No private code was found in this file.");
-    setCodeError("");
-    setCode(found);
-  };
 
   const signOut = async () => {
     if (actionBusy.current) return;
@@ -299,25 +251,25 @@ export function ManageBooking() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex h-20 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center">
-            <Logo />
-          </Link>
-          <span className="text-sm text-muted-foreground">Your booking</span>
-          <Link href="/" aria-label="Return to home" className="flex min-h-[44px] min-w-[44px] items-center justify-center">
-            <X aria-hidden="true" className="h-5 w-5" />
-          </Link>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
-        <div className="mb-8 max-w-3xl">
+      <main className="mx-auto w-full max-w-3xl px-4 py-5 sm:px-6 sm:py-8">
+        {/* P1-50 (LE 2026-11-06): no top bar. One clear way back to the landing page, first on the page in every state. */}
+        <Link
+          href="/"
+          className="group mb-6 inline-flex min-h-[44px] items-center gap-2 rounded-full border border-border bg-card py-2 pl-3 pr-5 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-full bg-primary/15 text-primary transition-transform group-hover:-translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0">
+            <ArrowLeft className="h-4 w-4" />
+          </span>
+          Back to home
+        </Link>
+        <div className="mb-6">
           <h1 className="text-2xl font-bold sm:text-3xl">{phase === "booking" ? "Your booking" : "Open your booking"}</h1>
-          <p className="mt-2 text-base text-muted-foreground">This page is private to you. Days are in Philippine time.</p>
+          <p className="mt-2 text-base text-muted-foreground">
+            {phase === "code" ? "Enter the reference code from your confirmation and the last name you booked with." : "This page is private to you. Days are in Philippine time."}
+          </p>
         </div>
 
-        <div className="max-w-3xl space-y-6">
+        <div className="space-y-5">
           {phase === "loading" && (
             <div role="status" className={panel}>
               Opening your booking…
@@ -342,60 +294,24 @@ export function ManageBooking() {
 
           {phase === "code" && (
             <>
-              <form onSubmit={(e) => void openCode(e)} className={panel} aria-labelledby="code-form-title">
-                <h2 id="code-form-title" className="text-lg font-bold text-foreground">
-                  Enter your private code
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  You got this long code when you booked. Paste it below, or open the file you saved. Your booking reference
-                  (ZEUS-…) is not the private code.
+              {codeNotice && (
+                <p role="status" className="rounded border border-border/80 bg-[#121214] p-3 text-sm text-foreground">
+                  {codeNotice}
                 </p>
-                {codeNotice && (
-                  <p role="status" className="mt-4 rounded border border-border/80 bg-[#121214] p-3 text-sm text-foreground">
-                    {codeNotice}
-                  </p>
-                )}
-                {codeError && (
-                  <div ref={alertRef} tabIndex={-1} role="alert" className="mt-4 rounded border border-destructive p-3 text-sm text-destructive">
-                    {codeError}
-                  </div>
-                )}
-                <label htmlFor="booking-code" className="mt-5 block text-sm font-semibold text-foreground">
-                  Private code
-                </label>
-                <textarea
-                  id="booking-code"
-                  name="booking-code"
-                  rows={4}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  autoComplete="off"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  aria-invalid={Boolean(codeError)}
-                  className="mt-2 w-full rounded border border-input bg-card px-4 py-3 font-mono text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <button type="submit" disabled={codePending || !code.trim()} className={primary}>
-                    {codePending ? "Opening…" : "Open my booking"}
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                  <label className={secondary + " cursor-pointer"}>
-                    <FileText className="h-4 w-4" aria-hidden="true" />
-                    Open saved file
-                    <input type="file" accept=".txt,text/plain" className="sr-only" onChange={(e) => void readCodeFile(e.target.files?.[0])} />
-                  </label>
-                </div>
-              </form>
-
-              <section aria-labelledby="lost-title" className={panel}>
+              )}
+              <BookingLookupForm
+                onFound={(data) => {
+                  setLookupContact(data.contact);
+                  setView(data.booking);
+                  setPhase("booking");
+                }}
+              />
+              <section aria-labelledby="lost-title">
                 <h2 id="lost-title" className="text-base font-bold text-foreground">
-                  Lost your code?
+                  Can&apos;t find it?
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  For your privacy, a booking can&apos;t be opened with its reference or phone number. Contact the shop with your
-                  booking reference and they will help you.
+                  Check the spelling of your reference code and last name, or contact the shop.
                 </p>
                 <ContactShop />
               </section>
@@ -428,6 +344,7 @@ export function ManageBooking() {
 
               <ManagedBookingDetails
                 view={view}
+                contact={lookupContact}
                 multiDay={multiDay}
                 busy={locked || mode !== "view"}
                 onCancel={() => {
@@ -456,7 +373,7 @@ export function ManageBooking() {
                       type="button"
                       onClick={() => void cancelBooking()}
                       disabled={locked}
-                      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-red-700 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {pending ? "Cancelling…" : "Yes, cancel my booking"}
                     </button>

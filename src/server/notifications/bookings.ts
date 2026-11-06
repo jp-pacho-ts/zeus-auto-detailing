@@ -131,6 +131,7 @@ export function customerConfirmationMessage(
       "Estimated total: " + estimate,
       ...(forQuote ? ["Some services are for quote. The shop will confirm the final price."] : []),
       "Manage your booking: " + origin + "/book/manage",
+      "To check your booking's progress, open that page and enter your reference code and last name.",
       "Phone: " + brandConfig.supportPhone,
       "Messenger: " + brandConfig.facebookMessengerUrl,
     ].join("\n"),

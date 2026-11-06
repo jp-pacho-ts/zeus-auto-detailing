@@ -6,7 +6,7 @@ import { brandConfig } from "@/config/brand";
 // P1-19 W12: only if the shop asks; the reference goes in the payment note so the shop can match it.
 export function PaymentInstructions({ where = "confirmation", referenceCode }: { where?: "confirmation" | "manage"; referenceCode: string }) {
   return (
-    <section aria-labelledby="payment-title" className="rounded border border-border bg-card p-4 sm:p-8">
+    <section aria-labelledby="payment-title" className="rounded-2xl border border-border bg-card p-4 sm:p-8">
       <h2 id="payment-title" className="text-lg font-bold text-foreground">Paying a deposit</h2>
       <p className="mt-2 text-sm text-muted-foreground">
         Pay a deposit only if the shop asks you to; wait for its message with the amount. Then pay to one of these accounts and
@@ -16,7 +16,7 @@ export function PaymentInstructions({ where = "confirmation", referenceCode }: {
       </p>
       <ul className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {brandConfig.payment.accounts.map((a) => (
-          <li key={a.provider} className="rounded border border-border bg-[#121214] p-4">
+          <li key={a.provider} className="rounded-xl border border-border bg-[#121214] p-4">
             <p className="font-bold text-foreground">{a.provider}</p>
             <dl className="mt-2 space-y-1 text-sm">
               <div>
@@ -29,7 +29,7 @@ export function PaymentInstructions({ where = "confirmation", referenceCode }: {
               </div>
             </dl>
             {/* Served as-is: the optimizer must not re-encode a QR code. A white margin lets scanners find it. */}
-            <div className="mt-4 w-fit rounded bg-white p-3">
+            <div className="mt-4 w-fit rounded-xl bg-white p-3">
               <Image
                 src={a.qrImage}
                 alt={`${a.provider} QR code for ${a.accountName}`}

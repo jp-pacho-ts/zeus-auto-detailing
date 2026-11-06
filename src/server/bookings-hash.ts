@@ -18,6 +18,8 @@ export function bookingRequestHash(r: CreateDayBookingRequest): string {
                 l.serviceId, l.offerId, l.kind, l.name, l.unit, l.quantity, l.priceStatus, l.unitPriceCentavos, l.subtotalCentavos, l.referenceUnitPriceCentavos, l.referenceSubtotalCentavos
             ]), q.totalPriceCentavos, q.estimatedTotalCentavos, q.currency, q.issuedAt, q.expiresAt, q.quoteToken
         ],
-        r.customerName, r.customerPhone, r.customerEmail ?? null, r.vehicleModel, r.vehiclePlate ?? null, r.specialRequests ?? null
+        r.customerName, r.customerPhone, r.customerEmail ?? null, r.vehicleModel, r.vehiclePlate ?? null, r.specialRequests ?? null,
+        // P1-32: appended only when given, so the hash of an old single-name request does not change.
+        ...(r.customerFirstName && r.customerLastName ? [r.customerFirstName, r.customerLastName] : [])
     ]));
 }

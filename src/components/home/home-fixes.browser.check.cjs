@@ -216,8 +216,8 @@ test('F1/F3: at 200% text the logo covers nothing, every action and contact link
       const box = el => el.getBoundingClientRect();
       const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
       const logo = box(document.querySelector('.zeus-coming-soon__logo'));
-      const others = ['h1', '.zeus-lede', '.zeus-coming-soon__call'].map(selector => box(document.querySelector(selector)));
-      const links = [...document.querySelectorAll('.zeus-coming-soon__call, .zeus-social a')];
+      const others = ['h1', '.zeus-lede', '.zeus-actions'].map(selector => box(document.querySelector(selector)));
+      const links = [...document.querySelectorAll('.zeus-actions a, .zeus-social a')];
       const unreachable = links.filter(link => {
         const r = box(link);
         const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
@@ -255,12 +255,14 @@ test('P1-46/47: logo bottom right and centred on the icon row, side margins, hea
       const logo = box(one('.zeus-coming-soon__logo'));
       const icons = box(one('.zeus-social'));
       const iconLinks = [...document.querySelectorAll('.zeus-social a')].map(a => box(a));
-      const call = box(one('.zeus-coming-soon__call'));
+      const call = box(one('.zeus-actions'));
+      const buttons = [...document.querySelectorAll('.zeus-actions a')].map(a => box(a));
+      const lede = box(one('.zeus-lede'));
       const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
       return {
-        vw: innerWidth, vh: innerHeight, logo, icons, iconLinks, call,
+        vw: innerWidth, vh: innerHeight, logo, icons, iconLinks, call, buttons, lede,
         coming: box(range) && range.getBoundingClientRect().toJSON(),
-        logoOverlaps: ['h1', '.zeus-lede', '.zeus-coming-soon__call'].filter(selector => overlap(logo, box(one(selector)))),
+        logoOverlaps: ['h1', '.zeus-lede', '.zeus-actions'].filter(selector => overlap(logo, box(one(selector)))),
         clipped: [...document.querySelectorAll('h1,p,a,img,svg,span,strong')].filter(e => { const r = box(e); return r.width > 0 && (r.right > innerWidth + 0.5 || r.left < -0.5); }).map(e => e.tagName),
         small: [...document.querySelectorAll('a')].filter(a => { const r = box(a); return r.width < 43.5 || r.height < 43.5; }).map(a => a.getAttribute('aria-label') || a.textContent.trim()),
         scrollW: document.documentElement.scrollWidth, scrollH: document.documentElement.scrollHeight,
@@ -269,19 +271,45 @@ test('P1-46/47: logo bottom right and centred on the icon row, side margins, hea
     const margin = width <= 340 ? 24 : width <= 800 ? 28 : width * 0.07;
     const column = width - 2 * margin;
     const near = (a, b, tolerance, message) => assert.ok(Math.abs(a - b) <= tolerance, `${width}: ${message} (${a.toFixed(1)} vs ${b.toFixed(1)})`);
-    assert.ok(m.logo.left > width * 0.45 && m.logo.top > height * 0.65, `${width}: logo is bottom right`);
-    near(m.logo.right, width - margin, 1.5, 'logo sits on the right margin');
-    // P1-47: the address is a third icon (location) in the row, so the row is the whole bottom block.
-    assert.equal(m.iconLinks.length, 3, `${width}: Facebook, Instagram and location icons`);
-    assert.ok(m.iconLinks.every(link => Math.abs(link.top - m.iconLinks[0].top) < 0.5), `${width}: the three icons share one row`);
-    near(m.logo.top + m.logo.height / 2, (m.icons.top + m.icons.bottom) / 2, 3, 'logo is centred on the icon row');
+    // P1-56: four icons leave no room for the logo beside them under 352px, so there it sits on its own row below the icons.
+    if (width >= 352) {
+      assert.ok(m.logo.left > width * 0.45 && m.logo.top > height * 0.65, `${width}: logo is bottom right`);
+      near(m.logo.right, width - margin, 1.5, 'logo sits on the right margin');
+    } else {
+      assert.ok(m.logo.top >= m.icons.bottom, `${width}: logo is below the icon row`);
+      near(m.logo.left, margin, 1.5, 'logo starts on the left margin');
+    }
+    // P1-56: Call joins as the first icon, then Facebook, Instagram and the address icon (P1-47); the row, so the row is the whole bottom block.
+    assert.equal(m.iconLinks.length, 4, `${width}: Call, Facebook, Instagram and location icons`);
+    assert.ok(m.iconLinks.every(link => Math.abs(link.top - m.iconLinks[0].top) < 0.5), `${width}: the four icons share one row`);
+    if (width >= 352) near(m.logo.top + m.logo.height / 2, (m.icons.top + m.icons.bottom) / 2, 3, 'logo is centred on the icon row');
     near(m.icons.left, margin, 1.5, 'icons start on the left margin');
     near(m.coming.left, margin, 2, 'headline starts on the left margin');
     if (width <= 800) {
-      near(m.call.left, margin, 1.5, 'Call pill starts on the left margin');
-      if (width <= 560) near(m.call.right, width - margin, 1.5, 'Call pill ends on the right margin');
-      else assert.ok(m.call.width <= 420.5, `${width}: on tablets the Call pill keeps a pill shape (${m.call.width.toFixed(0)}px)`);
+      near(m.call.left, margin, 1.5, 'action pill starts on the left margin');
+      if (width <= 560) near(m.call.right, width - margin, 1.5, 'action pill ends on the right margin');
+      else assert.ok(m.call.width <= 420.5, `${width}: on tablets the action pill keeps its width (${m.call.width.toFixed(0)}px)`);
       if (width <= 560) assert.ok(m.coming.width >= column * 0.95 && m.coming.width <= column + 1, `${width}: COMING is as wide as the text column (${m.coming.width.toFixed(1)} of ${column})`);
+    }
+    // P1-59: two separate buttons. Up to 800px they are stacked at full column width, 12px apart, and the stack sits exactly
+    // 24px above the bottom row (icons and logo), the same at every width. Above 800px they share a row.
+    const [bookBox, manageBox] = m.buttons;
+    assert.ok(Math.abs(bookBox.height - manageBox.height) < 0.5 && bookBox.height >= 48, `${width}: equal height, 48px or more`);
+    assert.ok(bookBox.left >= margin - 1.5 && manageBox.right <= width - margin + 1.5, `${width}: buttons stay inside the margins`);
+    if (width <= 800) {
+      assert.ok(Math.abs(bookBox.left - manageBox.left) < 0.5 && Math.abs(bookBox.width - manageBox.width) < 0.5, `${width}: stacked, same left edge and width`);
+      assert.ok(Math.abs(manageBox.top - bookBox.bottom - 12) <= 1, `${width}: 12px between the buttons (${(manageBox.top - bookBox.bottom).toFixed(1)}px)`);
+      if (width <= 560) near(bookBox.width, column, 1.5, 'full width of the text column');
+      else assert.ok(bookBox.width <= 420.5, `${width}: on tablets the stack is at most 420px`);
+      const bottomRowTop = Math.min(m.icons.top, m.logo.top);
+      near(bottomRowTop - manageBox.bottom, 24, 1, 'the stack sits exactly 24px above the icons and logo');
+      assert.ok(bookBox.top - m.lede.bottom >= 24, `${width}: the picture band stays between the paragraph and the stack`);
+      assert.ok(Math.max(m.icons.bottom, m.logo.bottom) <= height - 40, `${width}: icons and logo keep clear of the bottom edge`);
+    } else assert.ok(Math.abs(bookBox.top - manageBox.top) < 0.5 && manageBox.left - bookBox.right >= 8, `${width}: one row with a gap`);
+    {
+      const icons = m.iconLinks[m.iconLinks.length - 1];
+      const apart = m.logo.left >= icons.right + 8 || m.logo.top >= m.icons.bottom;
+      assert.ok(apart, `${width}: the logo does not overlap the icon row`);
     }
     assert.deepEqual(m.logoOverlaps, [], `${width}: the logo overlaps nothing`);
     assert.deepEqual(m.clipped, [], `${width}: nothing is clipped at the sides`);

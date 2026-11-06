@@ -9,10 +9,10 @@ import type { ManagedDayBookingView } from "@/types/contracts";
 import { deferred, mountHooks } from "./render-hooks.fixture";
 import { DepositProofSection } from "./deposit-proof";
 import { ManageBooking } from "./manage-booking-page";
-import { ManagedBookingDetails } from "./managed-booking-details";
+import { BookingLookupForm } from "./booking-lookup-form";
+import { ContactShop, ManagedBookingDetails } from "./managed-booking-details";
 import { DayPicker } from "./day-picker";
 
-const TOKEN = "eyJ2IjoxLCJraWQiOiJnIiwicHVycG9zZSI6IkJPT0tJTkdfTUFOQUdFTUVOVCJ9.c2lnbmF0dXJlLWJ5dGVzLWZvci10aGUtdGVzdC1vbmx5";
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 const view = (o: Partial<ManagedDayBookingView> = {}): ManagedDayBookingView => ({
   id: "0c6a3b5e-6d1f-4c2a-9e1b-3f5d7a9c1e2b",
@@ -177,22 +177,47 @@ test("F1: change day: a double tap on the move sends one request", async () => {
   assert.match(h.text(), /Your booking is moved to /);
 });
 
-test("F1: the code form: a double submit opens one session", async () => {
-  const calls = stubFetch({
+test("P1-48: signed out, the page asks only for reference code and last name; there is no private-code form", async () => {
+  stubFetch({
     "GET /api/bookings/manage": [() => json({ ok: false, error: { code: "UNAUTHENTICATED", message: "x", fieldErrors: {}, retryable: false, commitState: "NOT_APPLICABLE", currentQuote: null, currentBooking: null, retryAfterSeconds: null } }, 401)],
-    "POST /api/bookings/manage/session": [() => json({ ok: true, data: { booking: view(), sessionExpiresAt: "2026-11-04T00:00:00.000Z" } })],
     "GET /api/catalog": [() => json({ ok: false })],
   });
   const h = mountHooks(ManageBooking, {});
   await h.settle();
-  h.all().find((el) => el.props.id === "booking-code")!.props.onChange({ target: { value: TOKEN } });
-  await h.settle(1);
-  const form = h.all().find((el) => el.type === "form")!;
-  form.props.onSubmit({ preventDefault() {} });
-  form.props.onSubmit({ preventDefault() {} });
+  assert.equal(h.all().find((el) => el.props.id === "booking-code"), undefined);
+  assert.doesNotMatch(h.text(), /private code|Open saved file|Lost your code/i);
+  assert.ok(h.child(BookingLookupForm), "the reference code and last name form is shown");
+});
+
+test("P1-50: signed out, the help sits under the ticket as 'Can't find it?' with Call and Messenger; the old box is gone", async () => {
+  stubFetch({
+    "GET /api/bookings/manage": [() => json({ ok: false, error: { code: "UNAUTHENTICATED", message: "x", fieldErrors: {}, retryable: false, commitState: "NOT_APPLICABLE", currentQuote: null, currentBooking: null, retryAfterSeconds: null } }, 401)],
+    "GET /api/catalog": [() => json({ ok: false })],
+  });
+  const h = mountHooks(ManageBooking, {});
   await h.settle();
-  assert.equal(postsTo(calls, "/api/bookings/manage/session").length, 1);
-  assert.match(h.text(), /ZEUS-TEST01|Your booking/);
+  assert.match(h.text(), /Can't find it\?/);
+  assert.doesNotMatch(h.text(), /Can't open your booking/);
+  assert.ok(h.child(ContactShop), "the Call and Messenger buttons are the shared ContactShop");
+  assert.match(h.text(), /Enter the reference code from your confirmation and the last name you booked with\./);
+});
+
+test("P1-50: no top bar in either state; one 'Back to home' link to the landing page", async () => {
+  stubFetch({
+    "GET /api/bookings/manage": [() => json({ ok: false, error: { code: "UNAUTHENTICATED", message: "x", fieldErrors: {}, retryable: false, commitState: "NOT_APPLICABLE", currentQuote: null, currentBooking: null, retryAfterSeconds: null } }, 401)],
+    "GET /api/catalog": [() => json({ ok: false })],
+  });
+  const out = mountHooks(ManageBooking, {});
+  await out.settle();
+  const { h: inn } = await openBooking();
+  for (const [name, h] of [["signed out", out], ["signed in", inn]] as const) {
+    assert.equal(h.all().find((el) => el.type === "header"), undefined, name + ": no header bar");
+    const home = h.all().filter((el) => el.props.href === "/");
+    assert.equal(home.length, 1, name + ": exactly one link to the landing page (no logo link, no X)");
+    assert.match(h.text(), /Back to home/);
+    assert.doesNotMatch(h.text(), /Return to home/);
+  }
+  assert.ok(inn.button("Sign out"), "Sign out stays on the signed-in page");
 });
 
 test("F1: sign out: a double tap sends one DELETE", async () => {
@@ -202,7 +227,7 @@ test("F1: sign out: a double tap sends one DELETE", async () => {
   out.props.onClick();
   await h.settle();
   assert.equal(calls.filter((c) => c.method === "DELETE").length, 1);
-  assert.match(h.text(), /Enter your private code/);
+  assert.match(h.text(), /Enter your reference code and last name again|Open your booking/);
 });
 
 test("F2: a malformed booking read shows a retryable error, never a blank or half view", async () => {
