@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { brandConfig } from "@/config/brand";
 import { BookingLookupForm, LOOKUP_TEXT } from "./booking-lookup-form";
+import { ContactShop } from "./managed-booking-details";
 
 process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "b34_synthetic_public_site_key";
 const markup = () => renderToStaticMarkup(createElement(BookingLookupForm, { onFound: () => {} }));
@@ -51,4 +52,14 @@ test("the texts the tests and customers rely on are unchanged", () => {
   assert.equal(LOOKUP_TEXT.notFound, "We couldn't find that booking. Check the reference code and last name.");
   assert.equal(LOOKUP_TEXT.tooMany, "Too many tries. Use the link in your confirmation email, or call the shop.");
   assert.equal(LOOKUP_TEXT.challenge, "Complete the security check again.");
+});
+
+test("P1-50: the Call and Messenger buttons are slightly rounded (12 px), like the ticket's fields, not square", () => {
+  const m = renderToStaticMarkup(createElement(ContactShop, {}));
+  const links = [...m.matchAll(/<a [^>]*class="([^"]*)"/g)].map((x) => x[1]);
+  assert.equal(links.length, 2);
+  for (const c of links) {
+    assert.match(c, /rounded-xl/);
+    assert.doesNotMatch(c, /(^| )rounded( |$)/);
+  }
 });

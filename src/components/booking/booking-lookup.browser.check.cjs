@@ -74,6 +74,8 @@ test('the Manage booking page: reference code + last name, one generic failure, 
       assert.ok((await home.evaluate((el) => getComputedStyle(el).boxShadow)) !== 'none', width + 'px it shows a visible focus ring');
       await shot(page, `p150-home-focus-${width}`);
       await page.locator('body').click({ position: { x: 1, y: 1 } });
+      const radius = await page.getByRole('link', { name: /Call the shop/ }).evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius));
+      assert.ok(radius >= 10 && radius <= 14, width + 'px the help buttons are slightly rounded: ' + radius);
       // P1-50 boarding pass: the logo, the security check and the button are on the stub, the stub holds a real-size (300 px) widget
       // without clipping, and nothing scrolls sideways.
       const stub = form.locator('[data-part=stub]');

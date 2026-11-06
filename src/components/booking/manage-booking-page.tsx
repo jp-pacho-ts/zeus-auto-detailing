@@ -30,9 +30,9 @@ import type { ManagedDayAvailabilityData, ManagedDayBookingView, ManagedLookupDa
 // cookie. The code stays in memory only while it is typed and is dropped after the exchange.
 const panel = "rounded border border-border bg-card p-6 sm:p-8";
 const primary =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50";
 const secondary =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded border border-border bg-card px-5 py-3 text-sm font-bold text-foreground transition-colors hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-border bg-card px-5 py-3 text-sm font-bold text-foreground transition-colors hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50";
 
 type Phase = "loading" | "code" | "booking" | "error";
 type Mode = "view" | "cancel" | "day";
@@ -374,7 +374,7 @@ export function ManageBooking() {
                       type="button"
                       onClick={() => void cancelBooking()}
                       disabled={locked}
-                      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded bg-red-700 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {pending ? "Cancelling…" : "Yes, cancel my booking"}
                     </button>

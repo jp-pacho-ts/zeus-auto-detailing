@@ -20,7 +20,7 @@ export function ContactShop({ referenceCode }: { referenceCode?: string }) {
     <div className="mt-4 flex flex-wrap gap-3">
       <a
         href={`tel:${brandConfig.contactPhone.replace(/\s+/g, "")}`}
-        className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+        className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
       >
         <Phone className="h-4 w-4 text-primary" aria-hidden="true" />
         Call the shop ({brandConfig.displayPhone})
@@ -31,7 +31,7 @@ export function ContactShop({ referenceCode }: { referenceCode?: string }) {
         )}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex min-h-[44px] items-center gap-2 rounded border border-border bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+        className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
       >
         <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
         Message on Facebook Messenger
@@ -158,7 +158,7 @@ export function ManagedBookingDetails({
               type="button"
               onClick={onChangeDay}
               disabled={busy}
-              className="inline-flex min-h-[48px] items-center gap-2 rounded bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[48px] items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CalendarClock className="h-4 w-4" aria-hidden="true" />
               Change day
@@ -167,7 +167,7 @@ export function ManagedBookingDetails({
               type="button"
               onClick={onCancel}
               disabled={busy}
-              className="inline-flex min-h-[48px] items-center gap-2 rounded border border-destructive/60 px-5 py-3 text-sm font-bold text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[48px] items-center gap-2 rounded-xl border border-destructive/60 px-5 py-3 text-sm font-bold text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <XCircle className="h-4 w-4" aria-hidden="true" />
               Cancel booking
