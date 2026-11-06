@@ -85,7 +85,7 @@ BEGIN
     'admin_staff_update(text, text, text, text, text, text, integer, integer)', 'admin_staff_set_active(text, text, boolean, integer)',
     'admin_staff_remove(text, text, integer)', 'admin_commission_default_set(text, integer, integer)',
     'admin_commission_paid_set(text, text[], boolean)', 'admin_commission_repair(text)',
-    'admin_commission_adjust(text, text, bigint, text)'
+    'admin_commission_adjust(text, text, text, bigint, text)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);

@@ -52,3 +52,10 @@ test("totals and bulk-selection use stored centavos only", () => {
   assert.deepEqual(selectableIds(e, true), ["a"]);
   assert.deepEqual(selectableIds(e, false), ["b"]);
 });
+
+test("a negative unpaid figure reads as owed back, never as a bare minus (review R2-4)", async () => {
+  const { unpaidText } = await import("./team-model");
+  assert.equal(unpaidText(12_345), "Unpaid ₱123.45");
+  assert.equal(unpaidText(0), "Unpaid ₱0.00");
+  assert.equal(unpaidText(-200), "Owed back ₱2.00");
+});

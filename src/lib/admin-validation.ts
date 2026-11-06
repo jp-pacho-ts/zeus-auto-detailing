@@ -238,6 +238,7 @@ export const CommissionListSchema = z
 // A signed whole-centavo correction to one person's commission (never zero, at most 10 billion pesos), with a reason.
 export const CommissionAdjustSchema = z
   .object({
+    id: Id, // made by the browser once per form, so a retry after a lost response cannot record the adjustment twice
     entryId: Id,
     amountCentavos: z.number().int("Use whole centavos.").refine((n) => n !== 0, "The adjustment can't be zero.").refine((n) => Math.abs(n) <= 1_000_000_000_000, "That amount is too large."),
     reason: z.string().trim().min(1, "Give a reason.").max(200, "Use 200 characters or fewer."),

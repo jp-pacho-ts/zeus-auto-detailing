@@ -171,7 +171,7 @@ export async function adjustCommission(actor: StaffActor, input: unknown, option
   return mutate(options, "commission_adjust", async (tx) => {
     let id: string;
     try {
-      const [row] = await tx.$queryRaw<{ r: { id: string } }[]>`SELECT admin_commission_adjust(${actor.staffId}, ${v.entryId}, ${BigInt(v.amountCentavos)}::bigint, ${v.reason}) AS r`;
+      const [row] = await tx.$queryRaw<{ r: { id: string } }[]>`SELECT admin_commission_adjust(${actor.staffId}, ${v.id}, ${v.entryId}, ${BigInt(v.amountCentavos)}::bigint, ${v.reason}) AS r`;
       id = row.r.id;
     } catch (error) { return mapError(error); }
     adminEvent("admin.commission.adjusted", { actorStaffId: actor.staffId });

@@ -4,6 +4,10 @@ BEGIN;
 -- staff."defaultCommissionRate" stay, unused, until a separate contract migration (P1-37b) removes them after the
 -- new code is live. Release order: this migration with the OLD code live, then prisma/sql/runtime-role.sql, then
 -- prisma/sql/p1-37-readonly-check.sql, then the code.
+-- ONE EXCEPTION to "expand only" (review R2-5): section 7b tightens the existing guard_booking_line_change(): a staff price change on
+-- a COMPLETED booking is now refused by the database. While the OLD code is still live (migration first), an admin who prices a line
+-- on a completed booking gets a raw database error instead of the plain refusal. Release note: do that step right before the code
+-- goes live, or ship migration and code together. Nothing else in this migration changes what the live code does.
 --
 -- What it adds
 --  * staff: "commissionRateBp" (NULL = use the default), "revision", "updatedAt".
@@ -57,7 +61,7 @@ BEGIN;
 --     admin_staff_update(text, text, text, text, text, text, integer, integer),
 --     admin_staff_set_active(text, text, boolean, integer), admin_staff_remove(text, text, integer),
 --     admin_commission_default_set(text, integer, integer), admin_commission_paid_set(text, text[], boolean),
---     admin_commission_repair(text), admin_commission_adjust(text, text, bigint, text), guard_commission_adjustment_change(),
+--     admin_commission_repair(text), admin_commission_adjust(text, text, text, bigint, text), guard_commission_adjustment_change(),
 --     reject_commission_truncate();
 --   restore guard_booking_line_change() from migration 20261018000000_booking_model (section 7b changes one rule in it);
 --   restore delete_booking(text, text, integer, text) from migration 20261030000000_delete_booking;
@@ -608,24 +612,34 @@ END $$;
 
 -- Records one adjustment against one entry. ADMIN only, a required reason, a signed whole-centavo amount that is not zero,
 -- and the entry plus all its adjustments (including this one) must stay at zero or more. One audit row.
-CREATE FUNCTION admin_commission_adjust(p_actor text, p_entry text, p_amount bigint, p_reason text) RETURNS jsonb
+CREATE FUNCTION admin_commission_adjust(p_actor text, p_id text, p_entry text, p_amount bigint, p_reason text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
-DECLARE e public.commission_entries; v_reason text := btrim(p_reason); v_id text; net bigint;
+DECLARE e public.commission_entries; x public.commission_adjustments; v_reason text := btrim(p_reason); net bigint;
 BEGIN
  PERFORM pg_advisory_xact_lock(746001, 1);
  PERFORM public.admin_assert_actor(p_actor);
- IF p_entry IS NULL OR p_entry = '' OR p_amount IS NULL OR p_amount = 0 OR p_amount NOT BETWEEN -1000000000000 AND 1000000000000
+ IF p_id IS NULL OR p_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' OR p_entry IS NULL OR p_entry = ''
+    OR p_amount IS NULL OR p_amount = 0 OR p_amount NOT BETWEEN -1000000000000 AND 1000000000000
     OR v_reason IS NULL OR length(v_reason) NOT BETWEEN 1 AND 200 THEN
   RAISE EXCEPTION 'Missing or invalid input' USING ERRCODE = 'ZT006';
  END IF;
  SELECT * INTO e FROM public.commission_entries WHERE id = p_entry FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Commission entry not found' USING ERRCODE = 'ZT001'; END IF;
+ -- Idempotent (review R2-2): the browser makes the id. The same id with the same content is a retry after a lost response
+ -- and returns the existing row; the same id with different content is refused.
+ SELECT * INTO x FROM public.commission_adjustments WHERE id = p_id;
+ IF FOUND THEN
+  IF x."entryId" = p_entry AND x."amountCentavos" = p_amount AND x.reason = v_reason AND x."actorStaffId" = p_actor THEN
+   RETURN jsonb_build_object('id', p_id, 'replayed', true);
+  END IF;
+  RAISE EXCEPTION 'That adjustment id was already used for something else' USING ERRCODE = 'ZT006';
+ END IF;
  SELECT e."amountCentavos" + COALESCE(sum("amountCentavos"), 0)::bigint + p_amount INTO net FROM public.commission_adjustments WHERE "entryId" = p_entry;
  IF net < 0 THEN RAISE EXCEPTION 'An adjustment cannot take a commission below zero' USING ERRCODE = 'ZC006'; END IF;
- INSERT INTO public.commission_adjustments ("entryId", "amountCentavos", "reason", "actorStaffId") VALUES (p_entry, p_amount, v_reason, p_actor) RETURNING id INTO v_id;
+ INSERT INTO public.commission_adjustments (id, "entryId", "amountCentavos", "reason", "actorStaffId") VALUES (p_id, p_entry, p_amount, v_reason, p_actor);
  INSERT INTO public.admin_audit_events (action, "actorStaffId", "targetStaffId", "bookingId", "newValue", "reason")
   VALUES ('COMMISSION_ADJUSTED', p_actor, e."staffId", e."bookingId", p_amount::text, v_reason);
- RETURN jsonb_build_object('id', v_id);
+ RETURN jsonb_build_object('id', p_id, 'replayed', false);
 END $$;
 
 -- Redoes the records of completed bookings that have none (an accrual that failed). Only bookings completed since the
@@ -803,18 +817,18 @@ END $$;
 
 -- 9. Privileges. No default privileges for the new tables; the runtime role reads the three commission tables and has
 -- nothing on admin_audit_events. The functions are executable by zeus_app only (the internal ones by nobody).
-REVOKE ALL ON "commission_settings", "commission_accruals", "commission_entries", "admin_audit_events" FROM PUBLIC;
+REVOKE ALL ON "commission_settings", "commission_accruals", "commission_entries", "commission_adjustments", "admin_audit_events" FROM PUBLIC;
 REVOKE ALL ON FUNCTION admin_team_list(text), admin_staff_create(text, text, text, text, integer),
   admin_staff_update(text, text, text, text, text, text, integer, integer), admin_staff_set_active(text, text, boolean, integer),
   admin_staff_remove(text, text, integer), admin_commission_default_set(text, integer, integer),
-  admin_commission_paid_set(text, text[], boolean), admin_commission_repair(text) FROM PUBLIC;
+  admin_commission_paid_set(text, text[], boolean), admin_commission_repair(text), admin_commission_adjust(text, text, text, bigint, text) FROM PUBLIC;
 DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'zeus_app') THEN
- REVOKE ALL ON "commission_settings", "commission_accruals", "commission_entries", "admin_audit_events" FROM zeus_app;
- GRANT SELECT ON "commission_settings", "commission_accruals", "commission_entries" TO zeus_app;
+ REVOKE ALL ON "commission_settings", "commission_accruals", "commission_entries", "commission_adjustments", "admin_audit_events" FROM zeus_app;
+ GRANT SELECT ON "commission_settings", "commission_accruals", "commission_entries", "commission_adjustments" TO zeus_app;
  GRANT EXECUTE ON FUNCTION admin_team_list(text), admin_staff_create(text, text, text, text, integer),
   admin_staff_update(text, text, text, text, text, text, integer, integer), admin_staff_set_active(text, text, boolean, integer),
   admin_staff_remove(text, text, integer), admin_commission_default_set(text, integer, integer),
-  admin_commission_paid_set(text, text[], boolean), admin_commission_repair(text) TO zeus_app;
+  admin_commission_paid_set(text, text[], boolean), admin_commission_repair(text), admin_commission_adjust(text, text, text, bigint, text) TO zeus_app;
  GRANT EXECUTE ON FUNCTION delete_booking(text, text, integer, text) TO zeus_app;
 END IF; END $$;
 COMMIT;

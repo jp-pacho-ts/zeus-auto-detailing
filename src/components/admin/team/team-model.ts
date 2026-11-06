@@ -83,3 +83,8 @@ export function pesoRange(entries: { amountCentavos: number }[]): string {
 export function selectableIds(entries: { id: string; paidAt: string | null }[], paid: boolean): string[] {
   return entries.filter((e) => (paid ? e.paidAt === null : e.paidAt !== null)).map((e) => e.id);
 }
+
+/** The unpaid figure in words. Negative means the shop paid more than is now owed (a Take off after payment): say "owed back", never a bare minus. */
+export function unpaidText(unpaidCentavos: number): string {
+  return unpaidCentavos < 0 ? `Owed back ${formatPesos(-unpaidCentavos)}` : `Unpaid ${formatPesos(unpaidCentavos)}`;
+}

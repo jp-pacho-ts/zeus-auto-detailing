@@ -7,7 +7,7 @@ import { adminRequest } from "../bookings/client";
 import { fieldClass, LoadState } from "../bookings/use-admin-resource";
 import { useKeptResource } from "./use-kept-resource";
 import { describeError } from "./team-panel";
-import { defaultRateLine, manilaToday, monthStart, rangeProblem, selectableIds, warningLines } from "./team-model";
+import { defaultRateLine, manilaToday, monthStart, rangeProblem, selectableIds, unpaidText, warningLines } from "./team-model";
 
 const buttonClass = "inline-flex min-h-[44px] items-center justify-center rounded border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50";
 
@@ -24,6 +24,9 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [adjusting, setAdjusting] = React.useState<string | null>(null);
   const [adjAmount, setAdjAmount] = React.useState("");
+  const [adjMode, setAdjMode] = React.useState<"ADD" | "TAKE">("ADD");
+  // One id per form content: a retry after a lost response sends the same id, so the server records it once.
+  const [adjId, setAdjId] = React.useState("");
   const [adjReason, setAdjReason] = React.useState("");
   const [adjProblem, setAdjProblem] = React.useState<string | null>(null);
   const [editingRate, setEditingRate] = React.useState(false);
@@ -86,16 +89,18 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
 
   async function saveAdjustment(e: React.FormEvent) {
     e.preventDefault();
-    const amountCentavos = signedPesosToCentavos(adjAmount);
-    if (amountCentavos === null) { setAdjProblem("Enter an amount in pesos, like 300 or -150.50. It can't be zero."); return; }
+    const typed = signedPesosToCentavos(adjAmount);
+    if (typed === null || typed < 0) { setAdjProblem("Enter an amount in pesos, like 300 or 150.50, with no minus sign. It can't be zero. Choose Add or Take off."); return; }
+    const amountCentavos = adjMode === "TAKE" ? -typed : typed;
     if (!adjReason.trim()) { setAdjProblem("Give a reason."); return; }
     setAdjProblem(null);
     const ok = await run(async () => {
-      await adminRequest("/api/admin/commissions/adjust", { method: "POST", body: { entryId: adjusting, amountCentavos, reason: adjReason.trim() } });
+      await adminRequest("/api/admin/commissions/adjust", { method: "POST", body: { id: adjId, entryId: adjusting, amountCentavos, reason: adjReason.trim() } });
       return "The adjustment was recorded.";
     });
-    if (ok) { setAdjusting(null); setAdjAmount(""); setAdjReason(""); }
+    if (ok) { setAdjusting(null); setAdjAmount(""); setAdjReason(""); setAdjMode("ADD"); }
   }
+  const freshAdjId = () => setAdjId(crypto.randomUUID());
   const canMarkPaid = selectableIds(chosen, true).length > 0;
   const canMarkUnpaid = selectableIds(chosen, false).length > 0;
 
@@ -156,7 +161,7 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
           )}
 
           <dl className="grid grid-cols-3 gap-px border-b border-border bg-border text-center">
-            {([["Earned", data.grandTotal.earnedCentavos], ["Paid", data.grandTotal.paidCentavos], ["Unpaid", data.grandTotal.unpaidCentavos]] as const).map(([label, value]) => (
+            {([["Earned", data.grandTotal.earnedCentavos], ["Paid", data.grandTotal.paidCentavos], [data.grandTotal.unpaidCentavos < 0 ? "Owed back" : "Unpaid", Math.abs(data.grandTotal.unpaidCentavos)]] as const).map(([label, value]) => (
               <div key={label} className="bg-[#121214] p-3 sm:p-4">
                 <dt className="text-xs text-muted-foreground">{label}</dt>
                 <dd className="text-sm font-bold tabular-nums text-foreground sm:text-base">{formatPesos(value)}</dd>
@@ -173,7 +178,7 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
                 {data.totals.map((t) => (
                   <li key={t.staffId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
                     <span className="min-w-0 break-words text-sm font-semibold text-foreground">{t.staffName}<span className="ml-2 text-xs font-normal text-muted-foreground">{t.entryCount} {t.entryCount === 1 ? "job" : "jobs"}</span></span>
-                    <span className="text-xs tabular-nums text-muted-foreground">Earned {formatPesos(t.earnedCentavos)} · Unpaid {formatPesos(t.unpaidCentavos)}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">Earned {formatPesos(t.earnedCentavos)} · {unpaidText(t.unpaidCentavos)}</span>
                   </li>
                 ))}
               </ul>
@@ -222,17 +227,23 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
                     <div className="px-4 pb-3 pl-12 sm:pl-14 sm:pr-6">
                       {adjusting === en.id ? (
                         <form onSubmit={(e) => void saveAdjustment(e)} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                          <label className="block text-xs font-semibold text-muted-foreground">Amount (pesos, minus to take away)
-                            <input className={fieldClass} value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} inputMode="decimal" required autoComplete="off" />
+                          <label className="block text-xs font-semibold text-muted-foreground">Change
+                            <select className={fieldClass} value={adjMode} onChange={(e) => { setAdjMode(e.target.value as "ADD" | "TAKE"); freshAdjId(); }}>
+                              <option value="ADD">Add to the commission</option>
+                              <option value="TAKE">Take off the commission</option>
+                            </select>
+                          </label>
+                          <label className="block text-xs font-semibold text-muted-foreground">Amount (pesos)
+                            <input className={fieldClass} value={adjAmount} onChange={(e) => { setAdjAmount(e.target.value); freshAdjId(); }} inputMode="decimal" required autoComplete="off" />
                           </label>
                           <label className="block min-w-0 flex-1 text-xs font-semibold text-muted-foreground">Reason
-                            <input className={fieldClass} value={adjReason} onChange={(e) => setAdjReason(e.target.value)} maxLength={200} required autoComplete="off" />
+                            <input className={fieldClass} value={adjReason} onChange={(e) => { setAdjReason(e.target.value); freshAdjId(); }} maxLength={200} required autoComplete="off" />
                           </label>
                           <Button type="submit" variant="gold" className="min-h-[44px]" disabled={busy}>{busy ? "Saving..." : "Save adjustment"}</Button>
                           <Button type="button" variant="outline" className="min-h-[44px]" disabled={busy} onClick={() => { setAdjusting(null); setAdjProblem(null); }}>Cancel</Button>
                         </form>
                       ) : (
-                        <button type="button" className={buttonClass} disabled={busy} onClick={() => { setAdjusting(en.id); setAdjAmount(""); setAdjReason(""); setAdjProblem(null); setError(null); }}>Add adjustment</button>
+                        <button type="button" className={buttonClass} disabled={busy} onClick={() => { setAdjusting(en.id); setAdjAmount(""); setAdjReason(""); setAdjMode("ADD"); freshAdjId(); setAdjProblem(null); setError(null); }}>Add adjustment</button>
                       )}
                       {adjusting === en.id && adjProblem && <p role="alert" className="mt-1 text-xs text-rose-400">{adjProblem}</p>}
                     </div>

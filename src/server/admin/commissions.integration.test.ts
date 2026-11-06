@@ -614,16 +614,25 @@ test("C22 a late price reaches the commission as an adjustment: ADMIN only, reas
   const [e] = await entries(job.id);
   assert.equal(e.amountCentavos, 10_000);
   const adjust = (body: unknown, actor: StaffActor = ADMIN) => s.adjustCommission(actor, body, opts());
-  await refused(adjust({ entryId: e.id, amountCentavos: 5_000, reason: "x" }, { ...ADMIN, role: "STAFF" }), "FORBIDDEN", "STAFF");
-  for (const bad of [{ entryId: e.id, amountCentavos: 0, reason: "zero" }, { entryId: e.id, amountCentavos: 1.5, reason: "fraction" }, { entryId: e.id, amountCentavos: 5_000, reason: "  " },
-    { entryId: e.id, amountCentavos: 5_000 }, { entryId: e.id, amountCentavos: 5_000, reason: "x".repeat(201) }, { entryId: e.id, amountCentavos: 1_000_000_000_001, reason: "too large" },
-    { entryId: "not-a-uuid", amountCentavos: 5_000, reason: "bad id" }, { entryId: e.id, amountCentavos: 5_000, reason: "extra", paid: true }])
+  await refused(adjust({ id: randomUUID(), entryId: e.id, amountCentavos: 5_000, reason: "x" }, { ...ADMIN, role: "STAFF" }), "FORBIDDEN", "STAFF");
+  const K = () => ({ id: randomUUID(), entryId: e.id });
+  for (const bad of [{ ...K(), amountCentavos: 0, reason: "zero" }, { ...K(), amountCentavos: 1.5, reason: "fraction" }, { ...K(), amountCentavos: 5_000, reason: "  " },
+    { ...K(), amountCentavos: 5_000 }, { ...K(), amountCentavos: 5_000, reason: "x".repeat(201) }, { ...K(), amountCentavos: 1_000_000_000_001, reason: "too large" },
+    { id: randomUUID(), entryId: "not-a-uuid", amountCentavos: 5_000, reason: "bad id" }, { ...K(), amountCentavos: 5_000, reason: "extra", paid: true },
+    { entryId: e.id, amountCentavos: 5_000, reason: "no id" }, { id: "nope", entryId: e.id, amountCentavos: 5_000, reason: "bad adjustment id" }])
     await refused(adjust(bad), "VALIDATION_ERROR", JSON.stringify(bad).slice(0, 50));
-  await refused(adjust({ entryId: randomUUID(), amountCentavos: 5_000, reason: "unknown entry" }), "NOT_FOUND", "unknown entry");
-  await refused(adjust({ entryId: e.id, amountCentavos: -10_001, reason: "too much" }), "VALIDATION_ERROR", "below zero");
+  await refused(adjust({ id: randomUUID(), entryId: randomUUID(), amountCentavos: 5_000, reason: "unknown entry" }), "NOT_FOUND", "unknown entry");
+  await refused(adjust({ ...K(), amountCentavos: -10_001, reason: "too much" }), "VALIDATION_ERROR", "below zero");
   assert.equal(await count("commission_adjustments", `"entryId" = '${e.id}'`), 0, "nothing was written by the refusals");
 
-  const made = await adjust({ entryId: e.id, amountCentavos: 12_000, reason: "Coating priced at 120,000 after completion" });
+  const lateId = randomUUID();
+  const made = await adjust({ id: lateId, entryId: e.id, amountCentavos: 12_000, reason: "Coating priced at 120,000 after completion" });
+  assert.equal(made.id, lateId);
+  // A retry after a lost response (same id, same content) returns the same row and writes nothing more (review R2-2).
+  assert.equal((await adjust({ id: lateId, entryId: e.id, amountCentavos: 12_000, reason: "Coating priced at 120,000 after completion" })).id, lateId);
+  assert.equal(await count("commission_adjustments", `"entryId" = '${e.id}'`), 1, "the retry did not add a second row");
+  assert.equal(await count("admin_audit_events", `"bookingId" = '${job.id}' AND action = 'COMMISSION_ADJUSTED'`), 1, "and no second audit row");
+  await refused(adjust({ id: lateId, entryId: e.id, amountCentavos: 99_000, reason: "same id, different amount" }), "VALIDATION_ERROR", "id reused for something else");
   assert.ok(made.id);
   assert.deepEqual([(await entries(job.id))[0].amountCentavos, (await header(job.id))!.serviceTotalCentavos], [10_000, 100_000], "the entry and the header are untouched");
   const range = { ...aroundToday(), staffId: w.id };
@@ -639,8 +648,8 @@ test("C22 a late price reaches the commission as an adjustment: ADMIN only, reas
   assert.deepEqual([list.totals[0].paidCentavos, list.totals[0].unpaidCentavos], [12_000, 10_000]);
   assert.equal((await entries(job.id))[0].paidAt, null, "the entry itself is still unpaid");
 
-  await adjust({ entryId: e.id, amountCentavos: -22_000, reason: "Price was entered twice" }); // exactly to zero is allowed
-  await refused(adjust({ entryId: e.id, amountCentavos: -1, reason: "one centavo too far" }), "VALIDATION_ERROR", "below zero after two");
+  await adjust({ ...K(), amountCentavos: -22_000, reason: "Price was entered twice" }); // exactly to zero is allowed
+  await refused(adjust({ ...K(), amountCentavos: -1, reason: "one centavo too far" }), "VALIDATION_ERROR", "below zero after two");
   list = await s.listCommissions(ADMIN, range, opts());
   assert.equal(list.totals[0].earnedCentavos, 0);
 
@@ -649,7 +658,7 @@ test("C22 a late price reaches the commission as an adjustment: ADMIN only, reas
   await assert.rejects(db.$executeRawUnsafe(`DELETE FROM commission_adjustments WHERE ${row}`), /cannot be deleted/);
   await assert.rejects(db.$executeRawUnsafe(`TRUNCATE commission_adjustments`), /Commission records cannot be truncated/);
   await assert.rejects(app.$executeRawUnsafe(`INSERT INTO commission_adjustments ("entryId", "amountCentavos", reason, "actorStaffId") VALUES ('${e.id}', 1, 'x', '${ADMIN.staffId}')`), /permission denied/);
-  await assert.rejects(app.$queryRawUnsafe(`SELECT admin_commission_adjust('${w.id}', '${e.id}', 100, 'a detailer id')`), /Only an admin/i);
+  await assert.rejects(app.$queryRawUnsafe(`SELECT admin_commission_adjust('${w.id}', '${randomUUID()}', '${e.id}', 100, 'a detailer id')`), /Only an admin/i);
 });
 
 test("C23 repair handles each booking on its own: one that keeps failing is reported and does not block the others (review F2)", { skip }, async () => {
