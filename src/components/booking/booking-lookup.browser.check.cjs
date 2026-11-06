@@ -24,6 +24,7 @@ const view = (status) => ({
 const envelope = (data) => ({ ok: true, data });
 const failure = (code, message, status) => ({ status, body: { ok: false, error: { code, message, fieldErrors: {}, retryable: code === 'RATE_LIMITED', commitState: 'NOT_APPLICABLE', currentQuote: null, currentBooking: null, retryAfterSeconds: null } } });
 
+const centered = (page) => page.evaluate(() => { const kids = [...document.querySelector('main').children]; const l = Math.min(...kids.map((k) => k.getBoundingClientRect().left)), r = Math.max(...kids.map((k) => k.getBoundingClientRect().right)); return { left: Math.round(l), right: Math.round(innerWidth - r), width: Math.round(r - l), scrolls: document.scrollingElement.scrollWidth > document.scrollingElement.clientWidth }; });
 test('the Manage booking page: reference code + last name, one generic failure, progress, masked contact', { timeout: 150_000 }, async () => {
   const origin = new URL(process.env.P120_APP_ORIGIN).origin;
   const upstream = new URL(process.env.P120_BROWSER_ORIGIN);
@@ -32,7 +33,7 @@ test('the Manage booking page: reference code + last name, one generic failure, 
   const errors = [];
   const shot = async (page, name) => { if (process.env.P132_SHOTS) await page.screenshot({ path: path.join(process.env.P132_SHOTS, name + '.png'), fullPage: true }); };
   try {
-    for (const width of [390, 1280]) {
+    for (const width of [390, 1280, 1907]) {
       const context = await browser.newContext({ viewport: { width, height: 900 } });
       const lookups = [];
       await context.route('**/*', async (route) => {
@@ -62,6 +63,11 @@ test('the Manage booking page: reference code + last name, one generic failure, 
       await form.waitFor();
       assert.equal(await page.getByRole('heading', { name: 'Find your booking' }).count(), 1, width + 'px the lookup form');
       assert.equal(await page.getByRole('heading', { name: 'Enter your private code' }).count(), 0, width + 'px the private-code form is gone');
+      // P1-51: the content block is centered (equal gaps left and right), one column of a sensible width, no sideways scroll.
+      const c1 = await centered(page);
+      assert.ok(Math.abs(c1.left - c1.right) <= 2, width + 'px lookup page centered: ' + JSON.stringify(c1));
+      assert.ok(c1.width <= 800, width + 'px one column no wider than 800 px: ' + c1.width);
+      assert.equal(c1.scrolls, false, width + 'px no sideways scroll');
       // P1-50: no top bar; one "Back to home" link to the landing page, first thing the keyboard reaches, with a visible ring.
       assert.equal(await page.locator('header').count(), 0, width + 'px no top bar');
       const home = page.getByRole('link', { name: 'Back to home' });
@@ -123,6 +129,9 @@ test('the Manage booking page: reference code + last name, one generic failure, 
       await page.waitForTimeout(150);
       await submit.click();
       await page.getByRole('heading', { name: 'Booking progress' }).waitFor();
+      const c2 = await centered(page);
+      assert.ok(Math.abs(c2.left - c2.right) <= 2, width + 'px booking page centered: ' + JSON.stringify(c2));
+      assert.ok(c2.width <= 800, width + 'px one column no wider than 800 px: ' + c2.width);
       assert.match(await page.getByText('Your booking is confirmed').innerText(), /confirmed/);
       const bar = page.getByRole('progressbar', { name: 'Booking progress' });
       assert.equal(await bar.getAttribute('aria-valuetext'), 'Step 2 of 4: Confirmed');
