@@ -74,6 +74,16 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       assert.equal(await page.locator('label:has(input[name="vehicle-category"]) svg').count(), 2);
       const bandRadius = await page.locator('label:has(input[name="vehicle-category"])').first().evaluate((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius));
       assert.ok(bandRadius >= 11.5 && bandRadius <= 13, `${width}px bands are 12 px rounded, got ${bandRadius}`);
+      // Gold extruded icons: one gradient on the page, eight layers per icon, decorative, big enough to read.
+      assert.equal(await page.locator('#zeus-gold-3d').count(), 1, 'the gold gradient is defined once');
+      assert.equal(await page.locator('[id]').evaluateAll((els) => els.length - new Set(els.map((e) => e.id)).size), 0, 'no duplicate ids on the page');
+      for (const mark of await page.locator('[data-part=vehicle-mark] svg').all()) {
+        assert.equal(await mark.getAttribute('aria-hidden'), 'true');
+        assert.equal(await mark.locator('path').count(), 8);
+        const box = await mark.boundingBox();
+        assert.ok(box.width >= 44 && box.height >= 44, `${width}px the icon is at least 44 px (got ${Math.round(box.width)})`);
+      }
+      await shot(page, `p152-1-size-empty-${width}`);
       await page.getByLabel(/^Small/).check();
       await shot(page, `p152-1-size-${width}`);
       await cont().click();

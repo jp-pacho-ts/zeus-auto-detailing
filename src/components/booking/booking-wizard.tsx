@@ -21,7 +21,7 @@ import { Logo } from "@/components/ui/logo";
 import { TurnstileChallenge, type ChallengeStatus } from "@/components/booking/turnstile";
 import { DayPicker, DAYS_PER_PAGE, dateLabel, shortDayLabel, todayInManila } from "@/components/booking/day-picker";
 import { BookingTicket } from "@/components/booking/booking-ticket";
-import { VehicleDrawing } from "@/components/booking/vehicle-drawing";
+import { VehicleDrawing, VehicleDrawingDefs } from "@/components/booking/vehicle-drawing";
 import { ManagementCode } from "@/components/booking/management-code";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import { bookingStatusWords } from "@/components/booking/manage-booking";
@@ -1023,15 +1023,18 @@ export function BookingWizard({
                       </button>
                     </div>
                   )}
+                  <VehicleDrawingDefs />
                   <fieldset className="space-y-3">
                     <legend className="sr-only">Vehicle size</legend>
                     {catalog.vehicleCategories.map((v) => (
                       <label key={v.id} className={optionCard(vehicleId === v.id) + " min-h-[84px]"}>
                         <div className="flex min-w-0 items-center gap-4">
-                          <VehicleDrawing
-                            code={v.code}
-                            className={"h-10 w-16 shrink-0 sm:h-11 sm:w-24 " + (vehicleId === v.id ? "text-primary" : "text-muted-foreground")}
-                          />
+                          <span
+                            data-part="vehicle-mark"
+                            className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-[radial-gradient(circle_at_50%_30%,#1d1a14,#0d0d0e)] sm:h-[84px] sm:w-[84px]"
+                          >
+                            <VehicleDrawing code={v.code} className="h-11 w-11 sm:h-16 sm:w-16" />
+                          </span>
                           <div className="min-w-0">
                             <span className="block text-lg font-extrabold text-foreground">{v.name}</span>
                             {v.description && <span className="block text-sm text-muted-foreground">{v.description}</span>}

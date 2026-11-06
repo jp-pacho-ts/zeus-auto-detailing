@@ -12,7 +12,7 @@ import type { PublicDay } from "@/types/contracts";
 import { mountHooks } from "./render-hooks.fixture";
 import { BookingWizard } from "./booking-wizard";
 import { BookingTicket } from "./booking-ticket";
-import { VehicleDrawing } from "./vehicle-drawing";
+import { GOLD_GRADIENT_ID, VehicleDrawing, VehicleDrawingDefs } from "./vehicle-drawing";
 import { DayPicker } from "./day-picker";
 import { TurnstileChallenge } from "./turnstile";
 
@@ -577,5 +577,35 @@ test("P1-52 (LE): Back and the other labelled buttons are rounded-xl (12 px), no
   }
   const close = h.all().find((e) => e.props["aria-label"] === "Cancel and return to home")!;
   assert.match(String(close.props.className), /rounded-full/, "the icon-only Close X keeps its round shape");
+  h.unmount();
+});
+
+
+test("P1-52 (LE, mock F): the vehicle icons are gold extruded 3D: one shared gradient, seven darker layers under the face, all decorative", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  assert.equal(h.all().filter((e) => e.type === VehicleDrawingDefs).length, 1, "the gradient is defined once per page, not once per tile");
+  const defs = renderToStaticMarkup(createElement(VehicleDrawingDefs));
+  assert.equal([...defs.matchAll(new RegExp('id="' + GOLD_GRADIENT_ID + '"', "g"))].length, 1);
+  assert.match(defs, /aria-hidden="true"/);
+  for (const stop of ["#fbe3a0", "#e8b44a", "#c58b1b", "#8a5a0b"]) assert.match(defs, new RegExp(stop));
+  const shapes = new Set<string>();
+  for (const code of ["MOTOR", "S", "M", "L", "XL"]) {
+    const svg = renderToStaticMarkup(createElement(VehicleDrawing, { code }));
+    assert.match(svg, /^<svg[^>]*aria-hidden="true"/);
+    assert.match(svg, /overflow="visible"/, "the extrusion is never clipped");
+    assert.doesNotMatch(svg, / id=/, "no id inside a tile, so no duplicate ids");
+    const paths = [...svg.matchAll(/<path d="([^"]+)"[^>]*fill="([^"]+)"/g)];
+    assert.equal(paths.length, 8, code + ": seven extrusion layers and the face");
+    assert.equal(new Set(paths.map((p) => p[1])).size, 1, "every layer is the same shape");
+    assert.equal(paths.at(-1)![2], "url(#" + GOLD_GRADIENT_ID + ")", "the face is the gold gradient, on top");
+    assert.ok(paths.slice(0, 7).every((p) => /^#[0-9a-f]{6}$/i.test(p[2])), "the layers are solid darker golds");
+    assert.match(svg, /translate\(11\.2 11\.2\)/, "the farthest layer is 7 steps of 1.6 down and right");
+    shapes.add(paths[0][1]);
+  }
+  assert.equal(shapes.size, 5, "five different shapes");
+  const source = readFileSync("src/components/booking/vehicle-drawing.tsx", "utf8");
+  assert.match(source, /Phosphor Icons[^\n]*MIT License/, "the third-party credit stays with the copied paths");
   h.unmount();
 });
