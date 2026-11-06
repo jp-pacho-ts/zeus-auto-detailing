@@ -100,26 +100,67 @@ export const comingSoonStyles = `
   color:var(--paper);
   max-width:30ch}
 
-.zeus-coming-soon__call{
+/* P1-56: one dark pill with two segments (Book now, Manage booking), a thin divider and a gold edge whose highlight
+   travels around it. The edge is a conic gradient on an animated angle, painted in the border box behind the dark
+   inner fill, so it needs no extra element and no script. */
+@property --zeus-edge{
+  syntax:'<angle>';
+  inherits:false;
+  initial-value:0deg}
+@keyframes zeus-edge-spin{
+  to{--zeus-edge:360deg}}
+.zeus-actions{
+  display:flex;
+  align-items:stretch;
+  width:max-content;
+  max-width:100%;
+  min-height:54px;
+  padding:1px;
+  border-radius:999px;
+  background:
+    linear-gradient(#100f0d,#100f0d) padding-box,
+    conic-gradient(from var(--zeus-edge),#f2eee724 0deg,#f2eee724 200deg,#c58b1b 250deg,#e8b44a 295deg,#fbe3a0 330deg,#e8b44a 345deg,#f2eee724 360deg) border-box;
+  border:1px solid transparent;
+  box-shadow:0 10px 40px #0b0b0c80,0 0 22px #c3903024;
+  animation:zeus-edge-spin 4s linear infinite}
+.zeus-seg{
+  position:relative;
+  flex:1 1 auto;
   display:inline-flex;
   align-items:center;
-  gap:12px;
+  justify-content:center;
+  gap:8px;
   min-height:52px;
-  padding:0 28px;
+  min-width:0;
+  padding:8px 26px;
   border-radius:999px;
-  background:var(--gold);
-  color:var(--ink)!important;
-  box-shadow:0 10px 40px #0b0b0c80;
-  transition:transform .2s,background .2s}
-.zeus-coming-soon__call span{
-  font-size:.875rem;
-  font-weight:600}
-.zeus-coming-soon__call strong{
-  font-size:1.0625rem;
-  letter-spacing:.01em}
-.zeus-coming-soon__call:hover{
-  background:#e1ab47;
-  transform:translateY(-2px)}
+  font-size:.9375rem;
+  font-weight:600;
+  line-height:1.25;
+  text-align:center;
+  color:var(--mute);
+  transition:background .2s,color .2s}
+.zeus-seg svg{
+  width:18px;
+  height:18px;
+  flex:none;
+  color:#e8b44a}
+.zeus-seg--primary{
+  color:#fbe3a0;
+  background:#c3903026}
+.zeus-seg + .zeus-seg::before{
+  content:"";
+  position:absolute;
+  left:-1px;
+  top:14px;
+  bottom:14px;
+  width:1px;
+  background:#f2eee73d}
+.zeus-seg:hover{
+  background:#c3903040;
+  color:#fff3d0}
+.zeus-coming-soon a.zeus-seg:focus-visible{
+  outline-offset:-4px}
 
 /* Bottom row: three 44px icon links (Facebook, Instagram, location) side by side, with the logo centred on that row.
    The address is no longer text; the location link's name and tooltip carry it (P1-47). */
@@ -225,33 +266,56 @@ export const comingSoonStyles = `
     align-self:start;
     margin-top:16px;
     max-width:min(100%,440px)}
-  .zeus-coming-soon__call{
+  .zeus-actions{
     grid-row:3;
     grid-column:1/-1;
-    justify-content:center;
+    width:100%;
     margin:24px 0 10px}
   .zeus-hero-foot{
     grid-row:4}
-  /* the logo takes what is left of the row beside the three icons (156px), between 80px and 135px wide */
+  .zeus-social{
+    gap:8px}
+  .zeus-seg{
+    padding:8px 14px;
+    gap:6px}
+  /* the logo takes what is left of the row beside the four icons (200px with 8px gaps), between 80px and 135px wide */
   .zeus-hero-logo{
     grid-row:4}
   .zeus-coming-soon__logo{
     height:auto;
-    width:clamp(80px,calc(100vw - 56px - 16px - 156px),135px)}
+    width:clamp(80px,calc(100vw - 56px - 16px - 200px),135px)}
   .zeus-hero-shade{
     background:
       linear-gradient(180deg,#0b0b0cdd 0%,#0b0b0ccc 36%,#0b0b0c8c 50%,transparent 62%),
       linear-gradient(0deg,#0b0b0cf5 0%,#0b0b0ce6 20%,#0b0b0c88 32%,transparent 44%)}
 }
 
-/* Tablets: the Call pill keeps a pill shape instead of spanning the whole width. */
+/* Tablets: the action pill keeps its natural width instead of spanning the whole row. */
 @media(min-width:561px) and (max-width:800px){
-  .zeus-coming-soon__call{
+  .zeus-actions{
     justify-self:start;
     width:min(100%,420px)}
 }
 
+/* Under 352px the logo (80px minimum) no longer fits beside the four icons, so it sits on its own row below them. */
+@media(max-width:351px){
+  .zeus-hero{
+    grid-template-rows:auto 1fr auto auto auto}
+  .zeus-hero-logo{
+    grid-row:5;
+    grid-column:1;
+    justify-self:start;
+    margin-top:14px}
+  .zeus-coming-soon__logo{
+    width:100px}
+}
+
 @media(max-width:340px){
+  .zeus-seg{
+    padding:8px;
+    font-size:.875rem}
+  .zeus-seg svg{
+    display:none}
   .zeus-hero{
     padding-left:24px;
     padding-right:24px}
@@ -260,8 +324,11 @@ export const comingSoonStyles = `
 }
 
 @media(prefers-reduced-motion:reduce){
-  .zeus-coming-soon__call,.zeus-social a{
+  .zeus-seg,.zeus-social a{
   transition:none}
+.zeus-actions{
+  animation:none;
+  --zeus-edge:20deg}
 .zeus-hero-video{
   transition:none}
 }

@@ -55,7 +55,7 @@ test("P1-33: the overlay keeps the notice, the Call and Facebook actions and one
   assert.ok(content.includes(`href="${phone}"`));
   assert.ok(content.includes(`href="${brandConfig.facebookPageUrl}"`));
   // P1-47: the address is a location icon link (its spoken name carries the address), not a line of text, and the
-  // phone number stays on the Call button only (P1-46).
+  // phone number is only in the Call icon's link name (P1-56).
   const location = content.match(/<a\b[^>]*aria-label="[^"]*location: [^"]*"[^>]*>/);
   assert.ok(location, "one location link in the overlay");
   assert.ok(location[0].includes(brandConfig.location));
