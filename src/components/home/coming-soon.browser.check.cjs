@@ -37,6 +37,17 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     assert.equal(await page.locator('form').count(), 0);
     assert.equal(await page.locator('h1').evaluate(el => getComputedStyle(el).opacity), '1');
     assert.ok(await page.getByRole('link', { name: /Call the shop/ }).getAttribute('href').then(href => href.startsWith('tel:')));
+    assert.equal(await page.getByRole('link', { name: 'Book now' }).getAttribute('href'), '/book');
+    assert.equal(await page.getByRole('link', { name: 'Manage booking' }).getAttribute('href'), '/book/manage');
+    // The Call icon sits in the social row; Book now and Manage booking share one pill, side by side at the same height.
+    assert.equal(await page.locator('.zeus-social a[href^="tel:"]').count(), 1);
+    const pair = await page.evaluate(() => {
+      const [a, b] = ['/book', '/book/manage'].map(href => document.querySelector('.zeus-actions a[href="' + href + '"]').getBoundingClientRect());
+      return { sameHeight: Math.abs(a.height - b.height) < 0.5, sameRow: Math.abs(a.top - b.top) < 0.5, adjacent: Math.abs(b.left - a.right) <= 2, tall: a.height >= 44 && b.height >= 44 };
+    });
+    assert.deepEqual(pair, { sameHeight: true, sameRow: true, adjacent: true, tall: true });
+    // P1-56: the pill edge animates, except when the visitor prefers reduced motion (checked by the caller).
+    return page.locator('.zeus-actions').evaluate(el => getComputedStyle(el).animationName);
     assert.equal(await page.getByRole('link', { name: 'Zeus Auto Detailing on Facebook' }).getAttribute('href'), 'https://www.facebook.com/zeusautodetailingtacloban');
     assert.equal(await page.getByRole('link', { name: 'Zeus Auto Detailing on Instagram' }).getAttribute('href'), 'https://www.instagram.com/zeus.otodetailing');
     assert.equal(await page.getByAltText('Zeus Auto Detailing').evaluate(el => el.complete && el.naturalWidth > 0), true);
@@ -46,7 +57,7 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     const page = await ctx.newPage();
     page.on('pageerror', error => results.errors.push(error.message));
     await page.goto(origin, { waitUntil: 'networkidle' });
-    await readable(page);
+    assert.notEqual(await readable(page), 'none', 'the pill edge animates by default');
     await page.locator('[data-home-intro="running"]').waitFor({state:'hidden'});
     assert.equal(await page.locator('[data-home-content]').evaluate(el => el.inert), false);
     results.checks.push('finite cinematic intro settles; content accessible');
@@ -67,13 +78,18 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     // P1-33: the header bar is gone, so the first stop is the Call button. P1-46: then the Facebook and Instagram icons (named by
     // aria-label, since they have no visible text), then the address. The Call link's spoken name carries the number.
     await page.keyboard.press('Tab');
-    assert.match(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), /^Call the shop 0930 016 2234$/);
+    assert.equal(await page.evaluate(() => document.activeElement.textContent.trim()), 'Book now');
     const focus = await page.evaluate(() => {
       const style = getComputedStyle(document.activeElement);
       return { width: style.outlineWidth, style: style.outlineStyle };
     });
     assert.equal(focus.style, 'solid'); assert.equal(focus.width, '3px');
     await page.screenshot({ path: path.join(out, '390-keyboard.png'), fullPage: true });
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement.textContent.trim()), 'Manage booking');
+    // P1-56: the Call link is now the first icon in the social row; its spoken name carries the number.
+    await page.keyboard.press('Tab');
+    assert.match(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), /^Call the shop 0930 016 2234$/);
     await page.keyboard.press('Tab');
     assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Zeus Auto Detailing on Facebook');
     await page.keyboard.press('Tab');
@@ -93,15 +109,18 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
       };
       const ratio = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
       const main = getComputedStyle(document.querySelector('.zeus-coming-soon'));
-      const call = getComputedStyle(document.querySelector('.zeus-coming-soon__call'));
-      return { text: ratio(main.color, main.backgroundColor), action: ratio(call.color, call.backgroundColor) };
+      // P1-56: the segments sit on the pill's dark fill (#100f0d); Book now adds a 15% gold tint, about rgb(31,27,16).
+      const book = getComputedStyle(document.querySelector('.zeus-seg--primary'));
+      const manage = getComputedStyle(document.querySelector('.zeus-seg:not(.zeus-seg--primary)'));
+      return { text: ratio(main.color, main.backgroundColor), action: Math.min(ratio(book.color, 'rgb(31,27,16)'), ratio(manage.color, 'rgb(16,15,13)')) };
     });
     assert.ok(results.contrast.text >= 4.5 && results.contrast.action >= 4.5, 'text and primary action contrast');
     for (const options of [{ reducedMotion: 'reduce' }, { javaScriptEnabled: false }]) {
       const fallback = await context({ viewport: { width: 390, height: 844 }, ...options });
       const p = await fallback.newPage();
       await p.goto(origin, { waitUntil: 'networkidle' });
-      await readable(p);
+      const edge = await readable(p);
+      if (options.reducedMotion) assert.equal(edge, 'none', 'the pill edge is static with reduced motion');
       if (options.reducedMotion) assert.equal(await p.locator('[data-home-intro]').getAttribute('data-home-intro'), 'idle');
       await p.screenshot({ path: path.join(out, options.reducedMotion ? '390-reduced-motion.png' : '390-no-js.png'), fullPage: true });
       await fallback.close();
