@@ -81,7 +81,7 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
         assert.equal(await mark.getAttribute('aria-hidden'), 'true');
         assert.equal(await mark.locator('path').count(), 8);
         const box = await mark.boundingBox();
-        assert.ok(box.width >= 44 && box.height >= 44, `${width}px the icon is at least 44 px (got ${Math.round(box.width)})`);
+        assert.ok(box.width >= 40 && box.height >= 40, `${width}px the icon is at least 40 px (got ${Math.round(box.width)})`); // P1-53: 40 on short laptop screens (52 px tile), 44 and up elsewhere
       }
       await shot(page, `p152-1-size-empty-${width}`);
       await page.getByLabel(/^Small/).check();

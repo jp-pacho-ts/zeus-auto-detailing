@@ -79,7 +79,7 @@ const control =
 const panel = "rounded-2xl border border-border bg-card p-4 sm:p-8";
 // L5: option bands have a visible edge (input token, 6.9:1) and a focus ring on the whole band. The picked band gets a second inner line.
 const optionCard = (selected: boolean) =>
-  "flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:p-5 " +
+  "flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:p-5 lg:px-5 lg:py-[clamp(8px,1.5vh,20px)] " +
   (selected ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary");
 const changeLink =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-end rounded-xl px-2 text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
@@ -625,12 +625,12 @@ export function BookingWizard({
   const renderSheet = () => {
     const values = [vehicle?.name ?? "", servicesSummary, chosenDay ? shortDayLabel(chosenDay) : "", ""];
     return (
-      <ol aria-label="Progress steps" className="mt-8 border-t border-border">
+      <ol aria-label="Progress steps" className="mt-6 border-t border-border lg:mt-[clamp(10px,3vh,32px)]">
         {STEP_LABELS.map((label, index) => {
           const n = index + 1;
           const state = n < step ? "done" : n === step ? "current" : "next";
           return (
-            <li key={label} aria-current={state === "current" ? "step" : undefined} className="flex items-start gap-3 border-b border-border py-3 text-sm">
+            <li key={label} aria-current={state === "current" ? "step" : undefined} className="flex items-start gap-3 border-b border-border py-3 text-sm lg:py-[clamp(6px,1.1vh,12px)]">
               <span aria-hidden="true" className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center">
                 {state === "done" ? (
                   <Check className="h-4 w-4 text-primary" />
@@ -826,14 +826,18 @@ export function BookingWizard({
   // P1-52: the running total in the side panel, as big as the Manage booking reference.
   const renderPanelTotal = () =>
     step === 1 ? (
-      <>
-        <p className="text-sm text-muted-foreground">Vehicle size</p>
-        <p className="mt-1 text-4xl font-extrabold leading-none tracking-tight text-foreground">{vehicle ? vehicle.name : "Choose a size"}</p>
-      </>
+      vehicle ? (
+        <>
+          <p className="text-sm text-muted-foreground">Vehicle size</p>
+          <p className="mt-0.5 text-lg font-bold leading-snug text-foreground">{vehicle.name}</p>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">Choose a size</p>
+      )
     ) : lines.length ? (
       <>
         <p className="text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</p>
-        <p className="mt-1 text-[44px] font-extrabold leading-none tracking-tight tabular-nums text-foreground">{total ? total.amount : "Pricing…"}</p>
+        <p className="mt-1 text-[clamp(28px,3.4vh,32px)] font-extrabold leading-none tracking-tight tabular-nums text-foreground">{total ? total.amount : "Pricing…"}</p>
         {total?.note && <p className="mt-2 text-sm text-muted-foreground">{total.note}</p>}
       </>
     ) : (
@@ -943,7 +947,7 @@ export function BookingWizard({
               and the action sit in the bar at the bottom. */}
           <div
             data-part="panel"
-            className="no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-8 lg:pt-7"
+            className="no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-[clamp(14px,3vh,32px)] lg:pt-[clamp(14px,2.6vh,28px)]"
           >
             <div className="flex items-center justify-between gap-3">
               <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -975,20 +979,20 @@ export function BookingWizard({
                 />
               ))}
             </div>
-            <p className="mt-4 text-sm text-muted-foreground lg:mt-14">
+            <p className="mt-4 text-sm text-muted-foreground lg:mt-[clamp(10px,4.5vh,56px)]">
               <strong className="font-bold text-primary">Step {step} of 4</strong> · {stepLabel}
             </p>
             <h1
               id="wizard-step-title"
               tabIndex={-1}
-              className="mt-1 scroll-mt-28 text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none lg:text-[40px] lg:leading-[1.05]"
+              className="mt-1 scroll-mt-28 text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none lg:text-[clamp(28px,3.6vh,32px)] lg:leading-[1.1]"
             >
               {HEADINGS[step - 1]}
             </h1>
-            {intro && <p className="mt-2 max-w-[36ch] text-base text-muted-foreground">{intro}</p>}
+            {intro && <p className="mt-2 text-base text-muted-foreground lg:max-w-none lg:text-[clamp(14px,1.9vh,16px)]">{intro}</p>}
             <div className="hidden lg:block">{renderSheet()}</div>
             <div className="hidden flex-1 lg:block" />
-            <div className="hidden pt-8 lg:block">
+            <div className="hidden lg:block lg:pt-[clamp(8px,2vh,32px)]">
               <div className="border-t-2 border-primary pt-4">{renderPanelTotal()}</div>
               {showPrimary && (
                 <div className="mt-4 flex items-center gap-2">
@@ -1000,7 +1004,7 @@ export function BookingWizard({
             </div>
           </div>
 
-          <main className="min-w-0 px-4 pb-40 pt-4 sm:px-6 lg:px-14 lg:pb-16 lg:pt-14">
+          <main className="min-w-0 px-4 pb-40 pt-4 sm:px-6 lg:px-14 lg:pb-[clamp(16px,4vh,64px)] lg:pt-[clamp(16px,5vh,56px)]">
             <div className="mx-auto max-w-[760px]">
               {notices}
 
@@ -1024,16 +1028,16 @@ export function BookingWizard({
                     </div>
                   )}
                   <VehicleDrawingDefs />
-                  <fieldset className="space-y-3">
+                  <fieldset className="space-y-3 lg:space-y-[clamp(8px,1.4vh,12px)]">
                     <legend className="sr-only">Vehicle size</legend>
                     {catalog.vehicleCategories.map((v) => (
-                      <label key={v.id} className={optionCard(vehicleId === v.id) + " min-h-[84px]"}>
+                      <label key={v.id} className={optionCard(vehicleId === v.id) + " min-h-[84px] lg:min-h-[clamp(72px,9vh,96px)]"}>
                         <div className="flex min-w-0 items-center gap-4">
                           <span
                             data-part="vehicle-mark"
-                            className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-[radial-gradient(circle_at_50%_30%,#1d1a14,#0d0d0e)] sm:h-[84px] sm:w-[84px]"
+                            className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-[radial-gradient(circle_at_50%_30%,#1d1a14,#0d0d0e)] sm:h-[84px] sm:w-[84px] lg:h-[clamp(52px,7vh,84px)] lg:w-[clamp(52px,7vh,84px)]"
                           >
-                            <VehicleDrawing code={v.code} className="h-11 w-11 sm:h-16 sm:w-16" />
+                            <VehicleDrawing code={v.code} className="h-11 w-11 sm:h-16 sm:w-16 lg:h-[78%] lg:w-[78%]" />
                           </span>
                           <div className="min-w-0">
                             <span className="block text-lg font-extrabold text-foreground">{v.name}</span>
