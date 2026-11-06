@@ -12,6 +12,7 @@ import type { PublicDay } from "@/types/contracts";
 import { mountHooks } from "./render-hooks.fixture";
 import { BookingWizard } from "./booking-wizard";
 import { BookingTicket } from "./booking-ticket";
+import { splitSizeName } from "./day-booking";
 import { GOLD_GRADIENT_ID, VehicleDrawing, VehicleDrawingDefs } from "./vehicle-drawing";
 import { DayPicker } from "./day-picker";
 import { TurnstileChallenge } from "./turnstile";
@@ -514,7 +515,7 @@ test("P1-52: the day step shows a Monday-first month calendar: weekday heads, fa
   const t = m.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   assert.match(t, /Mon Tue Wed Thu Fri Sat Sun/);
   assert.equal([...m.matchAll(/name="booking-day"/g)].length, 14);
-  assert.equal([...m.matchAll(/aria-hidden="true" class="flex min-h-\[64px\] items-center justify-center/g)].length, 7, "Nov 6 is a Friday: four faded days before; Nov 19 is a Thursday: three after");
+  assert.equal([...m.matchAll(/aria-hidden="true" class="flex min-h-\[64px\] lg:min-h-\[clamp\(64px,9vh,84px\)\] items-center justify-center/g)].length, 7, "Nov 6 is a Friday: four faded days before; Nov 19 is a Thursday: three after");
   assert.match(t, /Chosen/);
   assert.match(t, /Fully booked/);
   assert.match(t, /Crossed-out days are fully booked or closed\./);
@@ -631,14 +632,46 @@ test("P1-53: the empty total is small muted text, the title and a price use calm
   h.unmount();
 });
 
-test("P1-53: the size bands are sized by screen height on laptops (compact band, 52 px icon tile at the smallest)", async () => {
+test("P1-53/P1-54: the size tiles and their icons are sized by screen height on laptops (a card grid, three tiles then two wider ones)", async () => {
   network();
   const h = mountHooks(BookingWizard, {});
   await h.settle();
-  const band = h.all().find((e) => e.type === "label" && /min-h-\[84px\]/.test(String(e.props.className)))!;
-  assert.match(String(band.props.className), /lg:min-h-\[clamp\(72px,9vh,96px\)\]/);
-  assert.match(String(band.props.className), /lg:py-\[clamp\(8px,1\.5vh,20px\)\]/);
+  const tiles = h.all().filter((e) => e.type === "label" && /--ic/.test(String(e.props.className)));
+  assert.equal(tiles.length, 2, "one tile per size");
+  for (const tile of tiles) {
+    assert.match(String(tile.props.className), /lg:\[--ic:clamp\(64px,13vh,120px\)\]/, "the icon size follows the screen height");
+    assert.match(String(tile.props.className), /rounded-2xl/);
+  }
   const mark = h.all().find((e) => e.props["data-part"] === "vehicle-mark")!;
-  assert.match(String(mark.props.className), /lg:h-\[clamp\(52px,7vh,84px\)\]/);
+  assert.match(String(mark.props.className), /h-\[calc\(var\(--ic\)\*1\.3\)\]/);
+  const grid = h.all().find((e) => e.type === "div" && /lg:grid-cols-6/.test(String(e.props.className)))!;
+  assert.match(String(grid.props.className), /grid-cols-2/, "two columns on phones");
+  h.unmount();
+});
+
+test("P1-54: a size name is split into a title and a second line, and nothing else is added or lost", () => {
+  assert.deepEqual(splitSizeName("Small · Compact / Sedan"), { head: "Small", tail: "Compact / Sedan" });
+  assert.deepEqual(splitSizeName("X-Large · Fullsize SUV / Pick-up / Van"), { head: "X-Large", tail: "Fullsize SUV / Pick-up / Van" });
+  assert.deepEqual(splitSizeName("Motor / Motorcycle"), { head: "Motor / Motorcycle", tail: "" });
+  for (const n of ["Small · Compact / Sedan", "Medium · Compact SUV / Crossover", "Large · SUV / Pick-up", "Motor / Motorcycle"]) {
+    const { head, tail } = splitSizeName(n);
+    assert.equal(tail ? head + " · " + tail : head, n, "the two parts give the name back");
+  }
+});
+
+test("P1-54: step 1 tiles keep every size's full name for screen readers and the panel; the grid is 3 + 2 wide on laptops", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  const tile = h.all().filter((e) => e.type === "label" && /--ic/.test(String(e.props.className)));
+  assert.match(textOf(tile[1]), /Small[ ·]*Compact \/ Sedan/);
+  assert.match(String(tile[0].props.className), /lg:col-span-3/);
+  assert.match(String(tile[1].props.className), /lg:col-span-3/, "with two sizes the tiles are each half the row");
+  inputs(h, "radio").find((e) => e.props.value === S)!.props.onChange({});
+  await h.settle();
+  assert.match(h.text(), /Small · Compact \/ Sedan/, "the panel still names the size in full");
+  const main = h.all().find((e) => e.type === "main")!;
+  assert.match(String(main.props.className), /lg:min-h-\[100dvh\][^"]*lg:justify-center/, "step 1 is centered between top and bottom");
+  assert.match(String(h.all().find((e) => /lg:max-w-\[1080px\]/.test(String(e.props.className)))!.props.className), /max-w-\[760px\]/, "phones keep the 760 px column");
   h.unmount();
 });

@@ -39,6 +39,7 @@ import {
   publicCreateError,
   quoteTotal,
   resolveDeepLink,
+  splitSizeName,
   selectionLines,
   serviceDetail,
   type DetailsForm,
@@ -685,7 +686,7 @@ export function BookingWizard({
     const detail = serviceDetail(s);
     const extras = nested ? [] : addOnsUnder(s);
     return (
-      <li key={s.id}>
+      <li key={s.id} className={nested ? undefined : "lg:contents"}>
         <label className={optionCard(Boolean(pick)) + " min-h-[80px]"}>
           <div className="flex items-start gap-3.5">
             {!nested && (
@@ -713,7 +714,7 @@ export function BookingWizard({
           />
         </label>
         {pick && s.unit === "PANEL" && (
-          <div className="mt-2 rounded-xl border border-border bg-muted p-4">
+          <div className="mt-2 rounded-xl border border-border bg-muted p-4 lg:col-span-3">
             <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
               Number of panels for {s.name}
             </label>
@@ -749,9 +750,9 @@ export function BookingWizard({
           </div>
         )}
         {extras.length > 0 && (
-          <fieldset className="ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4">
+          <fieldset className="ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4 lg:col-span-3">
             <legend className="mb-2 text-sm font-semibold text-foreground">Extras for {s.name}</legend>
-            <ul className="space-y-2">{extras.map((a) => renderService(a, true))}</ul>
+            <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{extras.map((a) => renderService(a, true))}</ul>
           </fieldset>
         )}
       </li>
@@ -799,7 +800,7 @@ export function BookingWizard({
                 </button>
               </h2>
               <div id={regionId} role="region" aria-label={CATEGORY_NAMES[category]} hidden={!open} className="border-t border-border p-3 sm:p-4">
-                {open && <ul className="space-y-3">{services.map((s) => renderService(s))}</ul>}
+                {open && <ul className="space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0">{services.map((s) => renderService(s))}</ul>}
               </div>
             </section>
           );
@@ -1004,8 +1005,13 @@ export function BookingWizard({
             </div>
           </div>
 
-          <main className="min-w-0 px-4 pb-40 pt-4 sm:px-6 lg:px-14 lg:pb-[clamp(16px,4vh,64px)] lg:pt-[clamp(16px,5vh,56px)]">
-            <div className="mx-auto max-w-[760px]">
+          <main
+            className={
+              "min-w-0 px-4 pb-40 pt-4 sm:px-6 lg:px-[clamp(24px,3.5vw,56px)] lg:pb-[clamp(16px,4vh,64px)] lg:pt-[clamp(16px,5vh,56px)]" +
+              (step === 1 ? " lg:flex lg:min-h-[100dvh] lg:flex-col lg:justify-center" : "")
+            }
+          >
+            <div className="mx-auto w-full max-w-[760px] lg:max-w-[1080px]">
               {notices}
 
               {/* Step 1: vehicle size */}
@@ -1028,35 +1034,59 @@ export function BookingWizard({
                     </div>
                   )}
                   <VehicleDrawingDefs />
-                  <fieldset className="space-y-3 lg:space-y-[clamp(8px,1.4vh,12px)]">
+                  <fieldset>
                     <legend className="sr-only">Vehicle size</legend>
-                    {catalog.vehicleCategories.map((v) => (
-                      <label key={v.id} className={optionCard(vehicleId === v.id) + " min-h-[84px] lg:min-h-[clamp(72px,9vh,96px)]"}>
-                        <div className="flex min-w-0 items-center gap-4">
-                          <span
-                            data-part="vehicle-mark"
-                            className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-[radial-gradient(circle_at_50%_30%,#1d1a14,#0d0d0e)] sm:h-[84px] sm:w-[84px] lg:h-[clamp(52px,7vh,84px)] lg:w-[clamp(52px,7vh,84px)]"
+                    {/* P1-54 (LE 2026-11-06, mock M1): a card grid that uses the width: three tiles, then two wider ones. Phones: two columns. */}
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-6 lg:gap-[clamp(10px,1.8vh,16px)]">
+                      {catalog.vehicleCategories.map((v, index, all) => {
+                        const name = splitSizeName(v.name);
+                        const picked = vehicleId === v.id;
+                        const lastOdd = all.length % 2 === 1 && index === all.length - 1;
+                        const wide = all.length === 5 ? index >= 3 : all.length % 3 !== 0;
+                        return (
+                          <label
+                            key={v.id}
+                            className={
+                              "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors [--ic:64px] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:[--ic:88px] lg:[--ic:clamp(64px,13vh,120px)] " +
+                              (lastOdd ? "col-span-2 " : "") +
+                              (wide ? "lg:col-span-3 " : "lg:col-span-2 ") +
+                              (picked ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
+                            }
                           >
-                            <VehicleDrawing code={v.code} className="h-11 w-11 sm:h-16 sm:w-16 lg:h-[78%] lg:w-[78%]" />
-                          </span>
-                          <div className="min-w-0">
-                            <span className="block text-lg font-extrabold text-foreground">{v.name}</span>
-                            {v.description && <span className="block text-sm text-muted-foreground">{v.description}</span>}
-                          </div>
-                        </div>
-                        <input
-                          type="radio"
-                          name="vehicle-category"
-                          value={v.id}
-                          checked={vehicleId === v.id}
-                          onChange={() => {
-                            setVehicleId(v.id);
-                            setLinkWarning("");
-                          }}
-                          className="h-5 w-5 shrink-0 accent-primary"
-                        />
-                      </label>
-                    ))}
+                            <span
+                              data-part="vehicle-mark"
+                              className={
+                                "grid h-[calc(var(--ic)*1.3)] place-items-center rounded-xl " +
+                                (picked ? "bg-[radial-gradient(circle_at_50%_30%,#2b2210,#0d0d0e)]" : "bg-[radial-gradient(circle_at_50%_30%,#1d1a14,#0d0d0e)]")
+                              }
+                            >
+                              <VehicleDrawing code={v.code} className="h-[var(--ic)] w-[var(--ic)]" />
+                            </span>
+                            <span className="block px-1.5 pb-1.5">
+                              <span className="block text-base font-extrabold leading-tight text-foreground lg:text-lg">{name.head}</span>
+                              {name.tail && (
+                                <>
+                                  <span className="sr-only"> · </span>
+                                  <span className="block text-sm leading-snug text-muted-foreground">{name.tail}</span>
+                                </>
+                              )}
+                              {v.description && <span className="block text-sm text-muted-foreground">{v.description}</span>}
+                            </span>
+                            <input
+                              type="radio"
+                              name="vehicle-category"
+                              value={v.id}
+                              checked={picked}
+                              onChange={() => {
+                                setVehicleId(v.id);
+                                setLinkWarning("");
+                              }}
+                              className="absolute right-[22px] top-[22px] h-5 w-5 accent-primary"
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
                   </fieldset>
                 </div>
               )}
@@ -1115,8 +1145,9 @@ export function BookingWizard({
                         </p>
                       )}
 
-                      <fieldset disabled={locked} className="space-y-8">
+                      <fieldset disabled={locked}>
                         <legend className="sr-only">Your details and your vehicle</legend>
+                        <div className="space-y-8 lg:grid lg:grid-cols-2 lg:gap-x-[clamp(24px,3vw,48px)] lg:gap-y-8 lg:space-y-0">
 
                         <div>
                           <h2 className={groupTitle}>About you</h2>
@@ -1350,6 +1381,7 @@ export function BookingWizard({
                           {errorFor("turnstileToken") && errorFor("turnstileToken") !== message && (
                             <p className="mt-1.5 text-sm text-destructive">{errorFor("turnstileToken")}</p>
                           )}
+                        </div>
                         </div>
                       </fieldset>
 

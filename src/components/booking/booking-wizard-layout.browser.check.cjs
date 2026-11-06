@@ -73,7 +73,7 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       // Bands: one drawing per size, a 12 px radius.
       assert.equal(await page.locator('label:has(input[name="vehicle-category"]) svg').count(), 2);
       const bandRadius = await page.locator('label:has(input[name="vehicle-category"])').first().evaluate((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius));
-      assert.ok(bandRadius >= 11.5 && bandRadius <= 13, `${width}px bands are 12 px rounded, got ${bandRadius}`);
+      assert.ok(bandRadius >= 15 && bandRadius <= 21, `${width}px size tiles are 16 to 20 px rounded cards, got ${bandRadius}`); // P1-54: tiles, not bands
       // Gold extruded icons: one gradient on the page, eight layers per icon, decorative, big enough to read.
       assert.equal(await page.locator('#zeus-gold-3d').count(), 1, 'the gold gradient is defined once');
       assert.equal(await page.locator('[id]').evaluateAll((els) => els.length - new Set(els.map((e) => e.id)).size), 0, 'no duplicate ids on the page');
@@ -119,7 +119,7 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       assert.equal(await page.getByRole('button', { name: 'Submit booking request' }).filter({ visible: true }).count(), 1, `${width}px one visible Submit`);
       assert.equal(await page.locator('form [data-part=review]').count(), 1, 'the review is inside the details step');
       const order = await page.evaluate(() => { const y = (s) => document.querySelector(s).getBoundingClientRect().top; return [y('#customerFirstName'), y('#vehicleModel'), y('[data-part=review]'), y('#turnstileToken')]; });
-      assert.deepEqual([...order].sort((a, b) => a - b), order, `${width}px fields, then review, then security check`);
+      assert.ok(order[2] > order[0] && order[3] > order[0] && order[2] >= order[1] && order[3] >= order[1], `${width}px the review and the security check come after the fields (side by side on desktop)`);
       assert.deepEqual(await page.locator('form h2').allInnerTexts(), ['About you', 'Your vehicle', 'Check your booking']);
       const a = await page.locator('#customerFirstName').boundingBox(), b = await page.locator('#customerLastName').boundingBox();
       if (width >= 640) assert.ok(Math.abs(a.y - b.y) < 4 && b.x > a.x, `${width}px the two names sit side by side`);

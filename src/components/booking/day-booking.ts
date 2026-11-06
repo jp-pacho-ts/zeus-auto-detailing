@@ -151,6 +151,13 @@ export function isMultiDay(catalog: BookingCatalog, serviceIds: string[]): boole
   );
 }
 
+// P1-54: a size name such as "Small · Compact / Sedan" reads better as a title and a second line. A display split of the same text:
+// nothing is added, and a name without a middle dot stays whole.
+export function splitSizeName(name: string): { head: string; tail: string } {
+  const at = name.indexOf(" · ");
+  return at < 0 ? { head: name, tail: "" } : { head: name.slice(0, at), tail: name.slice(at + 3) };
+}
+
 // Website links use the size code, its name, or the home page's older words.
 const SIZE_ALIASES: Record<string, string> = { sedan: "S", motorcycle: "MOTOR", motor: "MOTOR" };
 export function resolveDeepLink(catalog: BookingCatalog, vehicle?: string, service?: string) {

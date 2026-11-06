@@ -84,7 +84,7 @@ export function DayPicker({ data, error, onRetry, selected, onSelect, fromDate, 
   const lead = days.length ? mondayIndex(days[0].date) : 0;
   const trail = days.length ? (7 - ((lead + days.length) % 7)) % 7 : 0;
   const faded = (date: string) => (
-    <div key={"faded-" + date} aria-hidden="true" className="flex min-h-[64px] items-center justify-center text-lg font-medium text-muted-foreground/50">
+    <div key={"faded-" + date} aria-hidden="true" className="flex min-h-[64px] lg:min-h-[clamp(64px,9vh,84px)] items-center justify-center text-lg font-medium text-muted-foreground/50">
       {Number(date.slice(8))}
     </div>
   );
@@ -144,7 +144,7 @@ export function DayPicker({ data, error, onRetry, selected, onSelect, fromDate, 
                 return (
                   <label
                     key={d.date}
-                    className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 text-center transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-card ${
+                    className={`relative flex min-h-[64px] lg:min-h-[clamp(64px,9vh,84px)] flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 text-center transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-card ${
                       !selectable
                         ? "cursor-not-allowed border border-dashed border-border bg-muted"
                         : isSelected

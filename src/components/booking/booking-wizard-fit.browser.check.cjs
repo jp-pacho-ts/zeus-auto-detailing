@@ -76,18 +76,23 @@ test('the booking wizard fits the screen by height: bands, panel and type on lap
       const key = `${width}x${height}`;
       const { context, page } = await open(browser, origin, upstream, [width, height]);
       const m = await page.evaluate(() => {
-        const rect = (e) => { const r = e.getBoundingClientRect(); return { y: r.y, height: r.height, bottom: r.y + r.height }; };
-        const bands = [...document.querySelectorAll('label:has(input[name="vehicle-category"])')].map(rect);
+        const bands = [...document.querySelectorAll('label:has(input[name="vehicle-category"])')].map((e) => { const r = e.getBoundingClientRect(); return { y: r.y, height: r.height, bottom: r.y + r.height, left: r.left, right: r.right }; });
+        const mainRect = document.querySelector('main').getBoundingClientRect();
         const panel = document.querySelector('[data-part=panel]');
         const total = [...panel.querySelectorAll('p')].find((p) => p.textContent.trim() === 'Choose a size');
-        return { docScroll: document.scrollingElement.scrollHeight - innerHeight, bands, panelOver: panel.scrollHeight - panel.clientHeight, panelHeight: panel.clientHeight, title: parseFloat(getComputedStyle(document.querySelector('h1')).fontSize), emptyTotal: total ? parseFloat(getComputedStyle(total).fontSize) : null, innerHeight };
+        return { docScroll: document.scrollingElement.scrollHeight - innerHeight, bands, panelOver: panel.scrollHeight - panel.clientHeight, panelHeight: panel.clientHeight, mainWidth: mainRect.width, mainLeft: mainRect.left, title: parseFloat(getComputedStyle(document.querySelector('h1')).fontSize), emptyTotal: total ? parseFloat(getComputedStyle(total).fontSize) : null, innerHeight };
       });
       const cont = await page.getByRole('button', { name: 'Continue', exact: true }).first().boundingBox();
-      const row = { viewport: key, step1: { docScrollOverflowPx: m.docScroll, bandHeights: m.bands.map((b) => Math.round(b.height)), lastBandBottom: Math.round(m.bands.at(-1).bottom), panelOverflowPx: m.panelOver, panelHeight: m.panelHeight, titlePx: m.title, emptyTotalPx: m.emptyTotal, continueBottom: cont && Math.round(cont.y + cont.height) } };
+      const tilesLeft = Math.min(...m.bands.map((b) => b.left)), tilesRight = Math.max(...m.bands.map((b) => b.right)), above = m.bands[0].y, below = m.innerHeight - m.bands.at(-1).bottom;
+      const row = { viewport: key, step1: { tilesWidth: Math.round(tilesRight - tilesLeft), emptyLeftInMain: Math.round(tilesLeft - m.mainLeft), emptyRightInMain: Math.round(m.mainLeft + m.mainWidth - tilesRight), emptyAbove: Math.round(above), emptyBelow: Math.round(below), docScrollOverflowPx: m.docScroll, bandHeights: m.bands.map((b) => Math.round(b.height)), lastBandBottom: Math.round(m.bands.at(-1).bottom), panelOverflowPx: m.panelOver, panelHeight: m.panelHeight, titlePx: m.title, emptyTotalPx: m.emptyTotal, continueBottom: cont && Math.round(cont.y + cont.height) } };
       expect(key + ' step 1', m.bands.length === 5, 'five bands');
       expect(key + ' no document scroll', m.docScroll <= 1, `the page scrolls by ${m.docScroll}px`);
       expect(key + ' bands fully visible', m.bands.every((b) => b.y >= 0 && b.bottom <= m.innerHeight), `the last band ends at ${Math.round(m.bands.at(-1).bottom)} of ${m.innerHeight}`);
-      expect(key + ' band height', m.bands.every((b) => b.height <= 104), `bands are ${m.bands.map((b) => Math.round(b.height))} px tall`);
+      expect(key + ' tile height', m.bands.every((b) => b.height <= 300), `tiles are ${m.bands.map((b) => Math.round(b.height))} px tall`);
+      // P1-54: the size choices use the width of the right area (no narrow column with empty sides) and sit balanced between top and bottom.
+      expect(key + ' fills the width', tilesRight - tilesLeft >= Math.min(1000, m.mainWidth - 112), `the choices are ${Math.round(tilesRight - tilesLeft)} px wide in a ${Math.round(m.mainWidth)} px area`);
+      expect(key + ' left and right balanced', Math.abs((tilesLeft - m.mainLeft) - (m.mainLeft + m.mainWidth - tilesRight)) <= 2, `left gap ${Math.round(tilesLeft - m.mainLeft)}, right gap ${Math.round(m.mainLeft + m.mainWidth - tilesRight)}`);
+      expect(key + ' top and bottom balanced', Math.abs(above - below) <= 40, `${Math.round(above)} px above, ${Math.round(below)} px below the choices`);
       expect(key + ' Continue in view', inView(cont, m.innerHeight, width), `Continue box ${JSON.stringify(cont)}`);
       expect(key + ' panel needs no scroll', m.panelOver <= 1, `the panel overflows by ${m.panelOver}px`);
       expect(key + ' title size', m.title >= 27 && m.title <= 33, `the step title is ${m.title}px`);
@@ -125,6 +130,9 @@ test('the booking wizard fits the screen by height: bands, panel and type on lap
         await page.getByRole('heading', { name: 'Your details' }).waitFor();
         await page.waitForTimeout(500);
         await panelState('step 4');
+        // The details form uses two columns on desktop: About you beside Your vehicle.
+        const cols = await page.evaluate(() => { const a = document.querySelector('#customerFirstName').getBoundingClientRect(), b = document.querySelector('#vehicleModel').getBoundingClientRect(); return { sameRow: Math.abs(a.top - b.top) < 24, right: b.left > a.right - 1 }; });
+        expect(`${key} step 4 two columns`, cols.sameRow && cols.right, `first name and vehicle model are not side by side: ${JSON.stringify(cols)}`);
         await shot(page, `p153-4-details-${key}`);
         row.deep = steps;
       }
