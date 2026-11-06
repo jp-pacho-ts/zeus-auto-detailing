@@ -257,9 +257,10 @@ test('P1-46/47: logo bottom right and centred on the icon row, side margins, hea
       const iconLinks = [...document.querySelectorAll('.zeus-social a')].map(a => box(a));
       const call = box(one('.zeus-actions'));
       const buttons = [...document.querySelectorAll('.zeus-actions a')].map(a => box(a));
+      const lede = box(one('.zeus-lede'));
       const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
       return {
-        vw: innerWidth, vh: innerHeight, logo, icons, iconLinks, call, buttons,
+        vw: innerWidth, vh: innerHeight, logo, icons, iconLinks, call, buttons, lede,
         coming: box(range) && range.getBoundingClientRect().toJSON(),
         logoOverlaps: ['h1', '.zeus-lede', '.zeus-actions'].filter(selector => overlap(logo, box(one(selector)))),
         clipped: [...document.querySelectorAll('h1,p,a,img,svg,span,strong')].filter(e => { const r = box(e); return r.width > 0 && (r.right > innerWidth + 0.5 || r.left < -0.5); }).map(e => e.tagName),
@@ -296,6 +297,20 @@ test('P1-46/47: logo bottom right and centred on the icon row, side margins, hea
     assert.ok(bookBox.left >= margin - 1.5 && manageBox.right <= width - margin + 1.5, `${width}: buttons stay inside the margins`);
     if (width >= 360) assert.ok(Math.abs(bookBox.top - manageBox.top) < 0.5 && manageBox.left - bookBox.right >= 8, `${width}: one row with a gap`);
     else assert.ok(manageBox.top >= bookBox.bottom && Math.abs(bookBox.width - manageBox.width) < 1.5, `${width}: two equal full-width rows`);
+    // P1-58: on phones the buttons sit right under the paragraph (20 to 24px) and above the icon row; the icon row and the
+    // logo never overlap, and the bottom block keeps clear of the bottom edge.
+    if (width <= 800) {
+      const gapBelowLede = bookBox.top - m.lede.bottom;
+      assert.ok(gapBelowLede >= 18 && gapBelowLede <= 28, `${width}: buttons sit just under the paragraph (${gapBelowLede.toFixed(1)}px)`);
+      assert.ok(manageBox.bottom < m.icons.top - 40, `${width}: buttons are well above the icon row, not crowding it`);
+      assert.ok(Math.max(m.icons.bottom, m.logo.bottom) <= height - 40, `${width}: icons and logo keep clear of the bottom edge`);
+      if (width >= 380) assert.ok(Math.abs(bookBox.width - manageBox.width) < 1.5, `${width}: two equal columns`);
+    }
+    {
+      const icons = m.iconLinks[m.iconLinks.length - 1];
+      const apart = m.logo.left >= icons.right + 8 || m.logo.top >= m.icons.bottom;
+      assert.ok(apart, `${width}: the logo does not overlap the icon row`);
+    }
     assert.deepEqual(m.logoOverlaps, [], `${width}: the logo overlaps nothing`);
     assert.deepEqual(m.clipped, [], `${width}: nothing is clipped at the sides`);
     assert.deepEqual(m.small, [], `${width}: every link is at least 44px`);
