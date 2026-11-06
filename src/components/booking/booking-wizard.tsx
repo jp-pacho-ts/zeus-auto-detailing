@@ -1247,7 +1247,7 @@ export function BookingWizard({
           </div>
         )}
 
-        {/* Step 5: booking received (L10: status and next step, then the private code, then details) */}
+        {/* Step 5: booking received (L10: status and next step, then how to manage it, then details) */}
         {step === 5 && booking && (
           <div className="max-w-3xl space-y-6">
             <section aria-labelledby="reference-title" className={`${panel} print-receipt-card`}>

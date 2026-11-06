@@ -16,7 +16,7 @@ export const MANAGE_HEADERS = { "content-type": "application/json", "x-zeus-book
 export const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 export const PROOF_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const CONTACT_SHOP = "Please contact the shop.";
-const SIGNED_OUT = "Your booking page closed. Enter your private code again.";
+const SIGNED_OUT = "Your booking page closed. Enter your reference code and last name again.";
 
 // An unsafe request is frozen once (path and exact body, including its idempotency key), so a retry
 // after an unconfirmed outcome sends the same bytes and the server replays instead of acting twice.
