@@ -228,6 +228,8 @@ model Staff {
   auditEvents           BookingAuditEvent[]
   commissionEntries     CommissionEntry[]         @relation("CommissionEarner")
   commissionsPaid       CommissionEntry[]         @relation("CommissionPaidBy")
+  adjustmentsMade       CommissionAdjustment[]    @relation("CommissionAdjustedBy")
+  adjustmentsPaid       CommissionAdjustment[]    @relation("CommissionAdjustmentPaidBy")
   commissionSettingsSet CommissionSettings[]
   adminAuditActed       AdminAuditEvent[]
 
@@ -315,6 +317,7 @@ enum AdminAuditAction {
   COMMISSION_ACCRUAL_FAILED
   COMMISSION_PAID
   COMMISSION_UNPAID
+  COMMISSION_ADJUSTED
 }
 
 // One row. Basis points: 1000 = 10.00%. "startsAt" is when commissions began (nothing before it is back-filled).
@@ -361,11 +364,33 @@ model CommissionEntry {
   paidByStaffId  String?
   paidBy         Staff?            @relation("CommissionPaidBy", fields: [paidByStaffId], references: [id], onDelete: Restrict)
   createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  adjustments    CommissionAdjustment[]
 
   @@unique([bookingId, staffId])
   @@index([staffId])
   @@index([paidAt])
   @@map("commission_entries")
+}
+
+// Insert-only (only the paid state changes). A signed whole-centavo correction to one person's entry, with a reason; the
+// entry and its header are never edited (review F1: money that arrives after completion).
+model CommissionAdjustment {
+  id             String          @id @default(dbgenerated("(gen_random_uuid())::text"))
+  entryId        String
+  entry          CommissionEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  amountCentavos BigInt
+  reason         String
+  actorStaffId   String
+  actor          Staff           @relation("CommissionAdjustedBy", fields: [actorStaffId], references: [id], onDelete: Restrict)
+  paidAt         DateTime?       @db.Timestamptz(3)
+  paidByStaffId  String?
+  paidBy         Staff?          @relation("CommissionAdjustmentPaidBy", fields: [paidByStaffId], references: [id], onDelete: Restrict)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  txId           BigInt          @default(dbgenerated("txid_current()"))
+
+  @@index([entryId])
+  @@index([paidAt])
+  @@map("commission_adjustments")
 }
 
 // Insert-only. Holds no name, phone or email except targetLabel (a name) on STAFF_REMOVED. The target staff and

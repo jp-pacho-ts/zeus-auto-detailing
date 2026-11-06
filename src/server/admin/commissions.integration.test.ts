@@ -277,7 +277,7 @@ test("C10 an entry's money can never be changed or deleted, even by the owner, a
   for (const col of ['"amountCentavos" = 1', '"baseCentavos" = 1', '"rateBp" = 1', `"staffId" = '${ADMIN.staffId}'`, '"position" = 2', `"bookingId" = '${job.id}x'`])
     await assert.rejects(db.$executeRawUnsafe(`UPDATE commission_entries SET ${col} WHERE id = '${e.id}'`), /immutable|violates/i, col);
   await assert.rejects(db.$executeRawUnsafe(`DELETE FROM commission_entries WHERE id = '${e.id}'`), /cannot be deleted/);
-  await assert.rejects(db.$executeRawUnsafe(`TRUNCATE commission_entries`), /append-only/);
+  await assert.rejects(db.$executeRawUnsafe(`TRUNCATE commission_entries, commission_adjustments`), /Commission records cannot be truncated/);
   await assert.rejects(db.$executeRawUnsafe(`UPDATE commission_accruals SET "creditedCount" = 9 WHERE "bookingId" = '${job.id}'`), /immutable/);
   await assert.rejects(db.$executeRawUnsafe(`DELETE FROM commission_accruals WHERE "bookingId" = '${job.id}'`), /cannot be deleted/);
   await assert.rejects(db.$executeRawUnsafe(`DELETE FROM commission_settings`), /cannot be deleted/);
@@ -594,4 +594,81 @@ test("C20 the commit-time check rejects shares that are not the equal split, wro
   await build(101, [[a.id, 1, 51, 1000, 5], [b.id, 2, 50, 1000, 5]], null);
   await build(100_000, [[a.id, 1, 33_334, 1250, 4_167], [b.id, 2, 33_333, 1250, 4_167], [c.id, 3, 33_333, 1250, 4_166]], null);
   await build(200_000_000, [[a.id, 1, 200_000_000, 1000, 20_000_000]], null);
+});
+
+test("C21 a completed booking takes no price change: the service refuses it and the database refuses it too (review F1)", { skip }, async () => {
+  const w = await person("Late Price Worker", "10");
+  const job = await completed([w.id], 50_000);
+  const line = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: job.id } });
+  await refused(s.setLinePrice(ADMIN, job.id, line.id, { expectedRevision: await rev(job.id), priceCentavos: 60_000, reason: "Late price" }, at(job.day)), "BOOKING_NOT_MANAGEABLE", "late price through the service");
+  await assert.rejects(
+    db.$executeRawUnsafe(`UPDATE booking_line_items SET "staffPriceCentavos" = 60000, "staffPriceSetByStaffId" = '${ADMIN.staffId}' WHERE id = '${line.id}'`),
+    /A completed booking takes no line change/, "the database wall");
+  assert.equal((await db.bookingLineItem.findUniqueOrThrow({ where: { id: line.id } })).staffPriceCentavos, 50_000, "the price did not move");
+  assert.equal((await entries(job.id))[0].amountCentavos, 5_000, "the commission did not move");
+});
+
+test("C22 a late price reaches the commission as an adjustment: ADMIN only, reason required, never below zero, paid on its own, audited, immutable (review F1)", { skip }, async () => {
+  const w = await person("Adjust Worker", "10");
+  const job = await completed([w.id], 100_000, true); // one service had no price at completion
+  const [e] = await entries(job.id);
+  assert.equal(e.amountCentavos, 10_000);
+  const adjust = (body: unknown, actor: StaffActor = ADMIN) => s.adjustCommission(actor, body, opts());
+  await refused(adjust({ entryId: e.id, amountCentavos: 5_000, reason: "x" }, { ...ADMIN, role: "STAFF" }), "FORBIDDEN", "STAFF");
+  for (const bad of [{ entryId: e.id, amountCentavos: 0, reason: "zero" }, { entryId: e.id, amountCentavos: 1.5, reason: "fraction" }, { entryId: e.id, amountCentavos: 5_000, reason: "  " },
+    { entryId: e.id, amountCentavos: 5_000 }, { entryId: e.id, amountCentavos: 5_000, reason: "x".repeat(201) }, { entryId: e.id, amountCentavos: 1_000_000_000_001, reason: "too large" },
+    { entryId: "not-a-uuid", amountCentavos: 5_000, reason: "bad id" }, { entryId: e.id, amountCentavos: 5_000, reason: "extra", paid: true }])
+    await refused(adjust(bad), "VALIDATION_ERROR", JSON.stringify(bad).slice(0, 50));
+  await refused(adjust({ entryId: randomUUID(), amountCentavos: 5_000, reason: "unknown entry" }), "NOT_FOUND", "unknown entry");
+  await refused(adjust({ entryId: e.id, amountCentavos: -10_001, reason: "too much" }), "VALIDATION_ERROR", "below zero");
+  assert.equal(await count("commission_adjustments", `"entryId" = '${e.id}'`), 0, "nothing was written by the refusals");
+
+  const made = await adjust({ entryId: e.id, amountCentavos: 12_000, reason: "Coating priced at 120,000 after completion" });
+  assert.ok(made.id);
+  assert.deepEqual([(await entries(job.id))[0].amountCentavos, (await header(job.id))!.serviceTotalCentavos], [10_000, 100_000], "the entry and the header are untouched");
+  const range = { ...aroundToday(), staffId: w.id };
+  let list = await s.listCommissions(ADMIN, range, opts());
+  const shown = list.entries.find((x) => x.id === e.id)!;
+  assert.deepEqual(shown.adjustments.map((a) => [a.id, a.amountCentavos, a.reason, a.paidAt]), [[made.id, 12_000, "Coating priced at 120,000 after completion", null]]);
+  assert.deepEqual([list.totals[0].earnedCentavos, list.totals[0].paidCentavos, list.totals[0].unpaidCentavos], [22_000, 0, 22_000], "earned counts the adjustment");
+  const audit = await db.adminAuditEvent.findMany({ where: { bookingId: job.id, action: "COMMISSION_ADJUSTED" } });
+  assert.deepEqual(audit.map((a) => [a.actorStaffId, a.targetStaffId, a.newValue, a.reason]), [[ADMIN.staffId, w.id, "12000", "Coating priced at 120,000 after completion"]]);
+
+  assert.deepEqual(await s.setCommissionsPaid(ADMIN, { ids: [made.id], paid: true }, opts()), { changed: 1, unknown: 0 }, "an adjustment is paid on its own");
+  list = await s.listCommissions(ADMIN, range, opts());
+  assert.deepEqual([list.totals[0].paidCentavos, list.totals[0].unpaidCentavos], [12_000, 10_000]);
+  assert.equal((await entries(job.id))[0].paidAt, null, "the entry itself is still unpaid");
+
+  await adjust({ entryId: e.id, amountCentavos: -22_000, reason: "Price was entered twice" }); // exactly to zero is allowed
+  await refused(adjust({ entryId: e.id, amountCentavos: -1, reason: "one centavo too far" }), "VALIDATION_ERROR", "below zero after two");
+  list = await s.listCommissions(ADMIN, range, opts());
+  assert.equal(list.totals[0].earnedCentavos, 0);
+
+  const row = `"entryId" = '${e.id}'`;
+  await assert.rejects(db.$executeRawUnsafe(`UPDATE commission_adjustments SET "amountCentavos" = 1 WHERE ${row}`), /immutable except for payment/);
+  await assert.rejects(db.$executeRawUnsafe(`DELETE FROM commission_adjustments WHERE ${row}`), /cannot be deleted/);
+  await assert.rejects(db.$executeRawUnsafe(`TRUNCATE commission_adjustments`), /Commission records cannot be truncated/);
+  await assert.rejects(app.$executeRawUnsafe(`INSERT INTO commission_adjustments ("entryId", "amountCentavos", reason, "actorStaffId") VALUES ('${e.id}', 1, 'x', '${ADMIN.staffId}')`), /permission denied/);
+  await assert.rejects(app.$queryRawUnsafe(`SELECT admin_commission_adjust('${w.id}', '${e.id}', 100, 'a detailer id')`), /Only an admin/i);
+});
+
+test("C23 repair handles each booking on its own: one that keeps failing is reported and does not block the others (review F2)", { skip }, async () => {
+  const w = await person("Repair Worker", "10");
+  const bad = await inProgress([w.id], 30_000), good = await inProgress([w.id], 40_000);
+  await db.$executeRawUnsafe(`ALTER TABLE commission_entries ADD CONSTRAINT test_force_fail_all CHECK ("amountCentavos" < 0) NOT VALID`);
+  try { await finish(bad); await finish(good); } finally { await db.$executeRawUnsafe(`ALTER TABLE commission_entries DROP CONSTRAINT test_force_fail_all`); }
+  assert.deepEqual([(await entries(bad.id)).length, (await entries(good.id)).length], [0, 0], "both accruals failed at completion");
+  // Only the first booking keeps failing: a header check that names it. The other one is repairable.
+  await db.$executeRawUnsafe(`ALTER TABLE commission_accruals ADD CONSTRAINT test_poison CHECK ("bookingId" <> '${bad.id}') NOT VALID`);
+  let result: { repaired: number; failed: number };
+  try { result = await s.repairCommissions(ADMIN, opts()); } finally { await db.$executeRawUnsafe(`ALTER TABLE commission_accruals DROP CONSTRAINT test_poison`); }
+  assert.ok(result.failed >= 1, "the failure is reported");
+  assert.equal((await entries(good.id)).length, 1, "the good booking was repaired in the same call");
+  assert.equal((await entries(bad.id)).length, 0);
+  const failures = await db.adminAuditEvent.findMany({ where: { bookingId: bad.id, action: "COMMISSION_ACCRUAL_FAILED" } });
+  assert.ok(failures.length >= 2, "the completion failure and the repair failure are both audited");
+  assert.ok(failures.every((f) => /^SQLSTATE [0-9A-Z]{5}$/.test(f.reason ?? "")));
+  const after = await s.repairCommissions(ADMIN, opts()); // the cause is gone: the poisoned booking is repaired now
+  assert.ok(after.repaired >= 1);
+  assert.equal((await entries(bad.id)).length, 1);
 });

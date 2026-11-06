@@ -16,6 +16,7 @@ fn(sig, public_ok, app_exec, definer) AS (VALUES
   ('admin_commission_default_set(text, integer, integer)', false, true, true),
   ('admin_commission_paid_set(text, text[], boolean)', false, true, true),
   ('admin_commission_repair(text)', false, true, true),
+  ('admin_commission_adjust(text, text, bigint, text)', false, true, true),
   ('delete_booking(text, text, integer, text)', false, true, true),
   ('commission_accrue(text)', false, false, true),
   ('commission_consistency_check(text)', false, false, true),
@@ -28,11 +29,12 @@ trg(tbl, name) AS (VALUES
   ('admin_audit_events', 'admin_audit_insert'), ('admin_audit_events', 'admin_audit_immutable'), ('admin_audit_events', 'admin_audit_no_truncate'),
   ('commission_settings', 'commission_settings_keep'), ('commission_settings', 'commission_settings_no_truncate'),
   ('commission_accruals', 'commission_accrual_change'), ('commission_accruals', 'commission_accrual_no_truncate'), ('commission_accruals', 'commission_accruals_consistent'),
-  ('commission_entries', 'commission_entry_change'), ('commission_entries', 'commission_entry_no_truncate'), ('commission_entries', 'commission_entries_consistent')),
+  ('commission_entries', 'commission_entry_change'), ('commission_entries', 'commission_entry_no_truncate'), ('commission_entries', 'commission_entries_consistent'),
+  ('commission_adjustments', 'commission_adjustment_change'), ('commission_adjustments', 'commission_adjustment_no_truncate')),
 checks(name, ok, detail) AS (
   SELECT 'migration applied', EXISTS(SELECT 1 FROM public._prisma_migrations WHERE migration_name = '20261105000000_team_commissions' AND finished_at IS NOT NULL AND rolled_back_at IS NULL), ''
   UNION ALL SELECT 'table ' || t, to_regclass('public.' || t) IS NOT NULL, ''
-    FROM unnest(ARRAY['commission_settings', 'commission_accruals', 'commission_entries', 'admin_audit_events']) t
+    FROM unnest(ARRAY['commission_settings', 'commission_accruals', 'commission_entries', 'commission_adjustments', 'admin_audit_events']) t
   UNION ALL SELECT 'staff column ' || c, EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'staff' AND column_name = c), ''
     FROM unnest(ARRAY['commissionRateBp', 'revision', 'updatedAt']) c
   UNION ALL SELECT 'legacy object kept: ' || o, ok, 'expand-only: the live code still reads it'
@@ -44,13 +46,13 @@ checks(name, ok, detail) AS (
   UNION ALL SELECT 'runtime role zeus_app exists', (SELECT present FROM role), ''
   -- Runtime-role privileges (only meaningful when the role exists).
   UNION ALL SELECT 'zeus_app reads ' || t, (SELECT present FROM role) AND has_table_privilege('zeus_app', 'public.' || t, 'SELECT'), ''
-    FROM unnest(ARRAY['commission_settings', 'commission_accruals', 'commission_entries']) t
+    FROM unnest(ARRAY['commission_settings', 'commission_accruals', 'commission_entries', 'commission_adjustments']) t
   UNION ALL SELECT 'zeus_app cannot write ' || t,
     -- Column-aware for INSERT and UPDATE (Codex F3): a grant on one column is a write path even when the table-level privilege is absent.
     (SELECT present FROM role) AND NOT has_any_column_privilege('zeus_app', 'public.' || t, 'INSERT') AND NOT has_any_column_privilege('zeus_app', 'public.' || t, 'UPDATE')
       AND NOT has_table_privilege('zeus_app', 'public.' || t, 'DELETE') AND NOT has_table_privilege('zeus_app', 'public.' || t, 'TRUNCATE')
       AND NOT has_any_column_privilege('zeus_app', 'public.' || t, 'REFERENCES') AND NOT has_table_privilege('zeus_app', 'public.' || t, 'TRIGGER'), ''
-    FROM unnest(ARRAY['commission_settings', 'commission_accruals', 'commission_entries', 'admin_audit_events']) t
+    FROM unnest(ARRAY['commission_settings', 'commission_accruals', 'commission_entries', 'commission_adjustments', 'admin_audit_events']) t
   UNION ALL SELECT 'zeus_app cannot read admin_audit_events',
     (SELECT present FROM role) AND NOT has_any_column_privilege('zeus_app', 'public.admin_audit_events', 'SELECT'), ''
   UNION ALL SELECT 'zeus_app cannot write staff or read phones',

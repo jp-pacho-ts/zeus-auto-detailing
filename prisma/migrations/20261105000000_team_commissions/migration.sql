@@ -15,6 +15,7 @@ BEGIN;
 --    centavos each, and the total is never clipped (a total above the range fails visibly instead).
 --  * commission_entries: one row per credited person (their equal share of the total, the percentage used, the
 --    amount, and the paid state). Every column except the paid state is immutable; nothing is ever deleted.
+--  * commission_adjustments: insert-only signed corrections to one entry (a late price), ADMIN only, with a reason; see the adjustments block after commission_entries.
 --  * admin_audit_events: a generic, insert-only audit table for staff and money writes (P1-38 to P1-40 reuse it).
 --    It stores NO name, phone or email, with one exception: STAFF_REMOVED keeps the removed person's name in
 --    "targetLabel" (the row they leave behind has to be recognisable after the person row is gone).
@@ -56,9 +57,11 @@ BEGIN;
 --     admin_staff_update(text, text, text, text, text, text, integer, integer),
 --     admin_staff_set_active(text, text, boolean, integer), admin_staff_remove(text, text, integer),
 --     admin_commission_default_set(text, integer, integer), admin_commission_paid_set(text, text[], boolean),
---     admin_commission_repair(text);
+--     admin_commission_repair(text), admin_commission_adjust(text, text, bigint, text), guard_commission_adjustment_change(),
+--     reject_commission_truncate();
+--   restore guard_booking_line_change() from migration 20261018000000_booking_model (section 7b changes one rule in it);
 --   restore delete_booking(text, text, integer, text) from migration 20261030000000_delete_booking;
---   DROP TABLE commission_entries, commission_accruals, commission_settings, admin_audit_events;
+--   DROP TABLE commission_adjustments, commission_entries, commission_accruals, commission_settings, admin_audit_events;
 --   DROP TYPE "AdminAuditAction";  ALTER TABLE staff DROP COLUMN "commissionRateBp", DROP COLUMN revision, DROP COLUMN "updatedAt";
 --   (the last two only after no commission rows exist; the live code never reads the new objects).
 
@@ -68,7 +71,7 @@ ALTER TABLE "staff" ADD CONSTRAINT "staff_commission_rate_range" CHECK ("commiss
 
 -- 2. Generic audit trail (insert-only; written only by the functions below)
 CREATE TYPE "AdminAuditAction" AS ENUM ('STAFF_CREATED', 'STAFF_UPDATED', 'STAFF_DEACTIVATED', 'STAFF_REACTIVATED', 'STAFF_REMOVED',
-  'COMMISSION_DEFAULT_SET', 'COMMISSION_RATE_SET', 'COMMISSION_ACCRUED', 'COMMISSION_ACCRUAL_FAILED', 'COMMISSION_PAID', 'COMMISSION_UNPAID');
+  'COMMISSION_DEFAULT_SET', 'COMMISSION_RATE_SET', 'COMMISSION_ACCRUED', 'COMMISSION_ACCRUAL_FAILED', 'COMMISSION_PAID', 'COMMISSION_UNPAID', 'COMMISSION_ADJUSTED');
 
 CREATE TABLE "admin_audit_events" (
   "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
@@ -108,8 +111,9 @@ ALTER TABLE "admin_audit_events" ADD CONSTRAINT admin_audit_shape CHECK (COALESC
     WHEN 'COMMISSION_RATE_SET' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "previousValue" ~ '^([0-9]{1,5}|DEFAULT)$' AND "newValue" ~ '^([0-9]{1,5}|DEFAULT)$'
     WHEN 'COMMISSION_ACCRUED' THEN "actorStaffId" IS NULL AND "bookingId" IS NOT NULL AND "entryCount" IS NOT NULL
     WHEN 'COMMISSION_ACCRUAL_FAILED' THEN "actorStaffId" IS NULL AND "bookingId" IS NOT NULL AND "reason" ~ '^SQLSTATE [0-9A-Z]{5}$'
-    WHEN 'COMMISSION_PAID' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "bookingId" IS NOT NULL AND "newValue" ~ '^[0-9]{1,13}$'
-    WHEN 'COMMISSION_UNPAID' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "bookingId" IS NOT NULL AND "newValue" ~ '^[0-9]{1,13}$'
+    WHEN 'COMMISSION_PAID' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "bookingId" IS NOT NULL AND "newValue" ~ '^-?[0-9]{1,13}$'
+    WHEN 'COMMISSION_UNPAID' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "bookingId" IS NOT NULL AND "newValue" ~ '^-?[0-9]{1,13}$'
+    WHEN 'COMMISSION_ADJUSTED' THEN "actorStaffId" IS NOT NULL AND "targetStaffId" IS NOT NULL AND "bookingId" IS NOT NULL AND "reason" IS NOT NULL AND "newValue" ~ '^-?[0-9]{1,13}$'
     ELSE false END, false));
 
 -- txId is the inserting transaction and createdAt is stamped by the database, never by a caller.
@@ -199,7 +203,45 @@ BEGIN
  RETURN NEW;
 END $$;
 CREATE TRIGGER commission_entry_change BEFORE UPDATE OR DELETE ON commission_entries FOR EACH ROW EXECUTE FUNCTION guard_commission_entry_change();
-CREATE TRIGGER commission_entry_no_truncate BEFORE TRUNCATE ON commission_entries FOR EACH STATEMENT EXECUTE FUNCTION reject_admin_audit_change();
+CREATE FUNCTION reject_commission_truncate() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$ BEGIN RAISE EXCEPTION 'Commission records cannot be truncated'; END $$;
+CREATE TRIGGER commission_entry_no_truncate BEFORE TRUNCATE ON commission_entries FOR EACH STATEMENT EXECUTE FUNCTION reject_commission_truncate();
+
+-- Adjustments (LE 2026-11-06, review F1). A completed booking's price is final, and the accrual snapshot never changes.
+-- If money must still reach a commission later (for example a coating that had no price when the job was completed), the
+-- ADMIN records a signed, whole-centavo adjustment against one person's entry, with a reason. It is a new insert-only row
+-- with its own paid state; the entry and the header are untouched. An entry plus its adjustments can never go below zero.
+CREATE TABLE "commission_adjustments" (
+  "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+  "entryId" TEXT NOT NULL,
+  "amountCentavos" BIGINT NOT NULL,
+  "reason" TEXT NOT NULL,
+  "actorStaffId" TEXT NOT NULL,
+  "paidAt" TIMESTAMPTZ(3),
+  "paidByStaffId" TEXT,
+  "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "txId" BIGINT NOT NULL DEFAULT txid_current(),
+  CONSTRAINT "commission_adjustments_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "commission_adjustments_amount" CHECK ("amountCentavos" <> 0 AND "amountCentavos" BETWEEN -1000000000000 AND 1000000000000),
+  CONSTRAINT "commission_adjustments_reason" CHECK (length("reason") BETWEEN 1 AND 200),
+  CONSTRAINT "commission_adjustments_paid_pair" CHECK (("paidAt" IS NULL) = ("paidByStaffId" IS NULL))
+);
+ALTER TABLE "commission_adjustments" ADD CONSTRAINT "commission_adjustments_entryId_fkey" FOREIGN KEY ("entryId") REFERENCES "commission_entries"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "commission_adjustments" ADD CONSTRAINT "commission_adjustments_actorStaffId_fkey" FOREIGN KEY ("actorStaffId") REFERENCES "staff"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "commission_adjustments" ADD CONSTRAINT "commission_adjustments_paidByStaffId_fkey" FOREIGN KEY ("paidByStaffId") REFERENCES "staff"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+CREATE INDEX "commission_adjustments_entryId_idx" ON "commission_adjustments"("entryId");
+CREATE INDEX "commission_adjustments_paidAt_idx" ON "commission_adjustments"("paidAt");
+CREATE FUNCTION guard_commission_adjustment_change() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+BEGIN
+ IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'Commission adjustments cannot be deleted'; END IF;
+ IF NEW."id" IS DISTINCT FROM OLD."id" OR NEW."entryId" IS DISTINCT FROM OLD."entryId" OR NEW."amountCentavos" IS DISTINCT FROM OLD."amountCentavos"
+    OR NEW."reason" IS DISTINCT FROM OLD."reason" OR NEW."actorStaffId" IS DISTINCT FROM OLD."actorStaffId" OR NEW."createdAt" IS DISTINCT FROM OLD."createdAt"
+    OR NEW."txId" IS DISTINCT FROM OLD."txId" THEN
+  RAISE EXCEPTION 'Commission adjustments are immutable except for payment';
+ END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER commission_adjustment_change BEFORE UPDATE OR DELETE ON commission_adjustments FOR EACH ROW EXECUTE FUNCTION guard_commission_adjustment_change();
+CREATE TRIGGER commission_adjustment_no_truncate BEFORE TRUNCATE ON commission_adjustments FOR EACH STATEMENT EXECUTE FUNCTION reject_commission_truncate();
 
 -- A header never changes. It can go only with its booking through delete_booking(), and only when no entry exists.
 CREATE FUNCTION guard_commission_accrual_change() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
@@ -209,7 +251,7 @@ BEGIN
  RAISE EXCEPTION 'Commission records cannot be deleted';
 END $$;
 CREATE TRIGGER commission_accrual_change BEFORE UPDATE OR DELETE ON commission_accruals FOR EACH ROW EXECUTE FUNCTION guard_commission_accrual_change();
-CREATE TRIGGER commission_accrual_no_truncate BEFORE TRUNCATE ON commission_accruals FOR EACH STATEMENT EXECUTE FUNCTION reject_admin_audit_change();
+CREATE TRIGGER commission_accrual_no_truncate BEFORE TRUNCATE ON commission_accruals FOR EACH STATEMENT EXECUTE FUNCTION reject_commission_truncate();
 
 -- 5. The rule. One pure function; the accrual and the tests use it. See .team/handoffs/P1-37.md section 4.
 --   shares: floor(B/n) each, the first (B mod n) people one centavo more, in the fixed order of the input;
@@ -526,7 +568,7 @@ END $$;
 -- alone. Entries are locked in id order so two callers cannot deadlock. One audit row per entry that changed.
 CREATE FUNCTION admin_commission_paid_set(p_actor text, p_ids text[], p_paid boolean) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
-DECLARE e public.commission_entries; v_id text; changed integer := 0; unknown integer := 0;
+DECLARE e public.commission_entries; a public.commission_adjustments; v_id text; changed integer := 0; unknown integer := 0;
 BEGIN
  PERFORM pg_advisory_xact_lock(746001, 1);
  PERFORM public.admin_assert_actor(p_actor);
@@ -535,7 +577,22 @@ BEGIN
  END IF;
  FOR v_id IN SELECT DISTINCT x FROM unnest(p_ids) x ORDER BY x LOOP
   SELECT * INTO e FROM public.commission_entries WHERE id = v_id FOR UPDATE;
-  IF NOT FOUND THEN unknown := unknown + 1; CONTINUE; END IF;
+  IF NOT FOUND THEN
+   -- Not an entry: it may be an adjustment (same rules, same audit actions, the signed amount in newValue).
+   SELECT * INTO a FROM public.commission_adjustments WHERE id = v_id FOR UPDATE;
+   IF NOT FOUND THEN unknown := unknown + 1; CONTINUE; END IF;
+   IF (a."paidAt" IS NOT NULL) = p_paid THEN CONTINUE; END IF;
+   IF p_paid THEN
+    UPDATE public.commission_adjustments SET "paidAt" = statement_timestamp(), "paidByStaffId" = p_actor WHERE id = v_id;
+   ELSE
+    UPDATE public.commission_adjustments SET "paidAt" = NULL, "paidByStaffId" = NULL WHERE id = v_id;
+   END IF;
+   SELECT * INTO e FROM public.commission_entries WHERE id = a."entryId";
+   INSERT INTO public.admin_audit_events (action, "actorStaffId", "targetStaffId", "bookingId", "newValue")
+    VALUES (CASE WHEN p_paid THEN 'COMMISSION_PAID' ELSE 'COMMISSION_UNPAID' END::public."AdminAuditAction", p_actor, e."staffId", e."bookingId", a."amountCentavos"::text);
+   changed := changed + 1;
+   CONTINUE;
+  END IF;
   IF (e."paidAt" IS NOT NULL) = p_paid THEN CONTINUE; END IF;
   IF p_paid THEN
    UPDATE public.commission_entries SET "paidAt" = statement_timestamp(), "paidByStaffId" = p_actor WHERE id = v_id;
@@ -549,11 +606,33 @@ BEGIN
  RETURN jsonb_build_object('changed', changed, 'unknown', unknown);
 END $$;
 
+-- Records one adjustment against one entry. ADMIN only, a required reason, a signed whole-centavo amount that is not zero,
+-- and the entry plus all its adjustments (including this one) must stay at zero or more. One audit row.
+CREATE FUNCTION admin_commission_adjust(p_actor text, p_entry text, p_amount bigint, p_reason text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE e public.commission_entries; v_reason text := btrim(p_reason); v_id text; net bigint;
+BEGIN
+ PERFORM pg_advisory_xact_lock(746001, 1);
+ PERFORM public.admin_assert_actor(p_actor);
+ IF p_entry IS NULL OR p_entry = '' OR p_amount IS NULL OR p_amount = 0 OR p_amount NOT BETWEEN -1000000000000 AND 1000000000000
+    OR v_reason IS NULL OR length(v_reason) NOT BETWEEN 1 AND 200 THEN
+  RAISE EXCEPTION 'Missing or invalid input' USING ERRCODE = 'ZT006';
+ END IF;
+ SELECT * INTO e FROM public.commission_entries WHERE id = p_entry FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Commission entry not found' USING ERRCODE = 'ZT001'; END IF;
+ SELECT e."amountCentavos" + COALESCE(sum("amountCentavos"), 0)::bigint + p_amount INTO net FROM public.commission_adjustments WHERE "entryId" = p_entry;
+ IF net < 0 THEN RAISE EXCEPTION 'An adjustment cannot take a commission below zero' USING ERRCODE = 'ZC006'; END IF;
+ INSERT INTO public.commission_adjustments ("entryId", "amountCentavos", "reason", "actorStaffId") VALUES (p_entry, p_amount, v_reason, p_actor) RETURNING id INTO v_id;
+ INSERT INTO public.admin_audit_events (action, "actorStaffId", "targetStaffId", "bookingId", "newValue", "reason")
+  VALUES ('COMMISSION_ADJUSTED', p_actor, e."staffId", e."bookingId", p_amount::text, v_reason);
+ RETURN jsonb_build_object('id', v_id);
+END $$;
+
 -- Redoes the records of completed bookings that have none (an accrual that failed). Only bookings completed since the
 -- commission start are touched, so history before the release is never back-filled. Up to 200 per call; idempotent.
 CREATE FUNCTION admin_commission_repair(p_actor text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
-DECLARE b record; repaired integer := 0; starts timestamptz;
+DECLARE b record; repaired integer := 0; failed integer := 0; starts timestamptz;
 BEGIN
  PERFORM pg_advisory_xact_lock(746001, 1);
  PERFORM public.admin_assert_actor(p_actor);
@@ -562,10 +641,59 @@ BEGIN
    WHERE bk.status = 'COMPLETED' AND bk."snapshotVersion" = 'QUEUE_V3' AND bk."terminalAt" >= starts
      AND NOT EXISTS(SELECT 1 FROM public.commission_accruals a WHERE a."bookingId" = bk.id)
    ORDER BY bk."terminalAt", bk.id LIMIT 200 LOOP
-  PERFORM public.commission_accrue(b.id);
-  repaired := repaired + 1;
+  -- One bad booking must not block the others (review F2): each runs in its own sub-transaction, a failure is audited with
+  -- the SQLSTATE only and counted. shortcut: a booking that keeps failing still takes one of the 200 slots per call; if 200
+  -- of them ever stack up, fix those first.
+  BEGIN
+   PERFORM public.commission_accrue(b.id);
+   repaired := repaired + 1;
+  EXCEPTION WHEN OTHERS THEN
+   failed := failed + 1;
+   INSERT INTO public.admin_audit_events (action, "actorStaffId", "bookingId", "reason") VALUES ('COMMISSION_ACCRUAL_FAILED', NULL, b.id, 'SQLSTATE ' || SQLSTATE);
+  END;
  END LOOP;
- RETURN jsonb_build_object('repaired', repaired);
+ RETURN jsonb_build_object('repaired', repaired, 'failed', failed);
+END $$;
+
+-- 7b. Completed bookings take no price change (review F1, part 1). Same function as migration 20261018000000 with one rule
+-- changed and pg_temp last; its trigger is unchanged. The application refuses first (BOOKING_NOT_MANAGEABLE); this is the second wall.
+CREATE OR REPLACE FUNCTION guard_booking_line_change() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE st text;
+BEGIN
+ IF TG_OP = 'DELETE' OR OLD."lineVersion"::text <> 'QUEUE_V3' THEN RAISE EXCEPTION 'Booking line snapshot is append-only'; END IF;
+ IF ROW(NEW.id,NEW."bookingId",NEW."order",NEW."releaseId",NEW."serviceId",NEW."vehicleCategoryId",NEW."offerId",NEW.type,NEW."nameSnapshot",NEW.unit,NEW.quantity,NEW."unitPriceCentavos",NEW."subtotalCentavos",NEW."addedMinutes",NEW."lineVersion",NEW."priceStatus",NEW."referenceUnitPriceCentavos",NEW."referenceSubtotalCentavos",NEW."addedAt",NEW."addedByStaffId")
+    IS DISTINCT FROM ROW(OLD.id,OLD."bookingId",OLD."order",OLD."releaseId",OLD."serviceId",OLD."vehicleCategoryId",OLD."offerId",OLD.type,OLD."nameSnapshot",OLD.unit,OLD.quantity,OLD."unitPriceCentavos",OLD."subtotalCentavos",OLD."addedMinutes",OLD."lineVersion",OLD."priceStatus",OLD."referenceUnitPriceCentavos",OLD."referenceSubtotalCentavos",OLD."addedAt",OLD."addedByStaffId") THEN
+  RAISE EXCEPTION 'Booking line snapshot is immutable';
+ END IF;
+ IF OLD."removedAt" IS NOT NULL THEN RAISE EXCEPTION 'Booking line snapshot is immutable once removed'; END IF;
+ IF OLD."staffPriceCentavos" IS NOT NULL AND NEW."staffPriceCentavos" IS NULL THEN RAISE EXCEPTION 'Booking line snapshot is immutable: a staff price cannot be cleared'; END IF;
+ SELECT status INTO st FROM public.bookings WHERE id = OLD."bookingId";
+ IF st = 'CANCELLED' THEN RAISE EXCEPTION 'A cancelled booking takes no line change'; END IF;
+ -- P1-37 (LE 2026-11-06): a completed booking is final, price included. Money that arrives later is recorded as a commission
+ -- adjustment, never by editing a line the commission was already counted on.
+ IF st = 'COMPLETED' AND ROW(NEW."workStatus", NEW."removedAt", NEW."staffPriceCentavos") IS DISTINCT FROM ROW(OLD."workStatus", OLD."removedAt", OLD."staffPriceCentavos") THEN
+  RAISE EXCEPTION 'A completed booking takes no line change';
+ END IF;
+ -- Codex review F1: who set a price, and when a price or status changed, move only with that
+ -- value (so under its role, revision and audit checks). The database stamps the times.
+ IF NEW."staffPriceCentavos" IS NOT DISTINCT FROM OLD."staffPriceCentavos" THEN
+  IF ROW(NEW."staffPriceSetAt", NEW."staffPriceSetByStaffId") IS DISTINCT FROM ROW(OLD."staffPriceSetAt", OLD."staffPriceSetByStaffId") THEN
+   RAISE EXCEPTION 'A line price actor or time changes only with the price';
+  END IF;
+ ELSE
+  NEW."staffPriceSetAt" := CURRENT_TIMESTAMP;
+ END IF;
+ IF NEW."workStatus" IS NOT DISTINCT FROM OLD."workStatus" THEN
+  IF NEW."workStatusChangedAt" IS DISTINCT FROM OLD."workStatusChangedAt" THEN RAISE EXCEPTION 'A line status time changes only with the status'; END IF;
+ ELSE
+  NEW."workStatusChangedAt" := CURRENT_TIMESTAMP;
+ END IF;
+ IF OLD."removedAt" IS NULL AND NEW."removedAt" IS NOT NULL THEN NEW."removedAt" := CURRENT_TIMESTAMP; END IF;
+ IF NEW."staffPriceCentavos" IS DISTINCT FROM OLD."staffPriceCentavos" AND NOT EXISTS(SELECT 1 FROM public.staff
+    WHERE id = NEW."staffPriceSetByStaffId" AND "isActive" AND role IN ('ADMIN', 'MANAGER')) THEN
+  RAISE EXCEPTION 'Only ADMIN sets a line price';
+ END IF;
+ RETURN NEW;
 END $$;
 
 -- 8. delete_booking(): the P1-29 function, unchanged except for two lines: a booking with commission entries (money)

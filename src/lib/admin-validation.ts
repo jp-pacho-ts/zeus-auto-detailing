@@ -235,6 +235,14 @@ export const CommissionListSchema = z
   .strict()
   .refine((v) => v.to >= v.from, { message: "The end day can't be before the start day.", path: ["to"] })
   .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 <= 365, { message: "Choose a range of one year or less.", path: ["to"] });
+// A signed whole-centavo correction to one person's commission (never zero, at most 10 billion pesos), with a reason.
+export const CommissionAdjustSchema = z
+  .object({
+    entryId: Id,
+    amountCentavos: z.number().int("Use whole centavos.").refine((n) => n !== 0, "The adjustment can't be zero.").refine((n) => Math.abs(n) <= 1_000_000_000_000, "That amount is too large."),
+    reason: z.string().trim().min(1, "Give a reason.").max(200, "Use 200 characters or fewer."),
+  })
+  .strict();
 export const CommissionPaidSchema = z
   .object({ ids: z.array(Id).min(1).max(200), paid: z.boolean() })
   .strict();

@@ -84,7 +84,8 @@ BEGIN
     'admin_team_list(text)', 'admin_staff_create(text, text, text, text, integer)',
     'admin_staff_update(text, text, text, text, text, text, integer, integer)', 'admin_staff_set_active(text, text, boolean, integer)',
     'admin_staff_remove(text, text, integer)', 'admin_commission_default_set(text, integer, integer)',
-    'admin_commission_paid_set(text, text[], boolean)', 'admin_commission_repair(text)'
+    'admin_commission_paid_set(text, text[], boolean)', 'admin_commission_repair(text)',
+    'admin_commission_adjust(text, text, bigint, text)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);
@@ -142,7 +143,7 @@ BEGIN
     ['booking_deposit_proofs', 'UPDATE ("notifyState", "notifyAttempts", "notifyNextAttemptAt", "notifySentAt")'],
 
     -- Commissions (P1-37): read only. Every write is an owner-run function or the accrual trigger.
-    ['commission_settings', 'SELECT'], ['commission_accruals', 'SELECT'], ['commission_entries', 'SELECT'],
+    ['commission_settings', 'SELECT'], ['commission_accruals', 'SELECT'], ['commission_entries', 'SELECT'], ['commission_adjustments', 'SELECT'],
 
     -- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
     -- owner URL, never by the app; the app reads no staff phone numbers.

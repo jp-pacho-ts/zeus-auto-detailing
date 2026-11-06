@@ -16,4 +16,4 @@ export { assignWorker, unassignWorker } from "./workers-write";
 export { setDepositStatus, readDepositProof } from "./deposit";
 export { deleteBooking } from "./delete-booking";
 export { listTeam, addPerson, updatePerson, setPersonActive, removePerson } from "./team";
-export { getCommissionSettings, setDefaultRate, listCommissions, setCommissionsPaid, repairCommissions } from "./commissions";
+export { getCommissionSettings, setDefaultRate, listCommissions, setCommissionsPaid, repairCommissions, adjustCommission } from "./commissions";

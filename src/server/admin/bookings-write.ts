@@ -732,7 +732,9 @@ export async function setLinePrice(
     const b = await loadForWrite(tx, bookingId, v.expectedRevision, {
       v3: true,
     });
-    if (b.status === "CANCELLED")
+    // A completed booking is final, price included (LE 2026-11-06, P1-37 review F1): the commission was counted on it. A late
+    // amount is recorded as a commission adjustment instead, and the database refuses a price change on a completed booking too.
+    if (b.status === "CANCELLED" || b.status === "COMPLETED")
       return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
     await activeLine(tx, bookingId, lid, b.lineItems);
     const line = b.lineItems.find((l) => l.id === lid)!;

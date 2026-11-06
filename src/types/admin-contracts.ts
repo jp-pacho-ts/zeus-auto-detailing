@@ -268,6 +268,16 @@ export interface AdminCommissionEntry {
   creditedCount: number;
   unpricedLineCount: number;
   paidAt: ISOInstant | null;
+  /** Later corrections to this amount, oldest first (a late price, a mistake). Each is paid on its own. */
+  adjustments: AdminCommissionAdjustment[];
+}
+export interface AdminCommissionAdjustment {
+  id: UUID;
+  /** Signed whole centavos; the entry amount plus its adjustments is never below zero. */
+  amountCentavos: number;
+  reason: string;
+  createdAt: ISOInstant;
+  paidAt: ISOInstant | null;
 }
 export interface AdminCommissionPersonTotal {
   staffId: UUID;

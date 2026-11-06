@@ -11,6 +11,15 @@ export function percentToBasisPoints(text: string): number | null {
 }
 
 /** 1250 to "12.5", 1000 to "10", 725 to "7.25". The shortest exact text, so it round-trips with percentToBasisPoints. */
+/** A signed peso amount typed by a person ("-12.50", "300") to whole centavos. Null for anything else, zero, or more than 10 billion pesos. */
+export function signedPesosToCentavos(text: string): number | null {
+  const m = /^(-?)(0|[1-9][0-9]{0,10})(?:\.([0-9]{1,2}))?$/.exec(text.trim());
+  if (!m) return null;
+  const value = Number(m[2]) * 100 + Number((m[3] ?? "").padEnd(2, "0"));
+  if (value === 0 || value > 1_000_000_000_000) return null;
+  return m[1] ? -value : value;
+}
+
 export function basisPointsToPercent(bp: number): string {
   const whole = Math.floor(bp / 100), fraction = bp % 100;
   if (fraction === 0) return String(whole);

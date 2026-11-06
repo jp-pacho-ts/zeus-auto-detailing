@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { basisPointsToPercent, formatPesos } from "@/lib/commission";
+import { basisPointsToPercent, formatPesos, signedPesosToCentavos } from "@/lib/commission";
 import type { AdminCommissionPaidResult, AdminCommissionSummary, AdminTeam } from "@/types/admin-contracts";
 import { adminRequest } from "../bookings/client";
 import { fieldClass, LoadState } from "../bookings/use-admin-resource";
@@ -22,6 +22,10 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
   const summary = useKeptResource<AdminCommissionSummary>(url);
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [adjusting, setAdjusting] = React.useState<string | null>(null);
+  const [adjAmount, setAdjAmount] = React.useState("");
+  const [adjReason, setAdjReason] = React.useState("");
+  const [adjProblem, setAdjProblem] = React.useState<string | null>(null);
   const [editingRate, setEditingRate] = React.useState(false);
   const [rate, setRate] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -62,7 +66,7 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
 
   const setPaid = (paid: boolean) =>
     run(async () => {
-      const ids = selectableIds(data?.entries.filter((en) => selected.has(en.id)) ?? [], paid);
+      const ids = selectableIds(chosen, paid);
       const result = await adminRequest<AdminCommissionPaidResult>("/api/admin/commissions/paid", { method: "POST", body: { ids, paid } });
       setSelected(new Set());
       return result.changed === 0 ? "Nothing changed. Those commissions were already marked that way." : `${result.changed} ${result.changed === 1 ? "commission" : "commissions"} marked as ${paid ? "paid" : "unpaid"}.`;
@@ -70,12 +74,28 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
 
   const repair = () =>
     run(async () => {
-      const result = await adminRequest<{ repaired: number }>("/api/admin/commissions/repair", { method: "POST", body: {} });
-      return result.repaired === 0 ? "No missing commissions were found." : `${result.repaired} missing ${result.repaired === 1 ? "commission was" : "commissions were"} recorded.`;
+      const result = await adminRequest<{ repaired: number; failed: number }>("/api/admin/commissions/repair", { method: "POST", body: {} });
+      const done = result.repaired === 0 ? "No missing commissions were found." : `${result.repaired} missing ${result.repaired === 1 ? "commission was" : "commissions were"} recorded.`;
+      return result.failed === 0 ? done : `${done} ${result.failed} could not be recorded and need attention.`;
     });
 
   const data = summary.data;
-  const chosen = data?.entries.filter((en) => selected.has(en.id)) ?? [];
+  // Ticked rows: jobs and their adjustments, each with its own paid state.
+  const chosen = (data?.entries ?? []).flatMap((en) => [en, ...en.adjustments]).filter((x) => selected.has(x.id));
+  const tick = (id: string, on: boolean) => setSelected((prev) => { const next = new Set(prev); if (on) next.add(id); else next.delete(id); return next; });
+
+  async function saveAdjustment(e: React.FormEvent) {
+    e.preventDefault();
+    const amountCentavos = signedPesosToCentavos(adjAmount);
+    if (amountCentavos === null) { setAdjProblem("Enter an amount in pesos, like 300 or -150.50. It can't be zero."); return; }
+    if (!adjReason.trim()) { setAdjProblem("Give a reason."); return; }
+    setAdjProblem(null);
+    const ok = await run(async () => {
+      await adminRequest("/api/admin/commissions/adjust", { method: "POST", body: { entryId: adjusting, amountCentavos, reason: adjReason.trim() } });
+      return "The adjustment was recorded.";
+    });
+    if (ok) { setAdjusting(null); setAdjAmount(""); setAdjReason(""); }
+  }
   const canMarkPaid = selectableIds(chosen, true).length > 0;
   const canMarkUnpaid = selectableIds(chosen, false).length > 0;
 
@@ -172,7 +192,7 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
                         type="checkbox"
                         className="mt-1 h-5 w-5 shrink-0"
                         checked={selected.has(en.id)}
-                        onChange={(e) => setSelected((prev) => { const next = new Set(prev); if (e.target.checked) next.add(en.id); else next.delete(en.id); return next; })}
+                        onChange={(e) => tick(en.id, e.target.checked)}
                         aria-label={`Select ${en.staffName}, ${en.serviceName}, ${en.completedOn}`}
                       />
                       <span className="min-w-0 flex-1">
@@ -189,6 +209,33 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
                         {en.unpricedLineCount > 0 && <span className="block text-xs text-amber-300">Includes a service without a final price.</span>}
                       </span>
                     </label>
+                    {en.adjustments.map((adj) => (
+                      <label key={adj.id} className="flex min-h-[44px] cursor-pointer items-start gap-3 py-2 pl-12 pr-4 sm:pl-14 sm:pr-6">
+                        <input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={selected.has(adj.id)} onChange={(e) => tick(adj.id, e.target.checked)}
+                          aria-label={`Select the adjustment of ${formatPesos(adj.amountCentavos)} for ${en.staffName}, ${en.serviceName}`} />
+                        <span className="min-w-0 flex-1 text-xs text-muted-foreground">
+                          <span className="font-semibold tabular-nums text-foreground">Adjustment {formatPesos(adj.amountCentavos)}</span>
+                          {" · "}{adj.paidAt ? "Paid" : "Unpaid"}<span className="block break-words">{adj.reason}</span>
+                        </span>
+                      </label>
+                    ))}
+                    <div className="px-4 pb-3 pl-12 sm:pl-14 sm:pr-6">
+                      {adjusting === en.id ? (
+                        <form onSubmit={(e) => void saveAdjustment(e)} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                          <label className="block text-xs font-semibold text-muted-foreground">Amount (pesos, minus to take away)
+                            <input className={fieldClass} value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} inputMode="decimal" required autoComplete="off" />
+                          </label>
+                          <label className="block min-w-0 flex-1 text-xs font-semibold text-muted-foreground">Reason
+                            <input className={fieldClass} value={adjReason} onChange={(e) => setAdjReason(e.target.value)} maxLength={200} required autoComplete="off" />
+                          </label>
+                          <Button type="submit" variant="gold" className="min-h-[44px]" disabled={busy}>{busy ? "Saving..." : "Save adjustment"}</Button>
+                          <Button type="button" variant="outline" className="min-h-[44px]" disabled={busy} onClick={() => { setAdjusting(null); setAdjProblem(null); }}>Cancel</Button>
+                        </form>
+                      ) : (
+                        <button type="button" className={buttonClass} disabled={busy} onClick={() => { setAdjusting(en.id); setAdjAmount(""); setAdjReason(""); setAdjProblem(null); setError(null); }}>Add adjustment</button>
+                      )}
+                      {adjusting === en.id && adjProblem && <p role="alert" className="mt-1 text-xs text-rose-400">{adjProblem}</p>}
+                    </div>
                   </li>
                 ))}
               </ul>

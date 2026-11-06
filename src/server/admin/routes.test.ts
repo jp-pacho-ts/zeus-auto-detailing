@@ -56,6 +56,7 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["PUT", "/api/admin/commissions/settings", () => import("@/app/api/admin/commissions/settings/route"), {}],
   ["POST", "/api/admin/commissions/paid", () => import("@/app/api/admin/commissions/paid/route"), {}],
   ["POST", "/api/admin/commissions/repair", () => import("@/app/api/admin/commissions/repair/route"), {}],
+  ["POST", "/api/admin/commissions/adjust", () => import("@/app/api/admin/commissions/adjust/route"), {}],
 ];
 const call = async (method: string, target: string, load: () => Promise<Record<string, unknown>>, params: Record<string, string>, headers: Record<string, string>, body?: string) => {
   const handler = (await load())[method] as Handler;

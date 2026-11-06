@@ -1,7 +1,7 @@
 // P1-37: the percentage and money helpers. No database, no floating point.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { basisPointsToPercent, formatPesos, percentToBasisPoints, safeCentavos } from "./commission";
+import { basisPointsToPercent, formatPesos, percentToBasisPoints, safeCentavos, signedPesosToCentavos } from "./commission";
 
 test("a percentage string becomes exact basis points", () => {
   const cases: [string, number][] = [["0", 0], ["0.0", 0], ["0.00", 0], ["10", 1000], ["10.0", 1000], ["12.5", 1250], ["12.50", 1250], ["7.25", 725], ["0.01", 1], ["99.99", 9999], ["100", 10_000], ["100.0", 10_000], ["100.00", 10_000], [" 15 ", 1500], ["01", 100]];
@@ -41,4 +41,10 @@ test("centavos print as pesos with integer arithmetic only", () => {
   assert.equal(formatPesos(123_456), "₱1,234.56");
   assert.equal(formatPesos(100_000_000), "₱1,000,000.00");
   assert.equal(formatPesos(-250), "-₱2.50");
+});
+
+test("signed peso amounts typed by a person convert to whole centavos exactly, and anything else is refused", () => {
+  assert.deepEqual(["300", "-150.50", "0.05", "-0.5", "12.3", " 7 ", "10000000000"].map(signedPesosToCentavos), [30_000, -15_050, 5, -50, 1_230, 700, 1_000_000_000_000]);
+  for (const bad of ["", "0", "0.00", "-0", "1.234", "1,5", "+5", "5.", ".5", "1e2", "abc", "--5", "10000000000.01", "00", "007"])
+    assert.equal(signedPesosToCentavos(bad), null, bad);
 });

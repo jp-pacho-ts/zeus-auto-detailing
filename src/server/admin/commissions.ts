@@ -1,13 +1,14 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import type {
+  AdminCommissionAdjustment,
   AdminCommissionEntry,
   AdminCommissionPaidResult,
   AdminCommissionPersonTotal,
   AdminCommissionSettings,
   AdminCommissionSummary,
 } from "@/types/admin-contracts";
-import { CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema } from "@/lib/admin-validation";
+import { CommissionAdjustSchema, CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema } from "@/lib/admin-validation";
 import { percentToBasisPoints, safeCentavos } from "@/lib/commission";
 import { withStaffDb, type StaffTx } from "@/server/auth/db-admission";
 import { authorize, parse, type AdminOptions, type StaffActor } from "./context";
@@ -29,9 +30,11 @@ function read<T>(options: AdminOptions, work: (tx: StaffTx) => Promise<T>): Prom
 
 function mapError(error: unknown): never {
   const text = error instanceof Error ? error.message : "";
+  if (text.includes("ZT001")) throw new AdminServiceError("NOT_FOUND");
   if (text.includes("ZT002")) throw new AdminServiceError("VERSION_CONFLICT", "Someone else changed this. Reload and try again.");
   if (text.includes("ZT004")) throw new AdminServiceError("FORBIDDEN");
   if (text.includes("ZT006")) throw new AdminServiceError("VALIDATION_ERROR");
+  if (text.includes("ZC006")) throw new AdminServiceError("VALIDATION_ERROR", "That adjustment would take the commission below zero.");
   throw error;
 }
 
@@ -67,6 +70,7 @@ interface EntryRow {
   id: string; bookingReference: string; serviceName: string; completedOn: Date; staffId: string; staffName: string; position: number;
   serviceTotalCentavos: bigint; shareCentavos: bigint; rateBp: number; amountCentavos: bigint; creditedCount: number; unpricedLineCount: number; paidAt: Date | null;
 }
+interface AdjustmentRow { id: string; entryId: string; amountCentavos: bigint; reason: string; createdAt: Date; paidAt: Date | null }
 interface TotalRow { staffId: string; staffName: string; entryCount: number; earned: bigint; paid: bigint }
 
 export async function listCommissions(actor: StaffActor, input: unknown, options: AdminOptions = {}): Promise<AdminCommissionSummary> {
@@ -86,9 +90,12 @@ export async function listCommissions(actor: StaffActor, input: unknown, options
       LIMIT ${ENTRY_LIMIT + 1}`;
     // Totals cover every matching entry (the status filter does not apply: earned, paid and unpaid are always shown together).
     const totalRows = await tx.$queryRaw<TotalRow[]>`
-      SELECT e."staffId", s.name AS "staffName", count(*)::integer AS "entryCount", COALESCE(sum(e."amountCentavos"), 0)::bigint AS earned,
-        COALESCE(sum(e."amountCentavos") FILTER (WHERE e."paidAt" IS NOT NULL), 0)::bigint AS paid
+      SELECT e."staffId", s.name AS "staffName", count(*)::integer AS "entryCount",
+        (COALESCE(sum(e."amountCentavos"), 0) + COALESCE(sum(adj.total), 0))::bigint AS earned,
+        (COALESCE(sum(e."amountCentavos") FILTER (WHERE e."paidAt" IS NOT NULL), 0) + COALESCE(sum(adj.paid), 0))::bigint AS paid
       FROM commission_entries e JOIN commission_accruals a ON a."bookingId" = e."bookingId" JOIN staff s ON s.id = e."staffId"
+      LEFT JOIN LATERAL (SELECT sum(x."amountCentavos") AS total, sum(x."amountCentavos") FILTER (WHERE x."paidAt" IS NOT NULL) AS paid
+        FROM commission_adjustments x WHERE x."entryId" = e.id) adj ON true
       WHERE ${inRange} ${person}
       GROUP BY e."staffId", s.name ORDER BY lower(s.name), e."staffId"`;
     const [warn] = await tx.$queryRaw<{ nobody: number; unpriced: number; missing: number }[]>`
@@ -104,10 +111,18 @@ export async function listCommissions(actor: StaffActor, input: unknown, options
     const add = (x: number, y: number) => safeCentavos(BigInt(x) + BigInt(y));
     const grand = totals.reduce((g, t) => ({ entryCount: g.entryCount + t.entryCount, earnedCentavos: add(g.earnedCentavos, t.earnedCentavos), paidCentavos: add(g.paidCentavos, t.paidCentavos), unpaidCentavos: add(g.unpaidCentavos, t.unpaidCentavos) }),
       { entryCount: 0, earnedCentavos: 0, paidCentavos: 0, unpaidCentavos: 0 });
-    const shown: AdminCommissionEntry[] = entries.slice(0, ENTRY_LIMIT).map((r) => ({
+    const page = entries.slice(0, ENTRY_LIMIT);
+    const adjustmentRows = page.length === 0 ? [] : await tx.$queryRaw<AdjustmentRow[]>`
+      SELECT id, "entryId", "amountCentavos", reason, "createdAt", "paidAt" FROM commission_adjustments
+      WHERE "entryId" = ANY(${page.map((r) => r.id)}::text[]) ORDER BY "createdAt", id`;
+    const adjustmentsOf = (entryId: string): AdminCommissionAdjustment[] => adjustmentRows.filter((x) => x.entryId === entryId).map((x) => ({
+      id: x.id, amountCentavos: safeCentavos(x.amountCentavos), reason: x.reason, createdAt: x.createdAt.toISOString(), paidAt: x.paidAt ? x.paidAt.toISOString() : null,
+    }));
+    const shown: AdminCommissionEntry[] = page.map((r) => ({
       id: r.id, bookingReference: r.bookingReference, serviceName: r.serviceName, completedOn: r.completedOn.toISOString().slice(0, 10), staffId: r.staffId, staffName: r.staffName,
       position: Number(r.position), serviceTotalCentavos: safeCentavos(r.serviceTotalCentavos), shareCentavos: safeCentavos(r.shareCentavos), rateBp: Number(r.rateBp), amountCentavos: safeCentavos(r.amountCentavos),
       creditedCount: Number(r.creditedCount), unpricedLineCount: Number(r.unpricedLineCount), paidAt: r.paidAt ? r.paidAt.toISOString() : null,
+      adjustments: adjustmentsOf(r.id),
     }));
     return {
       from: v.from, to: v.to, settings, totals, grandTotal: grand, entries: shown, truncated: entries.length > ENTRY_LIMIT,
@@ -116,7 +131,7 @@ export async function listCommissions(actor: StaffActor, input: unknown, options
   });
 }
 
-// Marks entries paid or not paid. Unknown ids are counted, not errors; an entry already in the wanted state is left alone.
+// Marks entries (or adjustments) paid or not paid. Unknown ids are counted, not errors; one already in the wanted state is left alone.
 export async function setCommissionsPaid(actor: StaffActor, input: unknown, options: AdminOptions = {}): Promise<AdminCommissionPaidResult> {
   authorize(actor, "COMMISSION_WRITE");
   const v = parse(CommissionPaidSchema, input);
@@ -131,16 +146,35 @@ export async function setCommissionsPaid(actor: StaffActor, input: unknown, opti
   });
 }
 
-// Redoes the records of completed bookings whose accrual failed (up to 200 per call). Idempotent.
-export async function repairCommissions(actor: StaffActor, options: AdminOptions = {}): Promise<{ repaired: number }> {
+// Redoes the records of completed bookings whose accrual failed (up to 200 per call). Idempotent. One bad booking does not
+// stop the others: it is counted in "failed" and audited (review F2).
+export async function repairCommissions(actor: StaffActor, options: AdminOptions = {}): Promise<{ repaired: number; failed: number }> {
   authorize(actor, "COMMISSION_WRITE");
   return mutate(options, "commission_repair", async (tx) => {
     let repaired: number;
+    let failed: number;
     try {
-      const [row] = await tx.$queryRaw<{ r: { repaired: number } }[]>`SELECT admin_commission_repair(${actor.staffId}) AS r`;
+      const [row] = await tx.$queryRaw<{ r: { repaired: number; failed: number } }[]>`SELECT admin_commission_repair(${actor.staffId}) AS r`;
       repaired = Number(row.r.repaired);
+      failed = Number(row.r.failed);
     } catch (error) { return mapError(error); }
-    adminEvent("admin.commission.repaired", { actorStaffId: actor.staffId, repaired });
-    return { repaired };
+    adminEvent("admin.commission.repaired", { actorStaffId: actor.staffId, repaired, failed });
+    return { repaired, failed };
+  });
+}
+
+// Records a late correction to one person's commission (a price that arrived after completion, or a mistake): a signed
+// whole-centavo amount with a reason, as a new row. The entry itself never changes. ADMIN only; the database repeats it.
+export async function adjustCommission(actor: StaffActor, input: unknown, options: AdminOptions = {}): Promise<{ id: string }> {
+  authorize(actor, "COMMISSION_WRITE");
+  const v = parse(CommissionAdjustSchema, input);
+  return mutate(options, "commission_adjust", async (tx) => {
+    let id: string;
+    try {
+      const [row] = await tx.$queryRaw<{ r: { id: string } }[]>`SELECT admin_commission_adjust(${actor.staffId}, ${v.entryId}, ${BigInt(v.amountCentavos)}::bigint, ${v.reason}) AS r`;
+      id = row.r.id;
+    } catch (error) { return mapError(error); }
+    adminEvent("admin.commission.adjusted", { actorStaffId: actor.staffId });
+    return { id };
   });
 }
