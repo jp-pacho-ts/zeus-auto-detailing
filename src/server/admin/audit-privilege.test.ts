@@ -7,7 +7,9 @@ import { auditPrivilegeGate } from "./audit-privilege";
 import { AdminServiceError } from "./errors";
 import { setAdminEventSink } from "./log";
 
-const GOOD = { superuser: false, bypassrls: false, owner: false, schemaOwner: false, databaseOwner: false, insert: true, select: true, update: false, delete: false, truncate: false, references: false, trigger: false, triggers: 2 };
+const GOOD = { superuser: false, bypassrls: false, owner: false, schemaOwner: false, databaseOwner: false, insert: true, select: true, update: false, delete: false, truncate: false, references: false, trigger: false, triggers: 2,
+  // admin_audit_events (P1-37, Codex F3): the intended state is NO privilege at all and three enabled triggers.
+  adminMissing: false, adminOwner: false, adminInsert: false, adminSelect: false, adminUpdate: false, adminDelete: false, adminTruncate: false, adminReferences: false, adminTrigger: false, adminTriggers: 3 };
 function fake(row: Record<string, unknown>) {
   const counter = { checks: 0 };
   const permit = {
@@ -52,6 +54,32 @@ test("each check reports every problem class: missing INSERT/SELECT, BYPASSRLS, 
   const f = fake({ ...GOOD, bypassrls: true, insert: false, select: false, references: true, trigger: true, truncate: true });
   await auditPrivilegeGate(f.permit, f.db, false, () => 0);
   assert.equal(events[0].problems, "bypassrls,insert,select,truncate,references,trigger");
+});
+
+// Codex F3 (P1-37): admin_audit_events must be unreadable and unwritable for the runtime role, column grants included, and its
+// three triggers must be on. Any deviation refuses staff mutations in production, like the booking audit table.
+test("admin_audit_events: every privilege, a lone column grant, a missing table and a disabled trigger are each a named problem", async () => {
+  events.length = 0;
+  const cases: [Record<string, unknown>, string][] = [
+    [{ adminInsert: true }, "admin_audit_insert"], // e.g. only INSERT(action, "actorStaffId", "targetStaffId", reason): a forged event
+    [{ adminSelect: true }, "admin_audit_select"], [{ adminUpdate: true }, "admin_audit_update"], [{ adminDelete: true }, "admin_audit_delete"],
+    [{ adminTruncate: true }, "admin_audit_truncate"], [{ adminReferences: true }, "admin_audit_references"], [{ adminTrigger: true }, "admin_audit_trigger"],
+    [{ adminOwner: true }, "admin_audit_owner"], [{ adminTriggers: 2 }, "admin_audit_triggers"], [{ adminTriggers: 0 }, "admin_audit_triggers"],
+    [{ adminMissing: true }, "admin_audit_missing"],
+  ];
+  for (const [row, problems] of cases) {
+    const f = fake({ ...GOOD, ...row });
+    await assert.rejects(auditPrivilegeGate(f.permit, f.db, true, () => 0), (e: unknown) =>
+      e instanceof AdminServiceError && e.adminCode === "RETRYABLE_ERROR" && e.status === 503 && e.toEnvelope().commitState === "NOT_COMMITTED");
+    assert.deepEqual(events.pop(), { event: "admin.audit_privilege_violation", problems, enforced: true });
+  }
+  const all = fake({ ...GOOD, adminOwner: true, adminInsert: true, adminSelect: true, adminUpdate: true, adminDelete: true, adminTruncate: true, adminReferences: true, adminTrigger: true, adminTriggers: 1 });
+  await auditPrivilegeGate(all.permit, all.db, false, () => 0);
+  assert.equal(events.pop()?.problems, "admin_audit_owner,admin_audit_insert,admin_audit_select,admin_audit_update,admin_audit_delete,admin_audit_truncate,admin_audit_references,admin_audit_trigger,admin_audit_triggers");
+  // The state the migration and runtime-role.sql produce passes (and is cached).
+  const good = fake(GOOD);
+  await auditPrivilegeGate(good.permit, good.db, true, () => 0);
+  assert.equal(events.length, 0);
 });
 
 // Codex F3: owning the schema or the database gives owner authority whatever the table grants say.

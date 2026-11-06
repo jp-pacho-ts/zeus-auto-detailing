@@ -2,6 +2,7 @@
 // strict: unknown fields are refused. UUIDs are lowercased; money is integer centavos.
 import { z } from "zod";
 import { QueueCodeSchema } from "@/types/catalog-contracts";
+import { percentToBasisPoints } from "./commission";
 import { LocalDateSchema } from "./validation";
 
 const Id = z
@@ -178,4 +179,71 @@ export const FinishBookingSchema = z.object({ expectedRevision: Revision }).stri
 // Malformed numbers are not a 400: they get the fixed empty result (PM decision D8).
 export const CustomerHistorySchema = z
   .object({ phone: z.string().max(64) })
+  .strict();
+
+// P1-37 Team & commissions. Every schema is strict (a stray role, id or amount in a body is refused). A percentage is a
+// decimal string with at most two decimals and is converted to basis points exactly (src/lib/commission.ts), never
+// through a float. The database functions repeat every check.
+const Percent = z
+  .string()
+  .trim()
+  .refine((s) => percentToBasisPoints(s) !== null, "Enter a percentage from 0 to 100 with at most 2 decimals.");
+const PersonName = z
+  .string()
+  .trim()
+  .min(1, "Enter a name.")
+  .max(80, "Use 80 characters or fewer.")
+  .refine((s) => !/[\u0000-\u001f\u007f]/.test(s), "Use letters, numbers and normal punctuation.");
+const PersonPhone = z
+  .string()
+  .trim()
+  .max(30, "Use 30 characters or fewer.")
+  .regex(/^[0-9+() -]*$/, "Use digits, spaces, + ( ) and - only.");
+const PersonEmail = z.string().trim().toLowerCase().max(120).email("Enter a valid email.");
+export const TeamCreateSchema = z
+  .object({
+    name: PersonName,
+    phone: PersonPhone.optional(),
+    email: z.union([PersonEmail, z.literal("")]).optional(),
+    ratePercent: Percent.nullable().optional(),
+  })
+  .strict();
+// An absent field is left alone; ratePercent null clears the personal rate (use the default).
+export const TeamUpdateSchema = z
+  .object({
+    expectedRevision: Revision,
+    name: PersonName.optional(),
+    phone: PersonPhone.optional(),
+    email: PersonEmail.optional(),
+    ratePercent: Percent.nullable().optional(),
+  })
+  .strict();
+export const TeamActiveSchema = z
+  .object({ expectedRevision: Revision, active: z.boolean() })
+  .strict();
+export const TeamRemoveSchema = z.object({ expectedRevision: Revision }).strict();
+export const CommissionDefaultSchema = z
+  .object({ expectedRevision: Revision, ratePercent: Percent })
+  .strict();
+export const CommissionListSchema = z
+  .object({
+    from: LocalDateSchema,
+    to: LocalDateSchema,
+    staffId: Id.optional(),
+    status: z.enum(["ALL", "PAID", "UNPAID"]).default("ALL"),
+  })
+  .strict()
+  .refine((v) => v.to >= v.from, { message: "The end day can't be before the start day.", path: ["to"] })
+  .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 <= 365, { message: "Choose a range of one year or less.", path: ["to"] });
+// A signed whole-centavo correction to one person's commission (never zero, at most 10 billion pesos), with a reason.
+export const CommissionAdjustSchema = z
+  .object({
+    id: Id, // made by the browser once per form, so a retry after a lost response cannot record the adjustment twice
+    entryId: Id,
+    amountCentavos: z.number().int("Use whole centavos.").refine((n) => n !== 0, "The adjustment can't be zero.").refine((n) => Math.abs(n) <= 1_000_000_000_000, "That amount is too large."),
+    reason: z.string().trim().min(1, "Give a reason.").max(200, "Use 200 characters or fewer."),
+  })
+  .strict();
+export const CommissionPaidSchema = z
+  .object({ ids: z.array(Id).min(1).max(200), paid: z.boolean() })
   .strict();

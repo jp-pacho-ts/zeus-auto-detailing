@@ -5,7 +5,7 @@ import { StaffAuthError } from "@/server/auth/errors";
 
 const STATUS: Record<AdminErrorCode, number> = {
   VALIDATION_ERROR: 400, UNAUTHENTICATED: 401, FORBIDDEN: 403, NOT_FOUND: 404,
-  VERSION_CONFLICT: 409, SCHEDULE_CONFLICT: 409, BOOKING_NOT_MANAGEABLE: 409, CATALOG_UPDATED: 409, SLOT_UNAVAILABLE: 409, IDEMPOTENCY_CONFLICT: 409,
+  VERSION_CONFLICT: 409, SCHEDULE_CONFLICT: 409, BOOKING_NOT_MANAGEABLE: 409, CATALOG_UPDATED: 409, SLOT_UNAVAILABLE: 409, IDEMPOTENCY_CONFLICT: 409, NOT_ALLOWED: 409,
   RATE_LIMITED: 429, RETRYABLE_ERROR: 503, INTERNAL_ERROR: 500,
 };
 const MESSAGES: Partial<Record<AdminErrorCode, string>> = {
@@ -16,6 +16,7 @@ const MESSAGES: Partial<Record<AdminErrorCode, string>> = {
   SCHEDULE_CONFLICT: "That change doesn't fit the schedule.",
   BOOKING_NOT_MANAGEABLE: "This booking can't be changed that way.",
   CATALOG_UPDATED: "The service list changed. Try again.",
+  NOT_ALLOWED: "That change isn't allowed.",
   RATE_LIMITED: "Too many requests. Wait a moment and try again.",
   RETRYABLE_ERROR: "The staff service is temporarily unavailable. Please try again shortly.",
   INTERNAL_ERROR: "Something went wrong. Please try again.",

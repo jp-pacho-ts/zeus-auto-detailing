@@ -11,7 +11,7 @@ import type {
 } from "./contracts";
 
 export type AdminErrorCode =
-  ErrorCode | "BOOKING_NOT_MANAGEABLE" | "CATALOG_UPDATED";
+  ErrorCode | "BOOKING_NOT_MANAGEABLE" | "CATALOG_UPDATED" | "NOT_ALLOWED";
 export type LineWorkStatus = "WAITING" | "IN_PROGRESS" | "DONE";
 export type AdminSnapshot = "QUEUE_V3" | "LEGACY";
 
@@ -219,4 +219,106 @@ export interface AdminDayBoard {
     waiting: AdminBoardCard[];
   }[];
   bays: (AdminBay & { cards: AdminBoardCard[] })[];
+}
+
+// -----------------------------------------------------------------------------
+// P1-37 Team & commissions (ADMIN only). Money is integer centavos; rates are integer basis points
+// (1000 = 10.00%). No customer name, phone, email or vehicle appears on any of these.
+// -----------------------------------------------------------------------------
+export interface AdminTeamPerson {
+  id: UUID;
+  name: string;
+  phone: string;
+  /** The real email, or null for a person added without one (they cannot sign in). */
+  email: string | null;
+  role: "ADMIN" | "MANAGER" | "DETAILER";
+  isActive: boolean;
+  /** Personal percentage in basis points; null means "use the default". */
+  commissionRateBp: number | null;
+  canSignIn: boolean;
+  openJobs: number;
+  hasHistory: boolean;
+  revision: number;
+  createdAt: ISOInstant;
+}
+export interface AdminTeam {
+  people: AdminTeamPerson[];
+  defaultRateBp: number;
+  settingsRevision: number;
+}
+export type AdminTeamRemoveOutcome = "DELETED" | "DEACTIVATED";
+
+export interface AdminCommissionSettings {
+  defaultRateBp: number;
+  revision: number;
+  startsAt: ISOInstant;
+}
+export interface AdminCommissionEntry {
+  id: UUID;
+  bookingReference: string;
+  serviceName: string;
+  completedOn: LocalDate;
+  staffId: UUID;
+  staffName: string;
+  position: number;
+  serviceTotalCentavos: number;
+  shareCentavos: number;
+  rateBp: number;
+  amountCentavos: number;
+  creditedCount: number;
+  unpricedLineCount: number;
+  paidAt: ISOInstant | null;
+  /** Later corrections to this amount, oldest first (a late price, a mistake). Each is paid on its own. */
+  adjustments: AdminCommissionAdjustment[];
+  /** The booking's services: which counted toward the commission and which did not (a car wash earns none). */
+  lines: AdminCommissionLine[];
+}
+export interface AdminCommissionLine {
+  name: string;
+  /** True when this service earns commission (detailing, paint, coating, tint). */
+  counted: boolean;
+  /** Why it did not count, in plain words; null when it counted. */
+  notCountedReason: string | null;
+  /** The price at the time; null when the service had no price. */
+  amountCentavos: number | null;
+}
+export interface AdminCommissionAdjustment {
+  id: UUID;
+  /** Signed whole centavos; the entry amount plus its adjustments is never below zero. */
+  amountCentavos: number;
+  reason: string;
+  createdAt: ISOInstant;
+  paidAt: ISOInstant | null;
+}
+export interface AdminCommissionPersonTotal {
+  staffId: UUID;
+  staffName: string;
+  entryCount: number;
+  earnedCentavos: number;
+  paidCentavos: number;
+  unpaidCentavos: number;
+}
+export interface AdminCommissionSummary {
+  from: LocalDate;
+  to: LocalDate;
+  settings: AdminCommissionSettings;
+  totals: AdminCommissionPersonTotal[];
+  grandTotal: { entryCount: number; earnedCentavos: number; paidCentavos: number; unpaidCentavos: number };
+  entries: AdminCommissionEntry[];
+  /** True when more entries matched than were returned; the totals still cover every one. */
+  truncated: boolean;
+  warnings: {
+    /** Completed bookings in the range with nobody credited (no commission could be recorded). */
+    nobodyCredited: number;
+    /** Entries on bookings that completed with a service that had no final price. */
+    unpricedEntries: number;
+    /** Completed bookings in the range where nothing earns commission (a car wash only). */
+    noCommissionBookings: number;
+    /** Completed bookings since commissions began that have no record (an accrual failed). */
+    missingRecords: number;
+  };
+}
+export interface AdminCommissionPaidResult {
+  changed: number;
+  unknown: number;
 }

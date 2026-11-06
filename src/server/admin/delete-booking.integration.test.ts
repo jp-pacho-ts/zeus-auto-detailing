@@ -136,7 +136,9 @@ async function bookingAt(status: "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMP
   if (status === "CONFIRMED") return { ...b, n };
   const bay = await s.createBay(ADMIN, { name: "Bay " + n, sortOrder: n, bayType: "WASH" }, o);
   await s.setBay(ADMIN, b.id, { expectedRevision: await rev(b.id), date: day, bayId: bay.id }, o);
-  await s.assignWorker(ADMIN, b.id, STAFF.staffId, { expectedRevision: await rev(b.id) }, o);
+  // P1-37: a COMPLETED booking with a worker earns a commission, and delete_booking refuses it by design (see C15 in
+  // commissions.integration.test.ts). This case completes with nobody assigned so no money exists; the assertions are unchanged.
+  if (status !== "COMPLETED") await s.assignWorker(ADMIN, b.id, STAFF.staffId, { expectedRevision: await rev(b.id) }, o);
   await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "IN_PROGRESS" }, o);
   if (status === "IN_PROGRESS") return { ...b, n };
   for (const l of await db.bookingLineItem.findMany({ where: { bookingId: b.id } }))

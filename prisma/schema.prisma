@@ -176,6 +176,7 @@ model Booking {
   lineItems                   BookingLineItem[]
   assignments                 BookingAssignment[]
   commissionPayouts           CommissionPayout[]
+  commissionAccrual           CommissionAccrual?
   inventoryTransactions       InventoryTransaction[]
   occupancy                   BayOccupancy?
   workerAssignments           BookingWorkerAssignment[]
@@ -202,7 +203,10 @@ model Staff {
   phone                 String
   email                 String                    @unique
   role                  StaffRole
-  defaultCommissionRate Decimal                   @default(0.10) @db.Decimal(5, 2)
+  defaultCommissionRate Decimal                   @default(0.10) @db.Decimal(5, 2) // legacy and unused; removed by P1-37b
+  commissionRateBp      Int? // P1-37: NULL = use the default; basis points (1000 = 10.00%)
+  revision              Int                       @default(1)
+  updatedAt             DateTime?                 @db.Timestamptz(3)
   isActive              Boolean                   @default(true)
   createdAt             DateTime                  @default(now())
   catalogPublishers     CatalogPublisher[]
@@ -222,6 +226,12 @@ model Staff {
   linesRemoved          BookingLineItem[]         @relation("LineRemovedBy")
   linePricesSet         BookingLineItem[]         @relation("LinePriceSetBy")
   auditEvents           BookingAuditEvent[]
+  commissionEntries     CommissionEntry[]         @relation("CommissionEarner")
+  commissionsPaid       CommissionEntry[]         @relation("CommissionPaidBy")
+  adjustmentsMade       CommissionAdjustment[]    @relation("CommissionAdjustedBy")
+  adjustmentsPaid       CommissionAdjustment[]    @relation("CommissionAdjustmentPaidBy")
+  commissionSettingsSet CommissionSettings[]
+  adminAuditActed       AdminAuditEvent[]
 
   @@map("staff")
 }
@@ -288,6 +298,123 @@ model CommissionPayout {
   @@index([bookingId])
   @@index([staffId])
   @@map("commission_payouts")
+}
+
+// -----------------------------------------------------------------------------
+// P1-37 Team & commissions (centavo-based; replaces CommissionPayout, which stays unused until P1-37b)
+// Every write goes through an owner-run SECURITY DEFINER function; the runtime role can only read these.
+// -----------------------------------------------------------------------------
+
+enum AdminAuditAction {
+  STAFF_CREATED
+  STAFF_UPDATED
+  STAFF_DEACTIVATED
+  STAFF_REACTIVATED
+  STAFF_REMOVED
+  COMMISSION_DEFAULT_SET
+  COMMISSION_RATE_SET
+  COMMISSION_ACCRUED
+  COMMISSION_ACCRUAL_FAILED
+  COMMISSION_PAID
+  COMMISSION_UNPAID
+  COMMISSION_ADJUSTED
+}
+
+// One row. Basis points: 2000 = 20.00% (the default, LE 2026-11-07). "startsAt" is when commissions began (nothing before it is back-filled).
+model CommissionSettings {
+  id               Int      @id @db.SmallInt
+  defaultRateBp    Int
+  revision         Int      @default(1)
+  startsAt         DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedByStaffId String?
+  updatedBy        Staff?   @relation(fields: [updatedByStaffId], references: [id], onDelete: Restrict)
+
+  @@map("commission_settings")
+}
+
+// One immutable header per completed QUEUE_V3 booking. creditedCount 0 means nobody was assigned.
+model CommissionAccrual {
+  bookingId            String            @id
+  booking              Booking           @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  serviceTotalCentavos BigInt // the commission base: the lines that earn commission only
+  eligibleLineCount    Int // 0 = nothing in the booking earns commission (a car wash only)
+  unpricedLineCount    Int
+  creditedCount        Int
+  completedOn          DateTime          @db.Date
+  accruedAt            DateTime          @default(now()) @db.Timestamptz(3)
+  txId                 BigInt            @default(dbgenerated("txid_current()"))
+  entries              CommissionEntry[]
+
+  @@index([completedOn])
+  @@map("commission_accruals")
+}
+
+// One row per credited person. Only paidAt and paidByStaffId ever change.
+model CommissionEntry {
+  id             String            @id @default(dbgenerated("(gen_random_uuid())::text"))
+  bookingId      String
+  accrual        CommissionAccrual @relation(fields: [bookingId], references: [bookingId], onDelete: Restrict)
+  staffId        String
+  staff          Staff             @relation("CommissionEarner", fields: [staffId], references: [id], onDelete: Restrict)
+  position       Int               @db.SmallInt
+  baseCentavos   BigInt
+  rateBp         Int
+  amountCentavos BigInt
+  paidAt         DateTime?         @db.Timestamptz(3)
+  paidByStaffId  String?
+  paidBy         Staff?            @relation("CommissionPaidBy", fields: [paidByStaffId], references: [id], onDelete: Restrict)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  adjustments    CommissionAdjustment[]
+
+  @@unique([bookingId, staffId])
+  @@index([staffId])
+  @@index([paidAt])
+  @@map("commission_entries")
+}
+
+// Insert-only (only the paid state changes). A signed whole-centavo correction to one person's entry, with a reason; the
+// entry and its header are never edited (review F1: money that arrives after completion).
+model CommissionAdjustment {
+  id             String          @id @default(dbgenerated("(gen_random_uuid())::text"))
+  entryId        String
+  entry          CommissionEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  amountCentavos BigInt
+  reason         String
+  actorStaffId   String
+  actor          Staff           @relation("CommissionAdjustedBy", fields: [actorStaffId], references: [id], onDelete: Restrict)
+  paidAt         DateTime?       @db.Timestamptz(3)
+  paidByStaffId  String?
+  paidBy         Staff?          @relation("CommissionAdjustmentPaidBy", fields: [paidByStaffId], references: [id], onDelete: Restrict)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  txId           BigInt          @default(dbgenerated("txid_current()"))
+
+  @@index([entryId])
+  @@index([paidAt])
+  @@map("commission_adjustments")
+}
+
+// Insert-only. Holds no name, phone or email except targetLabel (a name) on STAFF_REMOVED. The target staff and
+// booking are plain ids (no foreign key) so the trail outlives a removed person or a deleted booking.
+model AdminAuditEvent {
+  id            String           @id @default(dbgenerated("(gen_random_uuid())::text"))
+  action        AdminAuditAction
+  actorStaffId  String?
+  actor         Staff?           @relation(fields: [actorStaffId], references: [id], onDelete: Restrict)
+  targetStaffId String?
+  targetLabel   String?
+  bookingId     String?
+  entryCount    Int?
+  previousValue String?
+  newValue      String?
+  reason        String?
+  requestId     String?
+  txId          BigInt           @default(dbgenerated("txid_current()"))
+  createdAt     DateTime         @default(now()) @db.Timestamptz(3)
+
+  @@index([action, createdAt])
+  @@index([actorStaffId, createdAt])
+  @@map("admin_audit_events")
 }
 
 // -----------------------------------------------------------------------------

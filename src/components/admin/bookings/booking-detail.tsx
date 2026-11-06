@@ -611,7 +611,7 @@ export function BookingDetail({
                         )}
                       </div>
                     )}
-                    {admin && b.status !== "CANCELLED" && (
+                    {admin && b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
                       <form
                         className="flex flex-wrap items-end gap-2"
                         onSubmit={(e) =>

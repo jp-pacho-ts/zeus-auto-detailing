@@ -9,17 +9,22 @@ import { adminEvent } from "./log";
 // before its write transaction, confirm the runtime role cannot rewrite the audit trail: not
 // superuser or BYPASSRLS, not the table owner or a member of it, not the owner of its schema or
 // of the database (owner authority survives any revoke; Codex F3), INSERT and SELECT only on
-// booking_audit_events, and both immutability triggers enabled. A pass is cached for the
+// booking_audit_events, and both immutability triggers enabled. P1-37 adds admin_audit_events (Codex F3), whose intended
+// state is the opposite: the runtime role has NO privilege on it at all, not even a single column (every write goes
+// through an owner-run function), and its three triggers are enabled. A pass is cached for the
 // process; a failure is re-checked at most every 60 s. In production a failure refuses every
 // staff mutation with 503 RETRYABLE_ERROR (NOT_COMMITTED: no write began) and logs
 // admin.audit_privilege_violation; elsewhere it only warns. Customer booking and staff reads
 // never pass through here.
 const RECHECK_MS = 60_000;
 const TRIGGER_COUNT = 2; // booking_audit_immutable (UPDATE, DELETE) and booking_audit_no_truncate
+const ADMIN_TRIGGER_COUNT = 3; // admin_audit_insert, admin_audit_immutable (UPDATE, DELETE) and admin_audit_no_truncate
 
 interface PrivilegeRow {
   superuser: boolean; bypassrls: boolean; owner: boolean; schemaOwner: boolean; databaseOwner: boolean; insert: boolean; select: boolean;
   update: boolean; delete: boolean; truncate: boolean; references: boolean; trigger: boolean; triggers: number;
+  adminMissing: boolean; adminOwner: boolean; adminInsert: boolean; adminSelect: boolean; adminUpdate: boolean; adminDelete: boolean;
+  adminTruncate: boolean; adminReferences: boolean; adminTrigger: boolean; adminTriggers: number;
 }
 
 // Problem classes only (no role names or SQL in logs).
@@ -37,8 +42,19 @@ export async function checkAuditPrivileges(tx: StaffTx): Promise<string[]> {
       has_any_column_privilege(current_user, c.oid, 'REFERENCES') AS "references",
       has_table_privilege(current_user, c.oid, 'TRIGGER') AS "trigger",
       (SELECT count(*)::int FROM pg_trigger t WHERE t.tgrelid = c.oid AND t.tgname IN ('booking_audit_immutable', 'booking_audit_no_truncate')
-        AND t.tgenabled IN ('O', 'A')) AS "triggers"
-    FROM pg_roles r, pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        AND t.tgenabled IN ('O', 'A')) AS "triggers",
+      a.oid IS NULL AS "adminMissing",
+      COALESCE(pg_has_role(current_user, (SELECT relowner FROM pg_class WHERE oid = a.oid), 'MEMBER'), false) AS "adminOwner",
+      COALESCE(has_any_column_privilege(current_user, a.oid, 'INSERT'), false) AS "adminInsert",
+      COALESCE(has_any_column_privilege(current_user, a.oid, 'SELECT'), false) AS "adminSelect",
+      COALESCE(has_any_column_privilege(current_user, a.oid, 'UPDATE'), false) AS "adminUpdate",
+      COALESCE(has_table_privilege(current_user, a.oid, 'DELETE'), false) AS "adminDelete",
+      COALESCE(has_table_privilege(current_user, a.oid, 'TRUNCATE'), false) AS "adminTruncate",
+      COALESCE(has_any_column_privilege(current_user, a.oid, 'REFERENCES'), false) AS "adminReferences",
+      COALESCE(has_table_privilege(current_user, a.oid, 'TRIGGER'), false) AS "adminTrigger",
+      (SELECT count(*)::int FROM pg_trigger t WHERE t.tgrelid = a.oid AND t.tgname IN ('admin_audit_insert', 'admin_audit_immutable', 'admin_audit_no_truncate')
+        AND t.tgenabled IN ('O', 'A')) AS "adminTriggers"
+    FROM (SELECT to_regclass('public.admin_audit_events') AS oid) a, pg_roles r, pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE r.rolname = current_user AND c.oid = 'public.booking_audit_events'::regclass`;
   if (!r) return ["missing"];
   const problems: string[] = [];
@@ -51,6 +67,14 @@ export async function checkAuditPrivileges(tx: StaffTx): Promise<string[]> {
   if (!r.select) problems.push("select");
   for (const p of ["update", "delete", "truncate", "references", "trigger"] as const) if (r[p]) problems.push(p);
   if (r.triggers !== TRIGGER_COUNT) problems.push("triggers");
+  // admin_audit_events: no privilege at all. Column-aware, so a single granted column (a forged event) is caught.
+  if (r.adminMissing) problems.push("admin_audit_missing");
+  else {
+    if (r.adminOwner) problems.push("admin_audit_owner");
+    for (const [flag, name] of [["adminInsert", "insert"], ["adminSelect", "select"], ["adminUpdate", "update"], ["adminDelete", "delete"], ["adminTruncate", "truncate"], ["adminReferences", "references"], ["adminTrigger", "trigger"]] as const)
+      if (r[flag]) problems.push("admin_audit_" + name);
+    if (r.adminTriggers !== ADMIN_TRIGGER_COUNT) problems.push("admin_audit_triggers");
+  }
   return problems;
 }
 
