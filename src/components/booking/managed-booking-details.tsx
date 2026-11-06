@@ -1,4 +1,4 @@
-import { CalendarClock, MessageSquare, Phone, ShieldCheck, XCircle } from "lucide-react";
+import { CalendarClock, MessageSquare, Phone, XCircle } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { lineAmount, quoteTotal } from "@/components/booking/day-booking";
 import { dateLabel } from "@/components/booking/day-picker";
@@ -8,7 +8,10 @@ import type { ManagedDayBookingView } from "@/types/contracts";
 
 // The customer's own booking, status only (LE 2026-10-21, ADR-005 §12-13): no bay, worker,
 // position, line progress or staff text. Only the listed view fields are ever rendered.
+// P1-49 (LE 2026-11-06, mock design A): a hero card (reference, status, progress), then tiles, then the two actions.
 const panel = "rounded border border-border bg-card p-6 sm:p-8";
+const tile = "rounded-lg border border-border bg-card px-5 py-4";
+const tileLabel = "text-sm text-muted-foreground";
 const cutoffLabel = (iso: string) =>
   new Intl.DateTimeFormat(brandConfig.locale, { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Manila" }).format(new Date(iso));
 
@@ -63,45 +66,49 @@ export function ManagedBookingDetails({
         });
   const notice = selfServiceNotice(view);
   return (
-    <section aria-labelledby="booking-title" className={panel}>
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
-        <div className="flex items-center gap-3">
-          <ShieldCheck aria-hidden="true" className="h-8 w-8 shrink-0 text-primary" />
-          <div>
-            <p className="text-sm text-muted-foreground">Booking reference</p>
-            <h2 id="booking-title" className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground sm:text-3xl">
-              {view.referenceCode}
-            </h2>
+    <section aria-labelledby="booking-title" className="space-y-4">
+      <div className="relative overflow-hidden rounded-xl border border-border bg-card p-6 sm:p-8">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_140%_at_0%_0%,rgb(var(--primary)/0.16),transparent_55%)]"
+        />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-muted-foreground">Booking reference</p>
+              <h2 id="booking-title" className="mt-0.5 text-2xl font-extrabold tabular-nums tracking-tight text-foreground sm:text-3xl">
+                {view.referenceCode}
+              </h2>
+            </div>
+            <p className="whitespace-nowrap rounded-full border border-primary/40 bg-primary/15 px-3 py-1.5 text-sm font-bold text-primary">
+              {bookingStatusWords(view.status)}
+            </p>
+          </div>
+          <div className="mt-7">
+            <BookingProgress status={view.status} />
           </div>
         </div>
-        <p className="rounded bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">{bookingStatusWords(view.status)}</p>
       </div>
 
-      <div className="border-b border-border py-5">
-        <BookingProgress status={view.status} />
-      </div>
-
-      <dl className="mt-4 divide-y divide-border/60 text-sm">
-        <div className="py-3">
-          <dt className="text-sm text-muted-foreground">{multiDay ? "Drop-off day" : "Day"}</dt>
-          <dd className="mt-0.5 font-bold text-foreground">
+      <dl className="grid gap-4 sm:grid-cols-2">
+        <div className={tile}>
+          <dt className={tileLabel}>{multiDay ? "Drop-off day" : "Day"}</dt>
+          <dd className="mt-1 font-bold text-foreground">
             {dateLabel(view.bookingDate)} · {view.timezone}
           </dd>
-          {multiDay && (
-            <p className="mt-0.5 text-sm text-muted-foreground">This job takes more than one day; the shop tells you when your car is ready.</p>
-          )}
+          {multiDay && <p className="mt-1 text-sm text-muted-foreground">This job takes more than one day; the shop tells you when your car is ready.</p>}
         </div>
-        <div className="py-3">
-          <dt className="text-sm text-muted-foreground">Vehicle size</dt>
-          <dd className="mt-0.5 text-foreground">{view.vehicleCategoryName}</dd>
+        <div className={tile}>
+          <dt className={tileLabel}>Vehicle size</dt>
+          <dd className="mt-1 font-bold text-foreground">{view.vehicleCategoryName}</dd>
         </div>
-        <div className="py-3">
-          <dt className="text-sm text-muted-foreground">Services</dt>
-          <dd className="mt-0.5 text-foreground">
+        <div className={tile + " sm:col-span-2"}>
+          <dt className={tileLabel}>Services</dt>
+          <dd className="mt-1 text-foreground">
             <ul className="space-y-1">
               {view.lines.map((l) => (
                 <li key={l.serviceId} className="break-words">
-                  <span className="font-semibold">
+                  <span className="font-bold">
                     {l.name}
                     {l.quantity > 1 ? ` × ${l.quantity}` : ""}
                   </span>{" "}
@@ -116,36 +123,37 @@ export function ManagedBookingDetails({
           </dd>
         </div>
         {total && (
-        <div className="py-3">
-          <dt className="text-sm text-muted-foreground">{total.label}</dt>
-          <dd className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">{total.amount}</dd>
-          {total.note && <p className="mt-0.5 text-sm text-muted-foreground">{total.note}</p>}
-        </div>
+          <div className={tile + " sm:col-span-2"}>
+            <dt className={tileLabel}>{total.label}</dt>
+            <dd className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">{total.amount}</dd>
+            {total.note && <p className="mt-0.5 text-sm text-muted-foreground">{total.note}</p>}
+          </div>
+        )}
+        {contact && (
+          <div className={tile + " sm:col-span-2"}>
+            <dt className={tileLabel}>Contact details on file</dt>
+            <dd className="mt-1 font-bold text-foreground">
+              <span>{contact.phone}</span>
+              {contact.email && (
+                <>
+                  {" · "}
+                  <span className="break-all">{contact.email}</span>
+                </>
+              )}
+            </dd>
+            <p className="mt-1 text-sm text-muted-foreground">To change them, contact the shop.</p>
+          </div>
         )}
       </dl>
 
-      {contact && (
-        <p className="border-t border-border/60 py-3 text-sm text-muted-foreground">
-          Contact details on file: <span className="font-semibold text-foreground">{contact.phone}</span>
-          {contact.email && (
-            <>
-              {" · "}
-              <span className="font-semibold text-foreground">{contact.email}</span>
-            </>
-          )}
-          . To change them, contact the shop.
-        </p>
-      )}
-
       {notice ? (
-        <div className="mt-4 rounded border border-border/80 bg-[#121214] p-4">
+        <div className="rounded-lg border border-border/80 bg-surface p-4">
           <p className="text-sm font-semibold text-foreground">{notice}</p>
           {view.status !== "CANCELLED" && view.status !== "COMPLETED" && <ContactShop referenceCode={view.referenceCode} />}
         </div>
       ) : (
-        <div className="mt-4 border-t border-border pt-4">
-          <p className="text-sm text-muted-foreground">You can change the day or cancel online until {cutoffLabel(view.selfServiceCutoff)}.</p>
-          <div className="mt-3 flex flex-wrap gap-3">
+        <div className={panel}>
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
               onClick={onChangeDay}
@@ -165,6 +173,7 @@ export function ManagedBookingDetails({
               Cancel booking
             </button>
           </div>
+          <p className="mt-3 text-sm text-muted-foreground">You can change the day or cancel online until {cutoffLabel(view.selfServiceCutoff)}.</p>
         </div>
       )}
     </section>

@@ -42,6 +42,17 @@ export default {
       fontFamily: {
         sans: ["var(--font-sans)"],
       },
+      // P1-49: Manage booking progress bar. Used only behind motion-safe:.
+      keyframes: {
+        "zeus-shine": { "0%": { transform: "translateX(-120%)" }, "60%, 100%": { transform: "translateX(420%)" } },
+        "zeus-ring": { "0%": { transform: "scale(1)", opacity: "0.7" }, "100%": { transform: "scale(1.7)", opacity: "0" } },
+        "zeus-fade": { from: { opacity: "0", transform: "translateY(4px)" }, to: { opacity: "1", transform: "none" } },
+      },
+      animation: {
+        "zeus-shine": "zeus-shine 2.6s ease-in-out 1.4s infinite",
+        "zeus-ring": "zeus-ring 1.9s ease-out 1.4s infinite",
+        "zeus-fade": "zeus-fade 400ms ease-out both",
+      },
     },
   },
   plugins: [],
