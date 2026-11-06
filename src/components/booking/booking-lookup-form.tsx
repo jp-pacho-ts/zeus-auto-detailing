@@ -19,7 +19,7 @@ const field =
 const primary =
   "inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-base font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-60";
 // The two half-circles cut into the tear-off edge. Across the top of the stub on a phone, down its left edge from md up.
-const notch =
+export const ticketNotch =
   "before:absolute before:-left-[14px] before:-top-[14px] before:h-[26px] before:w-[26px] before:rounded-full before:border before:border-border before:bg-background before:content-[''] " +
   "after:absolute after:-right-[14px] after:-top-[14px] after:h-[26px] after:w-[26px] after:rounded-full after:border after:border-border after:bg-background after:content-[''] " +
   "md:after:left-[-14px] md:after:right-auto md:after:top-auto md:after:-bottom-[14px]";
@@ -157,7 +157,7 @@ export function BookingLookupForm({ onFound }: { onFound: (data: ManagedLookupDa
           data-part="stub"
           className={
             "relative flex min-w-0 flex-col justify-between gap-5 border-t-2 border-dashed border-foreground/25 bg-gradient-to-br from-primary/15 to-card p-5 sm:p-6 md:border-l-2 md:border-t-0 " +
-            notch
+            ticketNotch
           }
         >
           <div data-part="stub-mark">
