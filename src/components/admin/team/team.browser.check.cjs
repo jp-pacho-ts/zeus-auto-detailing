@@ -189,6 +189,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await toDate.fill(new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10));
 
   // Mark Ben's two jobs paid; the totals and the filter agree, and it survives a reload.
+  await page.waitForLoadState('networkidle'); // let the range refetch finish before ticking, or the ticks can land on rows that are about to be replaced
   for (const box of await page.getByRole('checkbox', { name: /^Select Ben Cruz/ }).all()) await box.check();
   await page.getByText('2 selected').waitFor();
   await page.getByRole('button', { name: 'Mark paid' }).click();
@@ -222,6 +223,65 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await page.getByRole('tab', { name: 'Commissions' }).click();
   assert.equal(await page.getByTestId('default-rate-line').innerText(), 'Default rate is 12% until you change it.');
   await layoutRules(page, 'desktop commissions after');
+
+  // Adjustments (review F1/R2): Add, Take off, a refusal below zero, paid on their own, and "owed back" after payment.
+  await page.getByLabel('Person').selectOption({ label: 'Ana Reyes' });
+  await page.getByText('By person').waitFor();
+  const adjust = async (mode, amount, reason, which) => {
+    await page.getByRole('button', { name: 'Add adjustment' }).nth(which).click();
+    await page.getByLabel('Change').selectOption(mode);
+    await page.getByLabel('Amount (pesos)').fill(amount);
+    await page.getByLabel('Reason', { exact: true }).fill(reason);
+    await page.getByRole('button', { name: 'Save adjustment' }).click();
+  };
+  assert.match(await text(page), /Ana Reyes\s*2 jobs\s*Earned ₱150\.00/, 'before: Ana earned 150.00');
+  await adjust('ADD', '300', 'Coating priced after the job', 0);
+  await page.getByText('Coating priced after the job').waitFor();
+  body = await text(page);
+  assert.match(body, /Adjustment ₱300\.00/, 'the adjustment shows under the job');
+  assert.match(body, /Coating priced after the job/);
+  assert.match(body, /Ana Reyes\s*2 jobs\s*Earned ₱450\.00/, 'the totals include it');
+  // A "Take off" larger than the job is worth is refused with a plain sentence, and nothing changes.
+  await adjust('TAKE', '9999', 'Far too much', 0);
+  await page.locator('#admin-content').getByRole('alert').filter({ hasText: 'below zero' }).waitFor();
+  assert.match(await text(page), /Earned ₱450\.00/, 'nothing changed after the refusal');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  // A client-side refusal: a typed minus sign is not how it is done.
+  await page.getByRole('button', { name: 'Add adjustment' }).nth(0).click();
+  await page.getByLabel('Amount (pesos)').fill('-5');
+  await page.getByLabel('Reason', { exact: true }).fill('typed minus');
+  await page.getByRole('button', { name: 'Save adjustment' }).click();
+  await page.locator('#admin-content').getByRole('alert').filter({ hasText: 'no minus sign' }).waitFor();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await adjust('TAKE', '100', 'Part of it was a mistake', 0);
+  await page.getByText('Part of it was a mistake').waitFor(); // the new line itself, not the notice (the notice text repeats)
+  assert.match(await text(page), /Ana Reyes\s*2 jobs\s*Earned ₱350\.00/);
+  await layoutRules(page, 'desktop commissions with adjustments');
+  await shot(page, 'commissions-adjusted-1440');
+
+  // The +300 adjustment is paid on its own; the jobs stay unpaid.
+  await page.getByRole('checkbox', { name: /^Select the adjustment of ₱300\.00/ }).check();
+  await page.getByRole('button', { name: 'Mark paid' }).click();
+  await page.getByText('1 commission marked as paid.').waitFor();
+  body = await text(page);
+  assert.match(body, /Paid\s*₱300\.00/);
+  assert.match(body, /Unpaid\s*₱50\.00/);
+  // Pay everything for Ana, then take more off: the screen says "Owed back", not a bare negative.
+  for (const box of await page.locator('#admin-content').getByRole('checkbox').all()) await box.check();
+  await page.getByRole('button', { name: 'Mark paid' }).click();
+  await page.getByText(/commissions? marked as paid\./).waitFor();
+  await adjust('TAKE', '50', 'Overpaid, take it back', 1);
+  await page.getByText('Overpaid, take it back').waitFor();
+  body = await text(page);
+  assert.match(body, /Owed back ₱50\.00/, 'paid more than is now owed reads as owed back');
+  assert.doesNotMatch(body, /Unpaids*-/, 'never a bare negative unpaid');
+  assert.match(body, /Adjustment -₱50.00/, 'a take-off line itself shows its sign');
+  await shot(page, 'commissions-owed-back-1440');
+  await page.reload({ waitUntil: 'networkidle' });
+  await goToTeam(page);
+  await page.getByRole('tab', { name: 'Commissions' }).click();
+  await page.getByText('By person').waitFor();
+  assert.match(await text(page), /Adjustment ₱300\.00/, 'adjustments survive a reload');
   await context.close();
 });
 
@@ -246,6 +306,10 @@ test('phone 390: both screens fit, nothing scrolls sideways or as a page, every 
   await page.getByText('By person').waitFor();
   await layoutRules(page, 'phone commissions');
   await shot(page, 'commissions-390');
+  await page.getByRole('button', { name: 'Add adjustment' }).first().click();
+  await page.getByLabel('Amount (pesos)').waitFor();
+  await layoutRules(page, 'phone adjustment form');
+  await shot(page, 'commissions-adjust-390');
   const rowWidths = await page.evaluate(() => [...document.querySelectorAll('#admin-content li')].map((li) => li.scrollWidth - li.clientWidth));
   assert.ok(rowWidths.every((d) => d <= 1), 'no row is wider than the phone');
   await context.close();
