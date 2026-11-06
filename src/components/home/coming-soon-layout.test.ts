@@ -48,6 +48,20 @@ test("P1-57: Book now (to /book) and Manage booking (to /book/manage) are two se
   assert.doesNotMatch(comingSoonStyles, /zeus-btn \+ \.zeus-btn::before/, "no divider");
 });
 
+test("P1-59: on phones the two buttons are stacked at full width with one fixed gap above the bottom row", () => {
+  const phone = comingSoonStyles.slice(comingSoonStyles.indexOf("@media(max-width:800px)"));
+  const phoneBlock = phone.slice(0, phone.indexOf("\n}\n"));
+  assert.match(comingSoonStyles, /--zeus-stack-gap:24px/, "one token for the gap");
+  const actions = phoneBlock.match(/\.zeus-actions\{[^}]*\}/);
+  assert.ok(actions, "phone actions rule present");
+  assert.match(actions[0], /flex-direction:column/);
+  assert.match(actions[0], /width:100%/);
+  assert.match(actions[0], /margin:0 0 var\(--zeus-stack-gap\)/, "the gap is the token, not an auto margin");
+  assert.doesNotMatch(actions[0], /margin[^;}]*auto/);
+  assert.match(phoneBlock, /grid-template-rows:auto auto 1fr auto auto/, "the picture band sits between the paragraph and the stack");
+  assert.doesNotMatch(comingSoonStyles, /min-width:380px/, "no two-column rule");
+});
+
 test("P1-57: both buttons glow (a gold halo that breathes and a travelling edge) and the glow is still when motion is reduced", () => {
   const button = comingSoonStyles.match(/\.zeus-btn\{[^}]*\}/);
   assert.ok(button, "button rule present");

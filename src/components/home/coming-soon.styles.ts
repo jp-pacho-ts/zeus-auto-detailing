@@ -263,7 +263,8 @@ export const comingSoonStyles = `
    become grid rows of the hero. */
 @media(max-width:800px){
   .zeus-hero{
-    grid-template-rows:auto auto auto 1fr auto;
+    --zeus-stack-gap:24px;
+    grid-template-rows:auto auto 1fr auto auto;
     column-gap:16px;
     padding:max(56px,env(safe-area-inset-top)) 28px max(48px,env(safe-area-inset-bottom))}
   .zeus-hero-body{
@@ -279,19 +280,22 @@ export const comingSoonStyles = `
     align-self:start;
     margin-top:16px;
     max-width:min(100%,440px)}
+  /* P1-59: the two buttons are stacked at the full width of the text column, 12px apart, and sit directly above the
+     icon row and logo with one fixed gap (the token above), never an auto margin. */
   .zeus-actions{
-    grid-row:3;
+    grid-row:4;
     grid-column:1/-1;
+    flex-direction:column;
+    flex-wrap:nowrap;
     width:100%;
-    margin:22px 0 0}
+    margin:0 0 var(--zeus-stack-gap)}
+  .zeus-btn{
+    flex:none;
+    width:100%}
   .zeus-hero-foot{
     grid-row:5}
   .zeus-social{
     gap:8px}
-  .zeus-btn{
-    padding:8px 12px;
-    font-size:.9rem;
-    gap:6px}
   /* the logo takes what is left of the row beside the four icons (200px with 8px gaps), between 80px and 135px wide */
   .zeus-hero-logo{
     grid-row:5}
@@ -304,21 +308,7 @@ export const comingSoonStyles = `
       linear-gradient(0deg,#0b0b0cf5 0%,#0b0b0ce6 20%,#0b0b0c88 32%,transparent 44%)}
 }
 
-/* P1-58: on phones the two buttons sit right under the paragraph as the main action (row 3); the 1fr row below is the
-   open picture, and the bottom row keeps only the icons and the logo. From 380px the pair is two equal columns; below
-   that the labels need their own width, so the buttons share the row by content (and stack at 320px). */
-@media(min-width:380px) and (max-width:800px){
-  .zeus-btn{
-    flex:1 1 0;
-    padding:8px 8px;
-    gap:5px;
-    font-size:.875rem}
-  .zeus-btn svg{
-    width:16px;
-    height:16px}
-}
-
-/* Tablets: the two buttons keep a sensible width instead of spanning the whole row. */
+/* Tablets: the stack keeps a sensible width (at most 420px), left aligned, instead of spanning the whole row. */
 @media(min-width:561px) and (max-width:800px){
   .zeus-actions{
     justify-self:start;
@@ -328,7 +318,7 @@ export const comingSoonStyles = `
 /* Under 352px the logo (80px minimum) no longer fits beside the four icons, so it sits on its own row below them. */
 @media(max-width:351px){
   .zeus-hero{
-    grid-template-rows:auto auto auto 1fr auto auto}
+    grid-template-rows:auto auto 1fr auto auto auto}
   .zeus-hero-logo{
     grid-row:6;
     grid-column:1;

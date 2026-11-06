@@ -291,21 +291,21 @@ test('P1-46/47: logo bottom right and centred on the icon row, side margins, hea
       else assert.ok(m.call.width <= 420.5, `${width}: on tablets the action pill keeps its width (${m.call.width.toFixed(0)}px)`);
       if (width <= 560) assert.ok(m.coming.width >= column * 0.95 && m.coming.width <= column + 1, `${width}: COMING is as wide as the text column (${m.coming.width.toFixed(1)} of ${column})`);
     }
-    // P1-57: two separate buttons. They share a row when they fit (360 and up); at 320 they wrap to two full-width rows.
+    // P1-59: two separate buttons. Up to 800px they are stacked at full column width, 12px apart, and the stack sits exactly
+    // 24px above the bottom row (icons and logo), the same at every width. Above 800px they share a row.
     const [bookBox, manageBox] = m.buttons;
     assert.ok(Math.abs(bookBox.height - manageBox.height) < 0.5 && bookBox.height >= 48, `${width}: equal height, 48px or more`);
     assert.ok(bookBox.left >= margin - 1.5 && manageBox.right <= width - margin + 1.5, `${width}: buttons stay inside the margins`);
-    if (width >= 360) assert.ok(Math.abs(bookBox.top - manageBox.top) < 0.5 && manageBox.left - bookBox.right >= 8, `${width}: one row with a gap`);
-    else assert.ok(manageBox.top >= bookBox.bottom && Math.abs(bookBox.width - manageBox.width) < 1.5, `${width}: two equal full-width rows`);
-    // P1-58: on phones the buttons sit right under the paragraph (20 to 24px) and above the icon row; the icon row and the
-    // logo never overlap, and the bottom block keeps clear of the bottom edge.
     if (width <= 800) {
-      const gapBelowLede = bookBox.top - m.lede.bottom;
-      assert.ok(gapBelowLede >= 18 && gapBelowLede <= 28, `${width}: buttons sit just under the paragraph (${gapBelowLede.toFixed(1)}px)`);
-      assert.ok(manageBox.bottom < m.icons.top - 40, `${width}: buttons are well above the icon row, not crowding it`);
+      assert.ok(Math.abs(bookBox.left - manageBox.left) < 0.5 && Math.abs(bookBox.width - manageBox.width) < 0.5, `${width}: stacked, same left edge and width`);
+      assert.ok(Math.abs(manageBox.top - bookBox.bottom - 12) <= 1, `${width}: 12px between the buttons (${(manageBox.top - bookBox.bottom).toFixed(1)}px)`);
+      if (width <= 560) near(bookBox.width, column, 1.5, 'full width of the text column');
+      else assert.ok(bookBox.width <= 420.5, `${width}: on tablets the stack is at most 420px`);
+      const bottomRowTop = Math.min(m.icons.top, m.logo.top);
+      near(bottomRowTop - manageBox.bottom, 24, 1, 'the stack sits exactly 24px above the icons and logo');
+      assert.ok(bookBox.top - m.lede.bottom >= 24, `${width}: the picture band stays between the paragraph and the stack`);
       assert.ok(Math.max(m.icons.bottom, m.logo.bottom) <= height - 40, `${width}: icons and logo keep clear of the bottom edge`);
-      if (width >= 380) assert.ok(Math.abs(bookBox.width - manageBox.width) < 1.5, `${width}: two equal columns`);
-    }
+    } else assert.ok(Math.abs(bookBox.top - manageBox.top) < 0.5 && manageBox.left - bookBox.right >= 8, `${width}: one row with a gap`);
     {
       const icons = m.iconLinks[m.iconLinks.length - 1];
       const apart = m.logo.left >= icons.right + 8 || m.logo.top >= m.icons.bottom;

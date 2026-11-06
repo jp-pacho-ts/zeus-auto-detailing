@@ -43,9 +43,11 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     assert.equal(await page.locator('.zeus-social a[href^="tel:"]').count(), 1);
     const pair = await page.evaluate(() => {
       const [a, b] = ['/book', '/book/manage'].map(href => document.querySelector('.zeus-actions a[href="' + href + '"]').getBoundingClientRect());
-      const gap = b.left - a.right;
+      // P1-59: up to 800px wide the buttons are stacked 12px apart; wider, they share a row 8 to 16px apart.
+      const phone = innerWidth <= 800;
+      const gap = phone ? b.top - a.bottom - 12 : b.left - a.right;
       const [x, y] = [...document.querySelectorAll('.zeus-actions a')].map(el => getComputedStyle(el));
-      return { sameHeight: Math.abs(a.height - b.height) < 0.5, sameRow: Math.abs(a.top - b.top) < 0.5, gap: gap >= 8 && gap <= 16, tall: a.height >= 48 && b.height >= 48, sameRadius: x.borderTopLeftRadius === y.borderTopLeftRadius, sameType: x.fontSize === y.fontSize, glow: x.boxShadow !== 'none' && y.boxShadow !== 'none', merged: !!document.querySelector('.zeus-actions').style.background || getComputedStyle(document.querySelector('.zeus-actions')).backgroundImage !== 'none' };
+      return { sameHeight: Math.abs(a.height - b.height) < 0.5, sameRow: phone ? Math.abs(a.left - b.left) < 0.5 : Math.abs(a.top - b.top) < 0.5, gap: phone ? Math.abs(gap) <= 1 : gap >= 8 && gap <= 16, tall: a.height >= 48 && b.height >= 48, sameRadius: x.borderTopLeftRadius === y.borderTopLeftRadius, sameType: x.fontSize === y.fontSize, glow: x.boxShadow !== 'none' && y.boxShadow !== 'none', merged: !!document.querySelector('.zeus-actions').style.background || getComputedStyle(document.querySelector('.zeus-actions')).backgroundImage !== 'none' };
     });
     assert.deepEqual(pair, { sameHeight: true, sameRow: true, gap: true, tall: true, sameRadius: true, sameType: true, glow: true, merged: false });
     // P1-57: both buttons animate (edge sweep and glow pulse), except when the visitor prefers reduced motion (checked by the caller).
@@ -73,6 +75,16 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
       });
       assert.ok(measure.scroll <= measure.client, `${width}x${height}: no horizontal overflow`);
       assert.ok(measure.height >= height, 'complete cinematic page remains scrollable');
+      if (width === 390 && height === 844) assert.ok(measure.height <= height + 1, '390x844: the page itself does not scroll');
+      if (width <= 800) {
+        // P1-59: stacked buttons (same x, different y) and one exact gap above the icons and logo at every phone width.
+        const stack = await page.evaluate(() => {
+          const [a, b] = [...document.querySelectorAll('.zeus-actions a')].map(el => el.getBoundingClientRect());
+          const bottomRowTop = Math.min(...['.zeus-social', '.zeus-coming-soon__logo'].map(selector => document.querySelector(selector).getBoundingClientRect().top));
+          return { sameX: Math.abs(a.left - b.left) < 0.5, differentY: b.top >= a.bottom, gap: Math.abs(bottomRowTop - b.bottom - 24) <= 1 };
+        });
+        assert.deepEqual(stack, { sameX: true, differentY: true, gap: true }, `${width}x${height}: stacked buttons with the exact gap above the bottom row`);
+      }
       assert.ok(measure.headingHeight <= measure.headingLineHeight * 2 + 2, 'headline at most two lines');
       results.widths.push({ width, height, ...measure });
       await page.screenshot({ path: path.join(out, `${width}x${height}-after.png`), fullPage: true });
