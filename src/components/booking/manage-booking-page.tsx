@@ -251,25 +251,25 @@ export function ManageBooking() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full max-w-3xl px-4 py-5 sm:px-6 sm:py-8">
         {/* P1-50 (LE 2026-11-06): no top bar. One clear way back to the landing page, first on the page in every state. */}
         <Link
           href="/"
-          className="group mb-8 inline-flex min-h-[44px] items-center gap-2 rounded-full border border-border bg-card py-2 pl-3 pr-5 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="group mb-6 inline-flex min-h-[44px] items-center gap-2 rounded-full border border-border bg-card py-2 pl-3 pr-5 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-full bg-primary/15 text-primary transition-transform group-hover:-translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0">
             <ArrowLeft className="h-4 w-4" />
           </span>
           Back to home
         </Link>
-        <div className="mb-8 max-w-3xl">
+        <div className="mb-6">
           <h1 className="text-2xl font-bold sm:text-3xl">{phase === "booking" ? "Your booking" : "Open your booking"}</h1>
           <p className="mt-2 text-base text-muted-foreground">
             {phase === "code" ? "Enter the reference code from your confirmation and the last name you booked with." : "This page is private to you. Days are in Philippine time."}
           </p>
         </div>
 
-        <div className="max-w-3xl space-y-6">
+        <div className="space-y-5">
           {phase === "loading" && (
             <div role="status" className={panel}>
               Opening your booking…
@@ -311,8 +311,7 @@ export function ManageBooking() {
                   Can&apos;t find it?
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Check that the reference code and last name are spelled as when you booked. For your privacy, a booking can&apos;t be
-                  opened with a phone number. Contact the shop with your booking reference and they will help you.
+                  Check the spelling of your reference code and last name, or contact the shop.
                 </p>
                 <ContactShop />
               </section>
