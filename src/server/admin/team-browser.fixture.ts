@@ -3,9 +3,11 @@
 // It migrates the database, publishes the catalog, provisions the runtime role, creates one ADMIN and one DETAILER login with the
 // passwords given in the environment, and builds the shop the check expects, through the real services:
 //   people  Ana Reyes (shop default 10%), Ben Cruz (12.5%), Cleo Santos (no jobs)
-//   jobs    four completed bookings: Ana alone 1,000.00 (earns 100.00), Ben alone 2,500.00 (earns 312.50),
-//           Ana + Ben together 1,000.01 (Ana 50.00, Ben 62.50), and one with nobody assigned.
-//   totals  Ana 150.00, Ben 375.00, together 525.00.
+//   jobs    five completed bookings. Each has the online wash (₱180.00, earns no commission) plus a tint the shop priced:
+//           Ana alone, tint 1,000.00 (earns 200.00 at the 20% default); Ben alone, tint 2,500.00 (12.5%: 312.50);
+//           Ana + Ben together, tint 1,000.01 (Ana 100.00, Ben 62.50); one tint job with nobody assigned; and one wash-only job
+//           with Ana assigned (no commission: car wash).
+//   totals  Ana 300.00, Ben 375.00, together 675.00.
 // How to run the whole browser check (loopback only, synthetic data, never .env):
 //   1. a throwaway PostgreSQL on 127.0.0.1 (trust auth, max_connections 200); give T007_TEST_DATABASE_URL a NEW zeus_t007_* database name
 //      (this script creates it) and set the four credential variables above to fresh random passwords;
@@ -98,18 +100,24 @@ async function main() {
     return id;
   }
   const rev = async (id: string) => (await db.booking.findUniqueOrThrow({ where: { id } })).revision;
-  async function completedJob(day: string, workers: string[], totalCentavos: number) {
+  // totalCentavos null = a wash-only booking (earns no commission); otherwise the shop adds a tint and prices it at that amount.
+  async function completedJob(day: string, workers: string[], totalCentavos: number | null) {
     const id = await book(day);
     const o = { db: app, now: () => new Date(day + "T02:00:00.000Z") };
-    const line = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: id } });
-    await s.setLinePrice(ADMIN, id, line.id, { expectedRevision: await rev(id), priceCentavos: totalCentavos, reason: "fixture price" }, o);
+    if (totalCentavos !== null) {
+      const tintId = bySlug(r0(), "regular-tint").id;
+      await s.addLine(ADMIN, id, { expectedRevision: await rev(id), serviceId: tintId, quantity: 1 }, o);
+      const tint = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: id, serviceId: tintId, removedAt: null } });
+      await s.setLinePrice(ADMIN, id, tint.id, { expectedRevision: await rev(id), priceCentavos: totalCentavos, reason: "fixture price" }, o);
+    }
     await s.setBookingStatus(ADMIN, id, { expectedRevision: await rev(id), status: "CONFIRMED" }, o);
     const n = ++seq;
     const bay = await s.createBay(ADMIN, { name: "Bay " + n, sortOrder: n, bayType: "WASH" }, o);
     await s.setBay(ADMIN, id, { expectedRevision: await rev(id), date: day, bayId: bay.id }, o);
     for (const w of workers) await s.assignWorker(ADMIN, id, w, { expectedRevision: await rev(id) }, o);
     await s.setBookingStatus(ADMIN, id, { expectedRevision: await rev(id), status: "IN_PROGRESS" }, o);
-    await s.setLineStatus(ADMIN, id, line.id, { expectedRevision: await rev(id), workStatus: "DONE" }, o);
+    for (const l of await db.bookingLineItem.findMany({ where: { bookingId: id, removedAt: null } }))
+      await s.setLineStatus(ADMIN, id, l.id, { expectedRevision: await rev(id), workStatus: "DONE" }, o);
     await s.setBookingStatus(ADMIN, id, { expectedRevision: await rev(id), status: "COMPLETED" }, o);
   }
 
@@ -120,10 +128,11 @@ async function main() {
   await completedJob("2027-07-02", [ben.id], 250_000);
   await completedJob("2027-07-03", [ana.id, ben.id], 100_001);
   await completedJob("2027-07-04", [], 50_000);
+  await completedJob("2027-07-05", [ana.id], null);
 
   const [{ n }] = await db.$queryRawUnsafe<{ n: number }[]>(`SELECT count(*)::int AS n FROM commission_entries`);
   assert.equal(n, 4, "four entries: Ana 2, Ben 2");
-  console.log("fixture ready: 3 people, 4 completed jobs, 4 commission entries");
+  console.log("fixture ready: 3 people, 5 completed jobs, 4 commission entries");
   await Promise.all([app.$disconnect(), db.$disconnect(), root.$disconnect()]);
 }
 

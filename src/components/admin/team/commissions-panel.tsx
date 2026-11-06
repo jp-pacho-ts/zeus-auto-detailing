@@ -7,7 +7,7 @@ import { adminRequest } from "../bookings/client";
 import { fieldClass, LoadState } from "../bookings/use-admin-resource";
 import { useKeptResource } from "./use-kept-resource";
 import { describeError } from "./team-panel";
-import { defaultRateLine, manilaToday, monthStart, rangeProblem, selectableIds, unpaidText, warningLines } from "./team-model";
+import { COMMISSION_RULE_LINE, defaultRateLine, lineSummary, manilaToday, monthStart, rangeProblem, selectableIds, unpaidText, warningLines } from "./team-model";
 
 const buttonClass = "inline-flex min-h-[44px] items-center justify-center rounded border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50";
 
@@ -109,6 +109,7 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
       <div className="border-b border-border p-4 sm:p-6">
         <h2 id="commissions-heading" className="text-base font-bold text-foreground">Commissions</h2>
         <p data-testid="default-rate-line" className="mt-1 text-sm text-muted-foreground">{defaultRateLine(team.defaultRateBp)}</p>
+        <p data-testid="commission-rule-line" className="mt-1 text-sm text-muted-foreground">{COMMISSION_RULE_LINE}</p>
         {!editingRate ? (
           <button type="button" className={`${buttonClass} mt-2`} disabled={busy} onClick={() => { setRate(basisPointsToPercent(team.defaultRateBp)); setError(null); setEditingRate(true); }}>Change default rate</button>
         ) : (
@@ -205,12 +206,21 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
                           <span className="break-words text-sm font-semibold text-foreground">{en.staffName}</span>
                           <span className="text-sm font-bold tabular-nums text-foreground">{formatPesos(en.amountCentavos)}</span>
                         </span>
-                        <span className="block break-words text-xs text-muted-foreground">{en.serviceName} · {en.completedOn} · {en.bookingReference}</span>
+                        <span className="block break-words text-xs text-muted-foreground">{en.lines.filter((l) => l.counted).map((l) => l.name).join(", ") || en.serviceName} · {en.completedOn} · {en.bookingReference}</span>
                         <span className="block text-xs text-muted-foreground">
                           {basisPointsToPercent(en.rateBp)}% of {formatPesos(en.shareCentavos)}
                           {en.creditedCount > 1 ? ` (shared by ${en.creditedCount} of ${formatPesos(en.serviceTotalCentavos)})` : ""}
                           {" · "}{en.paidAt ? "Paid" : "Unpaid"}
                         </span>
+                        {(() => {
+                          const summary = lineSummary(en.lines);
+                          return (
+                            <>
+                              <span className="block break-words text-xs text-muted-foreground">Commission base {formatPesos(en.serviceTotalCentavos)}{summary.counted ? ` · Counted: ${summary.counted}` : ""}</span>
+                              {summary.notCounted && <span className="block break-words text-xs text-muted-foreground">Not counted: {summary.notCounted}</span>}
+                            </>
+                          );
+                        })()}
                         {en.unpricedLineCount > 0 && <span className="block text-xs text-amber-300">Includes a service without a final price.</span>}
                       </span>
                     </label>

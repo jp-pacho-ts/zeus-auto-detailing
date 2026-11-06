@@ -11,7 +11,13 @@ BEGIN;
 --
 -- What it adds
 --  * staff: "commissionRateBp" (NULL = use the default), "revision", "updatedAt".
---  * commission_settings: one row, the default percentage in basis points (1000 = 10.00%, the value the old
+--  * commission_settings: one row, the default percentage in basis points (2000 = 20.00%, LE 2026-11-07; the old schema carried
+--    1000 = 10.00%; the LE changes it in the screen) and the moment commissions began. RULE (LE 2026-11-07): only lines whose
+--    service category is CERAMIC_COATING, PAINT_CORRECTION, INTERIOR_DETAILING or WINDOW_TINT_PPF earn commission; the car wash
+--    (EXTERIOR_WASH_SEAL, the catalogue's WASH group, add-ons included) earns none. The list is ONE function, commission_earns_on().
+--    The catalogue publishes services.category from the group: WASH -> EXTERIOR_WASH_SEAL, DETAILING (interior, exterior, engine, full
+--    detailing, headlight restoration) -> INTERIOR_DETAILING, GRAPHENE -> CERAMIC_COATING, TINT and PPF -> WINDOW_TINT_PPF,
+--    REPAINT -> PAINT_CORRECTION (prisma/catalog/catalog.mjs). Every line has a service, so there is no line without a category.
 --    schema already carried; the LE changes it in the screen) and "startsAt", the moment commissions began.
 --  * commission_accruals: one immutable header per completed QUEUE_V3 booking (the service total at completion,
 --    how many people were credited, how many services had no final price). Money columns are BIGINT centavos with a
@@ -62,7 +68,7 @@ BEGIN;
 --     admin_staff_set_active(text, text, boolean, integer), admin_staff_remove(text, text, integer),
 --     admin_commission_default_set(text, integer, integer), admin_commission_paid_set(text, text[], boolean),
 --     admin_commission_repair(text), admin_commission_adjust(text, text, text, bigint, text), guard_commission_adjustment_change(),
---     reject_commission_truncate();
+--     reject_commission_truncate(), commission_earns_on("ServiceKind");
 --   restore guard_booking_line_change() from migration 20261018000000_booking_model (section 7b changes one rule in it);
 --   restore delete_booking(text, text, integer, text) from migration 20261030000000_delete_booking;
 --   DROP TABLE commission_adjustments, commission_entries, commission_accruals, commission_settings, admin_audit_events;
@@ -148,7 +154,7 @@ CREATE TABLE "commission_settings" (
   CONSTRAINT "commission_settings_rate_range" CHECK ("defaultRateBp" BETWEEN 0 AND 10000)
 );
 ALTER TABLE "commission_settings" ADD CONSTRAINT "commission_settings_updatedByStaffId_fkey" FOREIGN KEY ("updatedByStaffId") REFERENCES "staff"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-INSERT INTO "commission_settings" ("id", "defaultRateBp") VALUES (1, 1000);
+INSERT INTO "commission_settings" ("id", "defaultRateBp") VALUES (1, 2000);
 CREATE FUNCTION guard_commission_settings_change() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$ BEGIN RAISE EXCEPTION 'The commission settings row cannot be deleted'; END $$;
 CREATE TRIGGER commission_settings_keep BEFORE DELETE ON commission_settings FOR EACH ROW EXECUTE FUNCTION guard_commission_settings_change();
 CREATE TRIGGER commission_settings_no_truncate BEFORE TRUNCATE ON commission_settings FOR EACH STATEMENT EXECUTE FUNCTION guard_commission_settings_change();
@@ -156,15 +162,16 @@ CREATE TRIGGER commission_settings_no_truncate BEFORE TRUNCATE ON commission_set
 -- 4. Accrual headers and entries
 CREATE TABLE "commission_accruals" (
   "bookingId" TEXT NOT NULL,
-  "serviceTotalCentavos" BIGINT NOT NULL,
-  "unpricedLineCount" INTEGER NOT NULL,
+  "serviceTotalCentavos" BIGINT NOT NULL, -- the commission BASE: the price of the lines that earn commission only
+  "eligibleLineCount" INTEGER NOT NULL, -- how many active lines earn commission; 0 = nothing in the booking earns (car wash only)
+  "unpricedLineCount" INTEGER NOT NULL, -- lines that earn commission and had no price at completion
   "creditedCount" INTEGER NOT NULL,
   "completedOn" DATE NOT NULL,
   "accruedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "txId" BIGINT NOT NULL DEFAULT txid_current(),
   CONSTRAINT "commission_accruals_pkey" PRIMARY KEY ("bookingId"),
   CONSTRAINT "commission_accruals_total_range" CHECK ("serviceTotalCentavos" BETWEEN 0 AND 1000000000000),
-  CONSTRAINT "commission_accruals_counts" CHECK ("unpricedLineCount" >= 0 AND "creditedCount" BETWEEN 0 AND 50)
+  CONSTRAINT "commission_accruals_counts" CHECK ("unpricedLineCount" >= 0 AND "eligibleLineCount" >= 0 AND "unpricedLineCount" <= "eligibleLineCount" AND "creditedCount" BETWEEN 0 AND 50 AND ("eligibleLineCount" > 0 OR ("creditedCount" = 0 AND "serviceTotalCentavos" = 0)))
 );
 ALTER TABLE "commission_accruals" ADD CONSTRAINT "commission_accruals_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 CREATE INDEX "commission_accruals_completedOn_idx" ON "commission_accruals"("completedOn");
@@ -330,30 +337,44 @@ REVOKE ALL ON FUNCTION check_commission_consistency() FROM PUBLIC;
 CREATE CONSTRAINT TRIGGER commission_entries_consistent AFTER INSERT ON commission_entries DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION check_commission_consistency();
 CREATE CONSTRAINT TRIGGER commission_accruals_consistent AFTER INSERT ON commission_accruals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION check_commission_consistency();
 
+-- THE list of what earns commission (LE 2026-11-07). The only place it is written: change it here (a new migration with CREATE OR
+-- REPLACE FUNCTION) and the accrual, the repair and the screen all follow. It affects only bookings completed after the change.
+CREATE FUNCTION commission_earns_on(p_kind public."ServiceKind") RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,public,pg_temp AS $$
+ SELECT p_kind::text IN ('CERAMIC_COATING', 'PAINT_CORRECTION', 'INTERIOR_DETAILING', 'WINDOW_TINT_PPF')
+$$;
+REVOKE ALL ON FUNCTION commission_earns_on(public."ServiceKind") FROM PUBLIC;
+
 -- Records one completed QUEUE_V3 booking. Reads only database state: the active lines, the assigned workers (the
 -- people the Bay board credited), their rates and the default. Returns the number of people credited; 0 when the
 -- booking is not eligible, was already recorded, or had nobody assigned (a header with creditedCount 0 is written
 -- in that last case, so "nobody credited" is visible).
 CREATE FUNCTION commission_accrue(p_booking text) RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
-DECLARE b public.bookings; total bigint; unpriced integer; default_bp integer; ids text[]; rates integer[]; n integer;
+DECLARE b public.bookings; total bigint; unpriced integer; eligible integer; default_bp integer; ids text[]; rates integer[]; n integer;
 BEGIN
  SELECT * INTO b FROM public.bookings WHERE id = p_booking;
  IF NOT FOUND OR b.status <> 'COMPLETED' OR b."snapshotVersion" <> 'QUEUE_V3' THEN RETURN 0; END IF;
  IF EXISTS(SELECT 1 FROM public.commission_accruals WHERE "bookingId" = p_booking) THEN RETURN 0; END IF;
  SELECT "defaultRateBp" INTO default_bp FROM public.commission_settings WHERE id = 1;
  IF default_bp IS NULL THEN RAISE EXCEPTION 'The commission settings row is missing' USING ERRCODE = 'ZC006'; END IF;
- -- The same expression delete_booking() uses for its audit total, so the two always agree.
- SELECT COALESCE(sum(COALESCE("staffPriceCentavos", "subtotalCentavos")), 0)::bigint, count(*) FILTER (WHERE "staffPriceCentavos" IS NULL AND "subtotalCentavos" IS NULL)::integer
-   INTO total, unpriced FROM public.booking_line_items WHERE "bookingId" = p_booking AND "removedAt" IS NULL;
+ -- The base is the price of the lines that earn commission (commission_earns_on, the one list); the price expression is the one
+ -- delete_booking() uses for its audit total. A car wash line adds nothing to the base and is not counted as unpriced.
+ SELECT COALESCE(sum(COALESCE(l."staffPriceCentavos", l."subtotalCentavos")) FILTER (WHERE public.commission_earns_on(sv.category)), 0)::bigint,
+        count(*) FILTER (WHERE public.commission_earns_on(sv.category) AND l."staffPriceCentavos" IS NULL AND l."subtotalCentavos" IS NULL)::integer,
+        count(*) FILTER (WHERE public.commission_earns_on(sv.category))::integer
+   INTO total, unpriced, eligible
+   FROM public.booking_line_items l JOIN public.services sv ON sv.id = l."serviceId" WHERE l."bookingId" = p_booking AND l."removedAt" IS NULL;
  -- Never clipped (Codex F2): a booking may hold many priced lines, each up to 100,000,000 centavos, so the total is a bigint
  -- and the columns allow up to 1,000,000,000,000 (10 billion pesos). Above that the accrual FAILS visibly (audited,
  -- shown on the screen, repairable) instead of silently paying less.
  IF total > 1000000000000 THEN RAISE EXCEPTION 'The service total is above the supported commission range' USING ERRCODE = 'ZC006'; END IF;
- SELECT array_agg(w."staffId" ORDER BY w."assignedAt", w."staffId"), array_agg(COALESCE(s."commissionRateBp", default_bp) ORDER BY w."assignedAt", w."staffId")
-   INTO ids, rates FROM public.booking_worker_assignments w JOIN public.staff s ON s.id = w."staffId" WHERE w."bookingId" = p_booking;
+ -- Nothing in the booking earns commission (a car wash only): nobody is credited, whoever was assigned.
+ IF eligible > 0 THEN
+  SELECT array_agg(w."staffId" ORDER BY w."assignedAt", w."staffId"), array_agg(COALESCE(s."commissionRateBp", default_bp) ORDER BY w."assignedAt", w."staffId")
+    INTO ids, rates FROM public.booking_worker_assignments w JOIN public.staff s ON s.id = w."staffId" WHERE w."bookingId" = p_booking;
+ END IF;
  n := COALESCE(array_length(ids, 1), 0);
- INSERT INTO public.commission_accruals ("bookingId", "serviceTotalCentavos", "unpricedLineCount", "creditedCount", "completedOn")
-   VALUES (p_booking, total, unpriced, n, (COALESCE(b."terminalAt", now()) AT TIME ZONE 'Asia/Manila')::date);
+ INSERT INTO public.commission_accruals ("bookingId", "serviceTotalCentavos", "eligibleLineCount", "unpricedLineCount", "creditedCount", "completedOn")
+   VALUES (p_booking, total, eligible, unpriced, n, (COALESCE(b."terminalAt", now()) AT TIME ZONE 'Asia/Manila')::date);
  IF n > 0 THEN
   INSERT INTO public.commission_entries ("bookingId", "staffId", "position", "baseCentavos", "rateBp", "amountCentavos")
    SELECT p_booking, ids[x.idx], x.idx, x.share_centavos, rates[x.idx], x.amount_centavos FROM public.commission_split(total, rates) x;
@@ -830,5 +851,7 @@ DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'zeus_app') THEN
   admin_staff_remove(text, text, integer), admin_commission_default_set(text, integer, integer),
   admin_commission_paid_set(text, text[], boolean), admin_commission_repair(text), admin_commission_adjust(text, text, text, bigint, text) TO zeus_app;
  GRANT EXECUTE ON FUNCTION delete_booking(text, text, integer, text) TO zeus_app;
+ -- The pure list of what earns commission; the commission screen calls it to say which lines counted.
+ GRANT EXECUTE ON FUNCTION commission_earns_on(public."ServiceKind") TO zeus_app;
 END IF; END $$;
 COMMIT;

@@ -74,15 +74,17 @@ async function person(name: string, ratePercent?: string | null) {
   return s.addPerson(ADMIN, { name, ...(ratePercent === undefined ? {} : { ratePercent }) }, opts());
 }
 interface Job { id: string; reference: string; day: string }
-// A booking brought to IN_PROGRESS through the real services, with the given workers assigned in order and an optional total.
+// A booking brought to IN_PROGRESS through the real services, with the given workers assigned in order and an optional commission base.
 async function inProgress(workers: string[], total?: number, withUnpriced = false): Promise<Job> {
   const day = nextDay();
   const b = await book(select("S", "basic-wash"), day);
   const o = at(day);
-  if (total !== undefined) {
-    const line = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: b.id } });
-    await s.setLinePrice(ADMIN, b.id, line.id, { expectedRevision: await rev(b.id), priceCentavos: total, reason: "P1-37 test price" }, o);
-  }
+  // Round 4: the wash earns nothing, so the commission base is a tint line the shop adds and prices (the total given, or 18,000 which
+  // is what the wash used to be worth at size S, so the default-price tests keep their numbers). The wash keeps its catalogue price.
+  const tintId = bySlug(r0(), "regular-tint").id;
+  await s.addLine(ADMIN, b.id, { expectedRevision: await rev(b.id), serviceId: tintId, quantity: 1 }, o);
+  const tint = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: b.id, serviceId: tintId, removedAt: null } });
+  await s.setLinePrice(ADMIN, b.id, tint.id, { expectedRevision: await rev(b.id), priceCentavos: total ?? 18_000, reason: "P1-37 test price" }, o);
   if (withUnpriced) await s.addLine(ADMIN, b.id, { expectedRevision: await rev(b.id), serviceId: bySlug(r0(), "arcane-graphene").id, quantity: 1 }, o);
   await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "CONFIRMED" }, o);
   const n = ++seq;
@@ -132,7 +134,7 @@ before(async () => {
 });
 after(async () => { if (app) await app.$disconnect(); await db.$disconnect(); await root.$disconnect(); });
 
-test("C1 completing a booking with one worker records the header, one entry and one audit row, in centavos, at the default 10%", { skip }, async () => {
+test("C1 completing a booking with one worker records the header, one entry and one audit row, in centavos, at the default 20%", { skip }, async () => {
   const w = await person("Solo Worker");
   const job = await completed([w.id], 100_001);
   const h = (await header(job.id))!;
@@ -141,7 +143,7 @@ test("C1 completing a booking with one worker records the header, one entry and 
   assert.equal(h.completedOn.toISOString().slice(0, 10), manilaDay(booking.terminalAt!), "the Manila day of completion");
   const e = await entries(job.id);
   assert.equal(e.length, 1);
-  assert.deepEqual([e[0].staffId, e[0].position, e[0].baseCentavos, e[0].rateBp, e[0].amountCentavos, e[0].paidAt], [w.id, 1, 100_001, 1000, 10_000, null]);
+  assert.deepEqual([e[0].staffId, e[0].position, e[0].baseCentavos, e[0].rateBp, e[0].amountCentavos, e[0].paidAt], [w.id, 1, 100_001, 2000, 20_000, null]);
   const audit = await db.adminAuditEvent.findMany({ where: { bookingId: job.id } });
   assert.deepEqual(audit.map((a) => [a.action, a.actorStaffId, a.entryCount]), [["COMMISSION_ACCRUED", null, 1]]);
 });
@@ -150,7 +152,7 @@ test("C2 two workers split the total equally and each uses their own percentage"
   const a = await person("Worker A", "15"), b = await person("Worker B", null);
   const job = await completed([a.id, b.id], 100_001);
   const e = await entries(job.id);
-  assert.deepEqual(e.map((x) => [x.staffId, x.baseCentavos, x.rateBp, x.amountCentavos]), [[a.id, 50_001, 1500, 7_500], [b.id, 50_000, 1000, 5_000]]);
+  assert.deepEqual(e.map((x) => [x.staffId, x.baseCentavos, x.rateBp, x.amountCentavos]), [[a.id, 50_001, 1500, 7_500], [b.id, 50_000, 2000, 10_000]]);
 });
 
 test("C3 three workers at 12.5%: leftover centavos go to the largest remainders and the amounts add up to exactly 12,500", { skip }, async () => {
@@ -285,7 +287,7 @@ test("C10 an entry's money can never be changed or deleted, even by the owner, a
   const b = await book(select("S", "basic-wash"), nextDay());
   await assert.rejects(db.$transaction(async (tx) => {
     await tx.$executeRawUnsafe("SET LOCAL session_replication_role = origin");
-    await tx.$executeRawUnsafe(`INSERT INTO commission_accruals ("bookingId", "serviceTotalCentavos", "unpricedLineCount", "creditedCount", "completedOn") VALUES ('${b.id}', 1000, 0, 1, '2027-07-01')`);
+    await tx.$executeRawUnsafe(`INSERT INTO commission_accruals ("bookingId", "serviceTotalCentavos", "eligibleLineCount", "unpricedLineCount", "creditedCount", "completedOn") VALUES ('${b.id}', 1000, 1, 0, 1, '2027-07-01')`);
     await tx.$executeRawUnsafe(`INSERT INTO commission_entries ("bookingId", "staffId", "position", "baseCentavos", "rateBp", "amountCentavos") VALUES ('${b.id}', '${w.id}', 1, 1000, 1000, 999)`);
   }), /ZC009|add up|within one centavo/i);
   assert.equal(await header(b.id), null, "nothing was kept");
@@ -302,7 +304,7 @@ test("C11 the default percentage: a stale revision changes nothing, the new valu
   const row = (await db.adminAuditEvent.findMany({ where: { action: "COMMISSION_DEFAULT_SET" }, orderBy: { createdAt: "desc" } }))[0];
   assert.deepEqual([row.previousValue, row.newValue, row.actorStaffId], [String(cur.defaultRateBp), "1125", ADMIN.staffId]);
   for (const bad of ["101", "-1", "1.234", "", "abc", "10%"]) await refused(s.setDefaultRate(ADMIN, { expectedRevision: set.revision, ratePercent: bad }, opts()), "VALIDATION_ERROR", bad);
-  await s.setDefaultRate(ADMIN, { expectedRevision: set.revision, ratePercent: "10" }, opts());
+  await s.setDefaultRate(ADMIN, { expectedRevision: set.revision, ratePercent: "20" }, opts()); // back to the shop default (20% since round 4)
 });
 
 test("C12 an accrual that fails still lets the booking complete, leaves an audit row with no personal data, and repair redoes it exactly once", { skip }, async () => {
@@ -532,6 +534,7 @@ test("C19 two lines at the maximum price: the total is 200,000,000, not clipped,
   const b = await book(select("S", "basic-wash"), day);
   const o = at(day);
   await s.addLine(ADMIN, b.id, { expectedRevision: await rev(b.id), serviceId: bySlug(r0(), "arcane-graphene").id, quantity: 1 }, o);
+  await s.addLine(ADMIN, b.id, { expectedRevision: await rev(b.id), serviceId: bySlug(r0(), "regular-tint").id, quantity: 1 }, o); // round 4: two lines that earn, so the base can still reach 200,000,000
   for (const l of await db.bookingLineItem.findMany({ where: { bookingId: b.id, removedAt: null } }))
     await s.setLinePrice(ADMIN, b.id, l.id, { expectedRevision: await rev(b.id), priceCentavos: 100_000_000, reason: "P1-37 maximum price test" }, o);
   await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "CONFIRMED" }, o);
@@ -541,9 +544,9 @@ test("C19 two lines at the maximum price: the total is 200,000,000, not clipped,
   await s.assignWorker(ADMIN, b.id, w.id, { expectedRevision: await rev(b.id) }, o);
   await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "IN_PROGRESS" }, o);
   await finish({ ...b, day });
-  assert.equal((await db.bookingLineItem.count({ where: { bookingId: b.id, removedAt: null } })), 2);
+  assert.equal((await db.bookingLineItem.count({ where: { bookingId: b.id, removedAt: null } })), 3, "the wash (priced, earns nothing) and two lines that earn");
   const h = (await header(b.id))!;
-  assert.deepEqual([h.serviceTotalCentavos, h.creditedCount, h.unpricedLineCount], [200_000_000, 1, 0], "the whole total is recorded");
+  assert.deepEqual([h.serviceTotalCentavos, h.creditedCount, h.unpricedLineCount], [200_000_000, 1, 0], "the whole base (the two lines that earn) is recorded");
   const e = await entries(b.id);
   assert.deepEqual([e[0].baseCentavos, e[0].rateBp, e[0].amountCentavos], [200_000_000, 1000, 20_000_000]);
   assert.equal(await count("admin_audit_events", `action = 'COMMISSION_ACCRUAL_FAILED' AND "bookingId" = ${lit(b.id)}`), 0, "no failure row");
@@ -551,7 +554,7 @@ test("C19 two lines at the maximum price: the total is 200,000,000, not clipped,
   const list = await s.listCommissions(ADMIN, aroundToday(), opts());
   const shown = list.entries.find((x) => x.id === e[0].id)!;
   assert.deepEqual([shown.serviceTotalCentavos, shown.amountCentavos], [200_000_000, 20_000_000]);
-  await assert.rejects(db.$executeRawUnsafe(`INSERT INTO commission_accruals ("bookingId", "serviceTotalCentavos", "unpricedLineCount", "creditedCount", "completedOn") VALUES ('x', 1000000000001, 0, 0, '2027-01-01')`), /commission_accruals_total_range/);
+  await assert.rejects(db.$executeRawUnsafe(`INSERT INTO commission_accruals ("bookingId", "serviceTotalCentavos", "eligibleLineCount", "unpricedLineCount", "creditedCount", "completedOn") VALUES ('x', 1000000000001, 1, 0, 0, '2027-01-01')`), /commission_accruals_total_range/);
   await assert.rejects(db.$executeRawUnsafe(`INSERT INTO commission_entries ("bookingId", "staffId", "position", "baseCentavos", "rateBp", "amountCentavos") VALUES ('x', 'x', 1, 1000000000001, 1000, 1)`), /commission_entries_base_range/);
   await assert.rejects(db.$executeRawUnsafe(`INSERT INTO commission_entries ("bookingId", "staffId", "position", "baseCentavos", "rateBp", "amountCentavos") VALUES ('x', 'x', 1, 1, 1000, 1000000000001)`), /commission_entries_amount_range/);
 });
@@ -566,7 +569,7 @@ test("C20 the commit-time check rejects shares that are not the equal split, wro
     const booking = await book(select("S", "basic-wash"), nextDay());
     class Rollback extends Error {}
     const write = async (tx: { $executeRawUnsafe(q: string): Promise<number> }) => {
-      await tx.$executeRawUnsafe(`INSERT INTO commission_accruals ("bookingId", "serviceTotalCentavos", "unpricedLineCount", "creditedCount", "completedOn") VALUES ('${booking.id}', ${total}, 0, ${rows.length}, '2027-07-01')`);
+      await tx.$executeRawUnsafe(`INSERT INTO commission_accruals ("bookingId", "serviceTotalCentavos", "eligibleLineCount", "unpricedLineCount", "creditedCount", "completedOn") VALUES ('${booking.id}', ${total}, 1, 0, ${rows.length}, '2027-07-01')`);
       for (const [staff, position, base, rate, amount] of rows)
         await tx.$executeRawUnsafe(`INSERT INTO commission_entries ("bookingId", "staffId", "position", "baseCentavos", "rateBp", "amountCentavos") VALUES ('${booking.id}', '${staff}', ${position}, ${base}, ${rate}, ${amount})`);
     };
@@ -599,13 +602,13 @@ test("C20 the commit-time check rejects shares that are not the equal split, wro
 test("C21 a completed booking takes no price change: the service refuses it and the database refuses it too (review F1)", { skip }, async () => {
   const w = await person("Late Price Worker", "10");
   const job = await completed([w.id], 50_000);
-  const line = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: job.id } });
+  const line = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: job.id, staffPriceCentavos: 50_000 } }); // the tint the commission was counted on
   await refused(s.setLinePrice(ADMIN, job.id, line.id, { expectedRevision: await rev(job.id), priceCentavos: 60_000, reason: "Late price" }, at(job.day)), "BOOKING_NOT_MANAGEABLE", "late price through the service");
   await assert.rejects(
     db.$executeRawUnsafe(`UPDATE booking_line_items SET "staffPriceCentavos" = 60000, "staffPriceSetByStaffId" = '${ADMIN.staffId}' WHERE id = '${line.id}'`),
     /A completed booking takes no line change/, "the database wall");
   assert.equal((await db.bookingLineItem.findUniqueOrThrow({ where: { id: line.id } })).staffPriceCentavos, 50_000, "the price did not move");
-  assert.equal((await entries(job.id))[0].amountCentavos, 5_000, "the commission did not move");
+  assert.equal((await entries(job.id))[0].amountCentavos, 5_000, "the commission did not move (10% person rate)");
 });
 
 test("C22 a late price reaches the commission as an adjustment: ADMIN only, reason required, never below zero, paid on its own, audited, immutable (review F1)", { skip }, async () => {
@@ -680,4 +683,99 @@ test("C23 repair handles each booking on its own: one that keeps failing is repo
   const after = await s.repairCommissions(ADMIN, opts()); // the cause is gone: the poisoned booking is repaired now
   assert.ok(after.repaired >= 1);
   assert.equal((await entries(bad.id)).length, 1);
+});
+
+// ---- Round 4 (LE 2026-11-07): the default rate is 20% and only detailing, paint, coating and tint lines earn commission. ----
+// A booking is made with the online wash, then the shop adds the other services and prices them (only washes are priced online;
+// everything else is a quote the admin prices). "keepWash: false" removes the wash so the booking holds only the added lines.
+interface ShopLine { slug: string; price?: number }
+async function shopJob(workers: string[], lines: ShopLine[], opts: { washPrice?: number; keepWash?: boolean } = {}): Promise<Job> {
+  const day = nextDay();
+  const b = await book(select("S", "basic-wash"), day);
+  const o = at(day);
+  const wash = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: b.id } });
+  if (opts.washPrice !== undefined) await s.setLinePrice(ADMIN, b.id, wash.id, { expectedRevision: await rev(b.id), priceCentavos: opts.washPrice, reason: "P1-37 wash price" }, o);
+  for (const l of lines) {
+    const serviceId = bySlug(r0(), l.slug).id;
+    await s.addLine(ADMIN, b.id, { expectedRevision: await rev(b.id), serviceId, quantity: 1 }, o);
+    if (l.price !== undefined) {
+      const added = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: b.id, serviceId, removedAt: null } });
+      await s.setLinePrice(ADMIN, b.id, added.id, { expectedRevision: await rev(b.id), priceCentavos: l.price, reason: "P1-37 service price" }, o);
+    }
+  }
+  if (opts.keepWash === false) await s.removeLine(ADMIN, b.id, wash.id, { expectedRevision: await rev(b.id), reason: "P1-37 wash not wanted" }, o);
+  await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "CONFIRMED" }, o);
+  const n = ++seq;
+  const bay = await s.createBay(ADMIN, { name: "Bay " + n, sortOrder: n, bayType: "WASH" }, o);
+  await s.setBay(ADMIN, b.id, { expectedRevision: await rev(b.id), date: day, bayId: bay.id }, o);
+  for (const w of workers) await s.assignWorker(ADMIN, b.id, w, { expectedRevision: await rev(b.id) }, o);
+  await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "IN_PROGRESS" }, o);
+  return { ...b, day };
+}
+const shopCompleted = async (...args: Parameters<typeof shopJob>) => { const j = await shopJob(...args); await finish(j); return j; };
+
+test("C24 the shop default is 20%, and a booking that holds only a car wash earns nothing: a record with nobody credited and no entries", { skip }, async () => {
+  assert.equal((await s.getCommissionSettings(ADMIN, opts())).defaultRateBp, 2000);
+  const w = await person("Wash Only Worker");
+  const job = await shopCompleted([w.id], [], { washPrice: 50_000 });
+  const h = (await header(job.id))!;
+  assert.deepEqual([h.serviceTotalCentavos, h.creditedCount, h.unpricedLineCount, h.eligibleLineCount], [0, 0, 0, 0], "nothing in this booking earns commission");
+  assert.equal((await entries(job.id)).length, 0);
+  assert.equal(await count("admin_audit_events", `"bookingId" = '${job.id}' AND action = 'COMMISSION_ACCRUED' AND "entryCount" = 0`), 1);
+  const day = h.completedOn.toISOString().slice(0, 10);
+  const summary = await s.listCommissions(ADMIN, { from: day, to: day }, opts());
+  assert.ok(summary.warnings.noCommissionBookings >= 1, "the screen says no commission was earned (car wash)");
+  assert.ok(!summary.entries.some((e) => e.bookingReference === job.reference));
+});
+
+test("C25 a booking with only a tint earns 20% of the tint at the default rate", { skip }, async () => {
+  const w = await person("Tint Only Worker");
+  const job = await shopCompleted([w.id], [{ slug: "regular-tint", price: 100_000 }], { keepWash: false });
+  const h = (await header(job.id))!;
+  assert.deepEqual([h.serviceTotalCentavos, h.creditedCount, h.eligibleLineCount], [100_000, 1, 1]);
+  const [e] = await entries(job.id);
+  assert.deepEqual([e.baseCentavos, e.rateBp, e.amountCentavos], [100_000, 2000, 20_000]);
+});
+
+test("C26 wash + tint: the commission is 20% of the tint part only, and the screen lists which lines counted and which did not", { skip }, async () => {
+  const w = await person("Mixed Worker");
+  const job = await shopCompleted([w.id], [{ slug: "regular-tint", price: 100_000 }], { washPrice: 40_000 });
+  const h = (await header(job.id))!;
+  assert.deepEqual([h.serviceTotalCentavos, h.eligibleLineCount], [100_000, 1], "the wash price is not in the base");
+  assert.deepEqual((await entries(job.id)).map((e) => [e.baseCentavos, e.amountCentavos]), [[100_000, 20_000]], "not 28,000");
+  const day = h.completedOn.toISOString().slice(0, 10);
+  const summary = await s.listCommissions(ADMIN, { from: day, to: day }, opts());
+  const shown = summary.entries.find((e) => e.bookingReference === job.reference)!;
+  assert.deepEqual(shown.lines.map((l) => [l.name, l.counted, l.amountCentavos]).sort(), [["Basic Wash", false, 40_000], ["Regular Tint", true, 100_000]].sort());
+});
+
+test("C27 two people split only the eligible base, equally, each at their own rate", { skip }, async () => {
+  const a = await person("Split A"), b = await person("Split B", "25");
+  const job = await shopCompleted([a.id, b.id], [{ slug: "regular-tint", price: 100_001 }], { washPrice: 77_777 });
+  assert.equal((await header(job.id))!.serviceTotalCentavos, 100_001);
+  assert.deepEqual((await entries(job.id)).map((e) => [e.baseCentavos, e.rateBp, e.amountCentavos]), [[50_001, 2000, 10_000], [50_000, 2500, 12_500]]);
+});
+
+test("C28 an eligible service that had no price when the job finished: the record is flagged, and a late price reaches the commission as an adjustment", { skip }, async () => {
+  const w = await person("Late Quote Worker");
+  const job = await shopCompleted([w.id], [{ slug: "regular-tint" }], { washPrice: 30_000 });
+  const h = (await header(job.id))!;
+  assert.deepEqual([h.serviceTotalCentavos, h.unpricedLineCount, h.eligibleLineCount, h.creditedCount], [0, 1, 1, 1], "the wash does not count, the unpriced tint is flagged");
+  const [e] = await entries(job.id);
+  assert.equal(e.amountCentavos, 0);
+  const adj = await s.adjustCommission(ADMIN, { id: randomUUID(), entryId: e.id, amountCentavos: 20_000, reason: "Tint priced at 1,000.00 after the job (20%)" }, opts());
+  assert.ok(adj.id);
+  const day = h.completedOn.toISOString().slice(0, 10);
+  const summary = await s.listCommissions(ADMIN, { from: day, to: day, staffId: w.id }, opts());
+  assert.equal(summary.totals[0].earnedCentavos, 20_000);
+});
+
+test("C29 repair uses the same rule: a mixed booking whose accrual failed is recorded on its eligible part only", { skip }, async () => {
+  const w = await person("Repair Rule Worker");
+  const job = await shopJob([w.id], [{ slug: "regular-tint", price: 100_000 }], { washPrice: 40_000 });
+  await db.$executeRawUnsafe(`ALTER TABLE commission_entries ADD CONSTRAINT test_force_fail_rule CHECK ("amountCentavos" < 0) NOT VALID`);
+  try { await finish(job); } finally { await db.$executeRawUnsafe(`ALTER TABLE commission_entries DROP CONSTRAINT test_force_fail_rule`); }
+  assert.equal(await header(job.id), null);
+  await s.repairCommissions(ADMIN, opts());
+  assert.deepEqual((await entries(job.id)).map((e) => [e.baseCentavos, e.amountCentavos]), [[100_000, 20_000]]);
 });

@@ -222,7 +222,7 @@ test("T13 the list: phones for ADMIN only, default rate and revision, sign-in an
   await db.staffSession.create({ data: { tokenHash: sha(), staffId: withHistory.id, credentialGeneration: 1, createdAt: new Date(), lastSeenAt: new Date(), idleExpiresAt: future, expiresAt: future } });
   const clean = await newPerson();
   const team = await s.listTeam(ADMIN, opts());
-  assert.deepEqual([team.defaultRateBp, team.settingsRevision], [1000, 1]);
+  assert.deepEqual([team.defaultRateBp, team.settingsRevision], [2000, 1]);
   const byId = new Map(team.people.map((p) => [p.id, p]));
   assert.equal(byId.get(withHistory.id)!.hasHistory, true);
   assert.equal(byId.get(clean.id)!.hasHistory, false);

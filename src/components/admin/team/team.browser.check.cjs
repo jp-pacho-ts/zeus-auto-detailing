@@ -107,7 +107,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   // Team: the three fixture people, with rates and the shop default.
   await page.getByRole('heading', { name: 'Team', exact: true }).waitFor();
   let body = await text(page);
-  assert.match(body, /Ana Reyes[\s\S]*Commission 10% \(shop default\)/);
+  assert.match(body, /Ana Reyes[\s\S]*Commission 20% \(shop default\)/);
   assert.match(body, /Ben Cruz[\s\S]*Commission 12\.5%/);
   assert.match(body, /Cleo Santos/);
   await layoutRules(page, 'desktop team');
@@ -138,7 +138,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await dialog.getByLabel('Commission percent (optional)').fill('');
   await dialog.getByRole('button', { name: 'Save changes' }).click();
   await page.getByText('Dora Lim was updated.').waitFor();
-  assert.match(await text(page), /Dora Lim[\s\S]*Commission 10% \(shop default\)/);
+  assert.match(await text(page), /Dora Lim[\s\S]*Commission 20% \(shop default\)/);
 
   // Deactivate and reactivate.
   await page.getByRole('button', { name: 'Deactivate Dora Lim' }).click();
@@ -168,12 +168,17 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   // Commissions.
   await page.getByRole('tab', { name: 'Commissions' }).click();
   await page.getByTestId('default-rate-line').waitFor();
-  assert.equal(await page.getByTestId('default-rate-line').innerText(), 'Default rate is 10% until you change it.');
+  assert.equal(await page.getByTestId('default-rate-line').innerText(), 'Default rate is 20% until you change it.');
   await page.getByText('By person').waitFor();
   body = await text(page);
-  assert.match(body, /Earned\s*₱525\.00/, 'grand total: Ana 150.00 + Ben 375.00');
-  assert.match(body, /Unpaid\s*₱525\.00/);
-  assert.match(body, /Ana Reyes\s*2 jobs\s*Earned ₱150\.00/);
+  assert.match(body, /Earned\s*₱675\.00/, 'grand total: Ana 300.00 + Ben 375.00');
+  assert.match(body, /Unpaid\s*₱675\.00/);
+  assert.match(body, /Commission is earned on detailing, paint, coating and tint services\. A car wash earns none\./, 'the rule is stated');
+  assert.match(body, /No commission: car wash\. 1 completed booking in this range had only car wash services/, 'the wash-only job is explained');
+  assert.match(body, /Counted: Regular Tint ₱1,000\.00/, 'which service counted');
+  assert.match(body, /Not counted: Basic Wash ₱180\.00 \(car wash does not earn commission\)/, 'which service did not count, and why');
+  assert.match(body, /Commission base ₱1,000\.00/, 'the base used is the tint only, not the wash');
+  assert.match(body, /Ana Reyes\s*2 jobs\s*Earned ₱300\.00/);
   assert.match(body, /Ben Cruz\s*2 jobs\s*Earned ₱375\.00/);
   assert.match(body, /1 completed booking in this range had nobody assigned, so no commission was earned\./);
   assert.match(body, /shared by 2 of ₱1,000\.01/, 'the shared job says how it was split');
@@ -196,7 +201,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await page.getByText('2 commissions marked as paid.').waitFor();
   body = await text(page);
   assert.match(body, /Paid\s*₱375\.00/);
-  assert.match(body, /Unpaid\s*₱150\.00/);
+  assert.match(body, /Unpaid\s*₱300\.00/);
   await page.getByLabel('Show').selectOption('UNPAID');
   await page.getByText('By person').waitFor();
   await page.getByRole('checkbox', { name: /^Select Ben Cruz/ }).first().waitFor({ state: 'detached' }); // old rows stay until the answer arrives
@@ -217,7 +222,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await page.getByRole('button', { name: 'Save default' }).click();
   await page.getByText(/The default rate was changed/).waitFor();
   assert.equal(await page.getByTestId('default-rate-line').innerText(), 'Default rate is 12% until you change it.');
-  assert.match(await text(page), /Earned\s*₱525\.00/, 'earlier commissions are unchanged');
+  assert.match(await text(page), /Earned\s*₱675\.00/, 'earlier commissions are unchanged');
   await page.reload({ waitUntil: 'networkidle' });
   await goToTeam(page);
   await page.getByRole('tab', { name: 'Commissions' }).click();
@@ -234,17 +239,17 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
     await page.getByLabel('Reason', { exact: true }).fill(reason);
     await page.getByRole('button', { name: 'Save adjustment' }).click();
   };
-  assert.match(await text(page), /Ana Reyes\s*2 jobs\s*Earned ₱150\.00/, 'before: Ana earned 150.00');
+  assert.match(await text(page), /Ana Reyes\s*2 jobs\s*Earned ₱300\.00/, 'before: Ana earned 300.00');
   await adjust('ADD', '300', 'Coating priced after the job', 0);
   await page.getByText('Coating priced after the job').waitFor();
   body = await text(page);
   assert.match(body, /Adjustment ₱300\.00/, 'the adjustment shows under the job');
   assert.match(body, /Coating priced after the job/);
-  assert.match(body, /Ana Reyes\s*2 jobs\s*Earned ₱450\.00/, 'the totals include it');
+  assert.match(body, /Ana Reyes\s*2 jobs\s*Earned ₱600\.00/, 'the totals include it');
   // A "Take off" larger than the job is worth is refused with a plain sentence, and nothing changes.
   await adjust('TAKE', '9999', 'Far too much', 0);
   await page.locator('#admin-content').getByRole('alert').filter({ hasText: 'below zero' }).waitFor();
-  assert.match(await text(page), /Earned ₱450\.00/, 'nothing changed after the refusal');
+  assert.match(await text(page), /Earned ₱600\.00/, 'nothing changed after the refusal');
   await page.getByRole('button', { name: 'Cancel' }).click();
   // A client-side refusal: a typed minus sign is not how it is done.
   await page.getByRole('button', { name: 'Add adjustment' }).nth(0).click();
@@ -255,7 +260,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await page.getByRole('button', { name: 'Cancel' }).click();
   await adjust('TAKE', '100', 'Part of it was a mistake', 0);
   await page.getByText('Part of it was a mistake').waitFor(); // the new line itself, not the notice (the notice text repeats)
-  assert.match(await text(page), /Ana Reyes\s*2 jobs\s*Earned ₱350\.00/);
+  assert.match(await text(page), /Ana Reyes\s*2 jobs\s*Earned ₱500\.00/);
   await layoutRules(page, 'desktop commissions with adjustments');
   await shot(page, 'commissions-adjusted-1440');
 
@@ -265,7 +270,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await page.getByText('1 commission marked as paid.').waitFor();
   body = await text(page);
   assert.match(body, /Paid\s*₱300\.00/);
-  assert.match(body, /Unpaid\s*₱50\.00/);
+  assert.match(body, /Unpaid\s*₱200\.00/);
   // Pay everything for Ana, then take more off: the screen says "Owed back", not a bare negative.
   for (const box of await page.locator('#admin-content').getByRole('checkbox').all()) await box.check();
   await page.getByRole('button', { name: 'Mark paid' }).click();

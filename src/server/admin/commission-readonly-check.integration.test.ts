@@ -39,7 +39,7 @@ test("RO1 on a migrated, provisioned database every check passes and the verdict
   for (const needle of ["delete_booking(text, text, integer, text): exists, owner, SECURITY DEFINER, pinned search_path, ACL", "legacy object kept: commission_payouts",
     "every SECURITY DEFINER function in public pins search_path with pg_temp last", "zeus_app cannot write staff", "trigger bookings.commission_accrue_on_complete is enabled", "commission_settings has exactly one valid row", "migration applied"])
     assert.ok(named(needle), needle);
-  assert.equal(rows.find((r) => r.name === "info: commission default rate (basis points)")!.detail, "1000");
+  assert.equal(rows.find((r) => r.name === "info: commission default rate (basis points)")!.detail, "2000");
 });
 
 test("RO2 the script is one SELECT that writes nothing: no data-changing keyword, and running it twice leaves the database identical", { skip }, async () => {

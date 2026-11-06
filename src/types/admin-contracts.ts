@@ -270,6 +270,17 @@ export interface AdminCommissionEntry {
   paidAt: ISOInstant | null;
   /** Later corrections to this amount, oldest first (a late price, a mistake). Each is paid on its own. */
   adjustments: AdminCommissionAdjustment[];
+  /** The booking's services: which counted toward the commission and which did not (a car wash earns none). */
+  lines: AdminCommissionLine[];
+}
+export interface AdminCommissionLine {
+  name: string;
+  /** True when this service earns commission (detailing, paint, coating, tint). */
+  counted: boolean;
+  /** Why it did not count, in plain words; null when it counted. */
+  notCountedReason: string | null;
+  /** The price at the time; null when the service had no price. */
+  amountCentavos: number | null;
 }
 export interface AdminCommissionAdjustment {
   id: UUID;
@@ -301,6 +312,8 @@ export interface AdminCommissionSummary {
     nobodyCredited: number;
     /** Entries on bookings that completed with a service that had no final price. */
     unpricedEntries: number;
+    /** Completed bookings in the range where nothing earns commission (a car wash only). */
+    noCommissionBookings: number;
     /** Completed bookings since commissions began that have no record (an accrual failed). */
     missingRecords: number;
   };

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import type {
   AdminCommissionAdjustment,
   AdminCommissionEntry,
+  AdminCommissionLine,
   AdminCommissionPaidResult,
   AdminCommissionPersonTotal,
   AdminCommissionSettings,
@@ -70,6 +71,7 @@ interface EntryRow {
   id: string; bookingReference: string; serviceName: string; completedOn: Date; staffId: string; staffName: string; position: number;
   serviceTotalCentavos: bigint; shareCentavos: bigint; rateBp: number; amountCentavos: bigint; creditedCount: number; unpricedLineCount: number; paidAt: Date | null;
 }
+interface LineRow { bookingReference: string; name: string; counted: boolean; category: string; amount: number | null }
 interface AdjustmentRow { id: string; entryId: string; amountCentavos: bigint; reason: string; createdAt: Date; paidAt: Date | null }
 interface TotalRow { staffId: string; staffName: string; entryCount: number; earned: bigint; paid: bigint }
 
@@ -98,9 +100,10 @@ export async function listCommissions(actor: StaffActor, input: unknown, options
         FROM commission_adjustments x WHERE x."entryId" = e.id) adj ON true
       WHERE ${inRange} ${person}
       GROUP BY e."staffId", s.name ORDER BY lower(s.name), e."staffId"`;
-    const [warn] = await tx.$queryRaw<{ nobody: number; unpriced: number; missing: number }[]>`
+    const [warn] = await tx.$queryRaw<{ nobody: number; noCommission: number; unpriced: number; missing: number }[]>`
       SELECT
-        (SELECT count(*)::integer FROM commission_accruals a WHERE ${inRange} AND a."creditedCount" = 0) AS nobody,
+        (SELECT count(*)::integer FROM commission_accruals a WHERE ${inRange} AND a."creditedCount" = 0 AND a."eligibleLineCount" > 0) AS nobody,
+        (SELECT count(*)::integer FROM commission_accruals a WHERE ${inRange} AND a."eligibleLineCount" = 0) AS "noCommission",
         (SELECT count(*)::integer FROM commission_entries e JOIN commission_accruals a ON a."bookingId" = e."bookingId" WHERE ${inRange} ${person} AND a."unpricedLineCount" > 0) AS unpriced,
         (SELECT count(*)::integer FROM bookings bk WHERE bk.status = 'COMPLETED' AND bk."snapshotVersion" = 'QUEUE_V3' AND bk."terminalAt" >= ${new Date(settings.startsAt)}
           AND NOT EXISTS(SELECT 1 FROM commission_accruals x WHERE x."bookingId" = bk.id)) AS missing`;
@@ -115,6 +118,17 @@ export async function listCommissions(actor: StaffActor, input: unknown, options
     const adjustmentRows = page.length === 0 ? [] : await tx.$queryRaw<AdjustmentRow[]>`
       SELECT id, "entryId", "amountCentavos", reason, "createdAt", "paidAt" FROM commission_adjustments
       WHERE "entryId" = ANY(${page.map((r) => r.id)}::text[]) ORDER BY "createdAt", id`;
+    // Which of each booking's services counted. The same function the accrual uses (commission_earns_on), so the words cannot drift
+    // from the money. A completed booking's lines are final, so this matches what was counted at completion.
+    const lineRows = page.length === 0 ? [] : await tx.$queryRaw<LineRow[]>`
+      SELECT bk."referenceCode" AS "bookingReference", l."nameSnapshot" AS name, commission_earns_on(sv.category) AS counted, sv.category::text AS category,
+        COALESCE(l."staffPriceCentavos", l."subtotalCentavos") AS amount
+      FROM booking_line_items l JOIN services sv ON sv.id = l."serviceId" JOIN bookings bk ON bk.id = l."bookingId"
+      WHERE bk."referenceCode" = ANY(${[...new Set(page.map((r) => r.bookingReference))]}::text[]) AND l."removedAt" IS NULL ORDER BY l."order", l.id`;
+    const notCountedReason = (category: string) => (category === "EXTERIOR_WASH_SEAL" ? "Car wash does not earn commission." : "This service does not earn commission.");
+    const linesOf = (reference: string): AdminCommissionLine[] => lineRows.filter((x) => x.bookingReference === reference).map((x) => ({
+      name: x.name, counted: x.counted, notCountedReason: x.counted ? null : notCountedReason(x.category), amountCentavos: x.amount === null ? null : safeCentavos(x.amount),
+    }));
     const adjustmentsOf = (entryId: string): AdminCommissionAdjustment[] => adjustmentRows.filter((x) => x.entryId === entryId).map((x) => ({
       id: x.id, amountCentavos: safeCentavos(x.amountCentavos), reason: x.reason, createdAt: x.createdAt.toISOString(), paidAt: x.paidAt ? x.paidAt.toISOString() : null,
     }));
@@ -123,10 +137,11 @@ export async function listCommissions(actor: StaffActor, input: unknown, options
       position: Number(r.position), serviceTotalCentavos: safeCentavos(r.serviceTotalCentavos), shareCentavos: safeCentavos(r.shareCentavos), rateBp: Number(r.rateBp), amountCentavos: safeCentavos(r.amountCentavos),
       creditedCount: Number(r.creditedCount), unpricedLineCount: Number(r.unpricedLineCount), paidAt: r.paidAt ? r.paidAt.toISOString() : null,
       adjustments: adjustmentsOf(r.id),
+      lines: linesOf(r.bookingReference),
     }));
     return {
       from: v.from, to: v.to, settings, totals, grandTotal: grand, entries: shown, truncated: entries.length > ENTRY_LIMIT,
-      warnings: { nobodyCredited: Number(warn.nobody), unpricedEntries: Number(warn.unpriced), missingRecords: Number(warn.missing) },
+      warnings: { nobodyCredited: Number(warn.nobody), noCommissionBookings: Number(warn.noCommission), unpricedEntries: Number(warn.unpriced), missingRecords: Number(warn.missing) },
     };
   });
 }

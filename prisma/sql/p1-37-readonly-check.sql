@@ -17,6 +17,7 @@ fn(sig, public_ok, app_exec, definer) AS (VALUES
   ('admin_commission_paid_set(text, text[], boolean)', false, true, true),
   ('admin_commission_repair(text)', false, true, true),
   ('admin_commission_adjust(text, text, text, bigint, text)', false, true, true),
+  ('commission_earns_on(public."ServiceKind")', false, true, false),
   ('delete_booking(text, text, integer, text)', false, true, true),
   ('commission_accrue(text)', false, false, true),
   ('commission_consistency_check(text)', false, false, true),

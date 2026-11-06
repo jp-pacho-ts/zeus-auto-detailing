@@ -320,7 +320,7 @@ enum AdminAuditAction {
   COMMISSION_ADJUSTED
 }
 
-// One row. Basis points: 1000 = 10.00%. "startsAt" is when commissions began (nothing before it is back-filled).
+// One row. Basis points: 2000 = 20.00% (the default, LE 2026-11-07). "startsAt" is when commissions began (nothing before it is back-filled).
 model CommissionSettings {
   id               Int      @id @db.SmallInt
   defaultRateBp    Int
@@ -337,7 +337,8 @@ model CommissionSettings {
 model CommissionAccrual {
   bookingId            String            @id
   booking              Booking           @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  serviceTotalCentavos BigInt
+  serviceTotalCentavos BigInt // the commission base: the lines that earn commission only
+  eligibleLineCount    Int // 0 = nothing in the booking earns commission (a car wash only)
   unpricedLineCount    Int
   creditedCount        Int
   completedOn          DateTime          @db.Date

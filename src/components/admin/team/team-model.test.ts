@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canManage, defaultRateLine, manilaToday, monthStart, pesoRange, rangeProblem, ratePhrase, removeResult, removeWarning, selectableIds, warningLines } from "./team-model";
+import { COMMISSION_RULE_LINE, canManage, lineSummary, defaultRateLine, manilaToday, monthStart, pesoRange, rangeProblem, ratePhrase, removeResult, removeWarning, selectableIds, warningLines } from "./team-model";
 
 test("today is the Manila day, even when UTC is still the day before", () => {
   assert.equal(manilaToday(new Date("2027-03-01T17:30:00Z")), "2027-03-02");
@@ -38,8 +38,8 @@ test("only detailers are managed on this screen", () => {
 });
 
 test("a clean range shows no warning; each problem gets one plain sentence", () => {
-  assert.deepEqual(warningLines({ nobodyCredited: 0, unpricedEntries: 0, missingRecords: 0 }), []);
-  const lines = warningLines({ nobodyCredited: 1, unpricedEntries: 3, missingRecords: 2 });
+  assert.deepEqual(warningLines({ nobodyCredited: 0, noCommissionBookings: 0, unpricedEntries: 0, missingRecords: 0 }), []);
+  const lines = warningLines({ nobodyCredited: 1, noCommissionBookings: 0, unpricedEntries: 3, missingRecords: 2 });
   assert.equal(lines.length, 3);
   assert.match(lines[0], /^2 completed bookings in the shop have no commission recorded .* when they finished\. Use "Record missing commissions"/);
   assert.match(lines[1], /^1 completed booking in this range had nobody assigned/);
@@ -58,4 +58,17 @@ test("a negative unpaid figure reads as owed back, never as a bare minus (review
   assert.equal(unpaidText(12_345), "Unpaid ₱123.45");
   assert.equal(unpaidText(0), "Unpaid ₱0.00");
   assert.equal(unpaidText(-200), "Owed back ₱2.00");
+});
+
+test("round 4: car-wash-only bookings get their own plain sentence, and the counted and not-counted lines are spelled out", () => {
+  const lines = warningLines({ nobodyCredited: 0, noCommissionBookings: 2, unpricedEntries: 0, missingRecords: 0 });
+  assert.deepEqual(lines, ["No commission: car wash. 2 completed bookings in this range had only car wash services, which earn no commission."]);
+  const summary = lineSummary([
+    { name: "Basic Wash", counted: false, notCountedReason: "Car wash does not earn commission.", amountCentavos: 40_000 },
+    { name: "Regular Tint", counted: true, notCountedReason: null, amountCentavos: 100_000 },
+    { name: "Eclipse", counted: true, notCountedReason: null, amountCentavos: null },
+  ]);
+  assert.deepEqual(summary, { counted: "Regular Tint ₱1,000.00, Eclipse (no price yet)", notCounted: "Basic Wash ₱400.00 (car wash does not earn commission)" });
+  assert.deepEqual(lineSummary([]), { counted: null, notCounted: null });
+  assert.match(COMMISSION_RULE_LINE, /car wash earns none/i);
 });

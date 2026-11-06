@@ -1,6 +1,6 @@
 // P1-37: the plain-language rules for the Team and Commissions screens. No React, no network, so they are unit tested.
 import { basisPointsToPercent, formatPesos } from "@/lib/commission";
-import type { AdminCommissionSummary, AdminTeamPerson, AdminTeamRemoveOutcome } from "@/types/admin-contracts";
+import type { AdminCommissionLine, AdminCommissionSummary, AdminTeamPerson, AdminTeamRemoveOutcome } from "@/types/admin-contracts";
 
 const DAY_MS = 86_400_000;
 
@@ -66,6 +66,8 @@ export function warningLines(warnings: AdminCommissionSummary["warnings"]): stri
     lines.push(`${plural(warnings.missingRecords, "completed booking")} in the shop ${warnings.missingRecords === 1 ? "has" : "have"} no commission recorded because something went wrong when ${warnings.missingRecords === 1 ? "it" : "they"} finished. Use "Record missing commissions" to fix it.`);
   if (warnings.nobodyCredited > 0)
     lines.push(`${plural(warnings.nobodyCredited, "completed booking")} in this range had nobody assigned, so no commission was earned.`);
+  if (warnings.noCommissionBookings > 0)
+    lines.push(`No commission: car wash. ${plural(warnings.noCommissionBookings, "completed booking")} in this range had only car wash services, which earn no commission.`);
   if (warnings.unpricedEntries > 0)
     lines.push(`${plural(warnings.unpricedEntries, "commission")} in this range include a service that had no final price. They are based on the priced services only.`);
   return lines;
@@ -87,4 +89,15 @@ export function selectableIds(entries: { id: string; paidAt: string | null }[], 
 /** The unpaid figure in words. Negative means the shop paid more than is now owed (a Take off after payment): say "owed back", never a bare minus. */
 export function unpaidText(unpaidCentavos: number): string {
   return unpaidCentavos < 0 ? `Owed back ${formatPesos(-unpaidCentavos)}` : `Unpaid ${formatPesos(unpaidCentavos)}`;
+}
+
+/** The sentence that says what earns commission, shown under the default rate. */
+export const COMMISSION_RULE_LINE = "Commission is earned on detailing, paint, coating and tint services. A car wash earns none.";
+
+/** Plain words for which of a booking's services counted and which did not, with their prices. */
+export function lineSummary(lines: AdminCommissionLine[]): { counted: string | null; notCounted: string | null } {
+  const part = (l: AdminCommissionLine) => `${l.name} ${l.amountCentavos === null ? "(no price yet)" : formatPesos(l.amountCentavos)}`;
+  const counted = lines.filter((l) => l.counted).map(part);
+  const not = lines.filter((l) => !l.counted).map((l) => `${part(l)} (${(l.notCountedReason ?? "does not earn commission").replace(/\.$/, "").toLowerCase()})`);
+  return { counted: counted.length ? counted.join(", ") : null, notCounted: not.length ? not.join(", ") : null };
 }
