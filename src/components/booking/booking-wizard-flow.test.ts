@@ -566,7 +566,7 @@ test("P1-52 (LE): Back and the other labelled buttons are rounded-xl (12 px), no
   for (const b of backs) {
     assert.match(String(b.props.className), /rounded-xl/);
     assert.doesNotMatch(String(b.props.className), /rounded-full/);
-    assert.match(String(b.props.className), /min-h-\[44px\]/);
+    assert.match(String(b.props.className), /min-h-\[52px\]/, "P1-55: as tall as Continue (was 44 px)");
     assert.match(String(b.props.className), /border border-input/, "still outlined");
   }
   const picker = renderToStaticMarkup(DayPicker(h.child(DayPicker)!.props as never) as never);
@@ -673,5 +673,19 @@ test("P1-54: step 1 tiles keep every size's full name for screen readers and the
   const main = h.all().find((e) => e.type === "main")!;
   assert.match(String(main.props.className), /lg:min-h-\[100dvh\][^"]*lg:justify-center/, "step 1 is centered between top and bottom");
   assert.match(String(h.all().find((e) => /lg:max-w-\[1080px\]/.test(String(e.props.className)))!.props.className), /max-w-\[760px\]/, "phones keep the 760 px column");
+  h.unmount();
+});
+
+test("P1-55 (LE): Back uses the same height class as Continue and Submit, so the pair is level on every step", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await toDetails(h);
+  const height = (el: { props: Record<string, unknown> }) => /min-h-\[(\d+)px\]/.exec(String(el.props.className))?.[1];
+  const backs = h.all().filter((e) => e.type === "button" && textOf(e.props.children).trim() === "Back");
+  const mains = h.all().filter((e) => e.type === "button" && /^(Continue|Submit booking request)$/.test(textOf(e.props.children).trim()));
+  assert.ok(backs.length >= 1 && mains.length >= 1);
+  const wanted = height(mains[0]);
+  assert.ok(wanted && Number(wanted) >= 44);
+  for (const el of [...backs, ...mains]) assert.equal(height(el), wanted, "same height class: " + textOf(el.props.children));
   h.unmount();
 });

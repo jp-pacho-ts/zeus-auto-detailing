@@ -57,6 +57,7 @@ async function open(browser, origin, upstream, [width, height]) {
   const page = await context.newPage();
   await page.goto(origin + '/book', { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Choose your vehicle size' }).waitFor();
+  await page.locator('input[name="vehicle-category"]').first().waitFor({ state: 'attached' }); // the catalog has loaded
   return { context, page };
 }
 
