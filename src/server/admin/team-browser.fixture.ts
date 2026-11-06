@@ -1,5 +1,5 @@
 // P1-37 synthetic fixture for team.browser.check.cjs. Run it ONCE on a loopback database whose name starts with zeus_t007_:
-//   node --require ./src/server/__tests__/register.cjs src/components/admin/team/team.browser.fixture.ts
+//   node --require ./src/server/__tests__/register.cjs src/server/admin/team-browser.fixture.ts
 // It migrates the database, publishes the catalog, provisions the runtime role, creates one ADMIN and one DETAILER login with the
 // passwords given in the environment, and builds the shop the check expects, through the real services:
 //   people  Ana Reyes (shop default 10%), Ben Cruz (12.5%), Cleo Santos (no jobs)
