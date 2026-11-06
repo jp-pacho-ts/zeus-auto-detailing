@@ -44,7 +44,9 @@ test("the role matrix follows ADR-005 §15, A3 and PM decisions D4/D5", () => {
   const adminOnly: AdminOp[] = ["BAY_ASSIGN", "WORKER_ASSIGN", "STATUS_CONFIRMED", "STATUS_REINSTATE", "DECLINE", "MOVE", "REORDER", "LINE_ADD", "LINE_REMOVE",
     "LINE_PRICE", "BAY_LIST", "CAPS", "HISTORY_LOOKUP", "DEPOSIT_STATUS", "SCHEDULE", "DELETE_BOOKING", "FINISH_BOOKING",
     // P1-37: the team and commission screens are ADMIN only (phones and money); STAFF has none of them.
-    "TEAM_READ", "TEAM_WRITE", "COMMISSION_READ", "COMMISSION_WRITE"];
+    "TEAM_READ", "TEAM_WRITE", "COMMISSION_READ", "COMMISSION_WRITE",
+    // P1-38: supplies hold costs; ADMIN only.
+    "SUPPLY_READ", "SUPPLY_WRITE"];
   assert.deepEqual([...staff, ...adminOnly].sort(), [...ADMIN_OPS].sort(), "every operation is classified");
   for (const op of staff) assert.deepEqual([canPerform(op, "STAFF"), canPerform(op, "ADMIN")], [true, true], op);
   for (const op of adminOnly) assert.deepEqual([canPerform(op, "STAFF"), canPerform(op, "ADMIN")], [false, true], op);

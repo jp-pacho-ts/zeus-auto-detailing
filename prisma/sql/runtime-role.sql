@@ -85,7 +85,10 @@ BEGIN
     'admin_staff_update(text, text, text, text, text, text, integer, integer)', 'admin_staff_set_active(text, text, boolean, integer)',
     'admin_staff_remove(text, text, integer)', 'admin_commission_default_set(text, integer, integer)',
     'admin_commission_paid_set(text, text[], boolean)', 'admin_commission_repair(text)',
-    'admin_commission_adjust(text, text, text, bigint, text)', 'commission_earns_on(public."ServiceKind")'
+    'admin_commission_adjust(text, text, text, bigint, text)', 'commission_earns_on(public."ServiceKind")',
+    -- P1-38 Supplies: the five ADMIN writers. The history check and the trigger functions are executable by nobody but their owner.
+    'admin_supply_create(text, text, text, text, text, integer, integer, bigint)', 'admin_supply_update(text, text, integer, text, text, boolean, text, integer, integer)',
+    'admin_supply_stock(text, text, text, integer, text, bigint, integer, text)', 'admin_supply_remove(text, text, integer)', 'admin_supply_restore(text, text, integer)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);
@@ -144,6 +147,8 @@ BEGIN
 
     -- Commissions (P1-37): read only. Every write is an owner-run function or the accrual trigger.
     ['commission_settings', 'SELECT'], ['commission_accruals', 'SELECT'], ['commission_entries', 'SELECT'], ['commission_adjustments', 'SELECT'],
+    -- Supplies (P1-38): read only. Every write is an owner-run function; supply_audit_events gets nothing at all.
+    ['supply_items', 'SELECT'], ['supply_movements', 'SELECT'],
 
     -- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
     -- owner URL, never by the app; the app reads no staff phone numbers.

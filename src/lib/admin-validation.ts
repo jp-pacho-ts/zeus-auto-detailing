@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { QueueCodeSchema } from "@/types/catalog-contracts";
 import { percentToBasisPoints } from "./commission";
+import { MAX_STOCK, pesosToCentavos } from "./supplies";
 import { LocalDateSchema } from "./validation";
 
 const Id = z
@@ -247,3 +248,37 @@ export const CommissionAdjustSchema = z
 export const CommissionPaidSchema = z
   .object({ ids: z.array(Id).min(1).max(200), paid: z.boolean() })
   .strict();
+
+// P1-38 Supplies & Inventory. Money is typed in pesos and becomes integer centavos here; the browser makes `id` once per form content
+// so a retry after a lost response cannot record the same thing twice.
+const SupplyName = z.string().trim().min(1, "Enter a name.").max(80, "Use 80 characters or fewer.");
+const SupplyCategory = z.string().trim().min(1, "Enter a category or leave it out.").max(60, "Use 60 characters or fewer.");
+const SupplyUnit = z.string().trim().min(1, "Enter a unit, like bottle or pcs.").max(20, "Use 20 characters or fewer.");
+const StockInt = z.number().int("Enter a whole number.").min(0, "Enter zero or more.").max(MAX_STOCK, "That is more than the largest stock we can hold.");
+const CostPesos = z.string().refine((v) => pesosToCentavos(v) !== null, "Enter pesos with at most two decimals, up to 1,000,000.00.");
+export const SupplyCreateSchema = z
+  .object({ id: Id, name: SupplyName, category: SupplyCategory.optional(), unit: SupplyUnit, reorderLevel: StockInt, costPesos: CostPesos, startingStock: StockInt.optional() })
+  .strict()
+  .transform((v) => ({ ...v, costCentavos: pesosToCentavos(v.costPesos) as number }));
+// An absent field is left alone; category null clears it.
+export const SupplyUpdateSchema = z
+  .object({ expectedRevision: Revision, name: SupplyName.optional(), category: SupplyCategory.nullable().optional(), unit: SupplyUnit.optional(), reorderLevel: StockInt.optional(), costPesos: CostPesos.optional() })
+  .strict()
+  .refine((v) => Object.keys(v).some((k) => k !== "expectedRevision"), "Change at least one field.")
+  .transform((v) => ({ ...v, costCentavos: v.costPesos === undefined ? undefined : (pesosToCentavos(v.costPesos) as number) }));
+// Stock goes in (RECEIVE) or out (USE). There is no other way to take stock away (LE 2026-11-06); a wrong USE is fixed with a RECEIVE and a note.
+export const SupplyStockSchema = z
+  .object({
+    id: Id,
+    expectedRevision: Revision,
+    kind: z.enum(["RECEIVE", "USE"]),
+    quantity: z.number().int("Enter a whole number.").min(1, "Enter at least 1.").max(MAX_STOCK, "That is more than the largest stock we can hold."),
+    unitCostPesos: CostPesos.optional(),
+    note: z.string().trim().min(1, "Give a note or leave it out.").max(200, "Use 200 characters or fewer.").optional(),
+  })
+  .strict()
+  .refine((v) => v.unitCostPesos === undefined || v.kind === "RECEIVE", { message: "A cost belongs to stock coming in.", path: ["unitCostPesos"] })
+  .transform((v) => ({ ...v, unitCostCentavos: v.unitCostPesos === undefined ? undefined : (pesosToCentavos(v.unitCostPesos) as number) }));
+export const SupplyRemoveSchema = z.object({ expectedRevision: Revision }).strict();
+export const SupplyListSchema = z.object({ includeArchived: z.enum(["true", "false"]).default("false").transform((v) => v === "true") }).strict();
+export const SupplyMovementsSchema = z.object({ cursor: z.string().regex(/^[0-9]{1,18}$/).optional() }).strict();

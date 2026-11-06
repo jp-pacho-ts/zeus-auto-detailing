@@ -230,6 +230,8 @@ model Staff {
   commissionsPaid       CommissionEntry[]         @relation("CommissionPaidBy")
   adjustmentsMade       CommissionAdjustment[]    @relation("CommissionAdjustedBy")
   adjustmentsPaid       CommissionAdjustment[]    @relation("CommissionAdjustmentPaidBy")
+  supplyMovements       SupplyMovement[]          @relation("SupplyMovementActor")
+  supplyAudits          SupplyAuditEvent[]        @relation("SupplyAuditActor")
   commissionSettingsSet CommissionSettings[]
   adminAuditActed       AdminAuditEvent[]
 
@@ -1041,4 +1043,73 @@ model BookingDepositProof {
   @@index([bookingId, createdAt])
   @@index([notifyState, notifyNextAttemptAt])
   @@map("booking_deposit_proofs")
+}
+
+// P1-38 Supplies & Inventory (migration 20261106000000). The app reads items and movements; every write is an owner-run function.
+// OPENING = starting stock, RECEIVE = stock in, USE = stock used. There is no ADJUST (LE 2026-11-06).
+enum SupplyMovementKind {
+  OPENING
+  RECEIVE
+  USE
+}
+
+enum SupplyAuditAction {
+  SUPPLY_CREATED
+  SUPPLY_UPDATED
+  SUPPLY_ARCHIVED
+  SUPPLY_RESTORED
+  SUPPLY_DELETED
+}
+
+model SupplyItem {
+  id                  String           @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name                String
+  nameKey             String           @unique // lower-cased name; archived items keep it, so a name stays reserved
+  category            String?
+  unit                String
+  currentStock        Int              @default(0)
+  reorderLevel        Int              @default(0)
+  costPerUnitCentavos Int              @default(0)
+  isActive            Boolean          @default(true)
+  revision            Int              @default(1)
+  createdAt           DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime         @default(now()) @db.Timestamptz(3)
+  movements           SupplyMovement[]
+
+  @@map("supply_items")
+}
+
+// Insert-only. "seq" is the true order inside one transaction.
+model SupplyMovement {
+  id               String             @id @default(dbgenerated("(gen_random_uuid())::text"))
+  seq              BigInt             @unique @default(autoincrement())
+  itemId           String
+  item             SupplyItem         @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  kind             SupplyMovementKind
+  delta            Int
+  stockAfter       Int
+  unitCostCentavos Int? // NULL unless a cost was typed on stock in
+  note             String?
+  actorStaffId     String
+  actor            Staff              @relation("SupplyMovementActor", fields: [actorStaffId], references: [id], onDelete: Restrict)
+  createdAt        DateTime           @default(now()) @db.Timestamptz(3)
+
+  @@index([itemId, seq])
+  @@map("supply_movements")
+}
+
+// Insert-only. The target is plain text (no foreign key) so the trail outlives a deleted item. Field names only, never values.
+model SupplyAuditEvent {
+  id             String            @id @default(dbgenerated("(gen_random_uuid())::text"))
+  action         SupplyAuditAction
+  actorStaffId   String
+  actor          Staff             @relation("SupplyAuditActor", fields: [actorStaffId], references: [id], onDelete: Restrict)
+  targetSupplyId String
+  targetLabel    String?
+  changedFields  String?
+  txId           BigInt            @default(dbgenerated("txid_current()"))
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+
+  @@index([targetSupplyId, createdAt])
+  @@map("supply_audit_events")
 }
