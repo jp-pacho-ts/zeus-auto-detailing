@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CalendarDays, ChevronLeft, MessageSquare, Phone } from "lucide-react";
+import { AlertCircle, CalendarDays, Check, ChevronLeft, MessageSquare, Phone } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { dayStateLabel } from "@/components/booking/day-booking";
 import type { PublicDay } from "@/types/contracts";
@@ -20,9 +20,17 @@ export const shortDayLabel = (date: string) =>
     new Date(date + "T00:00:00+08:00"),
   );
 
-const panel = "rounded border border-border bg-card p-4 sm:p-8";
+const panel = "rounded-2xl border border-border bg-card p-4 sm:p-8";
 const contact =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded px-5 py-3 text-sm font-bold transition-colors";
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition-colors";
+const pager =
+  "inline-flex min-h-[44px] items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// P1-52: the days are laid out as a month calendar, Monday first. The days before the first one and after the last one are
+// shown faded (they are not choices) so the weeks line up.
+const mondayIndex = (date: string) => (new Date(date + "T00:00:00Z").getUTCDay() + 6) % 7;
+const monthShort = (date: string) =>
+  new Intl.DateTimeFormat(brandConfig.locale, { month: "short", timeZone: "UTC" }).format(new Date(date + "T00:00:00Z"));
 
 export interface DayPickerProps {
   data: { days: PublicDay[]; nextAvailableDay: string | null; onlineBookingStatus?: "OPEN" | "PAUSED" } | null;
@@ -72,6 +80,14 @@ export function DayPicker({ data, error, onRetry, selected, onSelect, fromDate, 
   const today = todayInManila();
   const lastDay = addDays(today, 90);
   if (data?.onlineBookingStatus === "PAUSED") return <PausedPanel />;
+  const days = data?.days ?? [];
+  const lead = days.length ? mondayIndex(days[0].date) : 0;
+  const trail = days.length ? (7 - ((lead + days.length) % 7)) % 7 : 0;
+  const faded = (date: string) => (
+    <div key={"faded-" + date} aria-hidden="true" className="flex min-h-[64px] items-center justify-center text-lg font-medium text-muted-foreground/50">
+      {Number(date.slice(8))}
+    </div>
+  );
   return (
     <section id="booking-days" aria-labelledby="days-title" aria-busy={!data && !error} className={panel}>
       <div className="border-b border-border pb-3">
@@ -84,10 +100,10 @@ export function DayPicker({ data, error, onRetry, selected, onSelect, fromDate, 
       </div>
 
       {!data && !error && (
-        <div role="status" className="mt-6 grid grid-cols-2 gap-3">
+        <div role="status" className="mt-6 grid grid-cols-7 gap-1.5 sm:gap-2">
           <span className="sr-only">Loading days</span>
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-16 rounded bg-muted motion-safe:animate-pulse" />
+          {Array.from({ length: 14 }, (_, i) => (
+            <div key={i} className="h-16 rounded-xl bg-muted motion-safe:animate-pulse" />
           ))}
         </div>
       )}
@@ -108,43 +124,63 @@ export function DayPicker({ data, error, onRetry, selected, onSelect, fromDate, 
               ? `Next available day: ${dateLabel(data.nextAvailableDay)}.`
               : `No available day was found. Please call the shop at ${brandConfig.displayPhone}.`}
           </p>
-          <fieldset className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <fieldset>
             <legend className="sr-only">Days</legend>
-            {data.days.map((d) => {
-              const current = d.date === currentDay;
-              const selectable = d.state === "AVAILABLE" && !current;
-              const label = current ? "Your current day" : dayStateLabel(d.state);
-              // A day that stopped being available is shown, but no longer chosen.
-              const isSelected = selectable && selected === d.date;
-              // L5: unavailable days stay in sequence for orientation, readable (not faded) and dashed.
-              return (
-                <label
-                  key={d.date}
-                  className={`flex min-h-[64px] items-center justify-between gap-3 rounded border px-4 py-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${
-                    !selectable
-                      ? "cursor-not-allowed border-dashed border-border bg-[#121214]"
-                      : isSelected
-                        ? "border-primary bg-primary/10 shadow-sm"
-                        : "cursor-pointer border-input bg-card hover:border-primary"
-                  }`}
-                >
-                  <div>
-                    <span className={`block font-semibold ${selectable ? "text-foreground" : "text-muted-foreground"}`}>{shortDayLabel(d.date)}</span>
-                    <span className="block text-sm text-muted-foreground">{label}</span>
-                  </div>
-                  <input
-                    type="radio"
-                    name="booking-day"
-                    aria-label={`${dateLabel(d.date)}: ${label}`}
-                    checked={isSelected}
-                    disabled={!selectable}
-                    onChange={() => onSelect(d.date)}
-                    className={`h-5 w-5 shrink-0 accent-primary ${selectable ? "" : "invisible"}`}
-                  />
-                </label>
-              );
-            })}
+            <div aria-hidden="true" className="mb-1.5 grid grid-cols-7 gap-1.5 text-center text-xs font-semibold text-muted-foreground sm:gap-2">
+              {WEEKDAYS.map((w) => (
+                <span key={w}>{w}</span>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+              {Array.from({ length: lead }, (_, i) => faded(addDays(days[0].date, i - lead)))}
+              {days.map((d) => {
+                const current = d.date === currentDay;
+                const selectable = d.state === "AVAILABLE" && !current;
+                const label = current ? "Your current day" : dayStateLabel(d.state);
+                // A day that stopped being available is shown, but no longer chosen.
+                const isSelected = selectable && selected === d.date;
+                const dayNumber = Number(d.date.slice(8));
+                // L5: unavailable days stay in sequence for orientation: dashed, crossed out and readable (not faded).
+                return (
+                  <label
+                    key={d.date}
+                    className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 text-center transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-card ${
+                      !selectable
+                        ? "cursor-not-allowed border border-dashed border-border bg-muted"
+                        : isSelected
+                          ? "border border-primary bg-primary text-primary-foreground"
+                          : "cursor-pointer border border-input bg-background hover:border-primary"
+                    }`}
+                  >
+                    <span className={`text-lg font-extrabold leading-none sm:text-2xl ${selectable ? "" : "text-muted-foreground line-through decoration-1"}`}>
+                      {dayNumber}
+                    </span>
+                    {isSelected ? (
+                      <>
+                        <span className="hidden text-xs font-semibold leading-tight sm:block">Chosen</span>
+                        <Check aria-hidden="true" className="h-3.5 w-3.5 sm:hidden" />
+                      </>
+                    ) : !selectable ? (
+                      <span className="hidden text-xs leading-tight text-muted-foreground sm:block">{label}</span>
+                    ) : dayNumber === 1 ? (
+                      <span className="text-xs leading-tight text-muted-foreground">{monthShort(d.date)}</span>
+                    ) : null}
+                    <input
+                      type="radio"
+                      name="booking-day"
+                      aria-label={`${dateLabel(d.date)}: ${label}`}
+                      checked={isSelected}
+                      disabled={!selectable}
+                      onChange={() => onSelect(d.date)}
+                      className="absolute inset-0 h-full w-full cursor-[inherit] opacity-0"
+                    />
+                  </label>
+                );
+              })}
+              {Array.from({ length: trail }, (_, i) => faded(addDays(days[days.length - 1].date, i + 1)))}
+            </div>
           </fieldset>
+          <p className="mt-3 text-sm text-muted-foreground">Crossed-out days are fully booked or closed.</p>
         </>
       )}
 
@@ -153,7 +189,7 @@ export function DayPicker({ data, error, onRetry, selected, onSelect, fromDate, 
           type="button"
           onClick={() => onPage(addDays(fromDate, -DAYS_PER_PAGE) < today ? today : addDays(fromDate, -DAYS_PER_PAGE))}
           disabled={fromDate <= today}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+          className={pager}
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           Earlier days
@@ -162,14 +198,14 @@ export function DayPicker({ data, error, onRetry, selected, onSelect, fromDate, 
           type="button"
           onClick={() => onPage(addDays(fromDate, DAYS_PER_PAGE))}
           disabled={addDays(fromDate, DAYS_PER_PAGE) > lastDay}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+          className={pager}
         >
           <CalendarDays className="h-4 w-4" aria-hidden="true" />
           Later days
         </button>
       </div>
 
-      <div className="mt-4 flex items-start gap-2.5 rounded border border-border/60 bg-[#121214] p-3 text-sm text-muted-foreground">
+      <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-border/60 bg-muted p-3 text-sm text-muted-foreground">
         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         <p>
           {notice ?? "Choosing a day doesn't hold a place. Your place is set when you send your booking request."}
