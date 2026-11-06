@@ -154,7 +154,7 @@ test("server refusals of an upload read clearly; only unconfirmed outcomes retry
     message: "This booking cannot take a screenshot now. Please contact the shop.", retrySame: false, signedOut: false,
   });
   assert.deepEqual(proofUploadError(error("UNAUTHENTICATED")), {
-    message: "Your booking page closed. Enter your private code again.", retrySame: false, signedOut: true,
+    message: "Your booking page closed. Enter your reference code and last name again.", retrySame: false, signedOut: true,
   });
   assert.deepEqual(proofUploadError(error("RATE_LIMITED", { commitState: "UNKNOWN", retryAfterSeconds: 42 })), {
     message: "Too many tries. Wait 42 seconds, then retry the same screenshot.", retrySame: true, signedOut: false,
@@ -188,7 +188,7 @@ test("cancel and reschedule errors: unconfirmed retries the same key; a changed 
   assert.equal(manageActionError(error("DAY_CLOSED", { commitState: "NOT_COMMITTED" })).message, "That day is no longer available. Choose another day.");
   const out = manageActionError(error("UNAUTHENTICATED"));
   assert.equal(out.signedOut, true);
-  assert.equal(out.message, "Your booking page closed. Enter your private code again.");
+  assert.equal(out.message, "Your booking page closed. Enter your reference code and last name again.");
 });
 
 test("the saved code file holds the code, reference, day and where to use it; no name or phone", () => {

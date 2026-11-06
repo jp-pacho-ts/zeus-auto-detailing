@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, FileText, LogOut, RefreshCw, X } from "lucide-react";
+import { LogOut, RefreshCw, X } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { isMultiDay } from "@/components/booking/day-booking";
 import { DayPicker, dateLabel, todayInManila } from "@/components/booking/day-picker";
@@ -15,12 +15,10 @@ import { reveal } from "@/components/booking/reveal";
 import {
   MANAGE_HEADERS,
   canSendProof,
-  codeFromText,
   freezeRequest,
   isAvailabilityData,
   isManagedView,
   isMutationData,
-  isSessionData,
   manageActionError,
   parseLifecycle,
   sendFrozen,
@@ -52,10 +50,7 @@ export function ManageBooking() {
   // P1-32: the masked phone and email shown after "reference code + last name" (never the full details).
   const [lookupContact, setLookupContact] = React.useState<ManagedLookupData["contact"] | null>(null);
   const [multiDay, setMultiDay] = React.useState(false);
-  const [code, setCode] = React.useState("");
-  const [codeError, setCodeError] = React.useState("");
   const [codeNotice, setCodeNotice] = React.useState("");
-  const [codePending, setCodePending] = React.useState(false);
   const [mode, setMode] = React.useState<Mode>("view");
   const [action, setAction] = React.useState<Action | null>(null);
   const [actionError, setActionError] = React.useState("");
@@ -70,7 +65,6 @@ export function ManageBooking() {
   // Synchronous guards (review F1): handlers from one render cannot both pass a state check, so a
   // rapid repeat tap is refused here, before any key is minted or request sent.
   const actionBusy = React.useRef(false);
-  const codeBusy = React.useRef(false);
   // The unconfirmed change, if any: only its own retry may run until it settles (same key).
   const unconfirmedAction = React.useRef<Action | null>(null);
 
@@ -150,8 +144,8 @@ export function ManageBooking() {
   }, [mode, bookingId, fromDate, daysKey, toCode]);
 
   React.useEffect(() => {
-    if (actionError || codeError) alertRef.current?.focus();
-  }, [actionError, codeError]);
+    if (actionError) alertRef.current?.focus();
+  }, [actionError]);
 
   // P1-19 W7: an opened panel and a finished change come into view with focus on their heading.
   React.useEffect(() => {
@@ -161,51 +155,6 @@ export function ManageBooking() {
   React.useEffect(() => {
     if (done) reveal("manage-result");
   }, [done]);
-
-  const openCode = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (codeBusy.current) return;
-    setCodeNotice("");
-    const accessToken = codeFromText(code);
-    if (!accessToken) {
-      setCodeError("Enter your full private code. It is long: paste it, or open the file you saved.");
-      return;
-    }
-    codeBusy.current = true;
-    setCodePending(true);
-    setCodeError("");
-    try {
-      const result = await sendFrozen(fetch, freezeRequest("/api/bookings/manage/session", { accessToken }), isSessionData);
-      if (result.ok) {
-        setCode("");
-        setView(result.data.booking);
-        setPhase("booking");
-        return;
-      }
-      const e = result.error;
-      setCodeError(
-        e.code === "UNAUTHENTICATED" || e.code === "VALIDATION_ERROR"
-          ? "This code did not open a booking. Check that you copied all of it, or contact the shop."
-          : e.code === "RATE_LIMITED"
-            ? waitText(e.retryAfterSeconds)
-            : e.code === "BOOKING_NOT_MANAGEABLE"
-              ? "Please contact the shop about this booking."
-              : "Your booking could not be opened right now. Try again.",
-      );
-    } finally {
-      codeBusy.current = false;
-      setCodePending(false);
-    }
-  };
-
-  const readCodeFile = async (file: File | undefined) => {
-    if (!file) return;
-    if (file.size > 16 * 1024) return setCodeError("This is not a private code file.");
-    const found = codeFromText(await file.text());
-    if (!found) return setCodeError("No private code was found in this file.");
-    setCodeError("");
-    setCode(found);
-  };
 
   const signOut = async () => {
     if (actionBusy.current) return;
@@ -347,6 +296,11 @@ export function ManageBooking() {
 
           {phase === "code" && (
             <>
+              {codeNotice && (
+                <p role="status" className="rounded border border-border/80 bg-[#121214] p-3 text-sm text-foreground">
+                  {codeNotice}
+                </p>
+              )}
               <BookingLookupForm
                 onFound={(data) => {
                   setLookupContact(data.contact);
@@ -354,60 +308,13 @@ export function ManageBooking() {
                   setPhase("booking");
                 }}
               />
-              <form onSubmit={(e) => void openCode(e)} className={panel} aria-labelledby="code-form-title">
-                <h2 id="code-form-title" className="text-lg font-bold text-foreground">
-                  Enter your private code
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  You got this long code when you booked. Paste it below, or open the file you saved. Your booking reference
-                  (ZEUS-…) is not the private code.
-                </p>
-                {codeNotice && (
-                  <p role="status" className="mt-4 rounded border border-border/80 bg-[#121214] p-3 text-sm text-foreground">
-                    {codeNotice}
-                  </p>
-                )}
-                {codeError && (
-                  <div ref={alertRef} tabIndex={-1} role="alert" className="mt-4 rounded border border-destructive p-3 text-sm text-destructive">
-                    {codeError}
-                  </div>
-                )}
-                <label htmlFor="booking-code" className="mt-5 block text-sm font-semibold text-foreground">
-                  Private code
-                </label>
-                <textarea
-                  id="booking-code"
-                  name="booking-code"
-                  rows={4}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  autoComplete="off"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  aria-invalid={Boolean(codeError)}
-                  className="mt-2 w-full rounded border border-input bg-card px-4 py-3 font-mono text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <button type="submit" disabled={codePending || !code.trim()} className={primary}>
-                    {codePending ? "Opening…" : "Open my booking"}
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                  <label className={secondary + " cursor-pointer"}>
-                    <FileText className="h-4 w-4" aria-hidden="true" />
-                    Open saved file
-                    <input type="file" accept=".txt,text/plain" className="sr-only" onChange={(e) => void readCodeFile(e.target.files?.[0])} />
-                  </label>
-                </div>
-              </form>
-
               <section aria-labelledby="lost-title" className={panel}>
                 <h2 id="lost-title" className="text-base font-bold text-foreground">
-                  Lost your code?
+                  Can&apos;t open your booking?
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  For your privacy, a booking can&apos;t be opened with its reference or phone number. Contact the shop with your
-                  booking reference and they will help you.
+                  Check that your reference code and last name are spelled as when you booked. For your privacy, a booking can&apos;t
+                  be opened with a phone number. Contact the shop with your booking reference and they will help you.
                 </p>
                 <ContactShop />
               </section>

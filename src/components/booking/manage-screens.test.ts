@@ -41,26 +41,18 @@ const view = (o: Partial<ManagedDayBookingView> = {}): ManagedDayBookingView => 
 });
 const noop = () => {};
 
-test("confirmation: the management code is shown with Copy, Download and Print and a save-it warning", () => {
-  const markup = html(ManagementCode, { referenceCode: "ZEUS-TEST01", bookingDate: "2026-11-03", access: { accessToken: TOKEN, expiresAt: "2026-11-04T16:00:00.000Z" } });
-  const t = text(markup);
-  assert.ok(t.includes(TOKEN), "the code itself is visible");
-  // P1-19 W6 (Ruling R1): a "private code", explained honestly (this browser stays signed in for 24 hours).
-  assert.match(t, /Your private code/);
-  assert.match(t, /Save the private code to open it on another phone or later\./);
-  assert.match(t, /Copy code/);
-  assert.match(t, /Download code/);
-  assert.match(t, /Print code/);
-  assert.match(t, /Open my booking page/);
-  // The code never appears in a link, image or form target, and the page link has no parameters.
-  for (const h of hrefs(markup)) assert.ok(!h.includes(TOKEN) && !/[?#]/.test(h), h);
-  assert.ok(hrefs(markup).includes("/book/manage"));
-});
-
-test("confirmation without a code says to contact the shop instead", () => {
-  const t = text(html(ManagementCode, { referenceCode: "ZEUS-TEST01", bookingDate: "2026-11-03", access: null }));
-  assert.match(t, /contact the shop/);
-  assert.doesNotMatch(t, /Copy code|Download code/);
+test("confirmation (P1-48): no private code, no Copy/Download/Print code; it points to reference code and last name", () => {
+  for (const access of [{ accessToken: TOKEN, expiresAt: "2026-11-04T16:00:00.000Z" }, null]) {
+    const markup = html(ManagementCode, { referenceCode: "ZEUS-TEST01", bookingDate: "2026-11-03", access });
+    const t = text(markup);
+    assert.ok(!t.includes(TOKEN) && !markup.includes(TOKEN), "the code is not in the page");
+    assert.doesNotMatch(t, /private code|Copy code|Download code|Print code/i);
+    assert.match(t, /Manage your booking/);
+    assert.match(t, /ZEUS-TEST01/);
+    assert.match(t, /last name/);
+    assert.ok(hrefs(markup).includes("/book/manage"));
+    for (const h of hrefs(markup)) assert.ok(!/[?#]/.test(h), h);
+  }
 });
 
 test("payment instructions: both accounts from brand.ts with their QR copies; optional; no amounts", () => {

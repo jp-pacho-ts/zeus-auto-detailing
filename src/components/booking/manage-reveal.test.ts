@@ -92,13 +92,13 @@ test("W12: how to pay comes before the screenshot upload, and asks for the refer
   assert.match(t, /note/);
 });
 
-test("W6 (Ruling R1): the private code is explained honestly; changes-closed is said plainly", () => {
+test("P1-48: the confirmation points to reference code and last name, never shows the private code; changes-closed is said plainly", () => {
   const access = { accessToken: "private.code", expiresAt: "2026-11-04T16:00:00.000Z" };
   const text = (now: Date) => renderToStaticMarkup(createElement(ManagementCode, { referenceCode: "ZEUS-TEST01", bookingDate: "2026-11-03", access, now })).replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'");
   const early = text(new Date("2026-11-01T02:00:00.000Z"));
-  assert.match(early, /Your private code/);
-  assert.match(early, /This phone and browser open your booking without it for 24 hours/);
-  assert.doesNotMatch(early, /shown only on this page/i);
+  assert.match(early, /Manage your booking/);
+  assert.match(early, /reference code\s+ZEUS-TEST01\s+and your last name/);
+  assert.doesNotMatch(early, /private code|private\.code/i);
   const late = text(new Date("2026-11-02T10:00:00.000Z")); // 18:00 Manila the day before
   assert.match(late, /Online changes for this booking are closed/);
 });

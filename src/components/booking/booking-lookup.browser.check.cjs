@@ -61,7 +61,7 @@ test('the Manage booking page: reference code + last name, one generic failure, 
       const form = page.getByRole('form', { name: 'Find your booking' }).or(page.locator('form[aria-labelledby="lookup-title"]'));
       await form.waitFor();
       assert.equal(await page.getByRole('heading', { name: 'Find your booking' }).count(), 1, width + 'px the lookup form');
-      assert.equal(await page.getByRole('heading', { name: 'Enter your private code' }).count(), 1, width + 'px the private-code form is still there');
+      assert.equal(await page.getByRole('heading', { name: 'Enter your private code' }).count(), 0, width + 'px the private-code form is gone');
       await shot(page, `p132-lookup-${width}`);
       const submit = form.getByRole('button', { name: 'Find my booking' });
       // A wrong name: the one generic answer, and the form stays usable.
