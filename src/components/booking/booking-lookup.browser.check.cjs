@@ -39,7 +39,7 @@ test('the Manage booking page: reference code + last name, one generic failure, 
         const request = route.request(), u = request.url();
         if (u.startsWith('https://challenges.cloudflare.com/')) {
           // A Turnstile that hands back a fresh token as soon as it is rendered.
-          return route.fulfill({ contentType: 'text/javascript', body: "window.turnstile={render(el,o){setTimeout(()=>o.callback('synthetic-'+Math.random()),30);return 'w'+Math.random()},remove(){}};" });
+          return route.fulfill({ contentType: 'text/javascript', body: "window.turnstile={render(el,o){const b=document.createElement('div');b.setAttribute('data-widget','1');b.style.cssText=o.size==='compact'?'width:150px;height:140px':'width:300px;height:65px';el.appendChild(b);setTimeout(()=>o.callback('synthetic-'+Math.random()),30);return 'w'+Math.random()},remove(el2){}};" });
         }
         if (!u.startsWith(origin + '/')) return route.abort();
         if (new URL(u).pathname === '/api/bookings/manage/lookup' && request.method() === 'POST') {
@@ -62,6 +62,37 @@ test('the Manage booking page: reference code + last name, one generic failure, 
       await form.waitFor();
       assert.equal(await page.getByRole('heading', { name: 'Find your booking' }).count(), 1, width + 'px the lookup form');
       assert.equal(await page.getByRole('heading', { name: 'Enter your private code' }).count(), 0, width + 'px the private-code form is gone');
+      // P1-50: no top bar; one "Back to home" link to the landing page, first thing the keyboard reaches, with a visible ring.
+      assert.equal(await page.locator('header').count(), 0, width + 'px no top bar');
+      const home = page.getByRole('link', { name: 'Back to home' });
+      assert.equal(await home.count(), 1, width + 'px one back-to-home link');
+      assert.equal(await home.getAttribute('href'), '/', width + 'px it goes to the landing page');
+      assert.ok((await home.boundingBox()).height >= 44, width + 'px touch target is at least 44 px high');
+      await page.evaluate(() => document.activeElement && document.activeElement.blur());
+      await page.keyboard.press('Tab');
+      assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.textContent.trim()), 'Back to home', width + 'px Tab reaches it first');
+      assert.ok((await home.evaluate((el) => getComputedStyle(el).boxShadow)) !== 'none', width + 'px it shows a visible focus ring');
+      await shot(page, `p150-home-focus-${width}`);
+      await page.locator('body').click({ position: { x: 1, y: 1 } });
+      const radius = await page.getByRole('link', { name: /Call the shop/ }).evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius));
+      assert.ok(radius >= 10 && radius <= 14, width + 'px the help buttons are slightly rounded: ' + radius);
+      // P1-50 boarding pass: the logo, the security check and the button are on the stub, the stub holds a real-size (300 px) widget
+      // without clipping, and nothing scrolls sideways.
+      const stub = form.locator('[data-part=stub]');
+      assert.equal(await stub.locator('img').count(), 1, width + 'px the logo is on the stub');
+      assert.equal(await stub.getByRole('button', { name: 'Find my booking' }).count(), 1, width + 'px the button is on the stub');
+      assert.equal(await form.getByText('It starts with ZEUS- and is in your confirmation.').count(), 1, width + 'px the reference hint');
+      await stub.locator('[data-widget]').waitFor();
+      const fit = await page.evaluate(() => { const s = document.querySelector('[data-part=stub]').getBoundingClientRect(), w = document.querySelector('[data-widget]').getBoundingClientRect(); return { inside: w.left >= s.left - 0.5 && w.right <= s.right + 0.5 && w.bottom <= s.bottom + 0.5, widget: w.width, scrolls: document.scrollingElement.scrollWidth > document.scrollingElement.clientWidth }; });
+      assert.equal(fit.inside, true, width + 'px the security check fits inside the stub');
+      assert.equal(fit.widget, 300, width + 'px a normal-size widget');
+      assert.equal(fit.scrolls, false, width + 'px no sideways scroll on the ticket');
+      const order = await page.evaluate(() => { const f = document.querySelector('#lookup-last-name').getBoundingClientRect(), s = document.querySelector('[data-part=stub]').getBoundingClientRect(); return { wide: s.left >= f.right - 1, narrow: s.top >= f.bottom - 1 }; });
+      assert.ok(width >= 768 ? order.wide : order.narrow, width + 'px the stub is beside the fields on desktop and below them on a phone');
+      // Keyboard: Tab runs reference, last name, then the button, each with a visible focus ring.
+      await page.locator('#lookup-reference').focus();
+      assert.ok((await page.locator('#lookup-reference').evaluate((el) => getComputedStyle(el).boxShadow)) !== 'none', width + 'px the focused field shows a ring');
+      await shot(page, `p150-focus-${width}`);
       await shot(page, `p132-lookup-${width}`);
       const submit = form.getByRole('button', { name: 'Find my booking' });
       // A wrong name: the one generic answer, and the form stays usable.

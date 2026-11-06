@@ -10,7 +10,7 @@ import { deferred, mountHooks } from "./render-hooks.fixture";
 import { DepositProofSection } from "./deposit-proof";
 import { ManageBooking } from "./manage-booking-page";
 import { BookingLookupForm } from "./booking-lookup-form";
-import { ManagedBookingDetails } from "./managed-booking-details";
+import { ContactShop, ManagedBookingDetails } from "./managed-booking-details";
 import { DayPicker } from "./day-picker";
 
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
@@ -187,6 +187,37 @@ test("P1-48: signed out, the page asks only for reference code and last name; th
   assert.equal(h.all().find((el) => el.props.id === "booking-code"), undefined);
   assert.doesNotMatch(h.text(), /private code|Open saved file|Lost your code/i);
   assert.ok(h.child(BookingLookupForm), "the reference code and last name form is shown");
+});
+
+test("P1-50: signed out, the help sits under the ticket as 'Can't find it?' with Call and Messenger; the old box is gone", async () => {
+  stubFetch({
+    "GET /api/bookings/manage": [() => json({ ok: false, error: { code: "UNAUTHENTICATED", message: "x", fieldErrors: {}, retryable: false, commitState: "NOT_APPLICABLE", currentQuote: null, currentBooking: null, retryAfterSeconds: null } }, 401)],
+    "GET /api/catalog": [() => json({ ok: false })],
+  });
+  const h = mountHooks(ManageBooking, {});
+  await h.settle();
+  assert.match(h.text(), /Can't find it\?/);
+  assert.doesNotMatch(h.text(), /Can't open your booking/);
+  assert.ok(h.child(ContactShop), "the Call and Messenger buttons are the shared ContactShop");
+  assert.match(h.text(), /Enter the reference code from your confirmation and the last name you booked with\./);
+});
+
+test("P1-50: no top bar in either state; one 'Back to home' link to the landing page", async () => {
+  stubFetch({
+    "GET /api/bookings/manage": [() => json({ ok: false, error: { code: "UNAUTHENTICATED", message: "x", fieldErrors: {}, retryable: false, commitState: "NOT_APPLICABLE", currentQuote: null, currentBooking: null, retryAfterSeconds: null } }, 401)],
+    "GET /api/catalog": [() => json({ ok: false })],
+  });
+  const out = mountHooks(ManageBooking, {});
+  await out.settle();
+  const { h: inn } = await openBooking();
+  for (const [name, h] of [["signed out", out], ["signed in", inn]] as const) {
+    assert.equal(h.all().find((el) => el.type === "header"), undefined, name + ": no header bar");
+    const home = h.all().filter((el) => el.props.href === "/");
+    assert.equal(home.length, 1, name + ": exactly one link to the landing page (no logo link, no X)");
+    assert.match(h.text(), /Back to home/);
+    assert.doesNotMatch(h.text(), /Return to home/);
+  }
+  assert.ok(inn.button("Sign out"), "Sign out stays on the signed-in page");
 });
 
 test("F1: sign out: a double tap sends one DELETE", async () => {
