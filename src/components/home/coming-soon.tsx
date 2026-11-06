@@ -36,8 +36,8 @@ export function ComingSoon() {
           <h1 id="coming-soon-title" aria-label="Coming soon">Coming<br />soon<span>.</span></h1>
           <p className="zeus-lede">Our new website is on the way. The shop is open as usual.</p>
           <div className="zeus-actions">
-            <Link className="zeus-seg zeus-seg--primary" href="/book" prefetch={false}><CalendarCheck aria-hidden="true" />Book now</Link>
-            <Link className="zeus-seg" href="/book/manage" prefetch={false}><Ticket aria-hidden="true" />Manage booking</Link>
+            <Link className="zeus-btn zeus-btn--primary" href="/book" prefetch={false}><CalendarCheck aria-hidden="true" />Book now</Link>
+            <Link className="zeus-btn" href="/book/manage" prefetch={false}><Ticket aria-hidden="true" />Manage booking</Link>
           </div>
         </div>
         <div className="zeus-hero-foot">

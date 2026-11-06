@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { brandConfig } from "@/config/brand";
 import HomePage from "@/app/page";
+import { comingSoonStyles } from "@/components/home/coming-soon.styles";
 
 // P1-46: the redone coming-soon layout. One message, one primary action (Call), social icons, a quiet address.
 const html = () => renderToStaticMarkup(HomePage());
@@ -24,7 +25,7 @@ test("P1-46: one short message says the website is coming and the shop is open, 
   assert.doesNotMatch(content, /zeus-pretitle|zeus-description|zeus-kicker|In progress|getting a new look/);
 });
 
-test("P1-56: Book now (to /book) and Manage booking (to /book/manage) are the two main actions, side by side in one row", () => {
+test("P1-57: Book now (to /book) and Manage booking (to /book/manage) are two separate buttons in one plain row, not one merged pill", () => {
   const content = body();
   const row = content.match(/<div class="zeus-actions">([\s\S]*?)<\/div>/);
   assert.ok(row, "actions row present");
@@ -32,11 +33,30 @@ test("P1-56: Book now (to /book) and Manage booking (to /book/manage) are the tw
   assert.equal(links.length, 2, "exactly two actions");
   assert.match(links[0], /href="\/book"/);
   assert.match(links[0], />Book now<\/a>/);
-  assert.match(links[0], /zeus-seg--primary/);
+  assert.match(links[0], /zeus-btn--primary/);
   assert.match(links[1], /href="\/book\/manage"/);
   assert.match(links[1], />Manage booking<\/a>/);
-  assert.doesNotMatch(links[1], /zeus-seg--primary/, "Manage booking is the quieter segment");
-  for (const link of links) assert.match(link, /<svg\b[^>]*aria-hidden="true"/, "decorative icon before the label");
+  assert.doesNotMatch(links[1], /zeus-btn--primary/, "Manage booking is the secondary button");
+  for (const link of links) {
+    assert.match(link, /class="zeus-btn\b/, "each link is its own button");
+    assert.match(link, /<svg\b[^>]*aria-hidden="true"/, "decorative icon before the label");
+  }
+  // The row is only a gap holder: no shared fill, border, radius, animation or divider (P1-57).
+  const rowRule = comingSoonStyles.match(/\.zeus-actions\{[^}]*\}/);
+  assert.ok(rowRule, "row rule present");
+  assert.doesNotMatch(rowRule[0], /background|border|animation|box-shadow/);
+  assert.doesNotMatch(comingSoonStyles, /zeus-btn \+ \.zeus-btn::before/, "no divider");
+});
+
+test("P1-57: both buttons glow (a gold halo that breathes and a travelling edge) and the glow is still when motion is reduced", () => {
+  const button = comingSoonStyles.match(/\.zeus-btn\{[^}]*\}/);
+  assert.ok(button, "button rule present");
+  assert.match(button[0], /box-shadow:/, "halo");
+  assert.match(button[0], /animation:[^;}]*zeus-edge-spin[^;}]*zeus-glow-breathe/, "edge sweep and glow pulse");
+  assert.match(comingSoonStyles, /\.zeus-btn--primary\{[^}]*(linear|gradient)/, "primary has a gold gradient face");
+  const reduced = comingSoonStyles.slice(comingSoonStyles.indexOf("@media(prefers-reduced-motion:reduce)"));
+  assert.match(reduced, /\.zeus-btn\{[^}]*animation:none/);
+  assert.match(reduced, /--zeus-glow:/, "a fixed glow level");
 });
 
 test("P1-56: Call is a phone icon inside the social row with its tel link, a spoken name with the number, a decorative icon and no visible number", () => {

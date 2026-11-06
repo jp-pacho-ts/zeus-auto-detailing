@@ -100,67 +100,80 @@ export const comingSoonStyles = `
   color:var(--paper);
   max-width:30ch}
 
-/* P1-56: one dark pill with two segments (Book now, Manage booking), a thin divider and a gold edge whose highlight
-   travels around it. The edge is a conic gradient on an animated angle, painted in the border box behind the dark
-   inner fill, so it needs no extra element and no script. */
+/* P1-57: two separate round buttons side by side. Book now is the gold one, Manage booking the dark one. Each has a
+   thin bright edge that travels around its border (a conic gradient on an animated angle, painted in the border box
+   behind the fill) and a gold halo that breathes. The halo level is a registered number, so hover and focus can raise
+   it with a transition without fighting the animation. */
 @property --zeus-edge{
   syntax:'<angle>';
   inherits:false;
   initial-value:0deg}
+@property --zeus-glow{
+  syntax:'<number>';
+  inherits:false;
+  initial-value:.8}
+@property --zeus-boost{
+  syntax:'<number>';
+  inherits:false;
+  initial-value:1}
 @keyframes zeus-edge-spin{
   to{--zeus-edge:360deg}}
+@keyframes zeus-glow-breathe{
+  from{--zeus-glow:.55}
+  to{--zeus-glow:1}}
 .zeus-actions{
   display:flex;
-  align-items:stretch;
-  width:max-content;
-  max-width:100%;
-  min-height:54px;
-  padding:1px;
-  border-radius:999px;
-  background:
-    linear-gradient(#100f0d,#100f0d) padding-box,
-    conic-gradient(from var(--zeus-edge),#f2eee724 0deg,#f2eee724 200deg,#c58b1b 250deg,#e8b44a 295deg,#fbe3a0 330deg,#e8b44a 345deg,#f2eee724 360deg) border-box;
-  border:1px solid transparent;
-  box-shadow:0 10px 40px #0b0b0c80,0 0 22px #c3903024;
-  animation:zeus-edge-spin 4s linear infinite}
-.zeus-seg{
+  flex-wrap:wrap;
+  gap:12px;
+  max-width:100%}
+.zeus-btn{
+  --zeus-halo:232 180 74;
+  --zeus-halo-alpha:.28;
   position:relative;
   flex:1 1 auto;
   display:inline-flex;
   align-items:center;
   justify-content:center;
   gap:8px;
-  min-height:52px;
   min-width:0;
+  min-height:52px;
   padding:8px 26px;
+  border:2px solid transparent;
   border-radius:999px;
   font-size:.9375rem;
   font-weight:600;
   line-height:1.25;
   text-align:center;
-  color:var(--mute);
-  transition:background .2s,color .2s}
-.zeus-seg svg{
+  background:
+    linear-gradient(#100f0d,#100f0d) padding-box,
+    conic-gradient(from var(--zeus-edge),#f2eee724 0deg,#f2eee724 200deg,#c58b1b 250deg,#e8b44a 295deg,#fbe3a0 330deg,#e8b44a 345deg,#f2eee724 360deg) border-box;
+  box-shadow:
+    0 0 calc(18px * var(--zeus-boost)) rgb(var(--zeus-halo) / calc(var(--zeus-halo-alpha) * var(--zeus-glow) * var(--zeus-boost))),
+    0 10px 30px #0b0b0c80;
+  animation:zeus-edge-spin 4s linear infinite,zeus-glow-breathe 3.6s ease-in-out infinite alternate;
+  transition:--zeus-boost .25s,filter .2s,color .2s}
+.zeus-btn svg{
   width:18px;
   height:18px;
   flex:none;
   color:#e8b44a}
-.zeus-seg--primary{
-  color:#fbe3a0;
-  background:#c3903026}
-.zeus-seg + .zeus-seg::before{
-  content:"";
-  position:absolute;
-  left:-1px;
-  top:14px;
-  bottom:14px;
-  width:1px;
-  background:#f2eee73d}
-.zeus-seg:hover{
-  background:#c3903040;
+.zeus-btn--primary{
+  --zeus-halo-alpha:.6;
+  background:
+    linear-gradient(135deg,#fbe3a0 0%,#e8b44a 55%,#c58b1b 100%) padding-box,
+    conic-gradient(from var(--zeus-edge),#c58b1b 0deg,#c58b1b 200deg,#e8b44a 250deg,#fff6dc 330deg,#e8b44a 350deg,#c58b1b 360deg) border-box}
+/* .zeus-coming-soon a{color:inherit} (above) outranks a lone class, so the label colours need the parent in the selector */
+.zeus-coming-soon .zeus-btn{
+  color:var(--paper)}
+.zeus-coming-soon .zeus-btn--primary{
+  color:#1a1305}
+.zeus-btn--primary svg{
+  color:#1a1305}
+.zeus-btn:hover,.zeus-coming-soon a.zeus-btn:focus-visible{
+  --zeus-boost:1.7;
+  filter:brightness(1.1)}
+.zeus-coming-soon .zeus-btn:not(.zeus-btn--primary):hover{
   color:#fff3d0}
-.zeus-coming-soon a.zeus-seg:focus-visible{
-  outline-offset:-4px}
 
 /* Bottom row: three 44px icon links (Facebook, Instagram, location) side by side, with the logo centred on that row.
    The address is no longer text; the location link's name and tooltip carry it (P1-47). */
@@ -275,8 +288,9 @@ export const comingSoonStyles = `
     grid-row:4}
   .zeus-social{
     gap:8px}
-  .zeus-seg{
-    padding:8px 14px;
+  .zeus-btn{
+    padding:8px 12px;
+    font-size:.9rem;
     gap:6px}
   /* the logo takes what is left of the row beside the four icons (200px with 8px gaps), between 80px and 135px wide */
   .zeus-hero-logo{
@@ -290,7 +304,7 @@ export const comingSoonStyles = `
       linear-gradient(0deg,#0b0b0cf5 0%,#0b0b0ce6 20%,#0b0b0c88 32%,transparent 44%)}
 }
 
-/* Tablets: the action pill keeps its natural width instead of spanning the whole row. */
+/* Tablets: the two buttons keep a sensible width instead of spanning the whole row. */
 @media(min-width:561px) and (max-width:800px){
   .zeus-actions{
     justify-self:start;
@@ -311,11 +325,6 @@ export const comingSoonStyles = `
 }
 
 @media(max-width:340px){
-  .zeus-seg{
-    padding:8px;
-    font-size:.875rem}
-  .zeus-seg svg{
-    display:none}
   .zeus-hero{
     padding-left:24px;
     padding-right:24px}
@@ -324,11 +333,12 @@ export const comingSoonStyles = `
 }
 
 @media(prefers-reduced-motion:reduce){
-  .zeus-seg,.zeus-social a{
+  .zeus-btn,.zeus-social a{
   transition:none}
-.zeus-actions{
+.zeus-btn{
   animation:none;
-  --zeus-edge:20deg}
+  --zeus-edge:20deg;
+  --zeus-glow:.8}
 .zeus-hero-video{
   transition:none}
 }
