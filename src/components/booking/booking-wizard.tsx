@@ -84,8 +84,10 @@ const optionCard = (selected: boolean) =>
   (selected ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary");
 const changeLink =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-end rounded-xl px-2 text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+// P1-55 (LE): Back is as tall as Continue and Submit: both use this height.
+const actionHeight = "min-h-[52px]";
 const outlineButton =
-  "inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl border border-input px-4 text-sm font-semibold text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-1 rounded-xl border border-input px-4 text-sm font-semibold text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 const pillLink =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-input text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const groupTitle = "mb-4 border-b border-border pb-2 text-sm font-bold text-primary";
@@ -529,7 +531,7 @@ export function BookingWizard({
         }
       }}
       disabled={primaryDisabled}
-      className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+      className={actionHeight + " inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"}
     >
       {pending ? "Submitting request…" : step === 4 ? (uncertain ? "Retry same submission" : "Submit booking request") : "Continue"}
       <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -541,7 +543,7 @@ export function BookingWizard({
         type="button"
         disabled={locked}
         onClick={() => goTo(step - 1)}
-        className={outlineButton}
+        className={outlineButton + " " + actionHeight}
       >
         <ChevronLeft aria-hidden="true" className="h-4 w-4" />
         Back
@@ -1457,7 +1459,7 @@ export function BookingWizard({
               </div>
             </div>
 
-            <Link href="/" className={outlineButton + " no-print"}>
+            <Link href="/" className={outlineButton + " min-h-[44px] no-print"}>
               Return to home
             </Link>
           </div>
