@@ -6,7 +6,7 @@ import { basisPointsToPercent } from "@/lib/commission";
 import type { AdminTeam, AdminTeamPerson, AdminTeamRemoveOutcome } from "@/types/admin-contracts";
 import { adminRequest, AdminRequestError } from "../bookings/client";
 import { fieldClass } from "../bookings/use-admin-resource";
-import { canManage, ratePhrase, removeResult, removeWarning } from "./team-model";
+import { ADD_STAFF, ratePhrase, removeResult, removeWarning, TEAM_EMPTY, TEAM_INTRO } from "./team-model";
 
 export function describeError(e: unknown): string {
   if (e instanceof AdminRequestError) {
@@ -16,8 +16,8 @@ export function describeError(e: unknown): string {
   return "Could not save. Please retry.";
 }
 
-type Form = { name: string; phone: string; email: string; rate: string };
-const EMPTY: Form = { name: "", phone: "", email: "", rate: "" };
+type Form = { name: string; phone: string; rate: string };
+const EMPTY: Form = { name: "", phone: "", rate: "" };
 const buttonClass = "inline-flex min-h-[44px] items-center justify-center rounded border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50";
 
 export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unknown }) {
@@ -52,7 +52,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
 
   function open(person: AdminTeamPerson | "new") {
     setError(null);
-    setForm(person === "new" ? EMPTY : { name: person.name, phone: person.phone, email: person.email ?? "", rate: person.commissionRateBp === null ? "" : basisPointsToPercent(person.commissionRateBp) });
+    setForm(person === "new" ? EMPTY : { name: person.name, phone: person.phone, rate: person.commissionRateBp === null ? "" : basisPointsToPercent(person.commissionRateBp) });
     setEditing(person);
   }
 
@@ -64,11 +64,11 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
     const ok = await run(async () => {
       if (target === "new") {
         await adminRequest("/api/admin/team", { method: "POST", body: {
-          name: form.name, ...(form.phone.trim() ? { phone: form.phone } : {}), ...(form.email.trim() ? { email: form.email } : {}), ...(rate ? { ratePercent: rate } : {}) } });
+          name: form.name, ...(form.phone.trim() ? { phone: form.phone } : {}), ...(rate ? { ratePercent: rate } : {}) } });
         return `${form.name.trim()} was added to the team.`;
       }
       await adminRequest(`/api/admin/team/${target.id}`, { method: "PATCH", body: {
-        expectedRevision: target.revision, name: form.name, ...(form.phone.trim() ? { phone: form.phone } : {}), ...(form.email.trim() ? { email: form.email } : {}), ratePercent: rate ? rate : null } });
+        expectedRevision: target.revision, name: form.name, ...(form.phone.trim() ? { phone: form.phone } : {}), ratePercent: rate ? rate : null } });
       return `${form.name.trim()} was updated.`;
     });
     if (ok) setEditing(null);
@@ -95,14 +95,14 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
       <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>
           <h2 id="team-heading" className="text-base font-bold text-foreground">Team</h2>
-          <p className="text-xs text-muted-foreground">Add detailers, set their commission and take them off the schedule.</p>
+          <p className="text-xs text-muted-foreground">{TEAM_INTRO}</p>
         </div>
-        <Button type="button" variant="gold" className="min-h-[44px]" onClick={() => open("new")}>Add detailer</Button>
+        <Button type="button" variant="gold" className="min-h-[44px]" onClick={() => open("new")}>{ADD_STAFF}</Button>
       </div>
       {notice && <p role="status" className="border-b border-border px-4 py-3 text-sm text-emerald-400 sm:px-6">{notice}</p>}
       {error && !editing && !removing && <p role="alert" className="border-b border-border px-4 py-3 text-sm text-rose-400 sm:px-6">{error}</p>}
       {team.people.length === 0 ? (
-        <p className="p-6 text-sm text-muted-foreground">No one is on the team yet. Add your first detailer to start tracking commissions.</p>
+        <p className="p-6 text-sm text-muted-foreground">{TEAM_EMPTY}</p>
       ) : (
         <ul className="divide-y divide-border">
           {team.people.map((p) => (
@@ -112,26 +112,17 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                   {p.name}
                   {!p.isActive && <span className="ml-2 rounded border border-border px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">Inactive</span>}
                 </p>
-                <p className="break-words text-xs text-muted-foreground">
-                  {p.role === "DETAILER" ? "Detailer" : p.role === "MANAGER" ? "Manager" : "Admin"}
-                  {p.phone ? ` · ${p.phone}` : ""}
+                {p.phone && <p className="break-words text-xs text-muted-foreground">{p.phone}</p>}
+                <p className="text-xs text-muted-foreground">
+                  Commission {ratePhrase(p, team.defaultRateBp)}
+                  {p.openJobs > 0 ? ` · ${p.openJobs} open ${p.openJobs === 1 ? "job" : "jobs"}` : ""}
                 </p>
-                {canManage(p) && (
-                  <p className="text-xs text-muted-foreground">
-                    Commission {ratePhrase(p, team.defaultRateBp)}
-                    {p.openJobs > 0 ? ` · ${p.openJobs} open ${p.openJobs === 1 ? "job" : "jobs"}` : ""}
-                  </p>
-                )}
               </div>
-              {canManage(p) ? (
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" className={buttonClass} disabled={busy} onClick={() => open(p)} aria-label={`Edit ${p.name}`}>Edit</button>
-                  <button type="button" className={buttonClass} disabled={busy} onClick={() => void toggle(p)} aria-label={`${p.isActive ? "Deactivate" : "Reactivate"} ${p.name}`}>{p.isActive ? "Deactivate" : "Reactivate"}</button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={buttonClass} disabled={busy} onClick={() => open(p)} aria-label={`Edit ${p.name}`}>Edit</button>
+                <button type="button" className={buttonClass} disabled={busy} onClick={() => void toggle(p)} aria-label={`${p.isActive ? "Deactivate" : "Reactivate"} ${p.name}`}>{p.isActive ? "Deactivate" : "Reactivate"}</button>
                   <button type="button" className={`${buttonClass} text-rose-400`} disabled={busy} onClick={() => { setError(null); setRemoving(p); }} aria-label={`Remove ${p.name}`}>Remove</button>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">Sign-in accounts are managed by the shop owner.</p>
-              )}
+              </div>
             </li>
           ))}
         </ul>
@@ -139,7 +130,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
 
       <Dialog open={editing !== null} onOpenChange={(o) => { if (!o && !busy) setEditing(null); }}>
         <DialogHeader>
-          <DialogTitle>{editing === "new" ? "Add detailer" : "Edit detailer"}</DialogTitle>
+          <DialogTitle>{editing === "new" ? ADD_STAFF : "Edit staff"}</DialogTitle>
           <DialogDescription>Leave the commission empty to use the shop default of {basisPointsToPercent(team.defaultRateBp)}%.</DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => void save(e)} className="mt-4 space-y-4">
@@ -149,16 +140,13 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
           <label className="block text-xs font-semibold text-muted-foreground">Phone (optional)
             <input className={fieldClass} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} inputMode="tel" maxLength={30} autoComplete="off" />
           </label>
-          <label className="block text-xs font-semibold text-muted-foreground">Email (optional)
-            <input className={fieldClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} type="email" maxLength={254} autoComplete="off" />
-          </label>
           <label className="block text-xs font-semibold text-muted-foreground">Commission percent (optional)
             <input className={fieldClass} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} inputMode="decimal" placeholder="For example 12.5" autoComplete="off" />
           </label>
           {error && <p role="alert" className="text-sm text-rose-400">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" className="min-h-[44px]" disabled={busy} onClick={() => setEditing(null)}>Cancel</Button>
-            <Button type="submit" variant="gold" className="min-h-[44px]" disabled={busy}>{busy ? "Saving..." : editing === "new" ? "Add detailer" : "Save changes"}</Button>
+            <Button type="submit" variant="gold" className="min-h-[44px]" disabled={busy}>{busy ? "Saving..." : editing === "new" ? ADD_STAFF : "Save changes"}</Button>
           </div>
         </form>
       </Dialog>

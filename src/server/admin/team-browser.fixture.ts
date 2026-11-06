@@ -17,6 +17,9 @@
 //   3. node --test src/components/admin/team/team.browser.check.cjs with P120_BROWSER_ORIGIN (the loopback URL), P120_APP_ORIGIN (the .invalid
 //      origin), the credential variables, P137_SHOTS (a scratch folder for screenshots), PLAYWRIGHT_MODULE and P120_CHROME_EXECUTABLE if needed.
 //   The check changes data (it adds, removes and adjusts), so build a fresh database for every run.
+// A sixth booking is left OPEN (pending, today, the online wash plus a tint priced 800.00, nobody assigned): the check assigns a name
+// to it in the booking drawer, then runs this script again with --complete, which finishes that booking through the real services so
+// the commission can be checked on the Commissions screen.
 // Never touches real data: it refuses any non-loopback or non-zeus_t007_ database. Needs T007_TEST_DATABASE_URL,
 // P120_TEST_EMAIL, P120_TEST_PASSWORD, QSA_DETAILER_EMAIL, QSA_DETAILER_PASSWORD.
 import assert from "node:assert/strict";
@@ -35,12 +38,37 @@ const env = (name: string): string => {
   return v;
 };
 
+const manilaToday = () => new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
+
+// --complete: finish the open fixture booking (confirm, bay, start, every line done, complete) with the real clock.
+async function completeOpenBooking(url: string, adminEmail: string) {
+  const db = new PrismaClient({ datasources: { db: { url } } });
+  const app = new PrismaClient({ datasources: { db: { url: runtimeRoleUrl(url) } } });
+  const s = await import("@/server/admin");
+  const admin = await db.staff.findUniqueOrThrow({ where: { email: adminEmail } });
+  const ADMIN: StaffActor = { staffId: admin.id, role: "ADMIN", sessionId: randomUUID() };
+  const o = { db: app };
+  const open = await db.booking.findFirstOrThrow({ where: { status: "PENDING", bookingDate: new Date(manilaToday() + "T00:00:00Z") } });
+  const rev = async () => (await db.booking.findUniqueOrThrow({ where: { id: open.id } })).revision;
+  assert.equal(await db.bookingWorkerAssignment.count({ where: { bookingId: open.id } }), 1, "the check assigned one name first");
+  await s.setBookingStatus(ADMIN, open.id, { expectedRevision: await rev(), status: "CONFIRMED" }, o);
+  const bay = await s.createBay(ADMIN, { name: "Bay open", sortOrder: 99, bayType: "WASH" }, o);
+  await s.setBay(ADMIN, open.id, { expectedRevision: await rev(), date: manilaToday(), bayId: bay.id }, o);
+  await s.setBookingStatus(ADMIN, open.id, { expectedRevision: await rev(), status: "IN_PROGRESS" }, o);
+  for (const l of await db.bookingLineItem.findMany({ where: { bookingId: open.id, removedAt: null } }))
+    await s.setLineStatus(ADMIN, open.id, l.id, { expectedRevision: await rev(), workStatus: "DONE" }, o);
+  await s.setBookingStatus(ADMIN, open.id, { expectedRevision: await rev(), status: "COMPLETED" }, o);
+  console.log("open booking completed");
+  await Promise.all([app.$disconnect(), db.$disconnect()]);
+}
+
 async function main() {
   const url = env("T007_TEST_DATABASE_URL");
   const parsed = new URL(url);
   assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname), "loopback database only");
   assert.match(parsed.pathname, /^\/zeus_t007_/, "the database name must start with zeus_t007_");
   const adminEmail = env("P120_TEST_EMAIL"), adminPassword = env("P120_TEST_PASSWORD");
+  if (process.argv.includes("--complete")) return completeOpenBooking(url, adminEmail);
   const detailerEmail = env("QSA_DETAILER_EMAIL"), detailerPassword = env("QSA_DETAILER_PASSWORD");
 
   const maintenance = new URL(url);
@@ -57,7 +85,7 @@ async function main() {
 
   const adminId = await mapPublisher(db, adminEmail);
   const releaseId = await publish(db, manifest, tooling.stableId);
-  for (const [input, password] of [[{ email: adminEmail }, adminPassword], [{ email: detailerEmail, name: "Synthetic Detailer", role: "DETAILER" as const }, detailerPassword]] as const) {
+  for (const [input, password] of [[{ email: adminEmail }, adminPassword], [{ email: detailerEmail, name: "Synthetic Staff", role: "DETAILER" as const }, detailerPassword]] as const) {
     const result = await setStaffPassword(db, input, password);
     assert.equal(result.ok, true, `credential for ${input.email}: ${JSON.stringify(result)}`);
   }
@@ -129,10 +157,18 @@ async function main() {
   await completedJob("2027-07-03", [ana.id, ben.id], 100_001);
   await completedJob("2027-07-04", [], 50_000);
   await completedJob("2027-07-05", [ana.id], null);
+  {
+    // The open booking for the staff-names flow: pending, today, wash + a tint priced 800.00.
+    const id = await book(manilaToday());
+    const tintId = bySlug(r0(), "regular-tint").id;
+    await s.addLine(ADMIN, id, { expectedRevision: await rev(id), serviceId: tintId, quantity: 1 }, opts);
+    const tint = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: id, serviceId: tintId, removedAt: null } });
+    await s.setLinePrice(ADMIN, id, tint.id, { expectedRevision: await rev(id), priceCentavos: 80_000, reason: "fixture price" }, opts);
+  }
 
   const [{ n }] = await db.$queryRawUnsafe<{ n: number }[]>(`SELECT count(*)::int AS n FROM commission_entries`);
   assert.equal(n, 4, "four entries: Ana 2, Ben 2");
-  console.log("fixture ready: 3 people, 5 completed jobs, 4 commission entries");
+  console.log("fixture ready: 3 people, 5 completed jobs, 1 open booking, 4 commission entries");
   await Promise.all([app.$disconnect(), db.$disconnect(), root.$disconnect()]);
 }
 

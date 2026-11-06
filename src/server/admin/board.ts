@@ -35,7 +35,7 @@ export async function getDayBoard(
         WHERE b."snapshotVersion"='QUEUE_V3' AND b.status IN ('PENDING','CONFIRMED','IN_PROGRESS') AND b."bookingDate"<=$1::date
       ) SELECT jsonb_build_object('date',$1::text,
         'closed',(SELECT jsonb_build_object('reason',d.reason) FROM blocked_dates d WHERE d.date=$1::date AND d."isFullDay" LIMIT 1),
-        'workers',COALESCE((SELECT jsonb_agg(jsonb_build_object('staffId',id,'name',name,'isActive',"isActive") ORDER BY name,id) FROM staff WHERE "isActive"),'[]'),
+        'workers',COALESCE((SELECT jsonb_agg(jsonb_build_object('staffId',id,'name',name,'isActive',"isActive") ORDER BY name,id) FROM staff WHERE "isActive" AND role = 'DETAILER'),'[]'), -- P1-61: staff names only; the admin and managers are never offered as workers
         'queues',(SELECT jsonb_agg(jsonb_build_object('code',q.code,'name',q.name,'bayType',m."bayType",'waiting',COALESCE((SELECT jsonb_agg(c.card ORDER BY c."bookingDate",c."queuePosition",c.id) FROM cards c WHERE c."queueCode"=q.code AND c."bayId" IS NULL),'[]')) ORDER BY q."sortOrder",q.code) FROM booking_queues q JOIN bay_type_queues m ON m."queueCode"=q.code),
         'bays',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',y.id,'name',y.name,'bayType',y."bayType",'sortOrder',y."sortOrder",'isActive',y."isActive",'updatedAt',to_char(y."updatedAt" AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),'cards',COALESCE((SELECT jsonb_agg(c.card ORDER BY c."bookingDate",c."queuePosition",c.id) FROM cards c WHERE c."bayId"=y.id),'[]')) ORDER BY y."sortOrder",y.id) FROM bays y WHERE y."isActive" OR EXISTS(SELECT 1 FROM bay_occupancies o WHERE o."bayId"=y.id)),'[]')) AS board`,
         date,

@@ -101,3 +101,8 @@ export function lineSummary(lines: AdminCommissionLine[]): { counted: string | n
   const not = lines.filter((l) => !l.counted).map((l) => `${part(l)} (${(l.notCountedReason ?? "does not earn commission").replace(/\.$/, "").toLowerCase()})`);
   return { counted: counted.length ? counted.join(", ") : null, notCounted: not.length ? not.join(", ") : null };
 }
+
+/** Team screen copy (P1-61): staff are names only; nobody on this list has a login. Plain words, no account or role labels. */
+export const TEAM_INTRO = "Add the names of your staff. They have no login.";
+export const ADD_STAFF = "Add staff";
+export const TEAM_EMPTY = "No one is on the team yet. Add the names of your staff to start tracking commissions.";

@@ -5,6 +5,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
 const upstream = new URL(process.env.P120_BROWSER_ORIGIN);
@@ -111,13 +112,17 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   assert.match(body, /Ben Cruz[\s\S]*Commission 12\.5%/);
   assert.match(body, /Cleo Santos/);
   await layoutRules(page, 'desktop team');
+  // P1-61: names only. No role labels, no account or email wording, and the plain intro.
+  assert.match(body, /Add the names of your staff\. They have no login\./);
+  assert.doesNotMatch(body, /Detailer|Manager|Admin|Sign-in|sign-in|[Ee]mail|account/, 'the Team screen has no role, sign-in or email words');
   await shot(page, 'team-1440');
 
   // A bad percentage is refused with a plain sentence and the form stays open.
-  await page.getByRole('button', { name: 'Add detailer' }).first().click();
+  await page.getByRole('button', { name: 'Add staff' }).first().click();
+  assert.equal(await dialog.getByLabel(/[Ee]mail/).count(), 0, 'no email field');
   await dialog.getByLabel('Full name').fill('Dora Lim');
   await dialog.getByLabel('Commission percent (optional)').fill('abc');
-  await dialog.getByRole('button', { name: 'Add detailer' }).click();
+  await dialog.getByRole('button', { name: 'Add staff' }).click();
   await dialog.getByRole('alert').waitFor();
   assert.ok((await dialog.getByRole('alert').innerText()).length > 10, 'a plain refusal message is shown');
   await layoutRules(page, 'desktop add dialog');
@@ -125,7 +130,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   // Fix it and save.
   await dialog.getByLabel('Commission percent (optional)').fill('15');
   await dialog.getByLabel('Phone (optional)').fill('+63 917 555 0199');
-  await dialog.getByRole('button', { name: 'Add detailer' }).click();
+  await dialog.getByRole('button', { name: 'Add staff' }).click();
   await page.getByText('Dora Lim was added to the team.').waitFor();
   await page.reload({ waitUntil: 'networkidle' });
   await goToTeam(page);
@@ -306,7 +311,7 @@ test('phone 390: both screens fit, nothing scrolls sideways or as a page, every 
   await layoutRules(page, 'phone team');
   await shot(page, 'team-390');
 
-  await page.getByRole('button', { name: 'Add detailer' }).first().click();
+  await page.getByRole('button', { name: 'Add staff' }).first().click();
   await dialog.waitFor();
   const box = await dialog.locator('> div').nth(1).boundingBox();
   assert.ok(box.x >= 0 && box.x + box.width <= 390 && box.y >= 0 && box.y + box.height <= 844, `the add dialog fits the phone: ${JSON.stringify(box)}`);
@@ -325,6 +330,55 @@ test('phone 390: both screens fit, nothing scrolls sideways or as a page, every 
   await shot(page, 'commissions-adjust-390');
   const rowWidths = await page.evaluate(() => [...document.querySelectorAll('#admin-content li')].map((li) => li.scrollWidth - li.clientWidth));
   assert.ok(rowWidths.every((d) => d <= 1), 'no row is wider than the phone');
+  await context.close();
+  assert.deepEqual(problems, [], 'no page error or console error in any run');
+});
+
+test('staff names flow: a name typed on the Team screen is offered on the booking, assigned there, and credited when the booking completes; the admin is never offered', { timeout: 240_000 }, async () => {
+  const { context, page } = await open(process.env.P120_TEST_EMAIL, process.env.P120_TEST_PASSWORD, { width: 1440, height: 900 }, 'flow');
+  await goToTeam(page);
+  await page.getByRole('button', { name: 'Add staff' }).first().click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Full name').fill('Eve Tan');
+  await dialog.getByRole('button', { name: 'Add staff' }).click();
+  await page.getByText('Eve Tan was added to the team.').waitFor();
+
+  // The booking drawer: the typed name is offered, the admin is not; assign it.
+  await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
+  await page.getByLabel('Board day').waitFor();
+  const card = page.getByRole('region', { name: 'Waiting · Wash', exact: true }).locator('article').first();
+  await card.waitFor();
+  await card.getByRole('button', { name: await card.getAttribute('aria-label'), exact: true }).click();
+  await dialog.getByText('Booking details').waitFor();
+  const picker = dialog.getByLabel('Add assigned worker');
+  await picker.locator('option', { hasText: 'Eve Tan' }).waitFor({ state: 'attached' }); // the picker fills in after the board answers
+  const offered = await picker.locator('option').allInnerTexts();
+  assert.ok(offered.includes('Eve Tan'), 'the typed name is offered: ' + offered.join(', '));
+  assert.ok(!offered.some((n) => /Catalog Test Admin/.test(n)), 'the admin is never offered: ' + offered.join(', '));
+  await picker.selectOption({ label: 'Eve Tan' });
+  await dialog.getByRole('button', { name: 'Assign worker' }).click();
+  await dialog.getByRole('button', { name: 'Remove Eve Tan' }).waitFor();
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached' });
+
+  // Complete that booking through the real services (the fixture script, with the real clock), then read the commission on the screen.
+  const done = spawnSync(process.execPath, ['--require', './src/server/__tests__/register.cjs', 'src/server/admin/team-browser.fixture.ts', '--complete'], { env: process.env, encoding: 'utf8' });
+  assert.equal(done.status, 0, done.stdout + done.stderr);
+  assert.match(done.stdout, /open booking completed/);
+  await page.reload({ waitUntil: 'networkidle' });
+  await goToTeam(page);
+  await page.getByRole('tab', { name: 'Commissions' }).click();
+  await page.getByTestId('default-rate-line').waitFor();
+  await page.getByText('By person').waitFor();
+  await page.locator('#admin-content li', { hasText: 'Eve Tan' }).first().waitFor();
+  const body = await text(page);
+  // The desktop test above changed the shop default to 12%, so the new name earns 12% of the 800.00 tint (96.00), not the original 20%.
+  assert.match(body, /Eve Tan\s*1 job\s*Earned ₱96\.00/, '12% of the 800.00 tint: ' + body.slice(0, 1500));
+  assert.match(body, /12% of ₱800\.00/);
+  assert.match(body, /Commission base ₱800\.00/);
+  assert.match(body, /Counted: Regular Tint ₱800\.00/);
+  assert.match(body, /Not counted: Basic Wash ₱180\.00 \(car wash does not earn commission\)/);
+  await shot(page, 'flow-commission-1440');
   await context.close();
   assert.deepEqual(problems, [], 'no page error or console error in any run');
 });

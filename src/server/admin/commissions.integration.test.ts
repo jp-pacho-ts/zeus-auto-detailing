@@ -779,3 +779,69 @@ test("C29 repair uses the same rule: a mixed booking whose accrual failed is rec
   await s.repairCommissions(ADMIN, opts());
   assert.deepEqual((await entries(job.id)).map((e) => [e.baseCentavos, e.amountCentavos]), [[100_000, 20_000]]);
 });
+
+// ---- P1-61 (LE 2026-11-07): the Team screen holds staff NAMES only; the admin is never staff, never a worker, never credited. ----
+const pickerNames = async (day: string) => (await s.getDayBoard(ADMIN, { date: day }, opts())).workers.map((w) => w.name);
+
+test("C30 the Team list holds only the staff the admin typed: ADMIN and MANAGER rows are never listed", { skip }, async () => {
+  const typed = await person("Typed Name Only");
+  await db.staff.create({ data: { name: "Manager Row", phone: "", email: "p161-manager@example.test", role: "MANAGER" } });
+  const names = (await s.listTeam(ADMIN, opts())).people.map((p) => p.name);
+  assert.ok(names.includes(typed.name), "the typed name is listed");
+  assert.ok(!names.includes("Manager Row"), "a MANAGER row is not listed");
+  assert.ok(!names.includes("Catalog Test Admin"), "the ADMIN row is not listed");
+  assert.ok((await s.listTeam(ADMIN, opts())).people.every((p) => p.role === "DETAILER"));
+});
+
+test("C31 the booking's worker picker lists active staff names only: never the admin, a manager or someone made inactive", { skip }, async () => {
+  const keep = await person("Picker Keep"), gone = await person("Picker Inactive");
+  await s.setPersonActive(ADMIN, gone.id, { expectedRevision: gone.revision, active: false }, opts());
+  const names = await pickerNames("2027-07-10");
+  assert.ok(names.includes("Picker Keep"));
+  assert.ok(!names.includes("Picker Inactive"), "inactive");
+  assert.ok(!names.includes("Manager Row") && !names.includes("Catalog Test Admin"), "admin and manager are never offered");
+  assert.ok(keep.id);
+});
+
+test("C32 the service refuses to assign the admin, a manager, an inactive or an unknown person to a booking, and accepts a typed name", { skip }, async () => {
+  const day = nextDay(), o = at(day);
+  const b = await book(select("S", "basic-wash"), day);
+  await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "CONFIRMED" }, o);
+  const manager = await db.staff.findFirstOrThrow({ where: { role: "MANAGER", email: "p161-manager@example.test" } });
+  const inactive = await person("Assign Inactive");
+  await s.setPersonActive(ADMIN, inactive.id, { expectedRevision: inactive.revision, active: false }, opts());
+  const ok = await person("Assign Ok");
+  for (const [who, label] of [[ADMIN.staffId, "the admin"], [manager.id, "a manager"], [inactive.id, "an inactive name"]] as const)
+    await refused(s.assignWorker(ADMIN, b.id, who, { expectedRevision: await rev(b.id) }, o), "SCHEDULE_CONFLICT", label);
+  await refused(s.assignWorker(ADMIN, b.id, randomUUID(), { expectedRevision: await rev(b.id) }, o), "NOT_FOUND", "unknown");
+  assert.equal(await count("booking_worker_assignments", `"bookingId" = '${b.id}'`), 0, "nothing was assigned by the refusals");
+  await s.assignWorker(ADMIN, b.id, ok.id, { expectedRevision: await rev(b.id) }, o);
+  assert.equal(await count("booking_worker_assignments", `"bookingId" = '${b.id}'`), 1);
+});
+
+test("C33 names typed on the Team screen, assigned to a booking, are credited when it completes: 20%, eligible lines only, shown on the Commissions screen", { skip }, async () => {
+  const a = await s.addPerson(ADMIN, { name: "Flow Ana" }, opts()), b = await s.addPerson(ADMIN, { name: "Flow Ben" }, opts());
+  assert.deepEqual([a.phone, a.email, a.commissionRateBp], ["", null, null], "a name is enough");
+  const job = await shopCompleted([a.id, b.id], [{ slug: "regular-tint", price: 100_001 }], { washPrice: 40_000 });
+  assert.deepEqual((await entries(job.id)).map((e) => [e.staffId, e.baseCentavos, e.rateBp, e.amountCentavos]), [[a.id, 50_001, 2000, 10_000], [b.id, 50_000, 2000, 10_000]], "20% of the tint only; the wash earns nothing");
+  const day = (await header(job.id))!.completedOn.toISOString().slice(0, 10);
+  const list = await s.listCommissions(ADMIN, { from: day, to: day }, opts());
+  assert.deepEqual(list.entries.filter((e) => e.bookingReference === job.reference).map((e) => [e.staffName, e.amountCentavos]), [["Flow Ana", 10_000], ["Flow Ben", 10_000]]);
+});
+
+test("C34 a name made inactive after being credited keeps its history, and can no longer be newly assigned; a name never credited can be removed and leaves the picker", { skip }, async () => {
+  const credited = await person("History Keeper"), unused = await person("Never Used");
+  const job = await shopCompleted([credited.id], [{ slug: "regular-tint", price: 50_000 }]);
+  const fresh = await s.listTeam(ADMIN, opts());
+  const rev1 = fresh.people.find((p) => p.id === credited.id)!;
+  await s.setPersonActive(ADMIN, credited.id, { expectedRevision: rev1.revision, active: false }, opts());
+  assert.equal((await entries(job.id)).length, 1, "the commission record stays");
+  const day = (await header(job.id))!.completedOn.toISOString().slice(0, 10);
+  const list = await s.listCommissions(ADMIN, { from: day, to: day, staffId: credited.id }, opts());
+  assert.equal(list.totals[0].staffName, "History Keeper", "the name is still on the Commissions screen");
+  const next = await book(select("S", "basic-wash"), nextDay());
+  await refused(s.assignWorker(ADMIN, next.id, credited.id, { expectedRevision: await rev(next.id) }, opts()), "SCHEDULE_CONFLICT", "inactive name cannot be newly assigned");
+  const u = (await s.listTeam(ADMIN, opts())).people.find((p) => p.id === unused.id)!;
+  assert.equal((await s.removePerson(ADMIN, unused.id, { expectedRevision: u.revision }, opts())).outcome, "DELETED");
+  assert.ok(!(await pickerNames("2027-07-11")).includes("Never Used"));
+});
