@@ -256,9 +256,10 @@ test('P1-46/47: logo bottom right and centred on the icon row, side margins, hea
       const icons = box(one('.zeus-social'));
       const iconLinks = [...document.querySelectorAll('.zeus-social a')].map(a => box(a));
       const call = box(one('.zeus-actions'));
+      const buttons = [...document.querySelectorAll('.zeus-actions a')].map(a => box(a));
       const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
       return {
-        vw: innerWidth, vh: innerHeight, logo, icons, iconLinks, call,
+        vw: innerWidth, vh: innerHeight, logo, icons, iconLinks, call, buttons,
         coming: box(range) && range.getBoundingClientRect().toJSON(),
         logoOverlaps: ['h1', '.zeus-lede', '.zeus-actions'].filter(selector => overlap(logo, box(one(selector)))),
         clipped: [...document.querySelectorAll('h1,p,a,img,svg,span,strong')].filter(e => { const r = box(e); return r.width > 0 && (r.right > innerWidth + 0.5 || r.left < -0.5); }).map(e => e.tagName),
@@ -289,6 +290,12 @@ test('P1-46/47: logo bottom right and centred on the icon row, side margins, hea
       else assert.ok(m.call.width <= 420.5, `${width}: on tablets the action pill keeps its width (${m.call.width.toFixed(0)}px)`);
       if (width <= 560) assert.ok(m.coming.width >= column * 0.95 && m.coming.width <= column + 1, `${width}: COMING is as wide as the text column (${m.coming.width.toFixed(1)} of ${column})`);
     }
+    // P1-57: two separate buttons. They share a row when they fit (360 and up); at 320 they wrap to two full-width rows.
+    const [bookBox, manageBox] = m.buttons;
+    assert.ok(Math.abs(bookBox.height - manageBox.height) < 0.5 && bookBox.height >= 48, `${width}: equal height, 48px or more`);
+    assert.ok(bookBox.left >= margin - 1.5 && manageBox.right <= width - margin + 1.5, `${width}: buttons stay inside the margins`);
+    if (width >= 360) assert.ok(Math.abs(bookBox.top - manageBox.top) < 0.5 && manageBox.left - bookBox.right >= 8, `${width}: one row with a gap`);
+    else assert.ok(manageBox.top >= bookBox.bottom && Math.abs(bookBox.width - manageBox.width) < 1.5, `${width}: two equal full-width rows`);
     assert.deepEqual(m.logoOverlaps, [], `${width}: the logo overlaps nothing`);
     assert.deepEqual(m.clipped, [], `${width}: nothing is clipped at the sides`);
     assert.deepEqual(m.small, [], `${width}: every link is at least 44px`);

@@ -43,11 +43,14 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     assert.equal(await page.locator('.zeus-social a[href^="tel:"]').count(), 1);
     const pair = await page.evaluate(() => {
       const [a, b] = ['/book', '/book/manage'].map(href => document.querySelector('.zeus-actions a[href="' + href + '"]').getBoundingClientRect());
-      return { sameHeight: Math.abs(a.height - b.height) < 0.5, sameRow: Math.abs(a.top - b.top) < 0.5, adjacent: Math.abs(b.left - a.right) <= 2, tall: a.height >= 44 && b.height >= 44 };
+      const gap = b.left - a.right;
+      const [x, y] = [...document.querySelectorAll('.zeus-actions a')].map(el => getComputedStyle(el));
+      return { sameHeight: Math.abs(a.height - b.height) < 0.5, sameRow: Math.abs(a.top - b.top) < 0.5, gap: gap >= 8 && gap <= 16, tall: a.height >= 48 && b.height >= 48, sameRadius: x.borderTopLeftRadius === y.borderTopLeftRadius, sameType: x.fontSize === y.fontSize, glow: x.boxShadow !== 'none' && y.boxShadow !== 'none', merged: !!document.querySelector('.zeus-actions').style.background || getComputedStyle(document.querySelector('.zeus-actions')).backgroundImage !== 'none' };
     });
-    assert.deepEqual(pair, { sameHeight: true, sameRow: true, adjacent: true, tall: true });
-    // P1-56: the pill edge animates, except when the visitor prefers reduced motion (checked by the caller).
-    return page.locator('.zeus-actions').evaluate(el => getComputedStyle(el).animationName);
+    assert.deepEqual(pair, { sameHeight: true, sameRow: true, gap: true, tall: true, sameRadius: true, sameType: true, glow: true, merged: false });
+    // P1-57: both buttons animate (edge sweep and glow pulse), except when the visitor prefers reduced motion (checked by the caller).
+    const names = await page.locator('.zeus-actions a').evaluateAll(els => els.map(el => getComputedStyle(el).animationName));
+    return names.every(name => name.includes('zeus-edge-spin') && name.includes('zeus-glow-breathe')) ? 'animated' : names.join('|');
     assert.equal(await page.getByRole('link', { name: 'Zeus Auto Detailing on Facebook' }).getAttribute('href'), 'https://www.facebook.com/zeusautodetailingtacloban');
     assert.equal(await page.getByRole('link', { name: 'Zeus Auto Detailing on Instagram' }).getAttribute('href'), 'https://www.instagram.com/zeus.otodetailing');
     assert.equal(await page.getByAltText('Zeus Auto Detailing').evaluate(el => el.complete && el.naturalWidth > 0), true);
@@ -57,7 +60,7 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     const page = await ctx.newPage();
     page.on('pageerror', error => results.errors.push(error.message));
     await page.goto(origin, { waitUntil: 'networkidle' });
-    assert.notEqual(await readable(page), 'none', 'the pill edge animates by default');
+    assert.equal(await readable(page), 'animated', 'both buttons animate by default');
     await page.locator('[data-home-intro="running"]').waitFor({state:'hidden'});
     assert.equal(await page.locator('[data-home-content]').evaluate(el => el.inert), false);
     results.checks.push('finite cinematic intro settles; content accessible');
@@ -109,10 +112,10 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
       };
       const ratio = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
       const main = getComputedStyle(document.querySelector('.zeus-coming-soon'));
-      // P1-56: the segments sit on the pill's dark fill (#100f0d); Book now adds a 15% gold tint, about rgb(31,27,16).
-      const book = getComputedStyle(document.querySelector('.zeus-seg--primary'));
-      const manage = getComputedStyle(document.querySelector('.zeus-seg:not(.zeus-seg--primary)'));
-      return { text: ratio(main.color, main.backgroundColor), action: Math.min(ratio(book.color, 'rgb(31,27,16)'), ratio(manage.color, 'rgb(16,15,13)')) };
+      // P1-57: Book now is dark text on the gold face (darkest stop #c58b1b); Manage booking is a light label on the dark fill (#100f0d).
+      const book = getComputedStyle(document.querySelector('.zeus-btn--primary'));
+      const manage = getComputedStyle(document.querySelector('.zeus-btn:not(.zeus-btn--primary)'));
+      return { text: ratio(main.color, main.backgroundColor), action: Math.min(ratio(book.color, 'rgb(197,139,27)'), ratio(manage.color, 'rgb(16,15,13)')) };
     });
     assert.ok(results.contrast.text >= 4.5 && results.contrast.action >= 4.5, 'text and primary action contrast');
     for (const options of [{ reducedMotion: 'reduce' }, { javaScriptEnabled: false }]) {
@@ -120,7 +123,7 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
       const p = await fallback.newPage();
       await p.goto(origin, { waitUntil: 'networkidle' });
       const edge = await readable(p);
-      if (options.reducedMotion) assert.equal(edge, 'none', 'the pill edge is static with reduced motion');
+      if (options.reducedMotion) assert.equal(edge, 'none|none', 'both buttons are static with reduced motion');
       if (options.reducedMotion) assert.equal(await p.locator('[data-home-intro]').getAttribute('data-home-intro'), 'idle');
       await p.screenshot({ path: path.join(out, options.reducedMotion ? '390-reduced-motion.png' : '390-no-js.png'), fullPage: true });
       await fallback.close();
