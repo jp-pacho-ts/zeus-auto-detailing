@@ -82,9 +82,9 @@ const optionCard = (selected: boolean) =>
   "flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:p-5 " +
   (selected ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary");
 const changeLink =
-  "inline-flex min-h-[44px] min-w-[44px] items-center justify-end rounded-full px-2 text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
-const pillButton =
-  "inline-flex min-h-[44px] items-center justify-center gap-1 rounded-full border border-input px-4 text-sm font-semibold text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-[44px] min-w-[44px] items-center justify-end rounded-xl px-2 text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+const outlineButton =
+  "inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl border border-input px-4 text-sm font-semibold text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 const pillLink =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-input text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const groupTitle = "mb-4 border-b border-border pb-2 text-sm font-bold text-primary";
@@ -540,7 +540,7 @@ export function BookingWizard({
         type="button"
         disabled={locked}
         onClick={() => goTo(step - 1)}
-        className={pillButton}
+        className={outlineButton}
       >
         <ChevronLeft aria-hidden="true" className="h-4 w-4" />
         Back
@@ -662,7 +662,7 @@ export function BookingWizard({
       <p className="font-bold text-foreground">{vehicle?.name}</p>
       <p className="break-words text-muted-foreground">{servicesSummary || "No service chosen yet"}</p>
       {step === 3 && chosenDay && <p className="text-muted-foreground">{dateLabel(chosenDay)}</p>}
-      <button type="button" onClick={() => goTo(1)} disabled={locked} className="mt-1 inline-flex min-h-[44px] items-center rounded-full font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+      <button type="button" onClick={() => goTo(1)} disabled={locked} className="mt-1 inline-flex min-h-[44px] items-center rounded-xl font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
         Change size
       </button>
     </div>
@@ -1418,7 +1418,7 @@ export function BookingWizard({
               </div>
             </div>
 
-            <Link href="/" className={pillButton + " no-print"}>
+            <Link href="/" className={outlineButton + " no-print"}>
               Return to home
             </Link>
           </div>

@@ -555,3 +555,27 @@ test("P1-52: the confirmation is the ticket, and Copy reference and Print receip
   assert.doesNotMatch(h.text(), /private\.code|private code/i, "the management code is still never shown");
   h.unmount();
 });
+
+test("P1-52 (LE): Back and the other labelled buttons are rounded-xl (12 px), not pills; the Close X and the chips stay round", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await toDay(h);
+  const backs = h.all().filter((e) => e.type === "button" && textOf(e.props.children).trim() === "Back");
+  assert.ok(backs.length >= 1);
+  for (const b of backs) {
+    assert.match(String(b.props.className), /rounded-xl/);
+    assert.doesNotMatch(String(b.props.className), /rounded-full/);
+    assert.match(String(b.props.className), /min-h-\[44px\]/);
+    assert.match(String(b.props.className), /border border-input/, "still outlined");
+  }
+  const picker = renderToStaticMarkup(DayPicker(h.child(DayPicker)!.props as never) as never);
+  for (const label of ["Earlier days", "Later days"]) {
+    const button = new RegExp('<button[^>]*class="([^"]*)"[^>]*>(?:(?!</button>).)*' + label).exec(picker);
+    assert.ok(button, label);
+    assert.match(button![1], /rounded-xl/);
+    assert.doesNotMatch(button![1], /rounded-full/);
+  }
+  const close = h.all().find((e) => e.props["aria-label"] === "Cancel and return to home")!;
+  assert.match(String(close.props.className), /rounded-full/, "the icon-only Close X keeps its round shape");
+  h.unmount();
+});

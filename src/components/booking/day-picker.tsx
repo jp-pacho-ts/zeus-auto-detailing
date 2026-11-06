@@ -24,7 +24,7 @@ const panel = "rounded-2xl border border-border bg-card p-4 sm:p-8";
 const contact =
   "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition-colors";
 const pager =
-  "inline-flex min-h-[44px] items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-bold text-primary hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // P1-52: the days are laid out as a month calendar, Monday first. The days before the first one and after the last one are
 // shown faded (they are not choices) so the weeks line up.

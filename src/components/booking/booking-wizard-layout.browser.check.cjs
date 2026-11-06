@@ -98,6 +98,8 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       await page.locator('input[name="booking-day"]:not([disabled])').nth(1).check({ force: true });
       if (width >= 640) assert.equal(await page.locator('#booking-days').getByText('Chosen', { exact: true }).isVisible(), true);
       await noSideways('step 3');
+      const radii = async (locators) => { for (const [name, loc] of locators) { const r = await loc.first().evaluate((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius)); assert.ok(r >= 10 && r <= 14, `${width}px ${name} is 12 px rounded, not a pill (got ${r})`); } };
+      await radii([['Back', page.getByRole('button', { name: 'Back' }).filter({ visible: true })], ['Earlier days', page.getByRole('button', { name: 'Earlier days' })], ['Later days', page.getByRole('button', { name: 'Later days' })], ['Continue', cont()]]);
       await shot(page, `p152-3-day-${width}`);
       await cont().click();
       await page.getByRole('heading', { name: 'Your details' }).waitFor();
@@ -153,6 +155,7 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       assert.deepEqual([edge.before, edge.after], ['26px', '26px'], 'two notches');
       assert.ok(parseFloat(await ticket.evaluate((e) => getComputedStyle(e).borderTopLeftRadius)) >= 15, 'the ticket is a 16 px card');
       assert.match(await stub.innerText(), /₱550.00/);
+      await radii([['Copy reference', page.getByRole('button', { name: 'Copy booking reference' })], ['Print receipt', page.getByRole('button', { name: 'Print receipt' })], ['Return to home', page.getByRole('link', { name: 'Return to home' }).last()]]);
       await noSideways('confirmation');
       await shot(page, `p152-5-ticket-${width}`);
 
