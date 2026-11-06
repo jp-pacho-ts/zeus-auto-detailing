@@ -609,3 +609,36 @@ test("P1-52 (LE, mock F): the vehicle icons are gold extruded 3D: one shared gra
   assert.match(source, /Phosphor Icons[^\n]*MIT License/, "the third-party credit stays with the copied paths");
   h.unmount();
 });
+
+test("P1-53: the empty total is small muted text, the title and a price use calm height-based sizes", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  const empty = h.all().find((e) => e.type === "p" && textOf(e.props.children) === "Choose a size")!;
+  assert.match(String(empty.props.className), /text-sm/);
+  assert.match(String(empty.props.className), /text-muted-foreground/);
+  assert.doesNotMatch(String(empty.props.className), /text-(3|4|5)xl|text-\[(3|4)\d/, "no big type for a placeholder");
+  const title = h.all().find((e) => e.type === "h1")!;
+  assert.match(String(title.props.className), /lg:text-\[clamp\(28px,3\.6vh,32px\)\]/, "28 to 32 px by screen height on laptops");
+  assert.doesNotMatch(String(title.props.className), /lg:text-\[40px\]/);
+  await toServices(h);
+  byLabelText(h, "Premium Carwash")!.props.onClick();
+  await h.settle();
+  inputs(h, "checkbox").find((e) => e.props.value === basic.id)!.props.onChange({});
+  await h.settle();
+  const price = h.all().find((e) => e.type === "p" && /^₱/.test(textOf(e.props.children)) && /tabular-nums/.test(String(e.props.className)))!;
+  assert.match(String(price.props.className), /text-\[clamp\(28px,3\.4vh,32px\)\]/, "a price is 28 to 32 px");
+  h.unmount();
+});
+
+test("P1-53: the size bands are sized by screen height on laptops (compact band, 52 px icon tile at the smallest)", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  const band = h.all().find((e) => e.type === "label" && /min-h-\[84px\]/.test(String(e.props.className)))!;
+  assert.match(String(band.props.className), /lg:min-h-\[clamp\(72px,9vh,96px\)\]/);
+  assert.match(String(band.props.className), /lg:py-\[clamp\(8px,1\.5vh,20px\)\]/);
+  const mark = h.all().find((e) => e.props["data-part"] === "vehicle-mark")!;
+  assert.match(String(mark.props.className), /lg:h-\[clamp\(52px,7vh,84px\)\]/);
+  h.unmount();
+});
