@@ -48,7 +48,8 @@ export interface AdminWorker {
   isActive: boolean;
 }
 export interface AdminBay {
-  bayType: BayType;
+  bayType: BayType; // legacy placeholder since P1-62
+  containerId: UUID | null;
   id: UUID;
   name: string;
   sortOrder: number;
@@ -212,6 +213,12 @@ export interface AdminDayBoard {
   date: LocalDate;
   closed: { reason: string } | null;
   workers: AdminWorker[];
+  /** P1-62: the containers (named groups of bays) with their bays and cars, in order. */
+  containers: AdminBoardContainer[];
+  /** P1-62: ONE Waiting list: every open car with no bay, booked day then position. */
+  waiting: AdminWaitingCard[];
+  /** P1-62: ONE Done list: completed cars of the day, newest finish first. */
+  done: AdminDoneCard[];
   queues: {
     code: string;
     name: string;
@@ -361,4 +368,46 @@ export interface AdminSupplyMovements {
   movements: AdminSupplyMovement[];
   /** Pass back as ?cursor= for the next (older) page; null on the last page. */
   nextCursor: string | null;
+}
+
+// ---- P1-62 A1 bay containers (ADMIN writes; the board read is for any staff) ----
+export interface AdminContainer {
+  id: UUID;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  /** The optional "usually for" label as queue codes; empty means no label (the board never asks). */
+  usualQueues: string[];
+  /** The version token for rename, label, remove and bay moves. */
+  updatedAt: ISOInstant;
+  /** Active bays in it. */
+  bayCount: number;
+}
+export interface AdminBoardContainer {
+  id: UUID;
+  name: string;
+  sortOrder: number;
+  usualQueues: string[];
+  updatedAt: ISOInstant;
+  bays: (AdminBay & { cards: AdminBoardCard[] })[];
+}
+/** A Waiting card: the main service's queue name, and each line's own service queue (null if unknown). */
+export interface AdminWaitingCard extends AdminBoardCard {
+  queueName: string;
+  lines: { id: UUID; name: string; workStatus: LineWorkStatus; queueCode: string | null }[];
+}
+export interface AdminDoneCard {
+  id: UUID;
+  referenceCode: string;
+  revision: number;
+  bookingDate: LocalDate;
+  queueCode: string;
+  queueName: string;
+  vehicleModel: string;
+  vehiclePlate: string | null;
+  sizeCode: string;
+  lines: { id: UUID; name: string }[];
+  workers: AdminWorker[];
+  /** The finish moment (the booking's terminal time). */
+  finishedAt: ISOInstant;
 }

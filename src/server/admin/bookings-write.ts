@@ -803,17 +803,8 @@ export async function setBay(
       const bay = await tx.bay.findUnique({ where: { id: v.bayId } });
       if (!bay || !bay.isActive)
         throw fieldError("bayId", "Choose an active bay.");
-      const mapping = await tx.bayTypeQueue.findUnique({
-        where: { queueCode: b.queueCode! },
-      });
-      if (mapping?.bayType !== bay.bayType)
-        return conflict(
-          tx,
-          "SCHEDULE_CONFLICT",
-          bookingId,
-          "This bay does not take this queue.",
-          { bayId: ["This bay does not take this queue."] },
-        );
+      // P1-62 (LE 2026-11-07): any car can go in any empty active bay. The old rule that the bay's type must take the car's queue is gone
+      // (the board only asks a question that never blocks); capacity stays per queue and is not touched by where a car sits.
       if (await tx.bayOccupancy.findUnique({ where: { bayId: v.bayId } }))
         return conflict(
           tx,

@@ -40,9 +40,17 @@ export async function createBay(
   return mutate(options, "bay_create", async (tx) => {
     if (await tx.bay.findUnique({ where: { nameKey: nameKey(v.name) } }))
       throw fieldError("name", "A bay with this name already exists.");
+    if (await tx.bayContainer.findUnique({ where: { nameKey: nameKey(v.name) } }))
+      throw fieldError("name", "A container with this name already exists.");
+    if (v.containerId) {
+      const target = await tx.bayContainer.findUnique({ where: { id: v.containerId } });
+      if (!target || !target.isActive) throw fieldError("containerId", "Choose an active container.");
+    }
     const bay = await tx.bay.create({
       data: {
-        bayType: v.bayType,
+        // The legacy type is only a placeholder now. Without a container the database puts the bay in the starting container of that type.
+        bayType: v.bayType ?? "WASH",
+        ...(v.containerId ? { containerId: v.containerId } : {}),
         name: v.name.trim(),
         nameKey: nameKey(v.name),
         sortOrder: v.sortOrder,
@@ -86,6 +94,8 @@ export async function updateBay(
     ) {
       throw fieldError("name", "A bay with this name already exists.");
     }
+    if (v.name !== undefined && nameKey(v.name) !== bay.nameKey && (await tx.bayContainer.findUnique({ where: { nameKey: nameKey(v.name) } })))
+      throw fieldError("name", "A container with this name already exists.");
     // P1-20: removing (deactivating) a bay needs it empty; history is kept either way.
     if (
       v.isActive === false &&
@@ -97,21 +107,6 @@ export async function updateBay(
         `Move the car out of ${bay.name} before removing it.`,
         "SCHEDULE_CONFLICT",
       );
-    if (v.bayType !== undefined && v.bayType !== bay.bayType) {
-      const allowed = (
-        await tx.bayTypeQueue.findMany({ where: { bayType: v.bayType } })
-      ).map((x) => x.queueCode);
-      if (
-        await tx.bookingBayAssignment.count({
-          where: { bayId: id, booking: { queueCode: { notIn: allowed } } },
-        })
-      )
-        throw fieldError(
-          "bayType",
-          "Release incompatible assignments before changing bay type.",
-          "SCHEDULE_CONFLICT",
-        );
-    }
     const updated = await tx.bay.update({
       where: { id },
       data: {
