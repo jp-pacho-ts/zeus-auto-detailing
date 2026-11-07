@@ -23,71 +23,6 @@ import { DepositBadge } from "./deposit-badge";
 export const cardDraggable = (role: UserRole, busy: boolean, blocked: boolean) =>
   role === "ADMIN" && !busy && !blocked;
 
-// P1-25 Section 3: controlled edge auto-scroll speed curve while dragging a card.
-export const EDGE_ZONE_MAX = 80;
-export const EDGE_OUTSIDE = 40;
-export const EDGE_SPEED_MIN = 150;
-export const EDGE_SPEED_SPAN = 850;
-export const FADE_WIDTH_PX = 48;
-export const COLUMN_STEP_PX = 252;
-
-export function edgeScrollStep(
-  pointerX: number,
-  pointerY: number,
-  rect: { left: number; right: number; top: number; bottom: number; width: number },
-  scroll: { scrollLeft: number; clientWidth: number; scrollWidth: number },
-  dtMs: number,
-): { dir: -1 | 0 | 1; speed: number; delta: number } {
-  if (pointerY < rect.top || pointerY > rect.bottom || rect.width <= 0) {
-    return { dir: 0, speed: 0, delta: 0 };
-  }
-  const zone = Math.min(EDGE_ZONE_MAX, rect.width / 4);
-  let dir: -1 | 0 | 1 = 0;
-  let depth = 0;
-  if (pointerX < rect.left + zone && pointerX > rect.left - EDGE_OUTSIDE) {
-    dir = -1;
-    depth = (rect.left + zone - pointerX) / zone;
-  } else if (pointerX > rect.right - zone && pointerX < rect.right + EDGE_OUTSIDE) {
-    dir = 1;
-    depth = (pointerX - (rect.right - zone)) / zone;
-  }
-  depth = Math.min(1, Math.max(0, depth));
-  if (!dir || depth <= 0) return { dir: 0, speed: 0, delta: 0 };
-  const canScroll =
-    dir < 0
-      ? scroll.scrollLeft > 0
-      : scroll.scrollLeft + scroll.clientWidth < scroll.scrollWidth - 1;
-  if (!canScroll) return { dir: 0, speed: 0, delta: 0 };
-  const dt = Math.max(0, Math.min(50, dtMs)) / 1000;
-  const speed = EDGE_SPEED_MIN + EDGE_SPEED_SPAN * depth * depth;
-  return { dir, speed, delta: dir * speed * dt };
-}
-
-// P1-25 Section 9B: reveal destination column sideways only (never scrollIntoView).
-export function revealColumnScrollLeft(
-  col: { offsetLeft: number; offsetWidth: number },
-  scroller: { scrollLeft: number; clientWidth: number; scrollWidth: number },
-): number {
-  const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
-  if (maxScroll <= 0) return 0;
-  if (col.offsetLeft < scroller.scrollLeft + FADE_WIDTH_PX) {
-    return Math.max(0, Math.min(maxScroll, col.offsetLeft - FADE_WIDTH_PX));
-  }
-  if (
-    col.offsetLeft + col.offsetWidth >
-    scroller.scrollLeft + scroller.clientWidth - FADE_WIDTH_PX
-  ) {
-    return Math.max(
-      0,
-      Math.min(
-        maxScroll,
-        col.offsetLeft + col.offsetWidth - scroller.clientWidth + FADE_WIDTH_PX,
-      ),
-    );
-  }
-  return scroller.scrollLeft;
-}
-
 // P1-62 A2 (LE 2026-11-07): one fixed Waiting lane, the containers in the middle, one fixed Done lane. Any car can go in any empty bay;
 // a container's optional "usually for" label only asks "Place it anyway?" and never blocks. Phone: three tabs, one zone at a time.
 type Zone = "WAITING" | "BAYS" | "DONE";
@@ -540,7 +475,7 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
               </div>
               {board.waiting.map(cardView)}
               {!board.waiting.length && <p className={emptySlot}>No waiting cars</p>}
-              <p className="text-[11px] text-muted-foreground">Every waiting car is here. The tag is its main service. Drop a car here to return it to Waiting.</p>
+              <p className="text-[11px] text-muted-foreground">Every waiting car is here. The tag is its main service.{role === "ADMIN" && " Drop a car here to return it to Waiting."}</p>
             </section>
 
             <div data-board-zone="BAYS" className={(zone === "BAYS" ? "grid " : "hidden ") + "min-w-0 gap-3 lg:grid"}>
@@ -578,10 +513,10 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
                           </div>
                           {!b.isActive && <p className="text-xs text-muted-foreground">Inactive</p>}
                           {b.cards.map(cardView)}
-                          {!b.cards.length && <p className={emptySlot + " flex-1"}>Empty. Drop a car here.</p>}
+                          {!b.cards.length && <p className={emptySlot + " flex-1"}>{role === "ADMIN" ? "Empty. Drop a car here." : "Empty."}</p>}
                         </section>
                       ))}
-                      {!shown.length && <p className={emptySlot + " col-span-full"}>No bays yet. Use Add bay.</p>}
+                      {!shown.length && <p className={emptySlot + " col-span-full"}>{role === "ADMIN" ? "No bays yet. Use Add bay." : "No bays yet."}</p>}
                     </div>
                   </article>
                 );
@@ -602,7 +537,7 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
               </div>
               {board.done.map(doneView)}
               {!board.done.length && <p className={emptySlot}>No cars finished yet</p>}
-              <p className="text-[11px] text-muted-foreground">Drop a finished car here, or use Done (finish) on its card. Shows who worked and when it finished.</p>
+              <p className="text-[11px] text-muted-foreground">{role === "ADMIN" && "Drop a finished car here, or use Done (finish) on its card. "}Shows who worked and when it finished.</p>
             </section>
           </div>
           <p className="text-xs text-muted-foreground">

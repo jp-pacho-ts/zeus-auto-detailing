@@ -52,6 +52,8 @@ export async function getDayBoard(
           FROM bay_containers k WHERE k."isActive" OR EXISTS(SELECT 1 FROM bays y JOIN bay_occupancies o ON o."bayId"=y.id WHERE y."containerId"=k.id)),'[]'),
         'waiting',COALESCE((SELECT jsonb_agg(c.card ORDER BY c."bookingDate",c."queuePosition",c.id) FROM cards c WHERE c."bayId" IS NULL),'[]'),
         'done',COALESCE((SELECT jsonb_agg(d.card ORDER BY d."terminalAt" DESC,d.id) FROM done_cards d),'[]'),
+        -- P1-62: this still joins the legacy bay_type_queues, and the screen reads it for queue names and the queue list of the booking modal.
+        -- The later contract migration that drops that table must change this read first.
         'queues',(SELECT jsonb_agg(jsonb_build_object('code',q.code,'name',q.name,'bayType',m."bayType",'waiting',COALESCE((SELECT jsonb_agg(c.card ORDER BY c."bookingDate",c."queuePosition",c.id) FROM cards c WHERE c."queueCode"=q.code AND c."bayId" IS NULL),'[]')) ORDER BY q."sortOrder",q.code) FROM booking_queues q JOIN bay_type_queues m ON m."queueCode"=q.code),
         'bays',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',y.id,'name',y.name,'bayType',y."bayType",'containerId',y."containerId",'sortOrder',y."sortOrder",'isActive',y."isActive",'updatedAt',to_char(y."updatedAt" AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),'cards',COALESCE((SELECT jsonb_agg(c.card ORDER BY c."bookingDate",c."queuePosition",c.id) FROM cards c WHERE c."bayId"=y.id),'[]')) ORDER BY y."sortOrder",y.id) FROM bays y WHERE y."isActive" OR EXISTS(SELECT 1 FROM bay_occupancies o WHERE o."bayId"=y.id)),'[]')) AS board`,
         date,
