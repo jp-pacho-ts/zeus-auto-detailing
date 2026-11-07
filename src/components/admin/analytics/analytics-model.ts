@@ -92,7 +92,7 @@ export function stockNote(noCostItems: number): string {
   if (noCostItems === 0) return base;
   return noCostItems === 1 ? `${base} 1 supply has no cost and is left out.` : `${base} ${noCostItems} supplies have no cost and are left out.`;
 }
-export function commissionsBeganNote(startsAt: string, from: string): string | null {
-  const began = manilaToday(new Date(startsAt));
-  return from < began ? `Commissions began on ${short(began)}, ${parts(began).year}, so earlier jobs have none.` : null;
+export function commissionEarnedNote(startsAt: string, from: string): string {
+  const base = "On the jobs finished in this period.", began = manilaToday(new Date(startsAt));
+  return from < began ? `${base} Commissions began on ${short(began)}, ${parts(began).year}, so earlier jobs have none.` : base;
 }

@@ -5,7 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import type { AdminAnalyticsBucket } from "@/types/admin-contracts";
 import {
-  analyticsUrl, averageText, barText, bucketAxisLabel, bucketLabel, chartEmptyText, chartTitle, commissionsBeganNote, compactPesos, customProblem, deletedNote, groupLabel, manilaToday,
+  analyticsUrl, averageText, barText, bucketAxisLabel, bucketLabel, chartEmptyText, chartTitle, commissionEarnedNote, compactPesos, customProblem, deletedNote, groupLabel, manilaToday,
   niceTicks, olderNote, periodLabel, periodRange, stockNote, stockValueText, unpricedNotice, REVENUE_DEFINITION,
 } from "./analytics-model";
 
@@ -107,9 +107,9 @@ test("the notices speak plainly, singular and plural, and stay silent at zero", 
   assert.match(REVENUE_DEFINITION, /not cash/);
 });
 
-test("the commission start only shows for a period that begins before it, on the Manila day", () => {
-  assert.equal(commissionsBeganNote("2026-11-04T16:30:00.000Z", "2026-11-01"), "Commissions began on Nov 5, 2026, so earlier jobs have none.");
-  assert.equal(commissionsBeganNote("2026-11-04T16:30:00.000Z", "2026-11-05"), null);
+test("the commission note always says what it counts, and adds the start only for a period that begins before it, on the Manila day", () => {
+  assert.equal(commissionEarnedNote("2026-11-04T16:30:00.000Z", "2026-11-05"), "On the jobs finished in this period.");
+  assert.equal(commissionEarnedNote("2026-11-04T16:30:00.000Z", "2026-11-01"), "On the jobs finished in this period. Commissions began on Nov 5, 2026, so earlier jobs have none.");
 });
 
 test("no invented figure or code label is left on the screen", () => {

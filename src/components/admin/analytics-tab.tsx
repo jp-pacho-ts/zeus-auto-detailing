@@ -5,7 +5,7 @@ import { formatPesos } from "@/lib/commission";
 import type { AdminAnalytics } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import {
-  analyticsUrl, averageText, barText, bucketLabel, chartEmptyText, chartTitle, commissionsBeganNote, customProblem, deletedNote, groupLabel, manilaToday, olderNote, periodLabel,
+  analyticsUrl, averageText, barText, bucketLabel, chartEmptyText, chartTitle, commissionEarnedNote, customProblem, deletedNote, groupLabel, manilaToday, olderNote, periodLabel,
   periodRange, PROFIT_LATER, REVENUE_DEFINITION, STATUS_ROWS, stockNote, stockValueText, unpricedNotice, type AnalyticsPeriod, type AnalyticsPreset,
 } from "./analytics/analytics-model";
 import { ColumnChart } from "./analytics/column-chart";
@@ -101,7 +101,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Tile label="Finished jobs" value={String(data.finishedJobs)} note="Bookings marked finished in this period." />
             <Tile label="Average job" value={averageText(data.averageJobCentavos)} note={data.averageJobCentavos === null ? "No finished job with every price set." : "Jobs with every price set."} />
-            <Tile label="Commission earned" value={formatPesos(data.commissions.earnedCentavos)} note={commissionsBeganNote(data.commissions.startsAt, data.from) ?? "On the jobs finished in this period."} />
+            <Tile label="Commission earned" value={formatPesos(data.commissions.earnedCentavos)} note={commissionEarnedNote(data.commissions.startsAt, data.from)} />
             <Tile label="Commission unpaid" value={formatPesos(data.commissions.unpaidCentavos)} note="Of that amount, not yet marked paid." />
           </div>
 
