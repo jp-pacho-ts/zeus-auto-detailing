@@ -223,7 +223,7 @@ test('P1-62 container board: one Waiting, containers, one Done; place-anyway pro
     const tentList = page.getByRole('region', { name: 'Pop-up tent bays', exact: true });
     await tentList.getByText('Tent 1', { exact: true }).waitFor();
     assert.equal(await page.getByText('Work done in this bay').count(), 0, 'the old type question is gone');
-    assert.equal(await page.getByRole('region', { name: 'Wash bays', exact: true }).count(), 0, 'no list by old type');
+    assert.equal(await page.getByRole('region', { name: 'Wash bays', exact: true }).getByText('Tent 1', { exact: true }).count(), 0, 'a bay is listed under its container, not under the old type its placeholder says (Wash)');
     await tentList.getByRole('button', { name: 'Remove Tent 1', exact: true }).click();
     await tentList.getByRole('button', { name: 'Remove bay', exact: true }).click();
     await tentList.getByRole('button', { name: 'Bring back Tent 1', exact: true }).waitFor();
