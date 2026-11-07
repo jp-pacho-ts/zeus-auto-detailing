@@ -56,7 +56,7 @@ async function categoryOrThrow(tx: StaffTx, id: string): Promise<AdminExpenseCat
   return toCategory(r);
 }
 
-// One read: the month's typed rows (newest first, 50 per page), the two derived lines, the totals and the last 12 months. Money over a safe integer is
+// The month's typed rows (newest first, 50 per page), the two derived lines, the totals and the last 12 months. Money over a safe integer is
 // possible in a total, so totals are decimal strings here; one row is at most 10,000,000,000 centavos and stays a number.
 export async function getExpenseMonth(actor: StaffActor, input: unknown, options: AdminOptions = {}): Promise<AdminExpenseMonth> {
   authorize(actor, "EXPENSE_READ");

@@ -55,7 +55,9 @@ test("an edit sets every value and carries the revision; a month read takes one 
   assert.equal(ExpenseUpdateSchema.safeParse({ date: "2026-11-07", categoryId: ID, amountPesos: "1" }).success, false, "no revision");
   assert.deepEqual(ExpenseMonthSchema.parse({ month: "2026-11" }).includeRemoved, false);
   assert.deepEqual(ExpenseMonthSchema.parse({ month: "2026-11", includeRemoved: "true" }).includeRemoved, true);
-  for (const month of ["2026-13", "2026-00", "2026-1", "26-11"]) assert.equal(ExpenseMonthSchema.safeParse({ month }).success, false, month);
+  for (const month of ["2026-13", "2026-00", "2026-1", "26-11", "0050-01", "1999-12"]) assert.equal(ExpenseMonthSchema.safeParse({ month }).success, false, month);
+  assert.equal(ExpenseMonthSchema.safeParse({ month: "2026-11", cursor: "2026-11-07_12" }).success, true);
+  for (const cursor of ["2026-13-45_1", "2026-02-30_1", "2026-11-07", "2026-11-07_x"]) assert.equal(ExpenseMonthSchema.safeParse({ month: "2026-11", cursor }).success, false, cursor);
   assert.equal(ExpenseTotalsSchema.safeParse({ from: "2026-11-01", to: "2026-11-30" }).success, true);
   assert.equal(ExpenseTotalsSchema.safeParse({ from: "2026-11-30", to: "2026-11-01" }).success, false, "backwards");
 });

@@ -327,10 +327,10 @@ export const ExpenseVoidSchema = z.object({ expectedRevision: Revision, reason: 
 export const ExpenseRestoreSchema = z.object({ expectedRevision: Revision }).strict();
 export const ExpenseMonthSchema = z
   .object({
-    month: z.string().regex(/^[0-9]{4}-(0[1-9]|1[0-2])$/, "Use a month like 2026-11."),
+    month: z.string().regex(/^20[0-9]{2}-(0[1-9]|1[0-2])$/, "Use a month like 2026-11."),
     categoryId: Id.optional(),
     includeRemoved: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
-    cursor: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{1,18}$/).optional(),
+    cursor: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{1,18}$/).refine((c) => LocalDateSchema.safeParse(c.split("_")[0]).success).optional(),
   })
   .strict();
 export const ExpenseTotalsSchema = z.object({ from: LocalDateSchema, to: LocalDateSchema }).strict().refine((v) => v.from <= v.to, "The first day must not be after the last day.");

@@ -12,6 +12,8 @@ const origin = new URL(process.env.P120_APP_ORIGIN).origin;
 const shots = process.env.P139_SHOTS;
 let browser;
 const problems = [];
+// The console error the step running now provokes on purpose. Narrow on purpose: outside that step the same error fails the run.
+let provoked = null;
 
 async function open(email, password, viewport, label) {
   const context = await browser.newContext({ viewport });
@@ -35,9 +37,8 @@ async function open(email, password, viewport, label) {
   });
   const page = await context.newPage();
   page.on('pageerror', (e) => problems.push(label + ' pageerror: ' + e.message));
-  // Console errors the browser prints for the refusals this check provokes on purpose. Narrow on purpose: anything else fails the run.
-  const expected = { detailer: /status of 403/, desktop: /ERR_FAILED|status of 400|status of 409/ }[label];
-  page.on('console', (m) => { if (m.type() === 'error' && !(expected && expected.test(m.text()))) problems.push(label + ' console: ' + m.text()); });
+  const expected = { detailer: /status of 403/ }[label];
+  page.on('console', (m) => { if (m.type() === 'error' && !(expected && expected.test(m.text())) && !(provoked && provoked.test(m.text()))) problems.push(label + ' console: ' + m.text()); });
   await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
   await page.getByLabel('Staff Email or ID').fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -120,8 +121,10 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
   let dialog = await fillExpense(page, { category: 'Utilities', amount: '0', payee: 'Meralco', note: 'November bill' });
   await layoutRules(page, 'desktop add dialog');
   await shot(page, '1440-add');
+  provoked = /status of 400/;
   await dialog.getByRole('button', { name: 'Add expense', exact: true }).click();
   await dialog.getByRole('alert').filter({ hasText: /more than zero/ }).waitFor();
+  provoked = null;
   await dialog.getByLabel('Amount, in pesos').fill('1250.50');
 
   // A lost response: the server records it, the browser never hears. The retry sends the same id and records it once.
@@ -133,8 +136,10 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
     if (posts.length === 1) { await route.fetch({ url: route.request().url().replace(origin, upstream.origin), headers: { ...route.request().headers(), 'x-forwarded-for': '198.51.100.139' } }); return route.abort('failed'); }
     return route.fallback();
   });
+  provoked = /ERR_FAILED/;
   await dialog.getByRole('button', { name: 'Add expense', exact: true }).click();
   await dialog.getByRole('alert').waitFor();
+  provoked = null;
   await dialog.getByRole('button', { name: 'Add expense', exact: true }).click();
   await status(page, 'The expense was added.');
   await page.unroute('**/api/admin/expenses');
@@ -166,10 +171,16 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
     const e = list.expenses[0];
     await fetch(`/api/admin/expenses/${e.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision: e.revision, date: e.expenseDate, categoryId: e.categoryId, amountPesos: '1350', payee: e.payee, note: e.note }) });
   });
+  provoked = /status of 409/;
   await dialog.getByRole('button', { name: 'Save changes', exact: true }).click();
   await dialog.getByRole('alert').filter({ hasText: 'Someone else changed this.' }).waitFor();
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  provoked = null;
   await page.getByTestId('expenses-total').filter({ hasText: '₱1,350.00' }).waitFor();
+  // The form kept what was typed and follows the reloaded list, so saving again is not a dead end.
+  assert.equal(await dialog.getByLabel('Amount, in pesos').inputValue(), '1400');
+  await dialog.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await status(page, 'The expense was changed.');
+  await page.getByTestId('expenses-total').filter({ hasText: '₱1,400.00' }).waitFor();
 
   // Remove hides, Show removed brings the row back into view without changing the money, Restore counts it again.
   await rowOf(page, 'Meralco').getByRole('button', { name: 'Remove', exact: true }).click();
@@ -186,7 +197,7 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
   await shot(page, '1440-removed');
   await rowOf(page, 'Meralco').getByRole('button', { name: 'Restore', exact: true }).click();
   await status(page, 'The expense is back.');
-  assert.equal(await total(page), '₱1,350.00');
+  assert.equal(await total(page), '₱1,400.00');
   await page.getByLabel('Show removed').uncheck();
 
   // Search and the category filter.
@@ -197,7 +208,7 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
   await page.getByLabel('Search').fill('');
   await page.locator('#admin-content').getByLabel('Category').selectOption({ label: 'Rent' });
   await page.getByText('No expenses typed in for this month.').waitFor();
-  assert.equal(await total(page), '₱1,350.00', 'the filter narrows the rows, not the money');
+  assert.equal(await total(page), '₱1,400.00', 'the filter narrows the rows, not the money');
   await page.locator('#admin-content').getByLabel('Category').selectOption({ label: 'All categories' });
   await rowOf(page, 'Meralco').waitFor();
 
@@ -205,8 +216,10 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
   await page.getByRole('button', { name: 'Categories', exact: true }).click();
   const cats = page.getByRole('dialog').filter({ hasText: 'Hide one you no longer use.' });
   await cats.getByLabel('New category').fill('Stock bought');
+  provoked = /status of 400/;
   await cats.getByRole('button', { name: 'Add category', exact: true }).click();
   await cats.getByRole('alert').filter({ hasText: 'automatic lines' }).waitFor();
+  provoked = null;
   await cats.getByLabel('New category').fill('Permits');
   await cats.getByRole('button', { name: 'Add category', exact: true }).click();
   await cats.getByRole('status').filter({ hasText: 'Permits was added.' }).waitFor();
@@ -246,7 +259,7 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
   assert.ok(commissions.includes(`₱${pesos}`), `commissions paid shows the marked amount: ${commissions}`);
   await page.getByTestId('expenses-note').filter({ hasText: '1 stock-in had no price and is not counted.' }).waitFor();
   await page.getByTestId('expenses-note').filter({ hasText: /Still owed in commissions/ }).waitFor();
-  const expected = (135_000 + 30_150 + moved.share);
+  const expected = (140_000 + 30_150 + moved.share);
   assert.equal(await total(page), `₱${Math.floor(expected / 100).toLocaleString('en-PH')}.${String(expected % 100).padStart(2, '0')}`, 'the total is the three kinds');
   await shot(page, '1440-derived');
   await layoutRules(page, 'desktop derived');

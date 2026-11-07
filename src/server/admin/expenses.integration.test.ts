@@ -310,7 +310,7 @@ test("EX11 commissions count on the day they are marked paid: a paid entry and a
   await s.setCommissionsPaid(ADMIN, { ids: [entry.id, adj.id], paid: false }, opts());
   const undone = await totals(today, today);
   assert.equal(undone.commissionsPaid, start.commissionsPaid, "un-marking takes it back");
-  // As of `to`: an entry created today is not owed as of yesterday.
+  // Created up to `to` and still unpaid today: an entry created today does not count for yesterday.
   assert.equal((await totals(addDay(today, -1), addDay(today, -1))).commissionsOwed, BigInt(0));
 });
 

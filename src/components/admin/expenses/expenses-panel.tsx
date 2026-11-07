@@ -192,7 +192,7 @@ export function ExpensesPanel({ data, categories, query, thisMonth, setMonth, ca
         </div>
       )}
 
-      {editing && <ExpenseFormDialog key={editing === "new" ? "new" : editing.id} target={editing} month={data.month} thisMonth={thisMonth} categories={categories} onClose={() => setEditing(null)} onSaved={done} reload={reload} />}
+      {editing && <ExpenseFormDialog key={editing === "new" ? "new" : editing.id} target={editing === "new" ? editing : rows.find((e) => e.id === editing.id) ?? editing} month={data.month} thisMonth={thisMonth} categories={categories} onClose={() => setEditing(null)} onSaved={done} reload={reload} />}
 
       <Dialog open={removing !== null} onOpenChange={(o) => { if (!o && !busy) setRemoving(null); }}>
         <DialogHeader>

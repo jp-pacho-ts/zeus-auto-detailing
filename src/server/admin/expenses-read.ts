@@ -14,7 +14,7 @@ export interface ExpenseTotals {
   commissionsPaid: bigint;
   /** Manual only, removed rows excluded, name order. The two derived kinds are their own fields. */
   byCategory: { categoryId: string; name: string; total: bigint }[];
-  /** As of the end of `to`: unpaid entries and adjustments created up to then, wherever they started. */
+  /** Still unpaid today, among entries and adjustments created up to the end of `to`. Not what was owed on that day: one paid since is not counted. */
   commissionsOwed: bigint;
   /** Priced stock-ins in the range, for "from N stock-ins". */
   pricedStockIns: number;
@@ -24,6 +24,7 @@ export interface ExpenseTotals {
 
 interface TotalsRow { manual: bigint; stockBought: bigint; commissionsPaid: bigint; commissionsOwed: bigint; pricedStockIns: bigint; unpricedStockIns: bigint }
 
+// shortcut: two statements at Read Committed, so a write between them can make `manual` and `byCategory` differ until the next read. Harmless at one admin; use one statement if it ever shows.
 export async function totalsIn(tx: StaffTx, from: string, to: string): Promise<ExpenseTotals> {
   const [t] = await tx.$queryRaw<TotalsRow[]>`
     WITH r AS (SELECT (${from}::date)::timestamp AT TIME ZONE 'Asia/Manila' AS a, (${to}::date + 1)::timestamp AT TIME ZONE 'Asia/Manila' AS b),
