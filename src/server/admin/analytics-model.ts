@@ -79,7 +79,7 @@ export function summarizeSales(rows: readonly AnalyticsLineRow[], range: { from:
   }
 
   const groups = new Map<string, bigint>(), queues = new Map<string, bigint>(), queueNames = new Map<string, string>();
-  const services = new Map<string, { name: string; amount: bigint; count: number }>();
+  const services = new Map<string, { serviceId: string; name: string; amount: bigint; count: number }>();
   for (const l of rows) {
     const price = BigInt(effectivePrice({ ...l, removed: false }) ?? 0);
     add(groups, l.groupCode, price);
@@ -87,7 +87,7 @@ export function summarizeSales(rows: readonly AnalyticsLineRow[], range: { from:
     add(queues, queue, price);
     queueNames.set(queue, l.queueName ?? "Other");
     const seen = services.get(l.serviceId);
-    services.set(l.serviceId, { name: l.name, amount: (seen?.amount ?? ZERO) + price, count: (seen?.count ?? 0) + 1 }); // rows come oldest first: the newest name wins
+    services.set(l.serviceId, { serviceId: l.serviceId, name: l.name, amount: (seen?.amount ?? ZERO) + price, count: (seen?.count ?? 0) + 1 }); // rows come oldest first: the newest name wins
   }
   const ranked = (map: Map<string, bigint>) => [...map].map(([code, amount]) => ({ code, amount })).filter((x) => x.amount > ZERO).sort(byMoneyThenCode);
 
@@ -107,7 +107,7 @@ export function summarizeSales(rows: readonly AnalyticsLineRow[], range: { from:
       .filter((x) => x.amount > ZERO)
       .sort((a, b) => (a.amount === b.amount ? b.count - a.count || a.name.localeCompare(b.name) : a.amount > b.amount ? -1 : 1))
       .slice(0, TOP_SERVICES)
-      .map((x) => ({ name: x.name, revenueCentavos: safeCentavos(x.amount), count: x.count })),
+      .map((x) => ({ serviceId: x.serviceId, name: x.name, revenueCentavos: safeCentavos(x.amount), count: x.count })),
   };
 }
 

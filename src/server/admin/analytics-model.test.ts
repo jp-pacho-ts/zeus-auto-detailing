@@ -134,6 +134,11 @@ test("top services are the five highest by revenue, ties by times sold then name
   ]);
 });
 
+test("two services that share a name stay two rows, each with its own id", () => {
+  const s = summarizeSales([row({ bookingId: "1", serviceId: "a", name: "Same", subtotalCentavos: 300 }), row({ bookingId: "2", serviceId: "b", name: "Same", subtotalCentavos: 200 })], october);
+  assert.deepEqual(s.topServices.map((t) => [t.serviceId, t.name, t.revenueCentavos]), [["a", "Same", 300], ["b", "Same", 200]]);
+});
+
 test("the hero, the buckets, the groups and the queues always add up to the same money", () => {
   const rows = [
     row({ bookingId: "a", finishedOn: "2026-10-02", subtotalCentavos: 123 }),

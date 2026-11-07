@@ -511,7 +511,7 @@ export interface AdminAnalyticsSales {
   buckets: { unit: AdminAnalyticsBucketUnit; rows: AdminAnalyticsBucket[] };
   byGroup: { code: string; revenueCentavos: number }[];
   byQueue: { code: string; name: string; revenueCentavos: number }[];
-  topServices: { name: string; revenueCentavos: number; count: number }[];
+  topServices: { serviceId: string; name: string; revenueCentavos: number; count: number }[];
 }
 export interface AdminAnalytics extends AdminAnalyticsSales {
   from: LocalDate;

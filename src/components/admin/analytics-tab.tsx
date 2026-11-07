@@ -154,7 +154,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
               <RankedBars empty="Nothing in this period." rows={data.byQueue.map((q) => ({ key: q.code, label: q.name, centavos: q.revenueCentavos }))} />
             </Section>
             <Section title="Top services" note="By revenue, how many times in brackets.">
-              <RankedBars empty="Nothing in this period." rows={data.topServices.map((t) => ({ key: t.name, label: `${t.name} (${t.count})`, centavos: t.revenueCentavos }))} />
+              <RankedBars empty="Nothing in this period." rows={data.topServices.map((t) => ({ key: t.serviceId, label: `${t.name} (${t.count})`, centavos: t.revenueCentavos }))} />
             </Section>
             <Section title="Bookings by status" note="Bookings dated in this period, as they stand now.">
               <ul className="mt-2">

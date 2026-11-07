@@ -153,7 +153,7 @@ const synthetic = (extra) => ({
     }) },
     byGroup: [{ code: 'GRAPHENE', revenueCentavos: 100000000 }, { code: 'WASH', revenueCentavos: 23456789 }],
     byQueue: [{ code: 'DETAILING_COATING', name: 'Detailing + Coating', revenueCentavos: 100000000 }, { code: 'WASH', name: 'Wash', revenueCentavos: 23456789 }],
-    topServices: [{ name: 'A service with a very long name that has to wrap on a phone and never be clipped', revenueCentavos: 100000000, count: 9 }],
+    topServices: [{ serviceId: 's1', name: 'A service with a very long name that has to wrap on a phone and never be clipped', revenueCentavos: 100000000, count: 9 }],
     bookingsByStatus: { PENDING: 1, CONFIRMED: 2, IN_PROGRESS: 3, COMPLETED: 25, CANCELLED: 4 },
     notCounted: { deletedFinished: 2, olderFinished: 1 },
     commissions: { startsAt: '2025-01-01T00:00:00.000Z', earnedCentavos: 100, unpaidCentavos: 50, nobodyCredited: 0, missingRecords: 0 },
