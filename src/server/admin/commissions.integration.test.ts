@@ -897,6 +897,41 @@ test("C37 unpaid commission survives removal: the preview equals the Commissions
   assert.ok(JSON.stringify(card).includes("Paid After Removal"), "the past booking still shows the name as it was");
 });
 
+// P1-64 F1 (ZEUS-CLAUDE-1): a declined booking is closed, so Remove cannot take anyone off it (the database refuses, and its card keeps the name). Reinstating
+// reopens it, so that is where a person no longer active comes off. Two of them, because the database allows one revision bump per booking per transaction.
+test("C39 a removed person does not come back through a reinstated booking and earns nothing on it; a worker still active stays and is credited", { skip }, async () => {
+  const gone1 = await person("Declined Gone One", "20"), gone2 = await person("Declined Gone Two", "20"), stays = await person("Declined Stays", "10");
+  const day = nextDay(), o = at(day);
+  const job = { ...(await book(select("S", "basic-wash"), day)), day };
+  const tintId = bySlug(r0(), "regular-tint").id;
+  await s.addLine(ADMIN, job.id, { expectedRevision: await rev(job.id), serviceId: tintId, quantity: 1 }, o);
+  const tint = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: job.id, serviceId: tintId, removedAt: null } });
+  await s.setLinePrice(ADMIN, job.id, tint.id, { expectedRevision: await rev(job.id), priceCentavos: 20_000, reason: "P1-64 test price" }, o);
+  for (const w of [gone1, gone2, stays]) await s.assignWorker(ADMIN, job.id, w.id, { expectedRevision: await rev(job.id) }, o);
+  await s.declineBooking(ADMIN, job.id, { expectedRevision: await rev(job.id), reason: "P1-64 test" }, o);
+  for (const w of [gone1, gone2]) {
+    const p = (await s.listTeam(ADMIN, opts())).people.find((x) => x.id === w.id)!;
+    assert.deepEqual(await s.removePerson(ADMIN, w.id, { expectedRevision: p.revision }, opts()), { outcome: "REMOVED", takenOff: [] }, "a declined job is not an open one");
+  }
+  assert.equal(await count("booking_worker_assignments", `"bookingId" = '${job.id}'`), 3, "the declined card keeps the names");
+
+  const back = await s.setBookingStatus(ADMIN, job.id, { expectedRevision: await rev(job.id), status: "PENDING", reason: "Declined by mistake" }, o);
+  assert.deepEqual(back.booking.assignedWorkers.map((w) => w.staffId), [stays.id], "the answer shows who is really on it");
+  assert.deepEqual((await db.bookingWorkerAssignment.findMany({ where: { bookingId: job.id } })).map((w) => w.staffId), [stays.id]);
+  for (const w of [gone1, gone2]) {
+    const rows = await db.bookingAuditEvent.findMany({ where: { bookingId: job.id, targetStaffId: w.id, action: "WORKER_UNASSIGNED" } });
+    assert.equal(rows.length, 1, "one audit row each");
+    assert.equal(rows[0].actorStaffId, ADMIN.staffId);
+  }
+  await s.setBookingStatus(ADMIN, job.id, { expectedRevision: await rev(job.id), status: "CONFIRMED" }, o);
+  const n = ++seq;
+  const bay = await s.createBay(ADMIN, { name: "Bay " + n, sortOrder: n, bayType: "WASH" }, o);
+  await s.setBay(ADMIN, job.id, { expectedRevision: await rev(job.id), date: day, bayId: bay.id }, o);
+  await s.setBookingStatus(ADMIN, job.id, { expectedRevision: await rev(job.id), status: "IN_PROGRESS" }, o);
+  await finish(job);
+  assert.deepEqual((await entries(job.id)).map((e) => e.staffId), [stays.id], "only the worker still active is credited");
+});
+
 test("C38 a removed person leaves the picker and cannot be newly assigned", { skip }, async () => {
   const a = await person("Picker Leaver");
   const job = await completed([a.id], 10_000);

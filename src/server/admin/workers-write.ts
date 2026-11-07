@@ -17,9 +17,8 @@ import {
 } from "./mutation";
 import type { StaffTx } from "@/server/auth/db-admission";
 
-// The one way an assignment ends: revision first, then the row, then its audit row, all in the caller's transaction.
-export async function takeOff(tx: StaffTx, actor: StaffActor, bookingId: string, targetStaffId: string, expectedRevision: number): Promise<void> {
-  await bump(tx, bookingId, expectedRevision);
+// The row and its audit row, inside a revision bump the caller already made: the database allows one bump per booking per transaction.
+export async function dropAssignment(tx: StaffTx, actor: StaffActor, bookingId: string, targetStaffId: string, expectedRevision: number): Promise<void> {
   await tx.bookingWorkerAssignment.delete({ where: { bookingId_staffId: { bookingId, staffId: targetStaffId } } });
   await audit(tx, actor, {
     action: "WORKER_UNASSIGNED",
@@ -28,6 +27,10 @@ export async function takeOff(tx: StaffTx, actor: StaffActor, bookingId: string,
     fromRevision: expectedRevision,
     toRevision: expectedRevision + 1,
   });
+}
+export async function takeOff(tx: StaffTx, actor: StaffActor, bookingId: string, targetStaffId: string, expectedRevision: number): Promise<void> {
+  await bump(tx, bookingId, expectedRevision);
+  await dropAssignment(tx, actor, bookingId, targetStaffId, expectedRevision);
 }
 
 async function worker(

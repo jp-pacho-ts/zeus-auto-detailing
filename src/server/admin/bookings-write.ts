@@ -24,6 +24,7 @@ import {
 } from "@/lib/admin-validation";
 import { STATUS_NO_OP_ROLES } from "@/server/auth/policy";
 import type { StaffTx } from "@/server/auth/db-admission";
+import { dropAssignment } from "./workers-write";
 import { loadCurrentRelease } from "@/server/catalog-read";
 import { offerBooking } from "@/server/catalog-pricing";
 import {
@@ -238,6 +239,12 @@ export async function setBookingStatus(
     });
     if (v.status === "COMPLETED")
       await releaseOccupancy(tx, actor, bookingId, v.expectedRevision);
+    // P1-64: a closed booking keeps its names and the database refuses changing them, so a person removed while it was declined comes off here, the only way it can
+    // reopen. Otherwise they would be back on an open job and credited when it finishes.
+    if (v.status === "PENDING") {
+      const gone = await tx.bookingWorkerAssignment.findMany({ where: { bookingId, staff: { isActive: false } }, select: { staffId: true } });
+      for (const w of gone) await dropAssignment(tx, actor, bookingId, w.staffId, v.expectedRevision);
+    }
     logWrite(actor, "status_changed", bookingId, v.expectedRevision + 1);
     return result(tx, bookingId, false);
   });
