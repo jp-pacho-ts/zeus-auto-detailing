@@ -57,6 +57,12 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["POST", "/api/admin/commissions/paid", () => import("@/app/api/admin/commissions/paid/route"), {}],
   ["POST", "/api/admin/commissions/repair", () => import("@/app/api/admin/commissions/repair/route"), {}],
   ["POST", "/api/admin/commissions/adjust", () => import("@/app/api/admin/commissions/adjust/route"), {}],
+  // P1-62 A1 bay containers.
+  ["GET", "/api/admin/bay-containers", () => import("@/app/api/admin/bay-containers/route"), {}],
+  ["POST", "/api/admin/bay-containers", () => import("@/app/api/admin/bay-containers/route"), {}],
+  ["PATCH", `/api/admin/bay-containers/${ID}`, () => import("@/app/api/admin/bay-containers/[id]/route"), { id: ID }],
+  ["POST", `/api/admin/bay-containers/${ID}/remove`, () => import("@/app/api/admin/bay-containers/[id]/remove/route"), { id: ID }],
+  ["POST", `/api/admin/bays/${ID}/move`, () => import("@/app/api/admin/bays/[bayId]/move/route"), { bayId: ID }],
   // P1-38 Supplies.
   ["GET", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],
   ["POST", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],

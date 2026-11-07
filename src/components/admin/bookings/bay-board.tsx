@@ -1,29 +1,21 @@
 "use client";
 import * as React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type {
   AdminBoardCard,
   AdminDayBoard,
-  AdminDayQueues,
-  AdminQueueBooking,
+  AdminDoneCard,
+  AdminWaitingCard,
   AdminWriteResult,
-  BayType,
 } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import { adminRequest, AdminRequestError } from "./client";
 import { fieldClass, LoadState, useAdminResource } from "./use-admin-resource";
 import { shopDate, statusLabel } from "./model";
-import {
-   BOARD_LANES,
-  bayPayload,
-  boardLanes,
-  canDrop,
-  isControlTarget,
-  plateLabel,
-  writeFeedback,
-} from "./board-model";
+import { bayPayload, canDrop, isControlTarget, plateLabel, writeFeedback } from "./board-model";
 import { AddBay, addBayButtonId, BayMenu } from "./bay-controls";
+import { AddContainer, ContainerMenu, Modal } from "./container-controls";
+import { placementPrompt, usualForLine, waitingTag } from "./container-model";
 import { BookingDetail } from "./booking-detail";
 import { DepositBadge } from "./deposit-badge";
 
@@ -96,62 +88,35 @@ export function revealColumnScrollLeft(
   return scroller.scrollLeft;
 }
 
-type RowCueState = {
-  measured: boolean;
-  overflow: boolean;
-  left: boolean;
-  right: boolean;
-  hotDir: -1 | 0 | 1;
-};
+// P1-62 A2 (LE 2026-11-07): one fixed Waiting lane, the containers in the middle, one fixed Done lane. Any car can go in any empty bay;
+// a container's optional "usually for" label only asks "Place it anyway?" and never blocks. Phone: three tabs, one zone at a time.
+type Zone = "WAITING" | "BAYS" | "DONE";
+const ZONES: { id: Zone; label: string }[] = [
+  { id: "WAITING", label: "Waiting" },
+  { id: "BAYS", label: "Bays" },
+  { id: "DONE", label: "Done" },
+];
+type BoardBay = AdminDayBoard["containers"][number]["bays"][number];
+type Pending = { card: AdminBoardCard; bayId: string; text: string };
 
-const INITIAL_CUE: RowCueState = {
-  measured: false,
-  overflow: false,
-  left: false,
-  right: false,
-  hotDir: 0,
-};
+// One grey outline pill for every service tag: no colour per kind.
+const pill = "inline-flex max-w-full shrink-0 items-center truncate rounded-full border border-border px-2 py-0.5 text-[11px] leading-tight text-muted-foreground";
+const lane = "min-w-0 space-y-3 rounded border border-border bg-[#0f0f11] p-3 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-13rem)] lg:overflow-y-auto";
+const finishTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" });
 
 // viewSwitch: BookingsTab's Board / List switch, drawn on the left of the board toolbar (P1-22).
-export function BayBoard({
-  role,
-  viewSwitch,
-}: {
-  role: UserRole;
-  viewSwitch?: React.ReactNode;
-}) {
+export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: React.ReactNode }) {
   const [date, setDate] = React.useState(shopDate),
-    [picked, setPicked] = React.useState<Partial<Record<BayType, string>>>({}),
-    [selected, setSelected] = React.useState<string | null>(null);
-  const resource = useAdminResource<AdminDayBoard>(
-      "/api/admin/board?date=" + date,
-    ),
+    [selected, setSelected] = React.useState<string | null>(null),
+    [zone, setZone] = React.useState<Zone>("BAYS"),
+    [pending, setPending] = React.useState<Pending | null>(null);
+  const resource = useAdminResource<AdminDayBoard>("/api/admin/board?date=" + date),
     reloadBoardOnly = resource.load;
-  // Done: the day's completed visits come from the day queue view (read-only).
-  const dayView = useAdminResource<AdminDayQueues>(
-      "/api/admin/queues?date=" + date,
-    ),
-    reloadDay = dayView.reload;
-
-  // P1-25 Section 9B: keep the last board and day queues mounted while refetching so rows never
-  // unmount and #admin-content.scrollTop / row scrollLeft stay put.
-  const [lastBoard, setLastBoard] = React.useState<AdminDayBoard | null>(
-    () => resource.data,
-  );
+  // Keep the last board mounted while refetching so lanes never unmount and the scroll position stays put.
+  const [lastBoard, setLastBoard] = React.useState<AdminDayBoard | null>(() => resource.data);
   const [boardGen, setBoardGen] = React.useState(0);
-  const [lastDay, setLastDay] = React.useState<AdminDayQueues | null>(
-    () => dayView.data,
-  );
-  if (resource.data && resource.data !== lastBoard) {
-    setLastBoard(resource.data);
-  }
-  if (dayView.data && dayView.data !== lastDay) {
-    setLastDay(dayView.data);
-  }
+  if (resource.data && resource.data !== lastBoard) setLastBoard(resource.data);
   const board = resource.data ?? lastBoard;
-  const dayData =
-    dayView.data ??
-    (lastDay?.date === board?.date ? lastDay : null);
 
   const [busy, setBusy] = React.useState(false),
     [message, setMessage] = React.useState(""),
@@ -163,150 +128,32 @@ export function BayBoard({
   const writing = React.useRef(false),
     mounted = React.useRef(true),
     focus = React.useRef<string | null>(null),
-    reveal = React.useRef<{ lane: BayType; colId: string } | null>(null),
     drag = React.useRef<AdminBoardCard | null>(null),
     pressedControl = React.useRef(false),
     restoreFocus = React.useRef<string | null>(null);
   const [dragging, setDragging] = React.useState<string | null>(null);
 
-  const scrollerRefs = React.useRef<Partial<Record<BayType, HTMLDivElement | null>>>({});
-  const arrowLeftRefs = React.useRef<Partial<Record<BayType, HTMLButtonElement | null>>>({});
-  const arrowRightRefs = React.useRef<Partial<Record<BayType, HTMLButtonElement | null>>>({});
-  const cuesRef = React.useRef<Record<BayType, RowCueState>>({
-    WASH: INITIAL_CUE,
-    DETAILING: INITIAL_CUE,
-    PAINT: INITIAL_CUE,
-  });
-  const [cues, setCues] = React.useState<Record<BayType, RowCueState>>({
-    WASH: INITIAL_CUE,
-    DETAILING: INITIAL_CUE,
-    PAINT: INITIAL_CUE,
-  });
-
-  const dragLoop = React.useRef<{
-    active: boolean;
-    x: number;
-    y: number;
-    lastOver: number;
-    lastTick: number;
-    raf: number;
-    carry: number;
-    hotLane: BayType | null;
-    hotDir: -1 | 0 | 1;
-  }>({
-    active: false,
-    x: 0,
-    y: 0,
-    lastOver: 0,
-    lastTick: 0,
-    raf: 0,
-    carry: 0,
-    hotLane: null,
-    hotDir: 0,
-  });
-
-  const showStatus = React.useCallback(
-    (text: string, isRefusal = false, _lane: BayType | null = null) => {
-      void _lane;
-      setMessage(text);
-      setRefusal(isRefusal);
-    },
-    [],
-  );
-
-  const syncRowCue = React.useCallback((bayType: BayType) => {
-    const sc = scrollerRefs.current[bayType];
-    if (!sc) return;
-    const style = typeof window !== "undefined" ? window.getComputedStyle(sc) : null;
-    const isFlex = style?.display === "flex";
-    const overflow = isFlex && sc.scrollWidth > sc.clientWidth + 1;
-    const left = overflow && sc.scrollLeft > 1;
-    const right = overflow && sc.scrollLeft + sc.clientWidth < sc.scrollWidth - 1;
-    const hotDir: -1 | 0 | 1 =
-      dragLoop.current.active && dragLoop.current.hotLane === bayType
-        ? dragLoop.current.hotDir
-        : 0;
-
-    // P1-25 Section 2.2: if a focused arrow button is about to become disabled at its end,
-    // move focus to the opposite arrow button before React disables it.
-    const leftBtn = arrowLeftRefs.current[bayType];
-    const rightBtn = arrowRightRefs.current[bayType];
-    if (typeof document !== "undefined") {
-      if (leftBtn && document.activeElement === leftBtn && !left && right) {
-        rightBtn?.focus({ preventScroll: true });
-        queueMicrotask(() => rightBtn?.focus({ preventScroll: true }));
-      } else if (rightBtn && document.activeElement === rightBtn && !right && left) {
-        leftBtn?.focus({ preventScroll: true });
-        queueMicrotask(() => leftBtn?.focus({ preventScroll: true }));
-      }
-    }
-
-    // Immediate DOM sync on fade overlays so Chrome's native drag auto-scroll is blocked on the
-    // very first drag frame without waiting for a React commit.
-    const wrap = sc.parentElement;
-    if (wrap) {
-      const dragActive = dragLoop.current.active;
-      for (const side of ["left", "right"] as const) {
-        const fade = wrap.querySelector<HTMLElement>(`[data-board-fade="${side}"]`);
-        if (!fade) continue;
-        const sideOn = side === "left" ? left : right;
-        fade.style.pointerEvents = dragActive && sideOn ? "auto" : "none";
-      }
-    }
-
-    const prev = cuesRef.current[bayType];
-    if (
-      !prev.measured ||
-      prev.overflow !== overflow ||
-      prev.left !== left ||
-      prev.right !== right ||
-      prev.hotDir !== hotDir
-    ) {
-      const next: RowCueState = { measured: true, overflow, left, right, hotDir };
-      cuesRef.current = { ...cuesRef.current, [bayType]: next };
-      setCues((curr) => ({ ...curr, [bayType]: next }));
-    }
+  const showStatus = React.useCallback((text: string, isRefusal = false) => {
+    setMessage(text);
+    setRefusal(isRefusal);
   }, []);
-
-  const syncAllCues = React.useCallback(() => {
-    for (const lane of BOARD_LANES) syncRowCue(lane.bayType);
-  }, [syncRowCue]);
-
-  const stopDragLoop = React.useCallback(() => {
-    if (dragLoop.current.raf) {
-      cancelAnimationFrame(dragLoop.current.raf);
-    }
-    dragLoop.current.active = false;
-    dragLoop.current.raf = 0;
-    dragLoop.current.lastTick = 0;
-    dragLoop.current.carry = 0;
-    dragLoop.current.hotLane = null;
-    dragLoop.current.hotDir = 0;
-    syncAllCues();
-  }, [syncAllCues]);
-
   const clearDrag = React.useCallback(() => {
     drag.current = null;
     pressedControl.current = false;
     setDragging(null);
-    stopDragLoop();
-  }, [stopDragLoop]);
-
+  }, []);
   const reloadBoard = React.useCallback(async () => {
     // Reload replaces the source article, so its dragend may never be delivered.
     clearDrag();
-    const [boardLoaded] = await Promise.all([reloadBoardOnly(), reloadDay()]);
-    return boardLoaded;
-  }, [clearDrag, reloadBoardOnly, reloadDay]);
+    return reloadBoardOnly();
+  }, [clearDrag, reloadBoardOnly]);
 
   React.useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      if (dragLoop.current.raf) cancelAnimationFrame(dragLoop.current.raf);
     };
   }, []);
-
   React.useEffect(() => {
     const onFocus = () => {
       if (!writing.current) void reloadBoard();
@@ -314,168 +161,35 @@ export function BayBoard({
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [reloadBoard]);
-
-  // Measure row overflow and scroll cues on mount, board render, window resize, and ResizeObserver.
-  React.useEffect(() => {
-    if (!board) return;
-    syncAllCues();
-    const ro =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => syncAllCues())
-        : null;
-    for (const lane of BOARD_LANES) {
-      const sc = scrollerRefs.current[lane.bayType];
-      if (sc && ro) ro.observe(sc);
-    }
-    window.addEventListener("resize", syncAllCues);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", syncAllCues);
-    };
-  }, [board, dayData, syncAllCues]);
-
-  // Document-level drag listeners for edge auto-scroll (P1-25 Section 3).
   React.useEffect(() => {
     if (!dragging) return;
-    const onDocDragOver = (e: DragEvent) => {
-      if (!dragLoop.current.active) return;
-      dragLoop.current.x = e.clientX;
-      dragLoop.current.y = e.clientY;
-      dragLoop.current.lastOver = performance.now();
-    };
-    const onDocDragLeave = (e: DragEvent) => {
-      if (e.relatedTarget === null) {
-        dragLoop.current.lastOver = 0;
-        dragLoop.current.hotLane = null;
-        dragLoop.current.hotDir = 0;
-        syncAllCues();
-      }
-    };
     const onEnd = () => clearDrag();
-    document.addEventListener("dragover", onDocDragOver, true);
-    document.addEventListener("dragleave", onDocDragLeave, true);
     document.addEventListener("drop", onEnd);
     document.addEventListener("dragend", onEnd);
     window.addEventListener("blur", onEnd);
     return () => {
-      document.removeEventListener("dragover", onDocDragOver, true);
-      document.removeEventListener("dragleave", onDocDragLeave, true);
       document.removeEventListener("drop", onEnd);
       document.removeEventListener("dragend", onEnd);
       window.removeEventListener("blur", onEnd);
     };
-  }, [dragging, clearDrag, syncAllCues]);
+  }, [dragging, clearDrag]);
 
+  // After a write, focus goes back to the card; never to <body>.
   React.useEffect(() => {
     if (board && !resource.loading && focus.current && !busy) {
-      let revealedColumn: string | null = null;
-      if (reveal.current) {
-        const { lane, colId } = reveal.current;
-        revealedColumn = colId;
-        reveal.current = null;
-        const sc = scrollerRefs.current[lane];
-        const col = sc
-          ? Array.from(sc.querySelectorAll<HTMLElement>("[data-board-column]")).find(
-              (el) => el.getAttribute("data-board-column") === colId,
-            )
-          : null;
-        if (sc && col && window.getComputedStyle(sc).display === "flex") {
-          const nextLeft = revealColumnScrollLeft(col, sc);
-          if (nextLeft !== sc.scrollLeft) {
-            sc.scrollLeft = nextLeft;
-            syncRowCue(lane);
-          }
-        }
-      }
       const target = document.getElementById(focus.current);
       target?.focus({ preventScroll: true });
-      if (!target || document.activeElement !== target) {
-        // The target is missing, hidden or not focusable (for example in a column that is not shown): never leave focus on
-        // BODY. Fall back to the visible heading of the revealed column, then to the board's status message.
-        const heading = revealedColumn
-          ? Array.from(document.querySelectorAll<HTMLElement>("[data-board-column]"))
-              .find((el) => el.getAttribute("data-board-column") === revealedColumn && el.getClientRects().length > 0)
-              ?.querySelector<HTMLElement>("h3")
-          : null;
-        (heading ?? document.getElementById("board-status"))?.focus({ preventScroll: true });
-      }
+      if (!target || document.activeElement !== target) document.getElementById("board-status")?.focus({ preventScroll: true });
       focus.current = null;
     }
-  }, [board, resource.loading, busy, syncRowCue]);
-
-  // P1-30: when the details dialog closes, focus goes back to that card's reference button. If the
-  // card is gone (moved away or deleted) it lands on the board's day field instead of <body>. While
-  // the board is reloading after a change, wait for it so the answer is about the new board.
+  }, [board, resource.loading, busy]);
+  // P1-30: when the details dialog closes, focus goes back to that card's reference button, else to the day field.
   React.useEffect(() => {
     if (selected !== null || !restoreFocus.current || resource.loading) return;
-    const target =
-      document.getElementById(restoreFocus.current) ??
-      document.getElementById("board-day-input");
+    const target = document.getElementById(restoreFocus.current) ?? document.getElementById("board-day-input");
     restoreFocus.current = null;
     target?.focus({ preventScroll: true });
   }, [selected, resource.loading]);
-
-  function startDragLoop(initialX: number, initialY: number) {
-    if (dragLoop.current.raf) cancelAnimationFrame(dragLoop.current.raf);
-    dragLoop.current = {
-      active: true,
-      x: initialX,
-      y: initialY,
-      lastOver: 0,
-      lastTick: 0,
-      raf: 0,
-      carry: 0,
-      hotLane: null,
-      hotDir: 0,
-    };
-    const tick = (now: number) => {
-      if (!dragLoop.current.active) return;
-      if (!dragLoop.current.lastOver) dragLoop.current.lastOver = now;
-      const dtMs = dragLoop.current.lastTick ? now - dragLoop.current.lastTick : 0;
-      dragLoop.current.lastTick = now;
-      let nextHotLane: BayType | null = null;
-      let nextHotDir: -1 | 0 | 1 = 0;
-
-      // Stop scrolling if no dragover has arrived for 1s (pointer left window).
-      if (now - dragLoop.current.lastOver <= 1000) {
-        for (const lane of BOARD_LANES) {
-          const sc = scrollerRefs.current[lane.bayType];
-          if (!sc || window.getComputedStyle(sc).display !== "flex") continue;
-          const rect = sc.getBoundingClientRect();
-          if (dragLoop.current.y < rect.top || dragLoop.current.y > rect.bottom) continue;
-          const step = edgeScrollStep(
-            dragLoop.current.x,
-            dragLoop.current.y,
-            rect,
-            sc,
-            dtMs,
-          );
-          if (step.dir !== 0) {
-            nextHotLane = lane.bayType;
-            nextHotDir = step.dir;
-            if (
-              dragLoop.current.hotLane !== nextHotLane ||
-              dragLoop.current.hotDir !== nextHotDir
-            ) {
-              dragLoop.current.carry = 0;
-            }
-            const totalDelta = step.delta + dragLoop.current.carry;
-            const before = sc.scrollLeft;
-            sc.scrollLeft = before + totalDelta;
-            const actual = sc.scrollLeft - before;
-            dragLoop.current.carry = totalDelta - actual;
-          }
-          break;
-        }
-      }
-      dragLoop.current.hotLane = nextHotLane;
-      dragLoop.current.hotDir = nextHotDir;
-      syncAllCues();
-      dragLoop.current.raf = requestAnimationFrame(tick);
-    };
-    syncAllCues();
-    dragLoop.current.raf = requestAnimationFrame(tick);
-  }
 
   async function bayChanged(text: string) {
     showStatus(text, false);
@@ -489,72 +203,52 @@ export function BayBoard({
       setReview(null);
     }
   }
-  async function move(card: AdminBoardCard, bayId: string | null) {
+  // Shared by move and finish: the failure handling is the same (sign-in, stale card, unknown outcome).
+  async function write(card: AdminBoardCard | AdminDoneCard, work: () => Promise<unknown>, doing: string, done: string, unverified: string, after: Zone) {
     if (role !== "ADMIN" || writing.current || locked) return;
     writing.current = true;
     setBusy(true);
-    const lane =
-      board?.queues.find((q) => q.code === card.queueCode)?.bayType ?? null;
-    showStatus("Moving car...", false);
+    showStatus(doing, false);
     try {
-      await adminRequest<AdminWriteResult>(
-        "/api/admin/bookings/" + card.id + "/bay",
-        { method: "PUT", body: bayPayload(card, date, bayId) },
-      );
+      await work();
       if (!mounted.current) return;
-      const destColId = bayId ?? card.queueCode;
-      if (lane) {
-        setPicked((p) => ({ ...p, [lane]: destColId }));
-        reveal.current = { lane, colId: destColId };
-      }
+      setZone(after);
       focus.current = "board-card-" + card.id;
       await reloadBoard();
-      showStatus("Car moved.", false);
+      showStatus(done, false);
     } catch (e) {
       if (!mounted.current) return;
       if (e instanceof AdminRequestError && e.status === 401) {
         window.location.replace("/admin/login");
         return;
       }
-      const feedback = writeFeedback(
-        e instanceof AdminRequestError
-          ? e.detail
-          : {
-              message:
-                "Could not verify the move. Refresh before trying again.",
-            },
-      );
+      const feedback = writeFeedback(e instanceof AdminRequestError ? e.detail : { message: unverified });
       focus.current =
-        (feedback.review ||
-        !(e instanceof AdminRequestError) ||
-        e.commitState === "UNKNOWN"
-          ? "board-card-"
-          : "board-move-") + card.id;
+        (feedback.review || !(e instanceof AdminRequestError) || e.commitState === "UNKNOWN" ? "board-card-" : "board-move-") + card.id;
       if (e instanceof AdminRequestError && feedback.review) {
         setBlocked(true);
         setReview(card.id);
       }
-      if (!(e instanceof AdminRequestError) || e.commitState === "UNKNOWN")
-        setBlocked(true);
+      if (!(e instanceof AdminRequestError) || e.commitState === "UNKNOWN") setBlocked(true);
       await resource.reload();
-      showStatus(feedback.message, true, lane);
+      showStatus(feedback.message, true);
     } finally {
       writing.current = false;
       if (mounted.current) setBusy(false);
     }
   }
-  // P1-34 (LE 2026-10-31): drop a car on Done, or choose "Done (finish)" in its move control. Every service
-  // is marked done and the booking completed in one server write, after a confirm in plain words. A car
-  // must be in a bay or in service (the server decides too; this only spares a pointless request).
-  const canFinishCard = (card: AdminBoardCard) =>
-    role === "ADMIN" && (card.assignedBayId !== null || card.status === "IN_PROGRESS");
+  const move = (card: AdminBoardCard, bayId: string | null) =>
+    write(card, () => adminRequest<AdminWriteResult>("/api/admin/bookings/" + card.id + "/bay", { method: "PUT", body: bayPayload(card, date, bayId) }),
+      "Moving car...", "Car moved.", "Could not verify the move. Refresh before trying again.", bayId ? "BAYS" : "WAITING");
+
+  // P1-34 (LE 2026-10-31): drop a car on Done, or choose "Done (finish)" in its move control. Every service is marked done and the booking
+  // completed in one server write, after a confirm in plain words. A car must be in a bay or in service (the server decides too).
+  const canFinishCard = (card: AdminBoardCard) => role === "ADMIN" && (card.assignedBayId !== null || card.status === "IN_PROGRESS");
   async function finish(card: AdminBoardCard) {
     if (role !== "ADMIN" || writing.current || locked) return;
-    const lane =
-      board?.queues.find((q) => q.code === card.queueCode)?.bayType ?? null;
     if (!canFinishCard(card)) {
       setBoardGen((g) => g + 1);
-      showStatus("Move this car into a bay before finishing it.", true, lane);
+      showStatus("Move this car into a bay before finishing it.", true);
       return;
     }
     const sure = window.confirm(
@@ -564,189 +258,62 @@ export function BayBoard({
       setBoardGen((g) => g + 1); // the card snaps back to where it was
       return;
     }
-    writing.current = true;
-    setBusy(true);
-    showStatus("Finishing car...", false);
-    try {
-      await adminRequest<AdminWriteResult>(
-        "/api/admin/bookings/" + card.id + "/finish",
-        { method: "POST", body: { expectedRevision: card.revision } },
-      );
-      if (!mounted.current) return;
-      // P1-34 F1: the finished car now lives in this lane's Done column. Below md only the picked column is shown, so
-      // select it (the same mechanism move() uses) before focus is restored; otherwise the card's button is in a
-      // display:none column and focus is lost to BODY.
-      if (lane) {
-        setPicked((p) => ({ ...p, [lane]: "DONE-" + lane }));
-        reveal.current = { lane, colId: "DONE-" + lane };
-      }
-      focus.current = "board-card-" + card.id;
-      await reloadBoard();
-      showStatus("Car finished.", false);
-    } catch (e) {
-      if (!mounted.current) return;
-      if (e instanceof AdminRequestError && e.status === 401) {
-        window.location.replace("/admin/login");
-        return;
-      }
-      const feedback = writeFeedback(
-        e instanceof AdminRequestError
-          ? e.detail
-          : { message: "Could not verify the finish. Refresh before trying again." },
-      );
-      focus.current =
-        (feedback.review || !(e instanceof AdminRequestError) || e.commitState === "UNKNOWN"
-          ? "board-card-"
-          : "board-move-") + card.id;
-      if (e instanceof AdminRequestError && feedback.review) {
-        setBlocked(true);
-        setReview(card.id);
-      }
-      if (!(e instanceof AdminRequestError) || e.commitState === "UNKNOWN")
-        setBlocked(true);
-      await resource.reload();
-      showStatus(feedback.message, true, lane);
-    } finally {
-      writing.current = false;
-      if (mounted.current) setBusy(false);
-    }
+    await write(card, () => adminRequest<AdminWriteResult>("/api/admin/bookings/" + card.id + "/finish", { method: "POST", body: { expectedRevision: card.revision } }),
+      "Finishing car...", "Car finished.", "Could not verify the finish. Refresh before trying again.", "DONE");
   }
-  const cards = board
-    ? [
-        ...board.queues.flatMap((q) => q.waiting),
-        ...board.bays.flatMap((b) => b.cards),
-      ]
-    : [];
-  function drop(e: React.DragEvent, bayId: string | null, queue?: string) {
-    e.preventDefault();
-    const card = drag.current;
-    // Every drop exit ends the gesture before a rejection or move can reload its source.
-    clearDrag();
-    if (!card || busy || locked || role !== "ADMIN") return;
-    const cardLane =
-      board?.queues.find((q) => q.code === card.queueCode)?.bayType ?? null;
-    if (queue && (card.queueCode !== queue || card.assignedBayId === null)) {
-      const targetLane =
-        board?.queues.find((q) => q.code === queue)?.bayType ?? cardLane;
-      showStatus("Return a car to its own Waiting queue.", true, targetLane);
-      return;
-    }
-    const bay = board?.bays.find((b) => b.id === bayId),
-      allowed = cardLane ?? undefined;
-    if (bay && !canDrop(role, card, bay, allowed)) {
+
+  const containers = board?.containers ?? [];
+  const allBays: BoardBay[] = containers.flatMap((c) => c.bays);
+  const openCards: AdminBoardCard[] = board ? [...board.waiting, ...allBays.flatMap((b) => b.cards)] : [];
+  const queueName = (code: string) => board?.queues.find((q) => q.code === code)?.name ?? code;
+
+  // Placing a car in a bay: any empty active bay takes any car. A labelled container asks once when the car is not what it is usually for.
+  function place(card: AdminBoardCard, bayId: string) {
+    if (role !== "ADMIN" || busy || locked) return;
+    const container = containers.find((c) => c.bays.some((b) => b.id === bayId)),
+      bay = allBays.find((b) => b.id === bayId);
+    if (!container || !bay) return;
+    if (!canDrop(role, card, bay)) {
       setBoardGen((g) => g + 1);
-      showStatus(
-        bay.cards.length
-          ? "This bay is busy. The car stayed in its column."
-          : "This bay does not take this queue.",
-        true,
-        bay.bayType ?? cardLane,
-      );
+      showStatus(bay.cards.length ? "This bay is busy. The car stayed where it was." : "This bay is not available.", true);
       void resource.reload();
       return;
     }
-    void move(card, bayId);
+    const text = placementPrompt({ queueCode: card.queueCode, queueName: queueName(card.queueCode) }, container);
+    if (text) setPending({ card, bayId, text });
+    else void move(card, bayId);
   }
-
-  function columnIdUnderPoint(clientX: number, clientY: number): string | null {
-    if (typeof document === "undefined" || typeof document.elementsFromPoint !== "function") {
-      return null;
-    }
-    for (const el of document.elementsFromPoint(clientX, clientY)) {
-      const col = el.closest?.("[data-board-column]");
-      const id = col?.getAttribute("data-board-column");
-      if (id) return id;
-    }
-    return null;
+  function dropOnBay(e: React.DragEvent, bayId: string) {
+    e.preventDefault();
+    const card = drag.current;
+    clearDrag();
+    if (card) place(card, bayId);
   }
-
-  function dropOnDone(e: React.DragEvent, bayType: string) {
+  function dropOnWaiting(e: React.DragEvent) {
     e.preventDefault();
     const card = drag.current;
     clearDrag();
     if (!card || busy || locked || role !== "ADMIN") return;
-    const cardLane =
-      board?.queues.find((q) => q.code === card.queueCode)?.bayType ?? null;
-    if (cardLane !== bayType) {
-      setBoardGen((g) => g + 1);
-      showStatus("A car is finished in its own row's Done column.", true, cardLane);
-      return;
-    }
+    if (card.assignedBayId === null) return;
+    void move(card, null);
+  }
+  function dropOnDone(e: React.DragEvent) {
+    e.preventDefault();
+    const card = drag.current;
+    clearDrag();
+    if (!card || busy || locked || role !== "ADMIN") return;
     void finish(card);
   }
-  // A drag may land on Done only from an ADMIN who can act right now.
   const acceptsDrops = () => role === "ADMIN" && !busy && !locked;
-  function dropOnColumnId(e: React.DragEvent, colId: string) {
-    if (board && colId.startsWith("DONE-")) {
-      dropOnDone(e, colId.slice("DONE-".length));
-      return;
-    }
-    if (!board) {
-      clearDrag();
-      return;
-    }
-    drop(
-      e,
-      board.bays.some((b) => b.id === colId) ? colId : null,
-      board.queues.some((q) => q.code === colId) ? colId : undefined,
-    );
-  }
-
-  // One row per bay type: Waiting queue(s) -> bays -> Done. Below md each row shows one picked
-  // column; from md the row's columns sit on one horizontal scrolling line.
-  const lanes = board
-    ? boardLanes(board, dayData).map((lane) => {
-        const columns = [
-          ...lane.waiting.map((q) => ({
-            id: q.code,
-            label: "Waiting · " + q.name,
-            subtitle: "",
-            cards: q.waiting,
-            done: null,
-            bay: null,
-          })),
-          ...lane.bays.map((b) => ({
-            id: b.id,
-            label: b.name,
-            subtitle: b.isActive ? "" : "Inactive",
-            cards: b.cards,
-            done: null,
-            bay: b.isActive ? b : null,
-          })),
-          {
-            id: "DONE-" + lane.bayType,
-            label: "Done · " + lane.label,
-            subtitle: "Finished today",
-            cards: [] as AdminBoardCard[],
-            done: lane.done,
-            bay: null,
-          },
-        ];
-        const want = picked[lane.bayType];
-        return {
-          ...lane,
-          columns,
-          active: columns.some((c) => c.id === want) ? want! : columns[0].id,
-        };
-      })
-    : [];
-
-  // P1-22 / P1-25 Section 1: keep emptySlot minimum heights unchanged (min-h-24, plus
-  // lg:min-h-[26rem] for ADMIN and lg:min-h-[14rem] for STAFF/DETAILER).
-  const emptySlot =
-    "flex min-h-24 flex-1 items-center justify-center px-3 text-xs text-muted-foreground " +
-    (role === "ADMIN" ? "lg:min-h-[26rem]" : "lg:min-h-[14rem]");
 
   function openFromCardClick(e: React.MouseEvent<HTMLElement>, id: string) {
     if (isControlTarget(e.target)) return;
     if (window.getSelection()?.toString()) return;
     setSelected(id);
   }
+  const emptySlot = "flex min-h-24 items-center justify-center rounded border border-dashed border-border px-3 text-xs text-muted-foreground";
 
-  function doneView(b: AdminQueueBooking) {
-    const activeLines = b.lines.filter((l) => !l.removed);
-    const first = activeLines[0]?.name || b.serviceName;
-    const extra = Math.max(0, activeLines.length - 1);
+  function doneView(b: AdminDoneCard) {
     return (
       <article
         key={b.id + "-" + boardGen}
@@ -754,41 +321,32 @@ export function BayBoard({
         aria-label={b.referenceCode}
         onClick={(e) => openFromCardClick(e, b.id)}
       >
-        <button
-          id={"board-card-" + b.id}
-          className="min-h-[44px] break-all text-left font-mono font-bold text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
-          onClick={() => setSelected(b.id)}
-        >
-          {b.referenceCode}
-        </button>
+        <div className="flex items-center justify-between gap-2">
+          <button
+            id={"board-card-" + b.id}
+            className="min-h-[44px] break-all text-left font-mono font-bold text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
+            onClick={() => setSelected(b.id)}
+          >
+            {b.referenceCode}
+          </button>
+          <span data-service-tag className={pill}>{waitingTag({ queueName: b.queueName, lines: b.lines })}</span>
+        </div>
         <p className="break-words text-sm font-semibold leading-tight">
           {b.vehicleModel} · {plateLabel(b.vehiclePlate)}
         </p>
-        <p
-          className="truncate text-xs text-muted-foreground"
-          title={activeLines.map((l) => l.name).join(", ") || b.serviceName}
-        >
-          {first}
-          {extra > 0 ? ` · +${extra} more` : ""}
+        <p className="break-words text-xs text-muted-foreground" title={b.lines.map((l) => l.name).join(", ")}>
+          Finished {finishTime(b.finishedAt)} · {b.workers.map((w) => w.name).join(", ") || "No staff recorded"}
         </p>
       </article>
     );
   }
 
   function cardView(card: AdminBoardCard) {
-    const allowed = board?.queues.find(
-      (q) => q.code === card.queueCode,
-    )?.bayType;
     const canDrag = cardDraggable(role, busy, locked);
     const firstLine = card.lines[0];
     const extraLines = Math.max(0, card.lines.length - 1);
-    const allLinesTitle = card.lines
-      .map((l) => `${l.name} · ${statusLabel(l.workStatus)}`)
-      .join(", ");
-    const staffNames =
-      card.assignedWorkers
-        .map((w) => w.name + (w.isActive ? "" : " (inactive)"))
-        .join(", ") || "Unassigned";
+    const allLinesTitle = card.lines.map((l) => `${l.name} · ${statusLabel(l.workStatus)}`).join(", ");
+    const staffNames = card.assignedWorkers.map((w) => w.name + (w.isActive ? "" : " (inactive)")).join(", ") || "Unassigned";
     return (
       <article
         key={card.id + "-" + boardGen}
@@ -798,15 +356,10 @@ export function BayBoard({
           (dragging === card.id ? " opacity-50 ring-2 ring-primary" : "")
         }
         aria-label={card.referenceCode}
-        // P1-23 (LE 2026-10-29): the whole ADMIN card is the drag source. A press that starts on a
-        // control (reference, dropdown, Move car) keeps that control's own behavior instead.
+        // P1-23 (LE 2026-10-29): the whole ADMIN card is the drag source. A press that starts on a control keeps that control's own behavior.
         draggable={role === "ADMIN" ? canDrag : undefined}
         onPointerDown={(e) => {
-          pressedControl.current = Boolean(
-            (e.target as Element).closest(
-              "button, select, input, textarea, a, label",
-            ),
-          );
+          pressedControl.current = Boolean((e.target as Element).closest("button, select, input, textarea, a, label"));
         }}
         onDragStart={(e) => {
           if (!canDrag || pressedControl.current) return e.preventDefault();
@@ -814,12 +367,9 @@ export function BayBoard({
           setDragging(card.id);
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", card.id);
-          startDragLoop(e.clientX, e.clientY);
         }}
         onDragEnd={clearDrag}
-        // P1-30 (LE 2026-10-30): a click anywhere on the card opens its details. Controls keep their own
-        // behaviour, and a click that ends a text selection is not a request to open it. A real drag
-        // never fires a click. The card is not a tab stop: its reference button opens it by keyboard.
+        // P1-30 (LE 2026-10-30): a click anywhere on the card opens the EXISTING booking details. Controls keep their own behaviour.
         onClick={(e) => openFromCardClick(e, card.id)}
       >
         <div className="flex items-center justify-between gap-2">
@@ -830,11 +380,8 @@ export function BayBoard({
           >
             {card.referenceCode}
           </button>
-          <span
-            className="shrink-0 text-xs text-muted-foreground"
-            aria-label="Service progress"
-          >
-            {card.progress.done}/{card.progress.total} done
+          <span data-service-tag className={pill}>
+            {waitingTag({ queueName: "queueName" in card ? (card as AdminWaitingCard).queueName : queueName(card.queueCode), lines: card.lines })}
           </span>
         </div>
         <p className="break-words text-sm font-semibold leading-tight">
@@ -842,20 +389,15 @@ export function BayBoard({
         </p>
         <p className="break-words text-xs leading-tight text-muted-foreground">
           {card.sizeCode} · {statusLabel(card.status)}
-          {card.bookingDate < date
-            ? " · Carry-over " + card.bookingDate
-            : " · " + card.bookingDate}
+          {card.bookingDate < date ? " · Carry-over " + card.bookingDate : " · " + card.bookingDate}
           {" · Staff: "}
           <span className="text-foreground">{staffNames}</span>
         </p>
         {firstLine && (
-          <p
-            className="truncate text-xs text-muted-foreground"
-            title={allLinesTitle}
-          >
-            <span className="text-foreground">{firstLine.name}</span> ·{" "}
-            {statusLabel(firstLine.workStatus)}
+          <p className="truncate text-xs text-muted-foreground" title={allLinesTitle}>
+            <span className="text-foreground">{firstLine.name}</span> · {statusLabel(firstLine.workStatus)}
             {extraLines > 0 ? ` · +${extraLines} more` : ""}
+            <span className="ml-1">· {card.progress.done}/{card.progress.total} done</span>
           </p>
         )}
         {card.depositStatus && card.depositStatus !== "NONE" && (
@@ -870,12 +412,12 @@ export function BayBoard({
               e.preventDefault();
               const value = String(new FormData(e.currentTarget).get("bay"));
               if (value === "DONE") void finish(card);
-              else void move(card, value || null);
+              else if (value) place(card, value);
+              else void move(card, null);
             }}
           >
             <p className="text-[11px] leading-tight text-muted-foreground">
-              Move {card.referenceCode} to bay · Drag this card to a bay, or use
-              Move car.
+              Move {card.referenceCode} to bay · Drag this card to a bay, or use Move car.
             </p>
             <div className="flex items-center gap-1.5">
               <select
@@ -885,33 +427,22 @@ export function BayBoard({
                 defaultValue=""
                 disabled={busy || locked}
               >
-                <option value="" disabled={!card.assignedBayId}>
-                  Waiting ·{" "}
-                  {board?.queues.find((q) => q.code === card.queueCode)?.name}
-                </option>
-                {board?.bays
-                  .filter((b) => b.bayType === allowed)
-                  .map((b) => (
-                    <option
-                      key={b.id}
-                      value={b.id}
-                      disabled={!canDrop(role, card, b, allowed)}
-                    >
-                      {b.name}
-                      {b.cards.length ? " · Busy" : ""}
-                      {!b.isActive ? " · Inactive" : ""}
-                    </option>
-                  ))}
+                <option value="" disabled={!card.assignedBayId}>Waiting</option>
+                {containers.map((c) => (
+                  <optgroup key={c.id} label={c.name}>
+                    {c.bays
+                      .filter((b) => b.isActive)
+                      .map((b) => (
+                        <option key={b.id} value={b.id} disabled={!canDrop(role, card, b)}>
+                          {b.name}
+                          {b.cards.length ? " · Busy" : ""}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
                 {canFinishCard(card) && <option value="DONE">Done (finish)</option>}
               </select>
-              <Button
-                id={"board-move-" + card.id}
-                size="sm"
-                className="shrink-0 px-2.5"
-                disabled={busy || locked}
-                type="submit"
-                variant="outline"
-              >
+              <Button id={"board-move-" + card.id} size="sm" className="shrink-0 px-2.5" disabled={busy || locked} type="submit" variant="outline">
                 Move car
               </Button>
             </div>
@@ -919,18 +450,6 @@ export function BayBoard({
         )}
       </article>
     );
-  }
-
-  function scrollRowByStep(bayType: BayType, dir: -1 | 1) {
-    const sc = scrollerRefs.current[bayType];
-    if (!sc) return;
-    const reduce =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    sc.scrollBy({
-      left: dir * COLUMN_STEP_PX,
-      behavior: reduce ? "auto" : "smooth",
-    });
   }
 
   return (
@@ -958,19 +477,13 @@ export function BayBoard({
               }}
             />
           </label>
-          <Button
-            variant="outline"
-            className="shrink-0"
-            onClick={() => void refresh()}
-            disabled={busy}
-          >
+          <Button variant="outline" className="shrink-0" onClick={() => void refresh()} disabled={busy}>
             Refresh board
           </Button>
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        One car per bay until done or returned to Waiting. Earlier open cars
-        stay visible.
+        One car per bay until done or returned to Waiting. Any car can go in any empty bay. Earlier open cars stay visible.
       </p>
       <div
         data-board-notice={refusal && message ? "refusal" : undefined}
@@ -980,23 +493,11 @@ export function BayBoard({
             : ""
         }
       >
-        <p
-          id="board-status"
-          tabIndex={-1}
-          role="status"
-          aria-live="polite"
-          className="min-w-0 flex-1 break-words text-sm focus:outline-none"
-        >
+        <p id="board-status" tabIndex={-1} role="status" aria-live="polite" className="min-w-0 flex-1 break-words text-sm focus:outline-none">
           {message}
         </p>
         {refusal && message && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="shrink-0 text-xs text-amber-200 hover:text-foreground"
-            onClick={() => showStatus("", false)}
-          >
+          <Button type="button" variant="ghost" size="sm" className="shrink-0 text-xs text-amber-200 hover:text-foreground" onClick={() => showStatus("", false)}>
             Dismiss
           </Button>
         )}
@@ -1013,307 +514,117 @@ export function BayBoard({
           )}
         </div>
       )}
-      <LoadState
-        loading={!board && resource.loading}
-        error={resource.error}
-        retry={refresh}
-      />
-      {board?.closed && (
-        <p className="text-sm">Shop closed · {board.closed.reason}</p>
-      )}
+      <LoadState loading={!board && resource.loading} error={resource.error} retry={refresh} />
+      {board?.closed && <p className="text-sm">Shop closed · {board.closed.reason}</p>}
       {board && (
         <>
-          {lanes.map((lane) => {
-            const cue = cues[lane.bayType] ?? INITIAL_CUE;
-            const dragActive = dragging !== null;
-            const hotLeft = dragActive && cue.hotDir === -1 && cue.left;
-            const hotRight = dragActive && cue.hotDir === 1 && cue.right;
-            const showArrows = !cue.measured || cue.overflow;
-            return (
-              <section
-                key={lane.bayType}
-                aria-label={lane.label + " row"}
-                className="min-w-0 space-y-3 rounded border border-border bg-[#0f0f11] p-3"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-                    <h2 className="text-base font-bold">{lane.label}</h2>
-                    <p className="text-xs text-muted-foreground">
-                      {lane.counts.waiting} waiting · {lane.counts.inBay} in bay ·{" "}
-                      {lane.counts.done} done
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <div
-                      data-board-arrows={lane.bayType}
-                      className={
-                        showArrows ? "hidden gap-1 md:flex" : "hidden gap-1"
-                      }
-                    >
-                      <Button
-                        ref={(el) => {
-                          arrowLeftRefs.current[lane.bayType] = el;
-                        }}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-11 px-0"
-                        aria-label={`Show earlier ${lane.label} columns`}
-                        disabled={cue.measured ? !cue.left : true}
-                        onClick={() => scrollRowByStep(lane.bayType, -1)}
-                      >
-                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                      <Button
-                        ref={(el) => {
-                          arrowRightRefs.current[lane.bayType] = el;
-                        }}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-11 px-0"
-                        aria-label={`Show more ${lane.label} columns`}
-                        disabled={cue.measured ? !cue.right : false}
-                        onClick={() => scrollRowByStep(lane.bayType, 1)}
-                      >
-                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                    </div>
-                    {role === "ADMIN" && (
-                      <AddBay
-                        bayType={lane.bayType}
-                        label={lane.label}
-                        bays={board.bays}
-                        onDone={(text) => {
-                          focus.current = addBayButtonId(lane.bayType);
-                          return bayChanged(text);
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-                <label className="block text-xs md:hidden">
-                  Board column
-                  <select
-                    aria-label={lane.label + " board column"}
-                    className={fieldClass}
-                    value={lane.active}
-                    onChange={(e) =>
-                      setPicked((p) => ({
-                        ...p,
-                        [lane.bayType]: e.target.value,
-                      }))
-                    }
-                  >
-                    {lane.columns.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label} ({c.done ? c.done.length : c.cards.length})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {/* P1-25: single-line horizontal scrolling row from md up, inside a relative fade wrapper. */}
-                <div className="relative" data-board-row-wrap={lane.bayType}>
-                  <div
-                    ref={(el) => {
-                      scrollerRefs.current[lane.bayType] = el;
-                    }}
-                    data-board-row-scroll={lane.bayType}
-                    onScroll={() => syncRowCue(lane.bayType)}
-                    className="relative min-w-0 grid grid-cols-1 items-stretch gap-3 md:flex md:overflow-x-auto md:overscroll-x-contain md:pb-2 md:scroll-px-12 [scrollbar-width:thin] [scrollbar-color:#3f3f46_transparent] hover:[scrollbar-color:#52525b_transparent]"
-                  >
-                    {lane.columns.map((c) => (
-                      <section
-                        key={c.id}
-                        aria-label={c.label}
-                        data-board-column={c.id}
-                        className={
-                          (c.id === lane.active ? "flex " : "hidden ") +
-                          "min-w-0 flex-col gap-3 rounded border border-border bg-[#121214] p-3 md:flex md:w-60 md:shrink-0"
-                        }
-                        onDragOver={(e) => {
-                          if (acceptsDrops()) e.preventDefault();
-                        }}
-                        onDrop={(e) => {
-                          dropOnColumnId(e, c.id);
-                        }}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <h3
-                            tabIndex={-1}
-                            className="min-w-0 break-words py-2 text-sm font-bold"
-                          >
-                            {c.label} ({c.done ? c.done.length : c.cards.length})
-                          </h3>
-                          {role === "ADMIN" && c.bay && (
-                            <BayMenu
-                              bay={c.bay}
-                              bays={board.bays}
-                              onDone={bayChanged}
-                            />
-                          )}
+          {/* Phone: one zone at a time. From lg all three zones sit side by side. */}
+          <div role="group" aria-label="Board area" className="flex gap-2 lg:hidden">
+            {ZONES.map((z) => (
+              <Button key={z.id} variant={zone === z.id ? "default" : "outline"} className="min-h-[44px] flex-1" aria-pressed={zone === z.id} onClick={() => setZone(z.id)}>
+                {z.label} {z.id === "WAITING" ? board.waiting.length : z.id === "DONE" ? board.done.length : allBays.filter((b) => b.cards.length).length}
+              </Button>
+            ))}
+          </div>
+          <div className="grid min-w-0 gap-3 lg:grid-cols-[16rem_minmax(0,1fr)_17rem] lg:items-start">
+            <section
+              aria-label="Waiting"
+              data-board-zone="WAITING"
+              className={(zone === "WAITING" ? "block " : "hidden ") + "lg:block " + lane}
+              onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
+              onDrop={dropOnWaiting}
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 tabIndex={-1} className="text-base font-bold">Waiting ({board.waiting.length})</h2>
+                <span className="text-xs text-muted-foreground">All services</span>
+              </div>
+              {board.waiting.map(cardView)}
+              {!board.waiting.length && <p className={emptySlot}>No waiting cars</p>}
+              <p className="text-[11px] text-muted-foreground">Every waiting car is here. The tag is its main service. Drop a car here to return it to Waiting.</p>
+            </section>
+
+            <div data-board-zone="BAYS" className={(zone === "BAYS" ? "grid " : "hidden ") + "min-w-0 gap-3 lg:grid"}>
+              {containers.map((c) => {
+                const shown = c.bays.filter((b) => b.isActive || b.cards.length);
+                return (
+                  <article key={c.id} aria-label={c.name} data-container={c.id} className="min-w-0 space-y-3 rounded border border-border bg-[#0f0f11] p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 tabIndex={-1} className="break-words text-base font-bold">{c.name}</h3>
+                        <p className="text-xs text-muted-foreground">
+                          {usualForLine(c.usualQueues)} · {shown.filter((b) => b.cards.length).length} of {shown.length} in use
+                        </p>
+                      </div>
+                      {role === "ADMIN" && (
+                        <div className="flex shrink-0 items-center gap-2">
+                          <AddBay containerId={c.id} label={c.name} bays={board.bays} onDone={(text) => { focus.current = addBayButtonId(c.id); return bayChanged(text); }} />
+                          <ContainerMenu container={c} containers={containers} queues={board.queues} onDone={bayChanged} />
                         </div>
-                        {c.subtitle && (
-                          <p className="text-xs text-muted-foreground">
-                            {c.subtitle}
-                          </p>
-                        )}
-                        {c.done ? (
-                          <>
-                            {dayView.error && (
-                              <p role="alert" className="text-xs text-rose-400">
-                                Finished cars could not load. Refresh the board.
-                              </p>
-                            )}
-                            {c.done.map(doneView)}
-                            {!c.done.length && !dayView.error && (
-                              <p className={emptySlot}>
-                                {dayView.loading && !dayData
-                                  ? "Loading..."
-                                  : "No cars finished yet"}
-                              </p>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            {c.cards.map(cardView)}
-                            {!c.cards.length && (
-                              <p
-                                className={
-                                  emptySlot +
-                                  " rounded border border-dashed border-border"
-                                }
-                              >
-                                {board.bays.some((b) => b.id === c.id)
-                                  ? "Bay empty"
-                                  : "No waiting cars"}
-                              </p>
-                            )}
-                          </>
-                        )}
-                      </section>
-                    ))}
-                  </div>
-                  <div
-                    aria-hidden="true"
-                    data-board-fade="left"
-                    onDragOver={(e) => {
-                      const colId = columnIdUnderPoint(e.clientX, e.clientY);
-                      if (colId && acceptsDrops()) {
-                        e.preventDefault();
-                      }
-                    }}
-                    onDrop={(e) => {
-                      const colId = columnIdUnderPoint(e.clientX, e.clientY);
-                      if (!colId) {
-                        clearDrag();
-                        return;
-                      }
-                      dropOnColumnId(e, colId);
-                    }}
-                    className={
-                      "absolute bottom-2 left-0 top-0 hidden w-12 rounded-l bg-gradient-to-r from-[#0f0f11] to-transparent transition-opacity motion-reduce:transition-none md:block " +
-                      (cue.left ? "opacity-100 " : "opacity-0 ") +
-                      (dragActive && cue.left
-                        ? "pointer-events-auto"
-                        : "pointer-events-none")
-                    }
-                  >
-                    <div
-                      className={
-                        "absolute inset-y-0 left-0 bg-primary " +
-                        (dragActive && cue.left
-                          ? hotLeft
-                            ? "w-1 opacity-100"
-                            : "w-0.5 opacity-45"
-                          : "w-0.5 opacity-0")
-                      }
-                    />
-                    <div
-                      className={
-                        "absolute left-1 top-10 text-primary " +
-                        (dragActive && cue.left
-                          ? hotLeft
-                            ? "opacity-100"
-                            : "opacity-60"
-                          : "opacity-0")
-                      }
-                    >
-                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                      )}
                     </div>
-                  </div>
-                  <div
-                    aria-hidden="true"
-                    data-board-fade="right"
-                    onDragOver={(e) => {
-                      const colId = columnIdUnderPoint(e.clientX, e.clientY);
-                      if (colId && acceptsDrops()) {
-                        e.preventDefault();
-                      }
-                    }}
-                    onDrop={(e) => {
-                      const colId = columnIdUnderPoint(e.clientX, e.clientY);
-                      if (!colId) {
-                        clearDrag();
-                        return;
-                      }
-                      dropOnColumnId(e, colId);
-                    }}
-                    className={
-                      "absolute bottom-2 right-0 top-0 hidden w-12 rounded-r bg-gradient-to-l from-[#0f0f11] to-transparent transition-opacity motion-reduce:transition-none md:block " +
-                      (cue.right ? "opacity-100 " : "opacity-0 ") +
-                      (dragActive && cue.right
-                        ? "pointer-events-auto"
-                        : "pointer-events-none")
-                    }
-                  >
-                    <div
-                      className={
-                        "absolute inset-y-0 right-0 bg-primary " +
-                        (dragActive && cue.right
-                          ? hotRight
-                            ? "w-1 opacity-100"
-                            : "w-0.5 opacity-45"
-                          : "w-0.5 opacity-0")
-                      }
-                    />
-                    <div
-                      className={
-                        "absolute right-1 top-10 text-primary " +
-                        (dragActive && cue.right
-                          ? hotRight
-                            ? "opacity-100"
-                            : "opacity-60"
-                          : "opacity-0")
-                      }
-                    >
-                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                    <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(13rem,1fr))]">
+                      {shown.map((b) => (
+                        <section
+                          key={b.id}
+                          aria-label={b.name}
+                          data-board-column={b.id}
+                          className="flex min-w-0 flex-col gap-2 rounded border border-border bg-[#121214] p-3"
+                          onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
+                          onDrop={(e) => dropOnBay(e, b.id)}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 tabIndex={-1} className="min-w-0 break-words py-2 text-sm font-bold">{b.name}</h4>
+                            {role === "ADMIN" && b.isActive && <BayMenu bay={b} bays={board.bays} containers={containers} onDone={bayChanged} />}
+                          </div>
+                          {!b.isActive && <p className="text-xs text-muted-foreground">Inactive</p>}
+                          {b.cards.map(cardView)}
+                          {!b.cards.length && <p className={emptySlot + " flex-1"}>Empty. Drop a car here.</p>}
+                        </section>
+                      ))}
+                      {!shown.length && <p className={emptySlot + " col-span-full"}>No bays yet. Use Add bay.</p>}
                     </div>
-                  </div>
-                </div>
-              </section>
-            );
-          })}
+                  </article>
+                );
+              })}
+              {role === "ADMIN" && <AddContainer containers={containers} onDone={bayChanged} />}
+            </div>
+
+            <section
+              aria-label="Done"
+              data-board-zone="DONE"
+              className={(zone === "DONE" ? "block " : "hidden ") + "lg:block " + lane}
+              onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
+              onDrop={dropOnDone}
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 tabIndex={-1} className="text-base font-bold">Done ({board.done.length})</h2>
+                <span className="text-xs text-muted-foreground">Finished</span>
+              </div>
+              {board.done.map(doneView)}
+              {!board.done.length && <p className={emptySlot}>No cars finished yet</p>}
+              <p className="text-[11px] text-muted-foreground">Drop a finished car here, or use Done (finish) on its card. Shows who worked and when it finished.</p>
+            </section>
+          </div>
           <p className="text-xs text-muted-foreground">
-            {cards.length} open cars · Open a card for the service checklist and
-            assigned staff.
+            {openCards.length} open cars · Open a card for the service checklist and assigned staff.
           </p>
         </>
+      )}
+      {pending && (
+        <Modal id="place-anyway" title="Place it anyway?" onClose={() => { setPending(null); setBoardGen((g) => g + 1); }}>
+          <p className="text-sm">{pending.text}</p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={() => { setPending(null); setBoardGen((g) => g + 1); }}>Cancel</Button>
+            <Button onClick={() => { const p = pending; setPending(null); void move(p.card, p.bayId); }}>Place it anyway</Button>
+          </div>
+        </Modal>
       )}
       {selected && (
         <BookingDetail
           key={selected}
           id={selected}
           role={role}
-          queues={
-            board?.queues.map((q) => ({
-              ...q,
-              isActive: true,
-              effectiveCap: null,
-              committed: q.waiting.length,
-              bookings: [],
-            })) ?? []
-          }
+          queues={board?.queues.map((q) => ({ ...q, isActive: true, effectiveCap: null, committed: q.waiting.length, bookings: [] })) ?? []}
           onChanged={refresh}
           onClose={() => {
             restoreFocus.current = "board-card-" + selected;

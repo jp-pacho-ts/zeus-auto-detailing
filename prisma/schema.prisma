@@ -232,6 +232,7 @@ model Staff {
   adjustmentsPaid       CommissionAdjustment[]    @relation("CommissionAdjustmentPaidBy")
   supplyMovements       SupplyMovement[]          @relation("SupplyMovementActor")
   supplyAudits          SupplyAuditEvent[]        @relation("SupplyAuditActor")
+  containerAudits       BayContainerAuditEvent[]  @relation("ContainerAuditActor")
   commissionSettingsSet CommissionSettings[]
   adminAuditActed       AdminAuditEvent[]
 
@@ -815,7 +816,9 @@ model BayTypeQueue {
 }
 
 model Bay {
-  bayType     BayType
+  bayType     BayType // legacy placeholder since P1-62: the container, not the type, groups bays
+  containerId String?
+  container   BayContainer?          @relation(fields: [containerId], references: [id], onDelete: Restrict)
   occupancy   BayOccupancy?
   id          String                 @id @default(uuid())
   name        String
@@ -1112,4 +1115,45 @@ model SupplyAuditEvent {
 
   @@index([targetSupplyId, createdAt])
   @@map("supply_audit_events")
+}
+
+// P1-62 A1 (migration 20261107000000). A named group of bays; any car can go in any bay. usualQueues is the optional "usually for" label
+// (queue codes; empty = no label = the board never asks). Written only by owner-run functions; the app reads it.
+model BayContainer {
+  id            String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name          String
+  nameKey       String   @unique
+  sortOrder     Int
+  isActive      Boolean  @default(true)
+  usualQueues   String[]
+  legacyBayType BayType? // which old bay type a bay created the old way belongs to
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @default(now()) @db.Timestamptz(3) // the version token
+  bays          Bay[]
+
+  @@map("bay_containers")
+}
+
+enum BayContainerAuditAction {
+  CONTAINER_CREATED
+  CONTAINER_RENAMED
+  CONTAINER_LABEL_SET
+  CONTAINER_REMOVED
+  BAY_MOVED
+}
+
+// Insert-only; the targets are plain text (no foreign key). zeus_app has no privilege on it.
+model BayContainerAuditEvent {
+  id           String                  @id @default(dbgenerated("(gen_random_uuid())::text"))
+  action       BayContainerAuditAction
+  actorStaffId String
+  actor        Staff                   @relation("ContainerAuditActor", fields: [actorStaffId], references: [id], onDelete: Restrict)
+  targetId     String
+  relatedId    String?
+  targetLabel  String?
+  txId         BigInt                  @default(dbgenerated("txid_current()"))
+  createdAt    DateTime                @default(now()) @db.Timestamptz(3)
+
+  @@index([targetId, createdAt])
+  @@map("bay_container_audit_events")
 }

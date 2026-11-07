@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
+// P1-62 A2 (LE 2026-11-07): the board is one fixed Waiting lane, the containers in the middle, one fixed Done lane. The three-row (Wash,
+// Detailing, Paint) structure, its sideways-scrolling rows and the edge fades are gone, so the tests of those were replaced by tests of the
+// new structure (below). The pure edge-scroll helpers are still exported and keep their tests.
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { createElement } from "react";
@@ -10,100 +13,166 @@ const card = {
   revision: 3,
   bookingDate: "2026-10-19",
   queueCode: "WASH",
+  queueName: "Wash",
   queuePosition: 1,
   vehicleModel: "Synthetic Toyota Vios",
   vehiclePlate: null,
   sizeCode: "S",
   status: "IN_PROGRESS",
   assignedBayId: null,
-  lines: [{ id: "line", name: "Basic Wash", workStatus: "WAITING" }],
-  assignedWorkers: [
-    { staffId: "staff", name: "Synthetic Technician", isActive: true },
-  ],
+  lines: [{ id: "line", name: "Basic Wash", workStatus: "WAITING", queueCode: "WASH" }],
+  assignedWorkers: [{ staffId: "staff", name: "Synthetic Technician", isActive: true }],
   progress: { done: 0, total: 1 },
 };
+// A card already in a bay has no queueName (only Waiting cards carry it); the board looks it up by queue code.
+const { queueName: _unused, ...cardInBay } = card;
+void _unused;
+const inBay = { ...cardInBay, id: "car2", referenceCode: "ZEUS-TEST18", queueCode: "REPAINT", assignedBayId: "bay0", lines: [{ id: "l2", name: "Repaint", workStatus: "IN_PROGRESS" }] };
+const doneCard = {
+  id: "car3", referenceCode: "ZEUS-TEST19", revision: 2, bookingDate: "2026-10-20", queueCode: "WASH", queueName: "Wash", vehicleModel: "Synthetic Honda City",
+  vehiclePlate: "SYN 123", sizeCode: "S", lines: [{ id: "l3", name: "Basic Wash" }, { id: "l4", name: "Tint" }],
+  workers: [{ staffId: "s1", name: "Ana Synthetic", isActive: true }, { staffId: "s2", name: "Ben Synthetic", isActive: true }], finishedAt: "2026-10-20T02:40:00.000Z",
+};
+const bay = (i: number, containerId: string, cards: unknown[] = []) => ({
+  id: "bay" + i, name: "Bay " + i, bayType: "WASH", containerId, sortOrder: i, isActive: true, updatedAt: "2026-10-20T00:00:00.000Z", cards,
+});
+const containers = [
+  { id: "k1", name: "Wash", sortOrder: 1, usualQueues: ["WASH"], updatedAt: "2026-10-20T00:00:00.000Z", bays: [bay(0, "k1", [inBay]), bay(1, "k1"), bay(2, "k1")] },
+  { id: "k2", name: "Detailing", sortOrder: 2, usualQueues: [], updatedAt: "2026-10-20T00:00:00.000Z", bays: [bay(3, "k2"), bay(4, "k2")] },
+  { id: "k3", name: "Express wash", sortOrder: 3, usualQueues: ["WASH", "TINT_PPF"], updatedAt: "2026-10-20T00:00:00.000Z", bays: [bay(5, "k3")] },
+];
 const board = {
   date: "2026-10-20",
   closed: null,
   workers: [],
-  queues: ["WASH", "DETAILING_COATING", "TINT_PPF", "REPAINT"].map(
-    (code, i) => ({
-      code,
-      name: code,
-      bayType: i === 0 ? "WASH" : i < 3 ? "DETAILING" : "PAINT",
-      waiting: i === 0 ? [card] : [],
-    }),
-  ),
-  bays: Array.from({ length: 8 }, (_, i) => ({
-    id: "bay" + i,
-    name: "Bay " + i,
-    bayType: i < 3 ? "WASH" : i < 6 ? "DETAILING" : "PAINT",
-    sortOrder: i,
-    isActive: true,
-    updatedAt: "2026-10-20T00:00:00.000Z",
-    cards: [],
-  })),
+  containers,
+  waiting: [card],
+  done: [doneCard],
+  queues: ["WASH", "DETAILING_COATING", "TINT_PPF", "REPAINT"].map((code, i) => ({ code, name: code === "WASH" ? "Wash" : code === "REPAINT" ? "Repaint" : code, bayType: i === 0 ? "WASH" : i < 3 ? "DETAILING" : "PAINT", waiting: [] })),
+  bays: containers.flatMap((c) => c.bays),
 };
 function render(role: "ADMIN" | "STAFF") {
   const resources = require("./use-admin-resource");
   mock.method(resources, "useAdminResource", (url: string | null) => ({
-    data: url === "/api/admin/bays" ? board.bays : url?.startsWith("/api/admin/board?") ? board : {
-      date: board.date, closed: null, legacy: [],
-      queues: board.queues.map(q => ({ ...q, bookings: [], committed: q.waiting.length, effectiveCap: null })),
-    },
+    data: url === "/api/admin/bays" ? board.bays : url?.startsWith("/api/admin/board?") ? board : null,
     loading: false,
     error: null,
     reload: async () => {},
     setData: () => {},
   }));
   try {
-    return renderToStaticMarkup(
-      createElement(require("../bay-workspace").BayWorkspace, { role }),
-    );
+    return renderToStaticMarkup(createElement(require("../bay-workspace").BayWorkspace, { role }));
   } finally {
     mock.restoreAll();
   }
 }
-test("Bay board defaults to Kanban with four Waiting queues, eight bays, captured car/services/staff/progress and a column selector", () => {
+const at = (html: string, s: string) => html.indexOf(s);
+
+test("Bay board defaults to Kanban: one Waiting lane, the containers, one Done lane, in that order", () => {
   const html = render("ADMIN");
   assert.ok(html.includes('aria-pressed="true">Kanban'));
-  for (const q of board.queues)
-    assert.ok(html.includes("Waiting \u00b7 " + q.name));
-  for (const bay of board.bays) assert.ok(html.includes(bay.name));
-  for (const value of [
-    "Bays",
-    "Opening hours",
-    "Board column",
-    "Synthetic Toyota Vios",
-    "No plate",
-    "Basic Wash",
-    "Synthetic Technician",
-    "0/1 done",
-    "Carry-over",
-  ])
+  for (const value of ["Bays", "Opening hours", "Synthetic Toyota Vios", "No plate", "Basic Wash", "Synthetic Technician", "Carry-over", "Wash", "Detailing", "Express wash"])
     assert.ok(html.includes(value), value);
-  assert.ok(html.includes('aria-label="Move ZEUS-TEST17 to bay"'));
-  // P1-23 (LE 2026-10-29): the whole card is the drag source, shown by a grab cursor and a hint.
-  const card = html.match(/<article[^>]*aria-label="ZEUS-TEST17"[^>]*>/)?.[0] ?? "";
-  assert.match(card, /draggable="true"/, "the ADMIN card itself can be dragged");
-  assert.match(card, /cursor-grab/, "the ADMIN card shows a grab cursor");
-  assert.ok(html.includes("Drag this card to a bay"), "a short drag hint");
-  assert.equal(html.includes(">Drag to bay<"), false, "no separate drag-only control");
+  const waiting = at(html, 'aria-label="Waiting"'), wash = at(html, 'aria-label="Wash"'), done = at(html, 'aria-label="Done"');
+  assert.ok(waiting > 0 && waiting < wash && wash < at(html, 'aria-label="Detailing"') && at(html, 'aria-label="Express wash"') < done, "Waiting, containers, Done");
+  for (const bayName of ["Bay 0", "Bay 5"]) assert.ok(html.includes(`aria-label="${bayName}"`), bayName);
+  assert.equal(html.split('data-board-zone="WAITING"').length, 2, "exactly one Waiting lane");
+  assert.equal(html.split('data-board-zone="DONE"').length, 2, "exactly one Done lane");
+  assert.equal(html.includes("Waiting ·"), false, "no per-kind Waiting columns");
+  assert.equal(html.includes("row\""), false, "no per-kind rows");
 });
-test("STAFF board retains card/checklist entry but has no bay-move or worker-write controls", () => {
-  const html = render("STAFF");
-  assert.ok(html.includes("ZEUS-TEST17"));
-  assert.ok(html.includes("Synthetic Technician"));
-  for (const value of [
-    "Drag to bay",
-    "Drag this card",
-    "Move car",
-    "Assign worker",
-    "Remove Synthetic Technician",
-    'draggable="true"',
-    "cursor-grab",
-  ])
-    assert.equal(html.includes(value), false, value);
+
+test("every card carries ONE grey outline service tag; a mixed booking reads 'Wash + 2 more'; no per-kind colours", () => {
+  const mixed = { ...card, lines: [...card.lines, { id: "x", name: "Tint", workStatus: "WAITING", queueCode: "TINT_PPF" }, { id: "y", name: "Detail", workStatus: "WAITING", queueCode: "DETAILING_COATING" }] };
+  const resources = require("./use-admin-resource");
+  mock.method(resources, "useAdminResource", (url: string | null) => ({
+    data: url?.startsWith("/api/admin/board?") ? { ...board, waiting: [mixed] } : null, loading: false, error: null, reload: async () => {}, setData: () => {},
+  }));
+  try {
+    const html = renderToStaticMarkup(createElement(require("./bay-board").BayBoard, { role: "ADMIN" }));
+    const tags = html.match(/<span data-service-tag="true" class="[^"]*">[^<]*<\/span>/g) ?? [];
+    assert.equal(tags.length, 3, "waiting, in-bay and done card each carry one tag");
+    assert.ok(tags.some((t) => t.includes(">Wash + 2 more<")), "mixed tag");
+    assert.ok(tags.some((t) => t.includes(">Repaint<")), "in-bay card tag");
+    assert.equal(new Set(tags.map((t) => t.match(/class="([^"]*)"/)![1])).size, 1, "one pill style for every tag");
+    assert.doesNotMatch(tags.join(""), /(?:bg|text|border)-(?:red|blue|green|amber|yellow|emerald|sky|violet|rose|orange|purple|pink|teal|cyan|indigo|lime)/, "no per-kind colours");
+  } finally {
+    mock.restoreAll();
+  }
+});
+
+test("Done card shows the finish time (Manila) and the workers, opens the booking, and has no move controls", () => {
+  const html = render("ADMIN");
+  const done = html.slice(at(html, 'aria-label="Done"'));
+  assert.ok(done.includes("ZEUS-TEST19") && done.includes("Finished 10:40") && done.includes("Ana Synthetic, Ben Synthetic"), "finish time and workers");
+  assert.ok(done.includes("Wash + 1 more"), "tag");
+  assert.equal(done.includes("Move car"), false);
+});
+
+test("containers: ADMIN gets Add container, a menu on every container, Add bay and a menu on every bay; STAFF gets none", () => {
+  const admin = render("ADMIN");
+  assert.ok(admin.includes('id="add-container-name"') && admin.includes("Add container"));
+  for (const c of containers) {
+    assert.ok(admin.includes(`aria-label="Options for ${c.name}"`), c.name);
+    assert.ok(admin.includes(`aria-label="Add bay to ${c.name}"`), c.name);
+  }
+  assert.ok(admin.includes("Usually for Wash") && admin.includes("No usual service") && admin.includes("Usually for Wash and Tint and PPF"), "the label line under each name");
+  assert.equal(admin.includes("sr-only"), false, "nothing on the board is an absolutely positioned sr-only span");
+  assert.equal(admin.includes("<dialog"), false, "no dialog is open until asked");
+  const staff = render("STAFF");
+  for (const hidden of ["Add bay", "Add container", "Options for", "aria-haspopup", "Move car", "Drag to bay", "Drag this card", "Assign worker", "Remove Synthetic Technician", 'draggable="true"', "cursor-grab"]) assert.equal(staff.includes(hidden), false, hidden);
+  assert.ok(staff.includes("Synthetic Technician"), "STAFF still sees who is assigned");
+  assert.ok(staff.includes("ZEUS-TEST17") && staff.includes("ZEUS-TEST19"), "STAFF still sees and opens cards");
+});
+
+test("phone: Waiting, Bays and Done tabs with 44px targets; no daily-limits panel", () => {
+  const html = render("ADMIN");
+  const group = html.match(/<div role="group" aria-label="Board area"[^>]*>[\s\S]*?<\/div>/)?.[0] ?? "";
+  assert.ok(group.includes("Waiting 1") && group.includes("Bays 1") && group.includes("Done 1"), group);
+  assert.equal((group.match(/min-h-\[44px\]/g) ?? []).length, 3);
+  assert.doesNotMatch(html, /daily limit|Daily limit|dailyCap/i);
+});
+
+test("keyboard move lists every empty bay grouped by container, then Done (finish) only for a car that can finish", () => {
+  const html = render("ADMIN");
+  const form = html.slice(at(html, 'aria-label="Move ZEUS-TEST17 to bay"'), at(html, 'id="board-move-car"'));
+  for (const c of containers) assert.ok(form.includes(`<optgroup label="${c.name}">`), c.name);
+  assert.ok(form.includes("Bay 0 · Busy") && /<option value="bay0" disabled/.test(form), "a busy bay is listed but disabled");
+  assert.ok(/<option value="bay1"(?![^>]*disabled)/.test(form), "an empty bay is selectable whatever the car is");
+  assert.ok(form.includes("Done (finish)"), "this car is IN_PROGRESS, so it can finish");
+});
+
+test("a multi-service waiting card shows the first service, +N more and progress on one line with 44px targets and whole-card drag", () => {
+  const resources = require("./use-admin-resource");
+  const multiCard = {
+    ...card,
+    id: "car",
+    lines: [
+      { id: "l1", name: "Basic Wash", workStatus: "WAITING", queueCode: "WASH" },
+      { id: "l2", name: "Engine Bay Clean", workStatus: "IN_PROGRESS", queueCode: "WASH" },
+      { id: "l3", name: "Underchassis Wash", workStatus: "DONE", queueCode: "WASH" },
+    ],
+    progress: { done: 1, total: 3 },
+  };
+  mock.method(resources, "useAdminResource", (url: string | null) => ({
+    data: url?.startsWith("/api/admin/board?") ? { ...board, waiting: [multiCard] } : null, loading: false, error: null, reload: async () => {}, setData: () => {},
+  }));
+  try {
+    const html = renderToStaticMarkup(createElement(require("./bay-board").BayBoard, { role: "ADMIN" }));
+    assert.ok(html.includes("Basic Wash"), "shows first service");
+    assert.ok(html.includes("+2 more"), "summarizes remaining services on the same line");
+    assert.ok(html.includes("1/3 done"), "shows inline progress");
+    assert.equal(html.includes("<ul"), false, "services do not expand into a multi-line ul");
+    const labelIdx = html.indexOf('aria-label="ZEUS-TEST17"');
+    const articleHtml = html.slice(html.lastIndexOf("<article", labelIdx), html.indexOf("</article>", labelIdx));
+    assert.match(articleHtml, /draggable="true"/);
+    assert.match(articleHtml, /cursor-grab/);
+    assert.match(articleHtml.match(/<button[^>]*id="board-card-car"[^>]*>/)?.[0] ?? "", /\bmin-h-\[44px\]/);
+    assert.match(articleHtml.match(/<select[^>]*aria-label="Move ZEUS-TEST17 to bay"[^>]*>/)?.[0] ?? "", /\bmin-h-\[44px\]/);
+    assert.match(articleHtml.match(/<button[^>]*id="board-move-car"[^>]*>/)?.[0] ?? "", /\bmin-h-\[44px\]/);
+  } finally {
+    mock.restoreAll();
+  }
 });
 
 test("only an ADMIN card that is not mid-write or blocked can be dragged", () => {
@@ -114,143 +183,14 @@ test("only an ADMIN card that is not mid-write or blocked can be dragged", () =>
   for (const role of ["STAFF", "DETAILER", "MANAGER"]) assert.equal(cardDraggable(role, false, false), false, role);
 });
 
-test("board groups Waiting queues beside compatible bays", () => {
-  const html = render("ADMIN");
-  assert.ok(
-    html.indexOf("Bay 0") < html.indexOf("Waiting \u00b7 DETAILING_COATING"),
-  );
-});
-
-// P1-22 (LE 2026-10-29): Board day and Refresh board share the view switch's row, on its right
-// from lg up and on the next line below lg. The browser check measures the actual positions.
+// P1-22 (LE 2026-10-29): Board day and Refresh board share the view switch's row, on its right from lg up and below it under lg.
 test("Board day and Refresh board sit in one toolbar with the view switch, before the helper text", () => {
   const html = render("ADMIN");
-  const toolbar = html.search(
-    /<div class="[^"]*\blg:flex-row\b[^"]*\blg:justify-between\b[^"]*"><div role="group" aria-label="Bay board sections"/,
-  );
+  const toolbar = html.search(/<div class="[^"]*\blg:flex-row\b[^"]*\blg:justify-between\b[^"]*"><div role="group" aria-label="Bay board sections"/);
   assert.ok(toolbar >= 0, "the view switch opens a wrapping toolbar row");
-  const day = html.indexOf('aria-label="Board day"', toolbar),
-    refresh = html.indexOf("Refresh board", toolbar),
-    helper = html.indexOf("One car per bay");
-  assert.ok(day > toolbar && refresh > day, "Board day, then Refresh board, follow the switch");
-  assert.ok(helper > refresh, "the helper sentence stays under the toolbar");
+  const day = html.indexOf('aria-label="Board day"', toolbar), refresh = html.indexOf("Refresh board", toolbar), helper = html.indexOf("One car per bay");
+  assert.ok(day > toolbar && refresh > day && helper > refresh);
   assert.equal(html.split('aria-label="Board day"').length, 2, "one Board day field");
-});
-
-// P1-22 / P1-25: columns in a row sit on one horizontal scrolling line from md up and stretch to
-// one height. An empty column's slot keeps min-h-24 below lg and lg:min-h-[26rem] (ADMIN) /
-// lg:min-h-[14rem] (STAFF) from lg up.
-test("board columns sit on one sideways-scrolling row from md, stretch to equal height and keep empty-slot minimums", () => {
-  for (const [role, min] of [["ADMIN", "lg:min-h-[26rem]"], ["STAFF", "lg:min-h-[14rem]"]] as const) {
-    const html = render(role);
-    const scrollers = html.match(/<div[^>]*data-board-row-scroll="[^"]*"[^>]*>/g) ?? [];
-    assert.equal(scrollers.length, 3, role + ": one horizontal row scroller per row");
-    for (const scroller of scrollers) {
-      assert.doesNotMatch(scroller, /items-start|auto-fill/, role + ": rows do not top-align or wrap with auto-fill");
-      for (const token of [
-        "relative",
-        "min-w-0",
-        "grid",
-        "grid-cols-1",
-        "items-stretch",
-        "gap-3",
-        "md:flex",
-        "md:overflow-x-auto",
-        "md:overscroll-x-contain",
-        "md:pb-2",
-        "md:scroll-px-12",
-        "[scrollbar-width:thin]",
-        "[scrollbar-color:#3f3f46_transparent]",
-        "hover:[scrollbar-color:#52525b_transparent]",
-      ])
-        assert.ok(scroller.includes(token), role + " scroller includes " + token + ": " + scroller);
-    }
-    const columns = html.match(/<section[^>]*aria-label="(Waiting \u00b7 |Bay |Done \u00b7 )[^"]*"[^>]*>/g) ?? [];
-    assert.equal(columns.length, 4 + 8 + 3, role + ": every column");
-    for (const column of columns) {
-      assert.match(column, /\bflex-col\b/, role + ": " + column);
-      assert.match(column, /\bmd:w-60\b/, role + " fixed column width from md: " + column);
-      assert.match(column, /\bmd:shrink-0\b/, role + " columns do not shrink on md+: " + column);
-      assert.match(column, /data-board-column="[^"]+"/, role + " column carries data-board-column: " + column);
-    }
-    const slots = html.match(/<p class="[^"]*">(Bay empty|No waiting cars|No cars finished yet|Loading\.\.\.)<\/p>/g) ?? [];
-    assert.ok(slots.length >= 3 + 8, role + ": every empty column shows a slot");
-    for (const slot of slots) {
-      assert.ok(slot.includes(min) && /\bmin-h-24\b/.test(slot) && /\bflex-1\b/.test(slot), role + " slot fills the column with a minimum: " + slot);
-      assert.doesNotMatch(slot, /\bmd:min-h-/, role + ": no card-height minimum below lg");
-      if (/Bay empty|No waiting cars/.test(slot)) assert.match(slot, /border-dashed/, role + ": drop targets show a dashed slot");
-      else assert.doesNotMatch(slot, /border-dashed/, role + ": Done is not a drop target");
-    }
-  }
-});
-
-test("P1-25: each row has a relative fade wrapper, left/right w-12 edge fades, header scroll arrows before Add bay, and no sr-only elements", () => {
-  const html = render("ADMIN");
-  assert.equal(html.includes("sr-only"), false, "no sr-only spans inside the board");
-  const wraps = html.match(/<div[^>]*data-board-row-wrap="[^"]*"[^>]*>/g) ?? [];
-  assert.equal(wraps.length, 3, "three relative row wrappers");
-  for (const wrap of wraps) assert.match(wrap, /\brelative\b/, wrap);
-  const leftFades = html.match(/<div[^>]*data-board-fade="left"[^>]*>/g) ?? [];
-  const rightFades = html.match(/<div[^>]*data-board-fade="right"[^>]*>/g) ?? [];
-  assert.equal(leftFades.length, 3, "three left edge fades");
-  assert.equal(rightFades.length, 3, "three right edge fades");
-  for (const fade of [...leftFades, ...rightFades]) {
-    assert.match(fade, /aria-hidden="true"/, fade);
-    assert.match(fade, /\bw-12\b/, fade);
-    assert.match(fade, /from-\[#0f0f11\]/, fade);
-    assert.match(fade, /to-transparent/, fade);
-  }
-  for (const lane of ["Wash", "Detailing", "Paint"]) {
-    const earlier = html.indexOf(`aria-label="Show earlier ${lane} columns"`);
-    const more = html.indexOf(`aria-label="Show more ${lane} columns"`);
-    const add = html.indexOf(`aria-label="Add bay to ${lane}"`);
-    assert.ok(earlier > 0 && more > earlier && add > more, `${lane}: header scroll arrows sit before Add bay`);
-  }
-});
-
-test("P1-25: multi-service cards render services on one line with +N more and inline progress while keeping 44px targets and whole-card drag", () => {
-  const resources = require("./use-admin-resource");
-  const multiCard = {
-    ...card,
-    lines: [
-      { id: "l1", name: "Basic Wash", workStatus: "WAITING" },
-      { id: "l2", name: "Engine Bay Clean", workStatus: "IN_PROGRESS" },
-      { id: "l3", name: "Underchassis Wash", workStatus: "DONE" },
-    ],
-    progress: { done: 1, total: 3 },
-  };
-  const multiBoard = {
-    ...board,
-    queues: board.queues.map((q, i) => (i === 0 ? { ...q, waiting: [multiCard] } : q)),
-  };
-  mock.method(resources, "useAdminResource", (url: string | null) => ({
-    data: url === "/api/admin/bays" ? multiBoard.bays : url?.startsWith("/api/admin/board?") ? multiBoard : null,
-    loading: false,
-    error: null,
-    reload: async () => {},
-    setData: () => {},
-  }));
-  try {
-    const html = renderToStaticMarkup(createElement(require("./bay-board").BayBoard, { role: "ADMIN" }));
-    assert.ok(html.includes("Basic Wash"), "shows first service");
-    assert.ok(html.includes("+2 more"), "summarizes remaining services on the same line");
-    assert.ok(html.includes("1/3 done"), "shows inline progress");
-    assert.equal(html.includes("<ul"), false, "services do not expand into a multi-line ul");
-    const labelIdx = html.indexOf('aria-label="ZEUS-TEST17"');
-    const articleStart = html.lastIndexOf("<article", labelIdx);
-    const articleEnd = html.indexOf("</article>", labelIdx);
-    const articleHtml = html.slice(articleStart, articleEnd);
-    assert.match(articleHtml, /draggable="true"/);
-    assert.match(articleHtml, /cursor-grab/);
-    const refBtn = articleHtml.match(/<button[^>]*id="board-card-car"[^>]*>/)?.[0] ?? "";
-    const selectEl = articleHtml.match(/<select[^>]*aria-label="Move ZEUS-TEST17 to bay"[^>]*>/)?.[0] ?? "";
-    const moveBtn = articleHtml.match(/<button[^>]*id="board-move-car"[^>]*>/)?.[0] ?? "";
-    assert.match(refBtn, /\bmin-h-\[44px\]/);
-    assert.match(selectEl, /\bmin-h-\[44px\]/);
-    assert.match(moveBtn, /\bmin-h-\[44px\]/);
-  } finally {
-    mock.restoreAll();
-  }
 });
 
 test("P1-25: edgeScrollStep and revealColumnScrollLeft follow the UI/UX speed curve and sideways-only reveal rules", () => {

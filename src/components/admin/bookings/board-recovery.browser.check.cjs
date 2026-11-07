@@ -2,8 +2,8 @@
 // P1-25 F1 real-browser regression (Codex review of 1aebbf2): a move whose write ends uncertain stays
 // locked until a SUCCESSFUL board reload. A failed reload (503) keeps the old cards visible but
 // read-only: Move car disabled, cards not draggable, uncertain-outcome alert and reload error both shown.
-// Same environment as card-drag.browser.check.cjs; never loads .env. Fixture: a car waiting in
-// "Waiting · Wash" and an empty Wash bay named "Wash Bay QSA B" (the card-drag fixture's empty bay).
+// Same environment as card-drag.browser.check.cjs; never loads .env. Fixture (board-browser.fixture.ts, P1-62 A2): the Wash car "Synthetic Vios" in
+// the one Waiting lane and the empty bay "Wash 2".
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -51,7 +51,7 @@ test('an uncertain move stays locked while the board reload fails, and unlocks o
     await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
 
-    const card = page.getByRole('region', { name: 'Waiting · Wash', exact: true }).locator('article').first();
+    const card = page.getByRole('region', { name: 'Waiting', exact: true }).locator('article[aria-label^="ZEUS-"]').filter({ hasText: 'Synthetic Vios' });
     await card.waitFor();
     const ref = (await card.getAttribute('aria-label')) ?? '';
     assert.match(ref, /^ZEUS-/, 'waiting Wash card present');
@@ -62,7 +62,7 @@ test('an uncertain move stays locked while the board reload fails, and unlocks o
 
     // The write is aborted in transport, so its outcome is unknown.
     const select = card.getByLabel('Move ' + ref + ' to bay');
-    await select.selectOption({ label: 'Wash Bay QSA B' });
+    await select.selectOption({ label: 'Wash 2' });
     await page.route('**/api/admin/bookings/*/bay', (route) => (route.request().method() === 'PUT' ? route.abort() : route.fallback()));
     await moveButton.click();
     await uncertain.waitFor();
@@ -94,7 +94,7 @@ test('an uncertain move stays locked while the board reload fails, and unlocks o
     await page.getByRole('button', { name: 'Refresh board', exact: true }).click();
     await good;
     await uncertain.waitFor({ state: 'detached' });
-    const fresh = page.getByRole('region', { name: 'Waiting · Wash', exact: true }).locator('article').first();
+    const fresh = page.getByRole('region', { name: 'Waiting', exact: true }).locator('article[aria-label^="ZEUS-"]').filter({ hasText: 'Synthetic Vios' });
     await fresh.waitFor();
     assert.equal(await fresh.getByRole('button', { name: 'Move car', exact: true }).isDisabled(), false, 'Move car enabled again after a good reload');
     assert.equal(await fresh.getAttribute('draggable'), 'true', 'draggable again after a good reload');

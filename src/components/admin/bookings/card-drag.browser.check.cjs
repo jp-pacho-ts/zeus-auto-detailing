@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 // P1-23 real-browser regression (LE 2026-10-29: "the card should be draggable even if where is the mouse
 // is located on teh card"). Same environment as bay-controls.browser.check.cjs; never loads .env.
-// Fixture day: a car waiting in "Waiting · Wash", one Wash bay holding a car and one empty Wash bay.
+// Fixture day (board-browser.fixture.ts): the Wash car "Synthetic Vios" in the one Waiting lane, Wash 1 holding a car, Wash 2 empty (P1-62 A2:
+// the per-type rows are gone; the Wash container's usual-for label is Wash, so a Wash car asks nothing there).
 // Uses stepped real-mouse drags in a tall viewport: Playwright dragTo does not start a native drag here,
 // and a drop point outside the viewport misses (ZEUS-CLAUDE-QSA, P1-22 QA). Optional: P123_SCREENSHOTS.
 const assert = require('node:assert/strict');
@@ -38,16 +39,16 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
     await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
-    const washRow = page.getByRole('region', { name: 'Wash row' });
-    const waiting = washRow.getByRole('region', { name: 'Waiting · Wash', exact: true });
-    const card = waiting.locator('article').first();
+    const waiting = page.getByRole('region', { name: 'Waiting', exact: true });
+    const card = waiting.locator('article[aria-label^="ZEUS-"]').filter({ hasText: 'Synthetic Vios' });
     await card.waitFor();
     const ref = (await card.getAttribute('aria-label')) ?? '';
     assert.match(ref, /^ZEUS-/, 'a waiting Wash card');
-    const bays = await washRow.locator('section[aria-label^="Wash Bay"]').evaluateAll((els) => els.map((el) => ({ label: el.getAttribute('aria-label'), cards: el.querySelectorAll('article').length })));
+    const bays = await page.locator('article[aria-label="Wash"] section[data-board-column]').evaluateAll((els) => els.map((el) => ({ label: el.getAttribute('aria-label'), cards: el.querySelectorAll('article').length })));
     const busyBay = bays.find((b) => b.cards > 0)?.label, emptyBay = bays.find((b) => b.cards === 0)?.label;
     assert.ok(busyBay && emptyBay, 'fixture needs a busy and an empty Wash bay: ' + JSON.stringify(bays));
-    const column = (label) => washRow.getByRole('region', { name: label, exact: true });
+    const WAITING = 'Waiting';
+    const column = (label) => (label === WAITING ? waiting : page.locator('section[data-board-column][aria-label="' + label + '"]'));
     const cardIn = (label) => column(label).getByRole('article', { name: ref, exact: true });
     // Counted on window after the page's own handlers (bubble phase): a dragstart the card cancels
     // (pressed on a control) is not a drag. Cancelled ones are counted separately.
@@ -92,20 +93,20 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
     }
     assert.equal(await dragStarts(), 0, 'no drag starts from the dropdown or the Move car button');
     assert.equal(puts.length, 0, 'no move was sent from the dropdown or the button');
-    await cardIn('Waiting · Wash').waitFor();
-    assert.equal(await cardIn('Waiting · Wash').count(), 1, 'the car stayed in Waiting');
-    assert.equal(await cardIn('Waiting · Wash').evaluate((el) => getComputedStyle(el).opacity), '1', 'no dragging state after pressing a control');
+    await cardIn(WAITING).waitFor();
+    assert.equal(await cardIn(WAITING).count(), 1, 'the car stayed in Waiting');
+    assert.equal(await cardIn(WAITING).evaluate((el) => getComputedStyle(el).opacity), '1', 'no dragging state after pressing a control');
     await select.selectOption({ label: emptyBay });
     assert.equal(await select.inputValue() !== '', true, 'the dropdown still selects normally');
     await select.selectOption({ index: 0 }).catch(() => {});
 
     // A busy bay refuses the drop with no write.
     await drag(body, column(busyBay));
-    await page.getByRole('status').filter({ hasText: 'This bay is busy. The car stayed in its column.' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'This bay is busy. The car stayed where it was.' }).waitFor();
     assert.equal(puts.length, 0, 'a drop on a busy bay sends no PUT');
     // A refused drop reloads the board (it briefly empties), so wait for the card to be drawn again.
-    await cardIn('Waiting · Wash').waitFor();
-    assert.equal(await cardIn('Waiting · Wash').count(), 1, 'the car stays in Waiting');
+    await cardIn(WAITING).waitFor();
+    assert.equal(await cardIn(WAITING).count(), 1, 'the car stays in Waiting');
     assert.equal(await cardIn(busyBay).count(), 0, 'the car is not in the busy bay');
     assert.equal(puts.length, 0, 'still no PUT after the reload');
 
@@ -122,9 +123,9 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
     await shot(page, '1280-card-in-bay');
 
     // Drag it back to its Waiting queue: one more PUT with bayId null.
-    await drag(cardIn(emptyBay).getByText(/Synthetic Vehicle|·/).first(), column('Waiting · Wash'));
+    await drag(cardIn(emptyBay).getByText(/Synthetic Vehicle|·/).first(), column(WAITING));
     await page.getByRole('status').filter({ hasText: 'Car moved.' }).waitFor();
-    await cardIn('Waiting · Wash').waitFor();
+    await cardIn(WAITING).waitFor();
     assert.equal(puts.length, 2, 'one PUT for the return');
     assert.equal(puts[1].bayId, null, 'returning to Waiting sends bayId null');
     await shot(page, '1280-card-back-in-waiting');
@@ -134,7 +135,7 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
       assert.equal(style.opacity, '1', reason + ': opacity resets');
       for (const token of ['opacity-50', 'ring-2', 'ring-primary']) assert.equal(style.classes.includes(token), false, reason + ': no stale ' + token);
     };
-    const resting = () => cardIn('Waiting · Wash');
+    const resting = () => cardIn(WAITING);
     const restBody = () => resting().locator('p').first();
     const begin = async () => {
       const a = await centre(restBody());
@@ -151,27 +152,28 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
     await page.waitForTimeout(150);
     await cleanDragStyle(resting(), 'outside drop');
     assert.equal(puts.length, 2, 'cancelled/outside drags send no PUT');
-    // A car cannot return to a different Waiting queue.
-    const wrongQueue = page.getByRole('region', { name: 'Waiting · Detailing + Coating', exact: true });
-    await drag(restBody(), wrongQueue);
-    await page.getByRole('status').filter({ hasText: 'Return a car to its own Waiting queue.' }).waitFor();
-    assert.equal(puts.length, 2, 'wrong-queue rejection sends no PUT');
-    await cleanDragStyle(resting(), 'wrong queue');
+    // P1-62: there is one Waiting lane, so "a different Waiting queue" no longer exists. Dropping a waiting car back on Waiting does nothing.
+    await drag(restBody(), waiting);
+    await page.waitForTimeout(200);
+    assert.equal(puts.length, 2, 'a drop on Waiting sends no PUT for a car that is already waiting');
+    await cleanDragStyle(resting(), 'drop on Waiting');
 
-    // F1: rejection reload unmounts the source before dragend; appearance must still reset.
-    const incompatible = page.getByRole('region', { name: 'QSA Detail A', exact: true });
-    const reload = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/admin/board' && r.status() === 200);
+    // F1 (P1-62: the old "bay does not take this queue" refusal is gone; the same redraw-before-dragend case is now "Place it anyway?" answered
+    // Cancel): the card is redrawn, no PUT is sent, the car stays in Waiting and its appearance is clean.
+    const otherKind = column('Detail 1');
     const sourceElement = await resting().elementHandle();
-    await drag(restBody(), incompatible);
-    await page.getByRole('status').filter({ hasText: 'This bay does not take this queue.' }).waitFor();
-    await reload;
+    await drag(restBody(), otherKind);
+    const prompt = page.getByRole('dialog', { name: 'Place it anyway?' });
+    await prompt.waitFor();
+    await prompt.getByRole('button', { name: 'Cancel' }).click();
+    await prompt.waitFor({ state: 'detached' });
     await page.waitForFunction((el) => !el.isConnected, sourceElement);
     await resting().waitFor();
-    assert.equal(puts.length, 2, 'incompatible rejection and reload send no PUT');
-    assert.equal(await resting().count(), 1, 'incompatible rejection leaves the car in Waiting');
-    assert.equal(await incompatible.getByRole('article', { name: ref, exact: true }).count(), 0, 'incompatible bay never receives the car');
-    await shot(page, '1280-incompatible-rejected');
-    await cleanDragStyle(resting(), 'incompatible rejection after redraw');
+    assert.equal(puts.length, 2, 'a cancelled placement sends no PUT');
+    assert.equal(await resting().count(), 1, 'a cancelled placement leaves the car in Waiting');
+    assert.equal(await otherKind.getByRole('article', { name: ref, exact: true }).count(), 0, 'the other bay never receives the car');
+    await shot(page, '1280-place-anyway-cancelled');
+    await cleanDragStyle(resting(), 'cancelled placement after redraw');
 
     // Keyboard/phone fallback after that rejection writes once each way and must not inherit a ring.
     await page.setViewportSize({ width: 390, height: 900 });
@@ -192,7 +194,7 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
     await page.setViewportSize({ width: 1280, height: 2400 });
     const busyReload = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/admin/board' && r.status() === 200);
     await drag(restBody(), column(busyBay));
-    await page.getByRole('status').filter({ hasText: 'This bay is busy. The car stayed in its column.' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'This bay is busy. The car stayed where it was.' }).waitFor();
     await busyReload; await resting().waitFor();
     assert.equal(puts.length, 4, 'busy rejection still sends no PUT after keyboard fallback');
     assert.equal(await cardIn(busyBay).count(), 0);

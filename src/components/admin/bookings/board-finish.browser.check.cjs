@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 // P1-34 real-browser check: on the Bay board a car can be finished by dropping it on
 // Done (or choosing "Done (finish)" in its move control), after a plain-words confirm. Fixture as in
-// card-drag.browser.check.cjs: today has a car in a Wash bay and two waiting, one empty bay. P134_WIDTH
+// board-browser.fixture.ts (P1-62 A2): today has a car in Wash 1, waiting Wash cars Vios, City and Fortuner, empty bays in the Wash container, and one car
+// already in Done. The per-type rows are gone: one Waiting lane, one Done lane, and below lg three tabs (Waiting, Bays, Done) instead of the column picker. P134_WIDTH
 // (default 1280) picks the viewport: 1280 drags with the mouse, 390 uses the keyboard path only.
 // Never loads .env. Optional P134_SHOTS: a screenshot folder.
 const assert = require('node:assert/strict');
@@ -58,21 +59,20 @@ test('the Bay board: a car is finished by dropping it on Done, or from its move 
     assert.equal(await page.getByRole('group', { name: 'Bay board sections' }).count(), 1);
     await shot(page, `p134-board-${width}`);
 
-    const washRow = page.getByRole('region', { name: 'Wash row' });
-    // Below md a row shows one picked column: choose the one by name (the desktop row shows them all).
-    const show = async (name) => {
-      if (width >= 1000) return;
-      const sel = page.getByLabel('Wash board column');
-      const labels = await sel.locator('option').allInnerTexts();
-      await sel.selectOption({ label: labels.find((l) => l.startsWith(name)) });
+    // Below lg only one zone is shown: choose it with the tab (the desktop shows all three).
+    const show = async (zone) => {
+      if (width >= 1024) return;
+      await page.getByRole('group', { name: 'Board area' }).getByRole('button', { name: new RegExp('^' + zone) }).click();
     };
-    const waitingCol = washRow.getByRole('region', { name: 'Waiting · Wash', exact: true });
-    await page.locator('section[aria-label^="Wash Bay"] article').first().waitFor({ state: 'attached' });
-    const bays = await page.evaluate(() => [...document.querySelectorAll('section[aria-label^="Wash Bay"]')].map((el) => ({ label: el.getAttribute('aria-label'), cards: el.querySelectorAll('article').length })));
+    const waitingCol = page.getByRole('region', { name: 'Waiting', exact: true });
+    const washCar = (model) => waitingCol.locator('article[aria-label^="ZEUS-"]').filter({ hasText: model });
+    await page.locator('article[aria-label="Wash"] section[data-board-column] article').first().waitFor({ state: 'attached' });
+    const bays = await page.evaluate(() => [...document.querySelectorAll('article[aria-label="Wash"] section[data-board-column]')].map((el) => ({ label: el.getAttribute('aria-label'), cards: el.querySelectorAll('article').length })));
     const busyBay = bays.find((b) => b.cards > 0).label, emptyBay = bays.find((b) => b.cards === 0).label;
-    const col = (label) => washRow.getByRole('region', { name: label, exact: true });
-    const doneCol = washRow.getByRole('region', { name: /^Done · Wash/ });
+    const col = (label) => page.locator('section[data-board-column][aria-label="' + label + '"]');
+    const doneCol = page.getByRole('region', { name: 'Done', exact: true });
     const doneCount = async () => doneCol.locator('article').count();
+    const done0 = await doneCount(); // the fixture already has one finished car
     const centre = async (l) => { const b = await l.boundingBox(); assert.ok(b); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
     const dragTo = async (from, to) => {
       await to.scrollIntoViewIfNeeded(); await from.scrollIntoViewIfNeeded();
@@ -85,8 +85,8 @@ test('the Bay board: a car is finished by dropping it on Done, or from its move 
     const note = page.getByRole('status');
 
     // ---- 1. A Waiting car has no bay: no "Done (finish)" choice, and a drop on Done is refused visibly ----
-    await show('Waiting · Wash');
-    const waiting = waitingCol.locator('article').first();
+    await show('Waiting');
+    const waiting = washCar('Synthetic Vios');
     await waiting.waitFor();
     const wref = await waiting.getAttribute('aria-label');
     assert.equal(await waiting.getByLabel('Move ' + wref + ' to bay').locator('option', { hasText: 'Done (finish)' }).count(), 0, 'a Waiting car cannot be finished');
@@ -94,7 +94,7 @@ test('the Bay board: a car is finished by dropping it on Done, or from its move 
       await dragTo(waiting.getByText(/Synthetic Vehicle|·/).first(), doneCol);
       await note.filter({ hasText: 'Move this car into a bay before finishing it.' }).waitFor();
       assert.equal(finishes.length, 0, 'nothing was sent for a Waiting car');
-      assert.equal(await doneCount(), 0);
+      assert.equal(await doneCount(), done0);
     }
 
     // ---- 2. A car in a bay: drop on Done (desktop). Cancel changes nothing, OK finishes it ----
@@ -108,7 +108,7 @@ test('the Bay board: a car is finished by dropping it on Done, or from its move 
       assert.equal(dialogs.at(-1), confirmText(bref), 'the confirm says what will happen, in plain words');
       assert.equal(finishes.length, 0, 'Cancel sends nothing');
       assert.equal(await col(busyBay).getByRole('article', { name: bref, exact: true }).count(), 1, 'Cancel leaves the car in its bay');
-      assert.equal(await doneCount(), 0);
+      assert.equal(await doneCount(), done0);
       answer = true;
       await dragTo(col(busyBay).getByRole('article', { name: bref, exact: true }).getByText(/Synthetic Vehicle|·/).first(), doneCol);
       await doneCol.getByRole('article', { name: bref, exact: true }).waitFor({ timeout: 15_000 });
@@ -124,12 +124,12 @@ test('the Bay board: a car is finished by dropping it on Done, or from its move 
     }
 
     // ---- 3. The keyboard path: seat a Waiting car, then choose "Done (finish)" in its move control ----
-    await show('Waiting · Wash');
-    const w2 = waitingCol.locator('article').first();
+    await show('Waiting');
+    const w2 = washCar('Synthetic City');
     const ref2 = await w2.getAttribute('aria-label');
     await w2.getByLabel('Move ' + ref2 + ' to bay').selectOption({ label: emptyBay });
     await w2.getByRole('button', { name: 'Move car', exact: true }).click();
-    await show(emptyBay);
+    await show('Bays');
     const seated = col(emptyBay).getByRole('article', { name: ref2, exact: true });
     await seated.waitFor();
     const select = seated.getByLabel('Move ' + ref2 + ' to bay');
@@ -163,12 +163,12 @@ test('the Bay board: a car is finished by dropping it on Done, or from its move 
     await shot(page, `p134-finished-keyboard-${width}`);
 
     // ---- 4. An uncertain finish locks the board (P1-25): no further moves or finishes until a good reload ----
-    await show('Waiting · Wash');
-    const w3 = waitingCol.locator('article').first();
+    await show('Waiting');
+    const w3 = washCar('Synthetic Fortuner');
     const ref3 = await w3.getAttribute('aria-label');
     await w3.getByLabel('Move ' + ref3 + ' to bay').selectOption({ label: emptyBay });
     await w3.getByRole('button', { name: 'Move car', exact: true }).click();
-    await show(emptyBay);
+    await show('Bays');
     const seated3 = col(emptyBay).getByRole('article', { name: ref3, exact: true });
     await seated3.waitFor();
     abortFinish = true;

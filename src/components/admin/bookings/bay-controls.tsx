@@ -2,21 +2,26 @@
 import * as React from "react";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { BayType } from "@/types/admin-contracts";
 import { adminRequest, AdminRequestError } from "./client";
 import { fieldClass } from "./use-admin-resource";
 
 // P1-20 item 4 (LE 2026-10-28): ADMIN adds, renames and removes bays inline on the board rows,
 // through the existing audited routes (POST /api/admin/bays, PATCH /api/admin/bays/[id]).
 // Remove = deactivate, so history is kept; the server refuses it while a car is in the bay.
-type Bay = { id: string; name: string; bayType: BayType; sortOrder: number; updatedAt: string; cards: { id: string }[] };
-type Request = { url: string; method: "POST" | "PATCH"; body: Record<string, unknown> };
+type Bay = { id: string; name: string; sortOrder: number; updatedAt: string; containerId?: string | null; cards: { id: string }[] };
+export type Request = { url: string; method: "POST" | "PATCH"; body: Record<string, unknown> };
 
 const key = (name: string) => name.trim().toLowerCase();
-export const addBayRequest = (bayType: BayType, name: string, bays: readonly Pick<Bay, "sortOrder">[]): Request => ({
+// P1-62: a bay is added to a container; its old type is only a placeholder now, so the request does not send one.
+export const addBayRequest = (containerId: string, name: string, bays: readonly Pick<Bay, "sortOrder">[]): Request => ({
   url: "/api/admin/bays",
   method: "POST",
-  body: { name: name.trim(), bayType, sortOrder: bays.reduce((max, b) => Math.max(max, b.sortOrder), 0) + 1 },
+  body: { name: name.trim(), containerId, sortOrder: bays.reduce((max, b) => Math.max(max, b.sortOrder), 0) + 1 },
+});
+export const moveBayRequest = (bay: Pick<Bay, "id" | "updatedAt">, containerId: string): Request => ({
+  url: "/api/admin/bays/" + bay.id + "/move",
+  method: "POST",
+  body: { expectedUpdatedAt: bay.updatedAt, containerId },
 });
 export const renameBayRequest = (bay: Pick<Bay, "id" | "updatedAt">, name: string): Request => ({
   url: "/api/admin/bays/" + bay.id,
@@ -40,11 +45,15 @@ export function bayNameError(name: string, bays: readonly Pick<Bay, "id" | "name
 export const removeBayBlocked = (bay: Pick<Bay, "name" | "cards">): string | null =>
   bay.cards.length ? `Move the car out of ${bay.name} before removing it.` : null;
 
-async function send(request: Request): Promise<string | null> {
+// tolerateConflict (P1-62 L2): after a lost response the retry meets a stale-version conflict. It may be our own change or someone else's, so
+// the caller closes and reloads like a success but says RELOADED instead of claiming its own change was applied.
+export const RELOADED = "This was already changed. The board is reloaded: check it shows what you want.";
+export async function send(request: Request, tolerateConflict = false): Promise<string | null> {
   try {
     await adminRequest(request.url, { method: request.method, body: request.body });
     return null;
   } catch (e) {
+    if (tolerateConflict && e instanceof AdminRequestError && e.detail.code === "VERSION_CONFLICT") return RELOADED;
     if (e instanceof AdminRequestError && e.status === 401) {
       window.location.replace("/admin/login");
       return "";
@@ -111,6 +120,39 @@ function NameForm({ id, label, initial, submitLabel, validate, onSubmit, onCance
   );
 }
 
+function MoveForm({ id, label, options, onSubmit, onCancel }: {
+  id: string; label: string; options: readonly { id: string; name: string }[]; onSubmit: (containerId: string) => Promise<string | null>; onCancel: () => void;
+}) {
+  const [value, setValue] = React.useState(options[0]?.id ?? ""), [error, setError] = React.useState<string | null>(null), [busy, setBusy] = React.useState(false);
+  const select = React.useRef<HTMLSelectElement>(null);
+  React.useEffect(() => select.current?.focus(), []);
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        const failed = await onSubmit(value);
+        setBusy(false);
+        if (failed) setError(failed);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onCancel();
+      }}
+    >
+      <label className="block text-xs" htmlFor={id}>{label}</label>
+      <select ref={select} id={id} value={value} onChange={(e) => setValue(e.target.value)} className={fieldClass}>
+        {options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+      </select>
+      {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" size="sm" disabled={busy || !value}>Move bay</Button>
+        <Button type="button" size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    </form>
+  );
+}
+
 // Same Tab wrap for both bay modals: focus stays inside while the dialog is open.
 function trapTab(e: React.KeyboardEvent<HTMLDialogElement>) {
   if (e.key !== "Tab") return;
@@ -126,8 +168,8 @@ function trapTab(e: React.KeyboardEvent<HTMLDialogElement>) {
 // reload after an add re-creates the rows, so BayBoard refocuses the button by this id.
 // The row goes in aria-label ("Add bay to Wash" still starts with the visible text). An sr-only
 // span is absolutely positioned and escaped the fixed dashboard frame, scrolling the whole page.
-export const addBayButtonId = (bayType: BayType) => "add-bay-button-" + bayType;
-export function AddBay({ bayType, label, bays, onDone }: { bayType: BayType; label: string; bays: readonly Bay[]; onDone: (message: string) => Promise<void> }) {
+export const addBayButtonId = (containerId: string) => "add-bay-button-" + containerId;
+export function AddBay({ containerId, label, bays, onDone }: { containerId: string; label: string; bays: readonly Bay[]; onDone: (message: string) => Promise<void> }) {
   const [open, setOpen] = React.useState(false);
   const button = React.useRef<HTMLButtonElement>(null);
   const close = () => {
@@ -136,16 +178,16 @@ export function AddBay({ bayType, label, bays, onDone }: { bayType: BayType; lab
   };
   return (
     <>
-      <Button ref={button} id={addBayButtonId(bayType)} variant="outline" size="sm" className="shrink-0" aria-label={`Add bay to ${label}`} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <Button ref={button} id={addBayButtonId(containerId)} variant="outline" size="sm" className="shrink-0" aria-label={`Add bay to ${label}`} aria-haspopup="dialog" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" aria-hidden="true" /> Add bay
       </Button>
       {open && (
         <AddBayDialog
-          id={"add-bay-" + bayType}
+          id={"add-bay-" + containerId}
           title={`Add a ${label.toLowerCase()} bay`}
           validate={(name) => bayNameError(name, bays)}
           onSubmit={async (name) => {
-            const failed = await send(addBayRequest(bayType, name, bays));
+            const failed = await send(addBayRequest(containerId, name, bays));
             if (failed !== null) return failed || null;
             close();
             await onDone(`${name.trim()} added.`);
@@ -236,8 +278,9 @@ function AddBayDialog({ id, title, validate, onSubmit, onCancel }: {
   );
 }
 
-export function BayMenu({ bay, bays, onDone }: { bay: Bay; bays: readonly Bay[]; onDone: (message: string) => Promise<void> }) {
-  const [mode, setMode] = React.useState<"CLOSED" | "MENU" | "RENAME" | "CONFIRM">("CLOSED");
+export function BayMenu({ bay, bays, containers = [], onDone }: { bay: Bay; bays: readonly Bay[]; containers?: readonly { id: string; name: string }[]; onDone: (message: string) => Promise<void> }) {
+  const [mode, setMode] = React.useState<"CLOSED" | "MENU" | "RENAME" | "CONFIRM" | "MOVE">("CLOSED");
+  const labels = containers.length > 1 ? ["Rename", "Move to container", "Remove"] : ["Rename", "Remove"];
   const [notice, setNotice] = React.useState<string | null>(null), [busy, setBusy] = React.useState(false);
   const trigger = React.useRef<HTMLButtonElement>(null), items = React.useRef<(HTMLButtonElement | null)[]>([]), keep = React.useRef<HTMLButtonElement>(null);
   const confirmation = React.useRef<HTMLDialogElement>(null);
@@ -257,7 +300,7 @@ export function BayMenu({ bay, bays, onDone }: { bay: Bay; bays: readonly Bay[];
     const at = items.current.findIndex((el) => el === document.activeElement);
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      items.current[(at + (e.key === "ArrowDown" ? 1 : -1) + 2) % 2]?.focus();
+      items.current[(at + (e.key === "ArrowDown" ? 1 : -1) + labels.length) % labels.length]?.focus();
     } else if (e.key === "Escape") close();
     else if (e.key === "Tab") setMode("CLOSED");
   }
@@ -291,6 +334,22 @@ export function BayMenu({ bay, bays, onDone }: { bay: Bay; bays: readonly Bay[];
         onCancel={close}
       />
     );
+  if (mode === "MOVE")
+    return (
+      <MoveForm
+        id={"move-bay-" + bay.id}
+        label={`Move ${bay.name} to`}
+        options={containers.filter((c) => c.id !== bay.containerId)}
+        onSubmit={async (containerId) => {
+          const failed = await send(moveBayRequest(bay, containerId), true);
+          if (failed !== null && failed !== RELOADED) return failed || null;
+          setMode("CLOSED");
+          await onDone(failed ?? `${bay.name} moved to ${containers.find((c) => c.id === containerId)?.name ?? "the container"}.`);
+          return null;
+        }}
+        onCancel={close}
+      />
+    );
   return (
     <div className="relative">
       <button
@@ -311,7 +370,7 @@ export function BayMenu({ bay, bays, onDone }: { bay: Bay; bays: readonly Bay[];
       {mode === "MENU" && (
         <div id={menuId} role="menu" aria-label={`${bay.name} options`} onKeyDown={onMenuKey}
           className="absolute right-0 z-20 mt-1 w-40 rounded border border-border bg-[#18181b] p-1 shadow-lg">
-          {["Rename", "Remove"].map((label, i) => (
+          {labels.map((label, i) => (
             <button
               key={label}
               ref={(el) => {
@@ -322,6 +381,7 @@ export function BayMenu({ bay, bays, onDone }: { bay: Bay; bays: readonly Bay[];
               tabIndex={-1}
               onClick={() => {
                 if (label === "Rename") return setMode("RENAME");
+                if (label === "Move to container") return setMode("MOVE");
                 const blocked = removeBayBlocked(bay);
                 if (blocked) {
                   setNotice(blocked);

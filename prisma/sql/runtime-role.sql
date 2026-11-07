@@ -92,7 +92,10 @@ BEGIN
     'admin_commission_adjust(text, text, text, bigint, text)', 'commission_earns_on(public."ServiceKind")',
     -- P1-38 Supplies: the five ADMIN writers. The history check and the trigger functions are executable by nobody but their owner.
     'admin_supply_create(text, text, text, text, text, integer, integer, bigint)', 'admin_supply_update(text, text, integer, text, text, boolean, text, integer, integer)',
-    'admin_supply_stock(text, text, text, integer, text, bigint, integer, text)', 'admin_supply_remove(text, text, integer)', 'admin_supply_restore(text, text, integer)'
+    'admin_supply_stock(text, text, text, integer, text, bigint, integer, text)', 'admin_supply_remove(text, text, integer)', 'admin_supply_restore(text, text, integer)',
+    -- P1-62 bay containers: the four ADMIN writers. The helpers and trigger functions are executable by nobody but their owner.
+    'admin_container_create(text, text, text, text[])', 'admin_container_update(text, text, timestamptz, text, text[], boolean)',
+    'admin_container_remove(text, text, timestamptz)', 'admin_bay_move(text, text, text, timestamptz)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);
@@ -153,6 +156,8 @@ BEGIN
     ['commission_settings', 'SELECT'], ['commission_accruals', 'SELECT'], ['commission_entries', 'SELECT'], ['commission_adjustments', 'SELECT'],
     -- Supplies (P1-38): read only. Every write is an owner-run function; supply_audit_events gets nothing at all.
     ['supply_items', 'SELECT'], ['supply_movements', 'SELECT'],
+    -- Bay containers (P1-62): read only. bay_container_audit_events gets nothing at all, and bays gains no column privilege (a bay moves only through admin_bay_move).
+    ['bay_containers', 'SELECT'],
 
     -- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
     -- owner URL, never by the app; the app reads no staff phone numbers.

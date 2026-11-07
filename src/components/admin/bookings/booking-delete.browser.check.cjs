@@ -44,7 +44,7 @@ test('only an ADMIN can delete a booking, after typing its reference code', { ti
   try {
     // A detailer can open the booking but is never offered Delete booking.
     const staff = await session(process.env.QSA_DETAILER_EMAIL, process.env.QSA_DETAILER_PASSWORD);
-    const staffCard = staff.page.getByRole('region', { name: 'Waiting · Wash', exact: true }).locator('article').first();
+    const staffCard = staff.page.getByRole('region', { name: 'Waiting', exact: true }).locator('article').first();
     await staffCard.waitFor();
     await staffCard.getByRole('button', { name: await staffCard.getAttribute('aria-label'), exact: true }).click();
     await staff.page.getByRole('dialog').getByText('Booking details').waitFor();
@@ -53,7 +53,7 @@ test('only an ADMIN can delete a booking, after typing its reference code', { ti
     await staff.page.waitForLoadState('networkidle'); await staff.context.unrouteAll({ behavior: 'ignoreErrors' }); await staff.context.close();
 
     const { context, page } = await session(process.env.P120_TEST_EMAIL, process.env.P120_TEST_PASSWORD);
-    const waiting = page.getByRole('region', { name: 'Waiting · Wash', exact: true });
+    const waiting = page.getByRole('region', { name: 'Waiting', exact: true });
     const card = waiting.locator('article').first();
     await card.waitFor();
     const ref = await card.getAttribute('aria-label');
@@ -75,7 +75,7 @@ test('only an ADMIN can delete a booking, after typing its reference code', { ti
     await button.click();
     assert.equal((await gone).status(), 200, 'the delete was accepted');
     await dialog.waitFor({ state: 'detached' });
-    // The board keeps its rows while it reloads, so wait for the card to leave rather than count at once.
+    // The board keeps its lanes while it reloads, so wait for the card to leave rather than count at once.
     await page.getByRole('article', { name: ref, exact: true }).waitFor({ state: 'detached' });
     assert.equal(await page.locator('article').count(), total - 1, 'one card fewer');
     // Reload: the booking is really gone, not just hidden.

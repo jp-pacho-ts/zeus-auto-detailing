@@ -143,7 +143,8 @@ export const BayTypeSchema = z.enum(["WASH", "DETAILING", "PAINT"]);
 const BayName = z.string().trim().min(1).max(40);
 export const BayCreateSchema = z
   .object({
-    bayType: BayTypeSchema,
+    bayType: BayTypeSchema.optional(), // legacy placeholder since P1-62: the container groups bays now
+    containerId: Id.optional(), // none = the starting container of the legacy type (the database fallback)
     name: BayName,
     sortOrder: z.number().int().min(0).max(10_000),
   })
@@ -282,3 +283,14 @@ export const SupplyStockSchema = z
 export const SupplyRemoveSchema = z.object({ expectedRevision: Revision }).strict();
 export const SupplyListSchema = z.object({ includeArchived: z.enum(["true", "false"]).default("false").transform((v) => v === "true") }).strict();
 export const SupplyMovementsSchema = z.object({ cursor: z.string().regex(/^[0-9]{1,18}$/).optional() }).strict();
+
+// P1-62 A1 bay containers. The browser makes the id of a new container (a retry after a lost response adds it once).
+const ContainerName = z.string().trim().min(1, "Enter a name.").max(40, "Use 40 characters or fewer.");
+const UsualQueues = z.array(AdminQueueCodeSchema).max(10).refine((l) => new Set(l).size === l.length, "Each service can be listed once.");
+export const ContainerCreateSchema = z.object({ id: Id, name: ContainerName, usualQueues: UsualQueues.optional() }).strict();
+export const ContainerUpdateSchema = z
+  .object({ expectedUpdatedAt: Instant, name: ContainerName.optional(), usualQueues: UsualQueues.optional() })
+  .strict()
+  .refine((v) => v.name !== undefined || v.usualQueues !== undefined, "Change the name or the label.");
+export const ContainerRemoveSchema = z.object({ expectedUpdatedAt: Instant }).strict();
+export const BayMoveSchema = z.object({ expectedUpdatedAt: Instant, containerId: Id }).strict();

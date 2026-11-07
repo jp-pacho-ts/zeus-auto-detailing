@@ -261,6 +261,7 @@ export async function getBookingDetail(
 
 export const toBay = (b: {
   bayType: AdminBay["bayType"];
+  containerId: string | null;
   id: string;
   name: string;
   sortOrder: number;
@@ -268,6 +269,7 @@ export const toBay = (b: {
   updatedAt: Date;
 }): AdminBay => ({
   bayType: b.bayType,
+  containerId: b.containerId,
   id: b.id,
   name: b.name,
   sortOrder: b.sortOrder,

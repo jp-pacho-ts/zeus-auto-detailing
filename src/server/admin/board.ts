@@ -26,18 +26,34 @@ export async function getDayBoard(
         `WITH cards AS (
         SELECT b.id,b."queueCode",o."bayId",b."bookingDate",b."queuePosition",jsonb_build_object(
           'id',b.id,'referenceCode',b."referenceCode",'revision',b.revision,'bookingDate',b."bookingDate"::text,
-          'queueCode',b."queueCode",'queuePosition',b."queuePosition",'vehicleModel',b."vehicleModel",'vehiclePlate',b."vehiclePlate",
+          'queueCode',b."queueCode",'queueName',(SELECT q.name FROM booking_queues q WHERE q.code=b."queueCode"),'queuePosition',b."queuePosition",'vehicleModel',b."vehicleModel",'vehiclePlate',b."vehiclePlate",
           'sizeCode',b."vehicleSizeCodeSnapshot",'status',b.status,'assignedBayId',o."bayId",'depositStatus',b."depositStatus",
-          'lines',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',l.id,'name',l."nameSnapshot",'workStatus',l."workStatus") ORDER BY l."order") FROM booking_line_items l WHERE l."bookingId"=b.id AND l."removedAt" IS NULL),'[]'),
+          'lines',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',l.id,'name',l."nameSnapshot",'workStatus',l."workStatus",'queueCode',(SELECT v."queueCode" FROM catalog_service_versions v WHERE v."releaseId"=l."releaseId" AND v."serviceId"=l."serviceId")) ORDER BY l."order") FROM booking_line_items l WHERE l."bookingId"=b.id AND l."removedAt" IS NULL),'[]'),
           'assignedWorkers',COALESCE((SELECT jsonb_agg(jsonb_build_object('staffId',s.id,'name',s.name,'isActive',s."isActive") ORDER BY s.name,s.id) FROM booking_worker_assignments w JOIN staff s ON s.id=w."staffId" WHERE w."bookingId"=b.id),'[]'),
           'progress',(SELECT jsonb_build_object('done',count(*) FILTER(WHERE l."workStatus"='DONE'),'total',count(*)) FROM booking_line_items l WHERE l."bookingId"=b.id AND l."removedAt" IS NULL)) AS card
         FROM bookings b LEFT JOIN bay_occupancies o ON o."bookingId"=b.id
         WHERE b."snapshotVersion"='QUEUE_V3' AND b.status IN ('PENDING','CONFIRMED','IN_PROGRESS') AND b."bookingDate"<=$1::date
+      ), done_cards AS (
+        SELECT b.id,b."terminalAt",jsonb_build_object(
+          'id',b.id,'referenceCode',b."referenceCode",'revision',b.revision,'bookingDate',b."bookingDate"::text,
+          'queueCode',b."queueCode",'queueName',(SELECT q.name FROM booking_queues q WHERE q.code=b."queueCode"),'vehicleModel',b."vehicleModel",'vehiclePlate',b."vehiclePlate",
+          'sizeCode',b."vehicleSizeCodeSnapshot",
+          'lines',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',l.id,'name',l."nameSnapshot") ORDER BY l."order") FROM booking_line_items l WHERE l."bookingId"=b.id AND l."removedAt" IS NULL),'[]'),
+          'workers',COALESCE((SELECT jsonb_agg(jsonb_build_object('staffId',s.id,'name',s.name,'isActive',s."isActive") ORDER BY s.name,s.id) FROM booking_worker_assignments w JOIN staff s ON s.id=w."staffId" WHERE w."bookingId"=b.id),'[]'),
+          'finishedAt',to_char(b."terminalAt" AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) AS card
+        FROM bookings b
+        WHERE b."snapshotVersion"='QUEUE_V3' AND b.status='COMPLETED' AND b."terminalAt" IS NOT NULL
+          AND ((b."terminalAt" AT TIME ZONE 'Asia/Manila')::date=$1::date OR b."bookingDate"=$1::date)
       ) SELECT jsonb_build_object('date',$1::text,
         'closed',(SELECT jsonb_build_object('reason',d.reason) FROM blocked_dates d WHERE d.date=$1::date AND d."isFullDay" LIMIT 1),
         'workers',COALESCE((SELECT jsonb_agg(jsonb_build_object('staffId',id,'name',name,'isActive',"isActive") ORDER BY name,id) FROM staff WHERE "isActive" AND role = 'DETAILER'),'[]'), -- P1-61: staff names only; the admin and managers are never offered as workers
+        'containers',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',k.id,'name',k.name,'sortOrder',k."sortOrder",'usualQueues',to_jsonb(k."usualQueues"),'updatedAt',to_char(k."updatedAt" AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+          'bays',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',y.id,'name',y.name,'bayType',y."bayType",'containerId',y."containerId",'sortOrder',y."sortOrder",'isActive',y."isActive",'updatedAt',to_char(y."updatedAt" AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),'cards',COALESCE((SELECT jsonb_agg(c.card ORDER BY c."bookingDate",c."queuePosition",c.id) FROM cards c WHERE c."bayId"=y.id),'[]')) ORDER BY y."sortOrder",y.id) FROM bays y WHERE y."containerId"=k.id AND (y."isActive" OR EXISTS(SELECT 1 FROM bay_occupancies o WHERE o."bayId"=y.id))),'[]')) ORDER BY k."sortOrder",k.id)
+          FROM bay_containers k WHERE k."isActive" OR EXISTS(SELECT 1 FROM bays y JOIN bay_occupancies o ON o."bayId"=y.id WHERE y."containerId"=k.id)),'[]'),
+        'waiting',COALESCE((SELECT jsonb_agg(c.card ORDER BY c."bookingDate",c."queuePosition",c.id) FROM cards c WHERE c."bayId" IS NULL),'[]'),
+        'done',COALESCE((SELECT jsonb_agg(d.card ORDER BY d."terminalAt" DESC,d.id) FROM done_cards d),'[]'),
         'queues',(SELECT jsonb_agg(jsonb_build_object('code',q.code,'name',q.name,'bayType',m."bayType",'waiting',COALESCE((SELECT jsonb_agg(c.card ORDER BY c."bookingDate",c."queuePosition",c.id) FROM cards c WHERE c."queueCode"=q.code AND c."bayId" IS NULL),'[]')) ORDER BY q."sortOrder",q.code) FROM booking_queues q JOIN bay_type_queues m ON m."queueCode"=q.code),
-        'bays',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',y.id,'name',y.name,'bayType',y."bayType",'sortOrder',y."sortOrder",'isActive',y."isActive",'updatedAt',to_char(y."updatedAt" AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),'cards',COALESCE((SELECT jsonb_agg(c.card ORDER BY c."bookingDate",c."queuePosition",c.id) FROM cards c WHERE c."bayId"=y.id),'[]')) ORDER BY y."sortOrder",y.id) FROM bays y WHERE y."isActive" OR EXISTS(SELECT 1 FROM bay_occupancies o WHERE o."bayId"=y.id)),'[]')) AS board`,
+        'bays',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',y.id,'name',y.name,'bayType',y."bayType",'containerId',y."containerId",'sortOrder',y."sortOrder",'isActive',y."isActive",'updatedAt',to_char(y."updatedAt" AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),'cards',COALESCE((SELECT jsonb_agg(c.card ORDER BY c."bookingDate",c."queuePosition",c.id) FROM cards c WHERE c."bayId"=y.id),'[]')) ORDER BY y."sortOrder",y.id) FROM bays y WHERE y."isActive" OR EXISTS(SELECT 1 FROM bay_occupancies o WHERE o."bayId"=y.id)),'[]')) AS board`,
         date,
       );
       return row.board;

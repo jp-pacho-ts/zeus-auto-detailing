@@ -21,7 +21,7 @@ test("board progress counts active service lines only; plate fallback preserves 
   assert.equal(plateLabel("  "), "No plate");
   assert.equal(plateLabel("ABC 123"), "ABC 123");
 });
-test("one keyboard/drag payload uses revision; STAFF, wrong-type, inactive and busy drops are unavailable", () => {
+test("one keyboard/drag payload uses revision; STAFF, inactive and busy drops are unavailable, and any queue fits any empty bay", () => {
   const card = {
     id: "car",
     revision: 7,
@@ -30,21 +30,18 @@ test("one keyboard/drag payload uses revision; STAFF, wrong-type, inactive and b
   };
   const bay = {
     id: "bay",
-    bayType: "WASH" as const,
     isActive: true,
     cards: [],
   };
-  assert.equal(canDrop("ADMIN", card, bay, "WASH"), true);
-  assert.equal(canDrop("STAFF", card, bay, "WASH"), false);
-  assert.equal(
-    canDrop("ADMIN", card, { ...bay, cards: [card] }, "WASH"),
-    false,
-  );
-  assert.equal(canDrop("ADMIN", card, bay, "PAINT"), false);
-  assert.equal(
-    canDrop("ADMIN", card, { ...bay, isActive: false }, "WASH"),
-    false,
-  );
+  assert.equal(canDrop("ADMIN", card, bay), true);
+  assert.equal(canDrop("STAFF", card, bay), false);
+  assert.equal(canDrop("ADMIN", card, { ...bay, cards: [card] }), false);
+  // P1-62 (LE 2026-11-07): this line used to assert that a PAINT-type bay refuses a WASH car. A bay has no kind that restricts cars any more,
+  // so the same car is accepted by any empty active bay whatever the container is usually for.
+  const repaintCar = { ...card, queueCode: "REPAINT" };
+  assert.equal(canDrop("ADMIN", repaintCar, bay), true);
+  assert.equal(canDrop("ADMIN", { ...card, assignedBayId: "bay" }, bay), false, "already in that bay");
+  assert.equal(canDrop("ADMIN", card, { ...bay, isActive: false }), false);
   assert.deepEqual(bayPayload(card, "2026-10-20", "bay"), {
     expectedRevision: 7,
     date: "2026-10-20",

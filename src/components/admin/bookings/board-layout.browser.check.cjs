@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-// P1-22 / P1-25 real-browser regression. Same environment as bay-controls.browser.check.cjs;
-// never loads .env. The fixture day needs at least one card and at least one empty column.
+// P1-22 / P1-25 real-browser regression, restated for the P1-62 container board (the per-type rows, their one-line scrolling and the empty-column
+// card-height rule are gone). Same environment as bay-controls.browser.check.cjs; never loads .env. The fixture day needs cards and an empty bay.
 // Optional: P122_LAYOUT_SCREENSHOTS (directory).
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const path = require('node:path');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
-test('Board day sits right of the view switch from lg; row columns share one height on a single line; empty columns keep a card height from lg', { timeout: 90_000 }, async () => {
+test('Board day sits right of the view switch from lg; Waiting, containers and Done sit side by side from lg and one at a time below; bays in a container share a height; empty bays keep a visible slot', { timeout: 90_000 }, async () => {
   const upstream = new URL(process.env.P120_BROWSER_ORIGIN);
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(upstream.hostname), 'Synthetic loopback app only');
   assert.equal(upstream.origin, process.env.P120_BROWSER_ORIGIN);
@@ -43,7 +43,7 @@ test('Board day sits right of the view switch from lg; row columns share one hei
     await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
     await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
-    await page.locator('section[aria-label$=" row"] article').first().waitFor();
+    await page.locator('section[data-board-zone="WAITING"] article').first().waitFor();
     for (const width of [390, 768, 1024, 1280, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await page.waitForTimeout(200);
@@ -79,11 +79,12 @@ test('Board day sits right of the view switch from lg; row columns share one hei
         const tab = document.querySelector('[aria-label="Bay board sections"]');
         const day = document.querySelector('input[aria-label="Board day"]');
         const refresh = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Refresh board');
-        const columns = [...document.querySelectorAll('section[aria-label$=" row"] section[aria-label]')]
+        const columns = [...document.querySelectorAll('section[data-board-column]')]
           .filter((c) => c.offsetParent !== null)
-          .map((c) => ({ label: c.getAttribute('aria-label'), row: c.closest('section[aria-label$=" row"]').getAttribute('aria-label'), cards: c.querySelectorAll('article').length, ...box(c) }));
-        const tallestCard = Math.max(0, ...[...document.querySelectorAll('section[aria-label$=" row"] article')].map((a) => a.getBoundingClientRect().height));
-        return { scroll: content.scrollWidth, client: content.clientWidth, tab: box(tab), day: box(day), refresh: box(refresh), columns, tallestCard };
+          .map((c) => ({ label: c.getAttribute('aria-label'), row: c.closest('article').getAttribute('aria-label'), cards: c.querySelectorAll('article').length, ...box(c) }));
+        const zones = ['WAITING', 'BAYS', 'DONE'].map((z) => { const el = document.querySelector('[data-board-zone="' + z + '"]'); return { z, shown: el.getClientRects().length > 0, ...(el.getClientRects().length ? box(el) : {}) }; });
+        const tallestCard = Math.max(0, ...[...document.querySelectorAll('[data-board-zone] article')].filter((a) => a.getClientRects().length).map((a) => a.getBoundingClientRect().height));
+        return { scroll: content.scrollWidth, client: content.clientWidth, tab: box(tab), day: box(day), refresh: box(refresh), columns, zones, tallestCard };
       });
       assert.ok(m.scroll <= m.client, width + 'px no sideways scroll: ' + JSON.stringify({ scroll: m.scroll, client: m.client }));
       if (width >= 1024) {
@@ -95,31 +96,23 @@ test('Board day sits right of the view switch from lg; row columns share one hei
       }
       assert.ok(m.tallestCard > 0, 'fixture needs at least one card');
       const empty = m.columns.filter((c) => c.cards === 0);
-      assert.ok(empty.length > 0, 'fixture needs at least one empty column');
-      if (width >= 768) {
-        const lines = new Map();
-        for (const c of m.columns) {
-          const key = c.row + '@' + Math.round(c.top);
-          lines.set(key, [...(lines.get(key) ?? []), c]);
-        }
-        assert.equal(lines.size, 3, width + 'px every row keeps all its columns on one horizontal line: ' + JSON.stringify([...lines.keys()]));
-        for (const [key, line] of lines) {
-          const heights = line.map((c) => c.height);
-          assert.ok(Math.max(...heights) - Math.min(...heights) <= 1, width + 'px ' + key + ' columns share one height: ' + JSON.stringify(line.map((c) => [c.label, Math.round(c.height)])));
-        }
-        if (width >= 1024) {
-          for (const c of empty) assert.ok(c.height >= m.tallestCard, width + 'px empty ' + c.label + ' keeps at least one card height: ' + Math.round(c.height) + ' < ' + Math.round(m.tallestCard));
-        } else {
-          // At md the sidebar leaves one column per line: nothing to line up, so the slot stays short.
-          for (const c of empty) {
-            assert.ok(c.height >= 96, width + 'px empty ' + c.label + ' keeps a visible slot: ' + Math.round(c.height));
-            if (lines.get(c.row + '@' + Math.round(c.top)).length === 1)
-              assert.ok(c.height < m.tallestCard, width + 'px empty ' + c.label + ' alone on its line is not card height: ' + Math.round(c.height) + ' >= ' + Math.round(m.tallestCard));
-          }
-        }
+      assert.ok(empty.length > 0, 'fixture needs at least one empty bay');
+      const shown = m.zones.filter((z) => z.shown);
+      if (width >= 1024) {
+        assert.deepEqual(shown.map((z) => z.z), ['WAITING', 'BAYS', 'DONE'], width + 'px all three zones are side by side');
+        assert.ok(shown[0].right <= shown[1].left && shown[1].right <= shown[2].left, width + 'px left to right: ' + JSON.stringify(shown));
+        assert.ok(Math.abs(shown[0].top - shown[1].top) <= 2 && Math.abs(shown[2].top - shown[1].top) <= 2, width + 'px the three zones start on one line: ' + JSON.stringify(shown));
       } else {
-        for (const c of empty) assert.ok(c.height >= 96, width + 'px empty ' + c.label + ' keeps a visible slot: ' + Math.round(c.height));
+        assert.equal(shown.length, 1, width + 'px one zone at a time below lg: ' + JSON.stringify(shown));
       }
+      // Bays of one container that sit on one line share a height (the grid stretches them).
+      const lines = new Map();
+      for (const c of m.columns) lines.set(c.row + '@' + Math.round(c.top), [...(lines.get(c.row + '@' + Math.round(c.top)) ?? []), c]);
+      for (const [key, line] of lines) {
+        const heights = line.map((c) => c.height);
+        assert.ok(Math.max(...heights) - Math.min(...heights) <= 1, width + 'px ' + key + ' bays share one height: ' + JSON.stringify(line.map((c) => [c.label, Math.round(c.height)])));
+      }
+      for (const c of empty) assert.ok(c.height >= 96, width + 'px empty ' + c.label + ' keeps a visible slot: ' + Math.round(c.height));
       if (process.env.P122_LAYOUT_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.P122_LAYOUT_SCREENSHOTS, width + '-layout.png') });
     }
     // The switch moves between the Kanban toolbar and bay setup, so keyboard focus must follow it.
