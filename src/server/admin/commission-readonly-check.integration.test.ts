@@ -104,12 +104,13 @@ test("RO5 the definer inventory runs before the migration, and section 8b tolera
   // Every migration except the last one (P1-37) in a temporary copy, so the real migration is applied afterwards for real.
   const migrationsDir = path.join(process.cwd(), "prisma", "migrations");
   const names = fs.readdirSync(migrationsDir).filter((n) => fs.statSync(path.join(migrationsDir, n)).isDirectory()).sort();
-  assert.equal(names[names.length - 1], "20261105000000_team_commissions", "P1-37 is the newest migration");
+  // P1-38 added a later migration, so P1-37 is found by name, not as "the newest": everything BEFORE it is applied first, then the real ones.
+  assert.ok(names.includes("20261105000000_team_commissions"), "P1-37 migration exists");
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "p137-pre-"));
   fs.mkdirSync(path.join(tmp, "prisma", "migrations"), { recursive: true });
   fs.copyFileSync(path.join(process.cwd(), "prisma", "schema.prisma"), path.join(tmp, "prisma", "schema.prisma"));
   fs.copyFileSync(path.join(migrationsDir, "migration_lock.toml"), path.join(tmp, "prisma", "migrations", "migration_lock.toml"));
-  for (const n of names.slice(0, -1)) fs.cpSync(path.join(migrationsDir, n), path.join(tmp, "prisma", "migrations", n), { recursive: true });
+  for (const n of names.slice(0, names.indexOf("20261105000000_team_commissions"))) fs.cpSync(path.join(migrationsDir, n), path.join(tmp, "prisma", "migrations", n), { recursive: true });
   const pre = siblingDatabaseUrl(url!, "ro3");
   await root.$executeRawUnsafe(`CREATE DATABASE "${new URL(pre).pathname.slice(1)}"`);
   const prisma = (args: string[], cwd: string) => spawnSync(process.execPath, [path.join(process.cwd(), "node_modules", "prisma", "build", "index.js"), ...args], { cwd, env: { ...process.env, DATABASE_URL: pre }, encoding: "utf8" });
@@ -177,7 +178,7 @@ test("RO6 section 8b reads search paths as identifier lists: quoted commas, doub
   fs.mkdirSync(path.join(tmp, "prisma", "migrations"), { recursive: true });
   fs.copyFileSync(path.join(process.cwd(), "prisma", "schema.prisma"), path.join(tmp, "prisma", "schema.prisma"));
   fs.copyFileSync(path.join(migrationsDir, "migration_lock.toml"), path.join(tmp, "prisma", "migrations", "migration_lock.toml"));
-  for (const n of names.slice(0, -1)) fs.cpSync(path.join(migrationsDir, n), path.join(tmp, "prisma", "migrations", n), { recursive: true });
+  for (const n of names.slice(0, names.indexOf("20261105000000_team_commissions"))) fs.cpSync(path.join(migrationsDir, n), path.join(tmp, "prisma", "migrations", n), { recursive: true });
   const pre = siblingDatabaseUrl(url!, "ro4");
   await root.$executeRawUnsafe(`CREATE DATABASE "${new URL(pre).pathname.slice(1)}"`);
   const prisma = (args: string[], cwd: string) => spawnSync(process.execPath, [path.join(process.cwd(), "node_modules", "prisma", "build", "index.js"), ...args], { cwd, env: { ...process.env, DATABASE_URL: pre }, encoding: "utf8" });

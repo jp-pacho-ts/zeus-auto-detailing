@@ -57,6 +57,14 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["POST", "/api/admin/commissions/paid", () => import("@/app/api/admin/commissions/paid/route"), {}],
   ["POST", "/api/admin/commissions/repair", () => import("@/app/api/admin/commissions/repair/route"), {}],
   ["POST", "/api/admin/commissions/adjust", () => import("@/app/api/admin/commissions/adjust/route"), {}],
+  // P1-38 Supplies.
+  ["GET", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],
+  ["POST", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],
+  ["PATCH", `/api/admin/supplies/${ID}`, () => import("@/app/api/admin/supplies/[id]/route"), { id: ID }],
+  ["POST", `/api/admin/supplies/${ID}/stock`, () => import("@/app/api/admin/supplies/[id]/stock/route"), { id: ID }],
+  ["POST", `/api/admin/supplies/${ID}/remove`, () => import("@/app/api/admin/supplies/[id]/remove/route"), { id: ID }],
+  ["POST", `/api/admin/supplies/${ID}/restore`, () => import("@/app/api/admin/supplies/[id]/restore/route"), { id: ID }],
+  ["GET", `/api/admin/supplies/${ID}/movements`, () => import("@/app/api/admin/supplies/[id]/movements/route"), { id: ID }],
 ];
 const call = async (method: string, target: string, load: () => Promise<Record<string, unknown>>, params: Record<string, string>, headers: Record<string, string>, body?: string) => {
   const handler = (await load())[method] as Handler;

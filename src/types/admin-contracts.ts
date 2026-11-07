@@ -322,3 +322,43 @@ export interface AdminCommissionPaidResult {
   changed: number;
   unknown: number;
 }
+
+// ---- P1-38 Supplies & Inventory (ADMIN only; money is integer centavos, stock is a whole number) ----
+export type AdminSupplyStatus = "NONE" | "OK" | "LOW" | "OUT"; // NONE: reorder level 0 means no alert
+export interface AdminSupplyItem {
+  id: UUID;
+  name: string;
+  category: string | null;
+  unit: string;
+  currentStock: number;
+  reorderLevel: number;
+  costPerUnitCentavos: number;
+  isActive: boolean;
+  revision: number;
+  status: AdminSupplyStatus;
+  /** True when the item has any movement: Delete then archives it instead of erasing it. */
+  hasHistory: boolean;
+  createdAt: ISOInstant;
+  updatedAt: ISOInstant;
+}
+export interface AdminSupplyList {
+  items: AdminSupplyItem[];
+  /** Active items that are low or out (an item with reorder level 0 is never counted). */
+  lowOrOutCount: number;
+}
+export interface AdminSupplyMovement {
+  id: UUID;
+  kind: "OPENING" | "RECEIVE" | "USE";
+  delta: number;
+  stockAfter: number;
+  /** The price of one unit in this purchase; null when none was typed. */
+  unitCostCentavos: number | null;
+  note: string | null;
+  actorName: string;
+  createdAt: ISOInstant;
+}
+export interface AdminSupplyMovements {
+  movements: AdminSupplyMovement[];
+  /** Pass back as ?cursor= for the next (older) page; null on the last page. */
+  nextCursor: string | null;
+}
