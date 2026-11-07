@@ -80,8 +80,14 @@ export function SuppliesPanel({ list, showArchived, setShowArchived, reload }: {
     const target = removing;
     if (!target) return;
     const ok = await run(async () => {
-      const result = await adminRequest<{ outcome: "DELETED" | "ARCHIVED" }>(`/api/admin/supplies/${target.id}/remove`, { method: "POST", body: { expectedRevision: target.revision } });
-      return removeResult(result.outcome, target.name);
+      try {
+        const result = await adminRequest<{ outcome: "DELETED" | "ARCHIVED" }>(`/api/admin/supplies/${target.id}/remove`, { method: "POST", body: { expectedRevision: target.revision } });
+        return removeResult(result.outcome, target.name);
+      } catch (e) {
+        // The first try erased it and the answer was lost: "not found" on the retry means it is gone, which is what was asked.
+        if (e instanceof AdminRequestError && e.status === 404) return removeResult("DELETED", target.name);
+        throw e;
+      }
     });
     if (ok) setRemoving(null);
   }

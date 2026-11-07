@@ -284,7 +284,7 @@ END $$;
 REVOKE ALL ON "supply_items", "supply_movements", "supply_audit_events" FROM PUBLIC;
 REVOKE ALL ON FUNCTION admin_supply_create(text, text, text, text, text, integer, integer, bigint), admin_supply_update(text, text, integer, text, text, boolean, text, integer, integer),
   admin_supply_stock(text, text, text, integer, text, bigint, integer, text), admin_supply_remove(text, text, integer), admin_supply_restore(text, text, integer),
-  check_supply_consistency(), supply_stock_matches_history(text) FROM PUBLIC;
+  check_supply_consistency(), supply_stock_matches_history(text), guard_supply_movement_insert(), guard_supply_audit_insert(), reject_supply_change() FROM PUBLIC;
 DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'zeus_app') THEN
  REVOKE ALL ON "supply_items", "supply_movements", "supply_audit_events" FROM zeus_app;
  GRANT SELECT ON "supply_items", "supply_movements" TO zeus_app;

@@ -13,7 +13,10 @@ fn(sig, app_exec, definer) AS (VALUES
   ('admin_supply_remove(text, text, integer)', true, true),
   ('admin_supply_restore(text, text, integer)', true, true),
   ('supply_stock_matches_history(text)', false, true),
-  ('check_supply_consistency()', false, true)),
+  ('check_supply_consistency()', false, true),
+  ('guard_supply_movement_insert()', false, false),
+  ('guard_supply_audit_insert()', false, false),
+  ('reject_supply_change()', false, false)),
 trg(tbl, name) AS (VALUES
   ('supply_movements', 'supply_movement_insert'), ('supply_movements', 'supply_movement_immutable'), ('supply_movements', 'supply_movement_no_truncate'),
   ('supply_movements', 'supply_movements_consistent'), ('supply_items', 'supply_items_consistent'),

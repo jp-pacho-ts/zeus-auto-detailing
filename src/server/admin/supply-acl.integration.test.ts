@@ -23,8 +23,8 @@ after(async () => { await db.$disconnect(); await root.$disconnect(); });
 test("SA1 right after migrate deploy no supply function and no supply table is open to PUBLIC", { skip }, async () => {
   const fns = await db.$queryRawUnsafe<{ fn: string; open: boolean }[]>(
     `SELECT p.oid::regprocedure::text AS fn, has_function_privilege('public', p.oid, 'EXECUTE') AS open
-     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE '%supply%' AND p.prorettype <> 'trigger'::regtype ORDER BY 1`);
-  assert.ok(fns.length >= 6, "the five writers and the history check exist: " + fns.map((f) => f.fn).join(", "));
+     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE '%supply%' ORDER BY 1`);
+  assert.ok(fns.length >= 10, "the five writers, the history helper, the check and the three trigger functions exist: " + fns.map((f) => f.fn).join(", "));
   assert.deepEqual(fns.filter((f) => f.open).map((f) => f.fn), [], "functions executable by PUBLIC");
   const tables = await db.$queryRawUnsafe<{ t: string; open: boolean }[]>(
     `SELECT t, has_table_privilege('public', 'public.' || t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER') AS open

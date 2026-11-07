@@ -35,8 +35,8 @@ async function open(email, password, viewport, label) {
   });
   const page = await context.newPage();
   page.on('pageerror', (e) => problems.push(label + ' pageerror: ' + e.message));
-  // Console errors the browser prints for the refusals this check provokes on purpose: the detailer's 403, and the one lost response.
-  const expected = { detailer: /status of 403/, desktop: /ERR_FAILED/ }[label];
+  // Console errors the browser prints for the refusals this check provokes on purpose: the detailer's 403, the lost responses, and the 404 on the retried Delete.
+  const expected = { detailer: /status of 403/, desktop: /ERR_FAILED|status of 404/ }[label];
   page.on('console', (m) => { if (m.type() === 'error' && !(expected && expected.test(m.text()))) problems.push(label + ' console: ' + m.text()); });
   await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
   await page.getByLabel('Staff Email or ID').fill(email);
@@ -192,6 +192,22 @@ test('desktop 1440: empty start, add, stock in with a cost, used, a lost respons
   assert.doesNotMatch(silent, /\bOut\b|\bLow\b|\bOK\b/, 'reorder 0 shows no badge, even at stock 0');
   assert.equal(await summary.innerText(), '2 supplies · 1 low or out', 'and it is not counted');
 
+  // A lost response on Delete of a never-used item: it was erased, the answer never came, the retry says "not found", and the screen says deleted.
+  await page.getByRole('button', { name: 'Add item' }).first().click();
+  await dialog.getByLabel('Name').fill('Typo Item');
+  await dialog.getByLabel('Unit (bottle, pcs, litre...)').fill('pcs');
+  await dialog.getByLabel('Cost of one unit, in pesos').fill('1');
+  await dialog.getByRole('button', { name: 'Add item' }).click();
+  await page.getByText('Typo Item was added.').waitFor();
+  await page.route('**/api/admin/supplies/*/remove', lose, { times: 1 });
+  await page.getByRole('button', { name: 'Delete Typo Item' }).click();
+  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  await dialog.getByRole('alert').waitFor();
+  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByText('Typo Item was deleted.').waitFor();
+  assert.equal(await page.locator('#admin-content li', { hasText: 'Typo Item' }).count(), 0, 'gone');
+  await page.unroute('**/api/admin/supplies/*/remove');
+
   // Search.
   await page.getByLabel('Search').fill('iron');
   assert.equal(await page.locator('#admin-content li', { hasText: 'Silent Soap' }).count(), 0);
@@ -259,5 +275,5 @@ test('phone 390: the list and every dialog fit, nothing scrolls sideways or as a
   await fits('phone delete dialog');
   await page.keyboard.press('Escape');
   await context.close();
-  assert.deepEqual(problems, [], 'no page error or console error in any run');
+  assert.deepEqual(problems, [], 'no page error or console error in any run: ' + problems.join(' | '));
 });
