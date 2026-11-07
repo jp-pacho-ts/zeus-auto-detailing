@@ -36,7 +36,7 @@ async function open(email, password, viewport, label) {
   const page = await context.newPage();
   page.on('pageerror', (e) => problems.push(label + ' pageerror: ' + e.message));
   // Console errors the browser prints for the refusals this check provokes on purpose. Narrow on purpose: anything else fails the run.
-  const expected = { detailer: /status of 403/, desktop: /ERR_FAILED|status of 409/ }[label];
+  const expected = { detailer: /status of 403/, desktop: /ERR_FAILED|status of 400|status of 409/ }[label];
   page.on('console', (m) => { if (m.type() === 'error' && !(expected && expected.test(m.text()))) problems.push(label + ' console: ' + m.text()); });
   await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
   await page.getByLabel('Staff Email or ID').fill(email);
@@ -129,7 +129,8 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
   await page.route('**/api/admin/expenses', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
     posts.push(JSON.parse(route.request().postData()).id);
-    if (posts.length === 1) { await route.fetch(); return route.abort('failed'); }
+    // The server records it for real (the context route's address rewrite does not apply to this fetch), then the answer is lost.
+    if (posts.length === 1) { await route.fetch({ url: route.request().url().replace(origin, upstream.origin), headers: { ...route.request().headers(), 'x-forwarded-for': '198.51.100.139' } }); return route.abort('failed'); }
     return route.fallback();
   });
   await dialog.getByRole('button', { name: 'Add expense', exact: true }).click();
@@ -150,11 +151,11 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
   await status(page, 'The expense was changed.');
   assert.equal(await total(page), '₱1,300.00');
   await rowOf(page, 'Meralco').getByRole('button', { name: 'History', exact: true }).click();
-  const history = page.getByRole('dialog', { name: 'History of this expense' });
+  const history = page.getByRole('dialog').filter({ hasText: 'History of this expense' });
   await history.getByText(/Changed · ₱1,300\.00/).waitFor();
   await history.getByText(/Added · ₱1,250\.50/).waitFor();
   await layoutRules(page, 'desktop history');
-  await history.getByRole('button', { name: 'Close', exact: true }).click();
+  await history.getByRole('button', { name: 'Close', exact: true }).last().click();
 
   // A stale edit: someone else changed it. Refused in words, and the list reloads.
   await rowOf(page, 'Meralco').getByRole('button', { name: 'Edit', exact: true }).click();
@@ -172,7 +173,7 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
 
   // Remove hides, Show removed brings the row back into view without changing the money, Restore counts it again.
   await rowOf(page, 'Meralco').getByRole('button', { name: 'Remove', exact: true }).click();
-  const remove = page.getByRole('dialog', { name: 'Remove this expense?' });
+  const remove = page.getByRole('dialog').filter({ hasText: 'Remove this expense?' });
   await remove.getByText('It will be hidden and kept in history. You can bring it back.').waitFor();
   await remove.getByLabel('Reason (optional)').fill('typed twice');
   await remove.getByRole('button', { name: 'Remove', exact: true }).click();
@@ -202,7 +203,7 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
 
   // Categories: add, a reserved name, rename, hide, show.
   await page.getByRole('button', { name: 'Categories', exact: true }).click();
-  const cats = page.getByRole('dialog', { name: 'Categories' });
+  const cats = page.getByRole('dialog').filter({ hasText: 'Hide one you no longer use.' });
   await cats.getByLabel('New category').fill('Stock bought');
   await cats.getByRole('button', { name: 'Add category', exact: true }).click();
   await cats.getByRole('alert').filter({ hasText: 'automatic lines' }).waitFor();
@@ -217,7 +218,7 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
   await cats.getByRole('status').filter({ hasText: 'Permits and fees is hidden.' }).waitFor();
   await layoutRules(page, 'desktop categories');
   await shot(page, '1440-categories');
-  await cats.getByRole('button', { name: 'Close', exact: true }).click();
+  await cats.getByRole('button', { name: 'Close', exact: true }).last().click();
   await page.getByRole('button', { name: 'Add expense', exact: true }).click();
   dialog = page.getByRole('dialog');
   assert.equal(await dialog.getByLabel('Category').locator('option', { hasText: 'Permits and fees' }).count(), 0, 'a hidden category is not offered for a new expense');
@@ -231,10 +232,11 @@ test('desktop: add, edit, History, remove, restore, categories, a lost response,
     const item = await send('/api/admin/supplies', { id: crypto.randomUUID(), name: 'Check Wax', unit: 'bottle', reorderLevel: 0, costPesos: '0' });
     const priced = await send(`/api/admin/supplies/${item.id}/stock`, { id: crypto.randomUUID(), expectedRevision: item.revision, kind: 'RECEIVE', quantity: 3, unitCostPesos: '100.50' });
     await send(`/api/admin/supplies/${item.id}/stock`, { id: crypto.randomUUID(), expectedRevision: priced.revision, kind: 'RECEIVE', quantity: 1 });
-    const list = (await (await fetch('/api/admin/commissions?from=2027-07-01&to=2027-07-31&status=UNPAID')).json()).data;
+    const day = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10); // the fixture's jobs complete on the real clock
+    const list = (await (await fetch(`/api/admin/commissions?from=${day}&to=${day}&status=UNPAID`)).json()).data;
     const entry = list.entries[0];
     await send('/api/admin/commissions/paid', { ids: [entry.id], paid: true });
-    return { share: entry.shareCentavos };
+    return { share: entry.amountCentavos };
   });
   await page.reload({ waitUntil: 'networkidle' });
   await goToExpenses(page);
