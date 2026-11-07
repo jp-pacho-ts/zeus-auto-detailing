@@ -80,9 +80,9 @@ test("the average leaves a part-priced job out of both sides, rounds half up, an
 });
 
 test("halfUp is exact past a safe integer", () => {
-  assert.equal(halfUp(9_007_199_254_740_993n, 1n), 9_007_199_254_740_993n);
-  assert.equal(halfUp(3n, 2n), 2n);
-  assert.equal(halfUp(5n, 4n), 1n);
+  assert.equal(halfUp(BigInt("9007199254740993"), BigInt(1)), BigInt("9007199254740993"));
+  assert.equal(halfUp(BigInt(3), BigInt(2)), BigInt(2));
+  assert.equal(halfUp(BigInt(5), BigInt(4)), BigInt(1));
 });
 
 test("sums are exact: an amount that cannot be shown exactly is refused, never rounded", () => {

@@ -318,7 +318,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             {tab === "Team & Commissions" && <DetailersTab role={staff.role} />}
             {tab === "Supplies & Inventory" && <InventoryTab role={staff.role} />}
             {tab === "Expenses" && <ExpensesTab role={staff.role} />}
-            {tab === "Sales Analytics" && <AnalyticsTab />}
+            {tab === "Sales Analytics" && <AnalyticsTab role={staff.role} />}
           </div>
         </main>
       </div>
