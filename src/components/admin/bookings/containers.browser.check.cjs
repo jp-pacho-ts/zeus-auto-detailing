@@ -210,6 +210,42 @@ test('P1-62 container board: one Waiting, containers, one Done; place-anyway pro
     await still('desktop after container changes');
     await shot('1280-after-changes');
 
+    // ---- 6b. The Bays tab follows the containers; a removed bay whose container was removed moves first, then comes back (L1) ----
+    const sections = page.getByRole('group', { name: 'Bay board sections' });
+    await page.getByLabel('New container (a named group of bays)').fill('Pop-up tent');
+    await page.getByRole('button', { name: 'Add container' }).click();
+    await container('Pop-up tent').getByRole('button', { name: 'Add bay to Pop-up tent' }).click();
+    const addTent = page.getByRole('dialog', { name: /Add a/ });
+    await addTent.getByLabel('Bay name').fill('Tent 1');
+    await addTent.getByRole('button', { name: 'Add bay', exact: true }).click();
+    await bay('Tent 1').waitFor();
+    await sections.getByRole('button', { name: 'Bays', exact: true }).click();
+    const tentList = page.getByRole('region', { name: 'Pop-up tent bays', exact: true });
+    await tentList.getByText('Tent 1', { exact: true }).waitFor();
+    assert.equal(await page.getByText('Work done in this bay').count(), 0, 'the old type question is gone');
+    assert.equal(await page.getByRole('region', { name: 'Wash bays', exact: true }).count(), 0, 'no list by old type');
+    await tentList.getByRole('button', { name: 'Remove Tent 1', exact: true }).click();
+    await tentList.getByRole('button', { name: 'Remove bay', exact: true }).click();
+    await tentList.getByRole('button', { name: 'Bring back Tent 1', exact: true }).waitFor();
+    await sections.getByRole('button', { name: 'Kanban', exact: true }).click();
+    await container('Pop-up tent').getByRole('button', { name: 'Options for Pop-up tent' }).click();
+    await page.getByRole('menuitem', { name: 'Remove' }).click();
+    await page.getByRole('button', { name: 'Remove container' }).click();
+    await container('Pop-up tent').waitFor({ state: 'detached' });
+    await sections.getByRole('button', { name: 'Bays', exact: true }).click();
+    const orphaned = page.getByRole('region', { name: 'Bays in a removed container', exact: true });
+    await orphaned.getByText('Tent 1', { exact: true }).waitFor();
+    assert.equal(await orphaned.getByRole('button', { name: 'Bring back Tent 1' }).count(), 0, 'it cannot be brought back while its container is gone');
+    await orphaned.getByLabel('Move Tent 1 to').selectOption({ label: 'Paint' });
+    await orphaned.getByRole('button', { name: 'Move bay', exact: true }).click();
+    const paintList = page.getByRole('region', { name: 'Paint bays', exact: true });
+    await paintList.getByRole('button', { name: 'Bring back Tent 1', exact: true }).click();
+    await paintList.getByRole('button', { name: 'Remove Tent 1', exact: true }).waitFor();
+    assert.equal(await orphaned.count(), 0, 'nothing is left in a removed container');
+    await shot('1280-bays-tab');
+    await sections.getByRole('button', { name: 'Kanban', exact: true }).click();
+    await page.getByLabel('Board day').waitFor();
+
     // ---- 7. Phone: three tabs, one zone at a time, 44px controls, nothing sideways ----
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(300);

@@ -45,14 +45,15 @@ export function bayNameError(name: string, bays: readonly Pick<Bay, "id" | "name
 export const removeBayBlocked = (bay: Pick<Bay, "name" | "cards">): string | null =>
   bay.cards.length ? `Move the car out of ${bay.name} before removing it.` : null;
 
-// tolerateConflict (P1-62 L2): after a lost response the retry meets a stale-version conflict; the change is already there, so the caller
-// reloads and treats it as done.
+// tolerateConflict (P1-62 L2): after a lost response the retry meets a stale-version conflict. It may be our own change or someone else's, so
+// the caller closes and reloads like a success but says RELOADED instead of claiming its own change was applied.
+export const RELOADED = "This was already changed. The board is reloaded: check it shows what you want.";
 export async function send(request: Request, tolerateConflict = false): Promise<string | null> {
   try {
     await adminRequest(request.url, { method: request.method, body: request.body });
     return null;
   } catch (e) {
-    if (tolerateConflict && e instanceof AdminRequestError && e.detail.code === "VERSION_CONFLICT") return null;
+    if (tolerateConflict && e instanceof AdminRequestError && e.detail.code === "VERSION_CONFLICT") return RELOADED;
     if (e instanceof AdminRequestError && e.status === 401) {
       window.location.replace("/admin/login");
       return "";
@@ -341,9 +342,9 @@ export function BayMenu({ bay, bays, containers = [], onDone }: { bay: Bay; bays
         options={containers.filter((c) => c.id !== bay.containerId)}
         onSubmit={async (containerId) => {
           const failed = await send(moveBayRequest(bay, containerId), true);
-          if (failed !== null) return failed || null;
+          if (failed !== null && failed !== RELOADED) return failed || null;
           setMode("CLOSED");
-          await onDone(`${bay.name} moved to ${containers.find((c) => c.id === containerId)?.name ?? "the container"}.`);
+          await onDone(failed ?? `${bay.name} moved to ${containers.find((c) => c.id === containerId)?.name ?? "the container"}.`);
           return null;
         }}
         onCancel={close}

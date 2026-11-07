@@ -4,7 +4,7 @@ import { MoreHorizontal, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AdminBoardContainer } from "@/types/admin-contracts";
 import { fieldClass } from "./use-admin-resource";
-import { type Request, send } from "./bay-controls";
+import { RELOADED, type Request, send } from "./bay-controls";
 import { queueLabel, usualForLine } from "./container-model";
 
 // P1-62 A2: ADMIN adds, renames, labels and removes containers on the Bays tab of the board. A container is a named group of bays. Remove is
@@ -136,11 +136,10 @@ export function ContainerMenu({ container, containers, queues, onDone }: {
     setBusy(true);
     const failed = await send(request, true);
     setBusy(false);
-    if (failed) return setError(failed);
-    if (failed === null) {
+    if (failed === null || failed === RELOADED) {
       setMode("CLOSED");
-      await onDone(message);
-    }
+      await onDone(failed ?? message);
+    } else if (failed) setError(failed);
   }
   return (
     <div className="relative">
@@ -173,9 +172,9 @@ export function ContainerMenu({ container, containers, queues, onDone }: {
           validate={(n) => containerNameError(n, [...containers, ...containers.flatMap((c) => c.bays)], container.id)}
           onSubmit={async (name) => {
             const failed = await send(renameContainerRequest(container, name), true);
-            if (failed !== null) return failed || null;
+            if (failed !== null && failed !== RELOADED) return failed || null;
             setMode("CLOSED");
-            await onDone(`Renamed to ${name.trim()}.`);
+            await onDone(failed ?? `Renamed to ${name.trim()}.`);
             return null;
           }}
           onCancel={close} />

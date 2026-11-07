@@ -93,16 +93,17 @@ test("ADMIN gets a compact Add bay in every container header and a keyboard menu
   for (const hidden of ["Add bay", "Options for", "aria-haspopup"]) assert.equal(staff.includes(hidden), false, hidden);
 });
 
-// P1-62 L2: after a lost response, the retried container/bay change meets a stale-version conflict. The change is already there, so the
-// container and bay-move calls treat the conflict as done (the board reloads); the older bay rename/remove calls still show it.
-test("a stale-version conflict counts as done only when the caller says so; every other refusal still shows its words", async () => {
-  const { send, removeContainerRequest } = { ...require("./bay-controls"), ...require("./container-controls") };
+// P1-62 L2: after a lost response, the retried container/bay change meets a stale-version conflict. It may be someone else's change, so the
+// container and bay-move calls close and reload but say RELOADED, never "done"; the older bay rename/remove calls still show the conflict.
+test("a stale-version conflict closes and reloads only when the caller says so, without claiming success; every other refusal still shows its words", async () => {
+  const { send, RELOADED, removeContainerRequest } = { ...require("./bay-controls"), ...require("./container-controls") };
   const original = globalThis.fetch;
   const reply = (code: string, message: string) => async () => new Response(JSON.stringify({ ok: false, error: { code, message } }), { status: 409 });
   try {
     globalThis.fetch = reply("VERSION_CONFLICT", "Someone else changed this. Reload and try again.") as typeof fetch;
     const request = removeContainerRequest({ id: "k1", updatedAt: "2026-10-20T00:00:00.000Z" });
-    assert.equal(await send(request, true), null, "tolerated: treated as done");
+    assert.equal(await send(request, true), RELOADED, "tolerated: a distinct answer, not a success");
+    assert.doesNotMatch(RELOADED, /removed|renamed|moved|saved/i, "it does not claim the caller's own change was applied");
     assert.equal(await send(request), "Someone else changed this. Reload and try again.", "not tolerated: shown");
     globalThis.fetch = reply("NOT_ALLOWED", "Move or remove its bays first.") as typeof fetch;
     assert.equal(await send(request, true), "Move or remove its bays first.", "a different refusal is never swallowed");
