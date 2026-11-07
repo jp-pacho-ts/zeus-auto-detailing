@@ -19,3 +19,5 @@ export { listTeam, getPerson, addPerson, updatePerson, removePreview, removePers
 export { getCommissionSettings, setDefaultRate, listCommissions, setCommissionsPaid, repairCommissions, adjustCommission } from "./commissions";
 export { listSupplies, addSupply, updateSupply, recordStock, removeSupply, restoreSupply, listMovements } from "./supplies";
 export { listContainers, addContainer, updateContainer, removeContainer, moveBay } from "./containers";
+export { getExpenseMonth, addExpense, updateExpense, removeExpense, restoreExpense, listExpenseHistory, listExpenseCategories, addExpenseCategory, updateExpenseCategory } from "./expenses";
+export { expenseTotals, type ExpenseTotals } from "./expenses-read";

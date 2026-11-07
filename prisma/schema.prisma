@@ -233,6 +233,10 @@ model Staff {
   adjustmentsMade       CommissionAdjustment[]    @relation("CommissionAdjustedBy")
   adjustmentsPaid       CommissionAdjustment[]    @relation("CommissionAdjustmentPaidBy")
   supplyMovements       SupplyMovement[]          @relation("SupplyMovementActor")
+  expensesCreated       Expense[]                 @relation("ExpenseCreatedBy")
+  expensesVoided        Expense[]                 @relation("ExpenseVoidedBy")
+  expenseEvents         ExpenseEvent[]            @relation("ExpenseEventActor")
+  expenseCategoryEvents ExpenseCategoryEvent[]    @relation("ExpenseCategoryEventActor")
   supplyAudits          SupplyAuditEvent[]        @relation("SupplyAuditActor")
   containerAudits       BayContainerAuditEvent[]  @relation("ContainerAuditActor")
   commissionSettingsSet CommissionSettings[]
@@ -1177,4 +1181,93 @@ model BayContainerAuditEvent {
 
   @@index([targetId, createdAt])
   @@map("bay_container_audit_events")
+}
+
+// P1-39 Expenses. Stock bought and commissions paid are read from where they live, never copied here. Every write is an owner-run function.
+enum ExpenseEventKind {
+  CREATED
+  EDITED
+  VOIDED
+  RESTORED
+}
+
+enum ExpenseCategoryEventKind {
+  CREATED
+  RENAMED
+  HIDDEN
+  SHOWN
+}
+
+model ExpenseCategory {
+  id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name      String
+  nameKey   String    @unique
+  sortOrder Int
+  isActive  Boolean   @default(true)
+  revision  Int       @default(1)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @default(now()) @db.Timestamptz(3)
+  expenses  Expense[]
+
+  @@map("expense_categories")
+}
+
+// A removal sets voidedAt: it hides and never erases.
+model Expense {
+  id               String          @id
+  seq              BigInt          @unique @default(autoincrement())
+  expenseDate      DateTime        @db.Date
+  categoryId       String
+  category         ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amountCentavos   BigInt
+  payee            String?
+  note             String?
+  revision         Int             @default(1)
+  voidedAt         DateTime?       @db.Timestamptz(3)
+  voidedByStaffId  String?
+  voidedBy         Staff?          @relation("ExpenseVoidedBy", fields: [voidedByStaffId], references: [id], onDelete: Restrict)
+  createdByStaffId String
+  createdBy        Staff           @relation("ExpenseCreatedBy", fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime        @default(now()) @db.Timestamptz(3)
+
+  @@index([expenseDate, seq])
+  @@index([categoryId, expenseDate])
+  @@map("expenses")
+}
+
+// Insert-only, one full snapshot per change, no foreign key to the expense.
+model ExpenseEvent {
+  seq            BigInt           @id @default(autoincrement())
+  expenseId      String
+  kind           ExpenseEventKind
+  revision       Int
+  expenseDate    DateTime         @db.Date
+  categoryName   String
+  amountCentavos BigInt
+  payee          String?
+  note           String?
+  reason         String?
+  actorStaffId   String
+  actor          Staff            @relation("ExpenseEventActor", fields: [actorStaffId], references: [id], onDelete: Restrict)
+  txId           BigInt           @default(dbgenerated("txid_current()"))
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+
+  @@index([expenseId, seq])
+  @@map("expense_events")
+}
+
+// Insert-only.
+model ExpenseCategoryEvent {
+  seq          BigInt                   @id @default(autoincrement())
+  categoryId   String
+  kind         ExpenseCategoryEventKind
+  name         String
+  actorStaffId String
+  actor        Staff                    @relation("ExpenseCategoryEventActor", fields: [actorStaffId], references: [id], onDelete: Restrict)
+  txId         BigInt                   @default(dbgenerated("txid_current()"))
+  createdAt    DateTime                 @default(now()) @db.Timestamptz(3)
+
+  @@index([categoryId, seq])
+  @@map("expense_category_events")
 }
