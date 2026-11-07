@@ -101,7 +101,9 @@ BEGIN
     'admin_staff_profile_set(text, text, integer, text, text, text, text, date, date, text, text, text)', 'admin_staff_remove_v2(text, text, integer)',
     -- P1-39 Expenses: the six ADMIN writers. The trigger functions are executable by nobody but their owner.
     'admin_expense_create(text, text, date, text, bigint, text, text)', 'admin_expense_update(text, text, integer, date, text, bigint, text, text)',
-    'admin_expense_void(text, text, integer, text)', 'admin_expense_restore(text, text, integer)', 'admin_category_create(text, text, text)', 'admin_category_update(text, text, integer, text, boolean)'
+    'admin_expense_void(text, text, integer, text)', 'admin_expense_restore(text, text, integer)', 'admin_category_create(text, text, text)', 'admin_category_update(text, text, integer, text, boolean)',
+    -- P1-42 Settings: the one ADMIN writer. The trigger functions are executable by nobody but their owner.
+    'admin_shop_settings_set(text, integer, boolean, text, boolean)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);
@@ -166,6 +168,8 @@ BEGIN
     ['bay_containers', 'SELECT'],
     -- Expenses (P1-39): read only. Every write is an owner-run function.
     ['expense_categories', 'SELECT'], ['expenses', 'SELECT'], ['expense_events', 'SELECT'], ['expense_category_events', 'SELECT'],
+    -- Settings (P1-42): read only. The one write is an owner-run function; shop_settings_audit_events gets nothing at all.
+    ['shop_settings', 'SELECT'],
 
     -- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
     -- owner URL, never by the app; the app reads no staff phone numbers.
