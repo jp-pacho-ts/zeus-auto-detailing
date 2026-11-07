@@ -21,3 +21,4 @@ export { listSupplies, addSupply, updateSupply, recordStock, removeSupply, resto
 export { listContainers, addContainer, updateContainer, removeContainer, moveBay } from "./containers";
 export { getExpenseMonth, addExpense, updateExpense, removeExpense, restoreExpense, listExpenseHistory, listExpenseCategories, addExpenseCategory, updateExpenseCategory } from "./expenses";
 export { expenseTotals, type ExpenseTotals } from "./expenses-read";
+export { getAnalytics } from "./analytics";

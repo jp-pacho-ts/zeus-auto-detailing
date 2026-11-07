@@ -486,3 +486,57 @@ export interface AdminExpenseMonth {
   /** The last 12 months, oldest first. */
   series: { month: string; total: string; manual: string; stockBought: string; commissionsPaid: string }[];
 }
+
+// -----------------------------------------------------------------------------
+// P1-40 Sales & Analytics (ADMIN only, read-only). Money is integer centavos. No customer name, phone, email or plate.
+// -----------------------------------------------------------------------------
+export type AdminAnalyticsBucketUnit = "DAY" | "WEEK" | "MONTH";
+export interface AdminAnalyticsBucket {
+  start: LocalDate;
+  end: LocalDate;
+  /** The bucket has not started yet: it holds no result, not a zero. */
+  future: boolean;
+  revenueCentavos: number;
+  jobs: number;
+}
+export interface AdminAnalyticsSales {
+  /** Final prices of the jobs finished in the range, by their finish day in Manila. Prices, not cash: no payment is recorded. */
+  revenueCentavos: number;
+  finishedJobs: number;
+  /** Finished jobs with every service priced: the only ones in the average. */
+  fullyPricedJobs: number;
+  averageJobCentavos: number | null;
+  /** Finished jobs with a service that has no final price. At most 20 references, newest first. */
+  unpriced: { jobs: number; references: string[] };
+  buckets: { unit: AdminAnalyticsBucketUnit; rows: AdminAnalyticsBucket[] };
+  byGroup: { code: string; revenueCentavos: number }[];
+  byQueue: { code: string; name: string; revenueCentavos: number }[];
+  topServices: { name: string; revenueCentavos: number; count: number }[];
+}
+export interface AdminAnalytics extends AdminAnalyticsSales {
+  from: LocalDate;
+  to: LocalDate;
+  today: LocalDate;
+  /** Bookings dated in the range, as they stand now. */
+  bookingsByStatus: Record<BookingStatus, number>;
+  notCounted: {
+    /** Finished bookings dated in the range that were deleted (the audit keeps only the booked day). */
+    deletedFinished: number;
+    /** Finished bookings of the older booking model, at any date: they have no reliable lines. */
+    olderFinished: number;
+  };
+  commissions: {
+    startsAt: ISOInstant;
+    /** On the jobs finished in the range, with their adjustments. */
+    earnedCentavos: number;
+    unpaidCentavos: number;
+    nobodyCredited: number;
+    missingRecords: number;
+  };
+  stock: {
+    /** Today, never for a past range. Null when too large to show exactly. */
+    valueCentavos: number | null;
+    noCostItems: number;
+    lowOrOutCount: number;
+  };
+}

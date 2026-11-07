@@ -341,7 +341,6 @@ export const ExpenseCategoryUpdateSchema = z
   .strict()
   .refine((v) => v.name !== undefined || v.isActive !== undefined, "Change the name or whether it is shown.");
 export const SupplyMovementsSchema = z.object({ cursor: z.string().regex(/^[0-9]{1,18}$/).optional() }).strict();
-
 // P1-62 A1 bay containers. The browser makes the id of a new container (a retry after a lost response adds it once).
 const ContainerName = z.string().trim().min(1, "Enter a name.").max(40, "Use 40 characters or fewer.");
 const UsualQueues = z.array(AdminQueueCodeSchema).max(10).refine((l) => new Set(l).size === l.length, "Each service can be listed once.");
@@ -352,3 +351,10 @@ export const ContainerUpdateSchema = z
   .refine((v) => v.name !== undefined || v.usualQueues !== undefined, "Change the name or the label.");
 export const ContainerRemoveSchema = z.object({ expectedUpdatedAt: Instant }).strict();
 export const BayMoveSchema = z.object({ expectedUpdatedAt: Instant, containerId: Id }).strict();
+
+// P1-40: at most a year, the same limit as CommissionListSchema because the range is passed on to it.
+export const AnalyticsQuerySchema = z
+  .object({ from: LocalDateSchema, to: LocalDateSchema })
+  .strict()
+  .refine((v) => v.to >= v.from, { message: "The end day can't be before the start day.", path: ["to"] })
+  .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 <= 365, { message: "Choose a range of one year or less.", path: ["to"] });
