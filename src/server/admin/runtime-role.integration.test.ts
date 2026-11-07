@@ -66,6 +66,35 @@ test("runtime-role.sql is idempotent and repairs drift: the same privileges whic
   assert.deepEqual(await snapshot(), first, "the script restores exactly its own list");
 });
 
+// P1-65: the role's one row is shared by every database on the cluster, so an unconditional ALTER ROLE from parallel provisioning aborts
+// with "tuple concurrently updated". A role that is already right must get no write at all. xmin is the transaction that last wrote the row.
+test("P1-65 provisioning writes nothing to a role that is already right", { skip }, async () => {
+  const lastWriter = async () => (await root.$queryRawUnsafe<{ x: string }[]>(`SELECT xmin::text AS x FROM pg_authid WHERE rolname='zeus_app'`))[0].x;
+  provisionRuntimeRole(ownerUrl);
+  // Up to three tries: in a parallel npm test another file may change the role in between; the old script moved it every time.
+  let untouched = false;
+  for (let i = 0; i < 3 && !untouched; i++) {
+    const before = await lastWriter();
+    provisionRuntimeRole(ownerUrl);
+    untouched = (await lastWriter()) === before;
+  }
+  assert.ok(untouched, "a rerun must not update the shared role row");
+});
+
+test("P1-65 an attribute that drifted is still repaired, and the condition covers all four", { skip }, async () => {
+  provisionRuntimeRole(ownerUrl);
+  const right = (await snapshot()).role;
+  assert.deepEqual(right, [{ rolsuper: false, rolcreatedb: false, rolcreaterole: false, rolreplication: false, rolbypassrls: false, rolcanlogin: true, rolinherit: false }]);
+  for (const drift of ["CREATEDB", "CREATEROLE", "INHERIT"]) {
+    await root.$executeRawUnsafe(`ALTER ROLE zeus_app ${drift}`);
+    provisionRuntimeRole(ownerUrl);
+    assert.deepEqual((await snapshot()).role, right, drift);
+  }
+  // NOLOGIN is read here, not run: it would lock out the other test files that log in as zeus_app in a parallel npm test.
+  const script = fs.readFileSync(path.join(process.cwd(), "prisma", "sql", "runtime-role.sql"), "utf8");
+  assert.match(script, /IF \(SELECT NOT rolcanlogin OR rolcreatedb OR rolcreaterole OR rolinherit FROM pg_roles WHERE rolname = 'zeus_app'\) THEN\s+ALTER ROLE zeus_app LOGIN NOCREATEDB NOCREATEROLE NOINHERIT;\s+END IF;/);
+});
+
 // Codex F2 (PM ruling 2026-10-21): the operator may run the script on the empty database before
 // the first migrate deploy, so the migrations' conditional grants see the role. Either supported
 // order ends, after the run that follows every migrate deploy, with the same exact ACLs.

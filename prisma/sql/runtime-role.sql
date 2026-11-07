@@ -29,7 +29,11 @@ BEGIN
   IF (SELECT rolsuper OR rolreplication OR rolbypassrls FROM pg_roles WHERE rolname = 'zeus_app') THEN
     ALTER ROLE zeus_app NOSUPERUSER NOREPLICATION NOBYPASSRLS; -- needs a superuser; fails loudly otherwise
   END IF;
-  ALTER ROLE zeus_app LOGIN NOCREATEDB NOCREATEROLE NOINHERIT;
+  -- Only when something differs: this one row is shared by every database on the cluster, and two runs updating it at once abort with
+  -- "tuple concurrently updated" (P1-65).
+  IF (SELECT NOT rolcanlogin OR rolcreatedb OR rolcreaterole OR rolinherit FROM pg_roles WHERE rolname = 'zeus_app') THEN
+    ALTER ROLE zeus_app LOGIN NOCREATEDB NOCREATEROLE NOINHERIT;
+  END IF;
   FOR m IN SELECT g.rolname FROM pg_auth_members a JOIN pg_roles g ON g.oid = a.roleid JOIN pg_roles u ON u.oid = a.member
     WHERE u.rolname = 'zeus_app' LOOP
     EXECUTE format('REVOKE %I FROM zeus_app', m.rolname);
