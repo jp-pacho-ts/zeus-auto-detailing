@@ -107,6 +107,12 @@ export async function updateBay(
         `Move the car out of ${bay.name} before removing it.`,
         "SCHEDULE_CONFLICT",
       );
+    // P1-62 L1: the database refuses an active bay in a removed container (raw ZK004); say it plainly first.
+    if (v.isActive === true && !bay.isActive && bay.containerId) {
+      const home = await tx.bayContainer.findUnique({ where: { id: bay.containerId }, select: { isActive: true } });
+      if (home && !home.isActive)
+        throw fieldError("isActive", `${bay.name}'s container was removed. Move the bay to an active container first.`, "SCHEDULE_CONFLICT");
+    }
     const updated = await tx.bay.update({
       where: { id },
       data: {

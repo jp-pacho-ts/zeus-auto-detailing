@@ -59,8 +59,9 @@ test('click anywhere on a board card opens its details modal; controls and drags
     for (const width of (process.env.P130_WIDTHS || '1280,390').split(',').map(Number)) {
       const s = await session(process.env.P120_TEST_EMAIL, process.env.P120_TEST_PASSWORD, { width, height: 900 });
       const { page } = s;
-      const washRow = page.getByRole('region', { name: 'Wash row' });
-      const card = washRow.getByRole('region', { name: 'Waiting · Wash', exact: true }).locator('article').first();
+      // P1-62 A2: below lg one zone shows at a time; the cards of this check are in the Waiting zone.
+      if (width < 1024) await page.getByRole('group', { name: 'Board area' }).getByRole('button', { name: /^Waiting/ }).click();
+      const card = page.getByRole('region', { name: 'Waiting', exact: true }).locator('article[aria-label^="ZEUS-"]').filter({ hasText: 'Synthetic Vios' });
       await card.waitFor();
       const ref = await card.getAttribute('aria-label');
       const dialog = page.getByRole('dialog');
@@ -102,12 +103,12 @@ test('click anywhere on a board card opens its details modal; controls and drags
     // ---- ADMIN at 1280: a real drag does not open it and still moves the car; Done card; Delete; focus fallback ----
     const s = await session(process.env.P120_TEST_EMAIL, process.env.P120_TEST_PASSWORD, { width: 1280, height: 2400 });
     const { page } = s;
-    const washRow = page.getByRole('region', { name: 'Wash row' });
-    const card = washRow.getByRole('region', { name: 'Waiting · Wash', exact: true }).locator('article').first();
+    const washRow = page /* P1-62 A2: the per-type rows are gone; the whole board is the scope */;
+    const card = page.getByRole('region', { name: 'Waiting', exact: true }).locator('article[aria-label^="ZEUS-"]').filter({ hasText: 'Synthetic Vios' });
     await card.waitFor();
     const ref = await card.getAttribute('aria-label');
     const dialog = page.getByRole('dialog');
-    const bays = await washRow.locator('section[aria-label^="Wash Bay"]').evaluateAll((els) => els.map((el) => ({ label: el.getAttribute('aria-label'), cards: el.querySelectorAll('article').length })));
+    const bays = await washRow.locator('article[aria-label="Wash"] section[data-board-column]').evaluateAll((els) => els.map((el) => ({ label: el.getAttribute('aria-label'), cards: el.querySelectorAll('article').length })));
     const emptyBay = bays.find((b) => b.cards === 0)?.label;
     assert.ok(emptyBay, 'fixture needs an empty Wash bay');
     let puts = 0;
@@ -145,7 +146,7 @@ test('click anywhere on a board card opens its details modal; controls and drags
     // the admin API (start it, mark its lines done, complete it); this step is mandatory, never skipped.
     await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
-    const busyCar = washRow.locator('section[aria-label^="Wash Bay"] article').first();
+    const busyCar = washRow.locator('article[aria-label="Wash"] section[data-board-column] article').first();
     await busyCar.waitFor();
     const doneRef = await busyCar.getAttribute('aria-label');
     const finished = await page.evaluate(async (reference) => {
@@ -169,7 +170,7 @@ test('click anywhere on a board card opens its details modal; controls and drags
     }, doneRef);
     assert.equal(finished, 'COMPLETED', 'the fixture car was completed so the board has a Done card');
     await page.getByRole('button', { name: 'Refresh board', exact: true }).click();
-    const done = washRow.getByRole('region', { name: /^Done · Wash/ }).getByRole('article', { name: doneRef, exact: true });
+    const done = washRow.getByRole('region', { name: 'Done', exact: true }).getByRole('article', { name: doneRef, exact: true });
     await done.waitFor({ timeout: 10_000 });
     assert.equal(await done.count(), 1, 'a Done card is on the board');
     await done.getByText(/Synthetic Vehicle|·/).first().click();
@@ -182,7 +183,7 @@ test('click anywhere on a board card opens its details modal; controls and drags
 
     // ---- DETAILER: opens the details read-only, no Delete booking ----
     const staff = await session(process.env.QSA_DETAILER_EMAIL, process.env.QSA_DETAILER_PASSWORD, { width: 1280, height: 900 });
-    const sc = staff.page.getByRole('region', { name: 'Waiting · Wash', exact: true }).locator('article').first();
+    const sc = staff.page.getByRole('region', { name: 'Waiting', exact: true }).locator('article[aria-label^="ZEUS-"]').filter({ hasText: 'Synthetic City' });
     await sc.waitFor();
     await sc.getByText(/Synthetic Vehicle|·/).first().click();
     await staff.page.getByRole('dialog').getByText('Booking details').waitFor();

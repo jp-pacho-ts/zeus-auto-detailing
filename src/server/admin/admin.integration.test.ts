@@ -869,7 +869,9 @@ test(
     await accepted((tx) => tx.$executeRawUnsafe("UPDATE bays SET \"bayType\"='PAINT' WHERE id=$1", wash.id));
     await accepted((tx) => tx.$executeRawUnsafe("UPDATE bay_type_queues SET \"bayType\"='PAINT' WHERE \"queueCode\"='WASH'"));
     await accepted((tx) => tx.$executeRawUnsafe("DELETE FROM bay_type_queues WHERE \"queueCode\"='WASH'"));
-    // Still refused, by a rule that names the queue; this assertion is unchanged (I did not check which rule, only that the message still matches).
+    // Still refused. P1-62 L3: the rule that refuses it is the unique key on (bookingDate, queueCode, queuePosition): the booking keeps its
+    // position 1 and REPAINT already has a position-1 booking that day. It is NOT a bay-type rule, the daily-cap trigger or a queue-immutability
+    // rule (a re-queue into a free position would not be refused by the database), so this line pins that exact message.
     await assert.rejects(
       db.$transaction(async (tx) => {
         await tx.booking.update({
@@ -877,7 +879,7 @@ test(
           data: { queueCode: "REPAINT", revision: 2 },
         });
       }),
-      /queue|type/i,
+      /Unique constraint failed on the fields: \(`bookingDate`,`queueCode`,`queuePosition`\)/,
     );
     const missing = await book(select("S", "basic-wash"), "2027-06-06");
     await assert.rejects(

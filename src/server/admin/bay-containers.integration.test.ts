@@ -322,6 +322,21 @@ test("BC12 history and audit are append-only for the owner too, containers canno
   assert.equal(await count("bay_container_audit_events", `"targetId" = '${c.id}' AND action = 'CONTAINER_CREATED'`), 1);
 });
 
+test("BC12b L1: re-activating a bay whose container was removed is refused in plain words, and works after the bay is moved", { skip }, async () => {
+  const c = await newContainer(), bay = await newBay(c.id), target = await newContainer();
+  const token = async () => (await db.bay.findUniqueOrThrow({ where: { id: bay.id } })).updatedAt.toISOString();
+  await s.updateBay(ADMIN, bay.id, { expectedUpdatedAt: await token(), isActive: false }, opts());
+  const fresh = (await s.listContainers(ADMIN, opts())).find((x) => x.id === c.id)!;
+  await s.removeContainer(ADMIN, c.id, { expectedUpdatedAt: fresh.updatedAt }, opts());
+  await refused(s.updateBay(ADMIN, bay.id, { expectedUpdatedAt: await token(), isActive: true }, opts()), "SCHEDULE_CONFLICT", "reactivate in a removed container", (e) => {
+    assert.match(JSON.stringify(e), /container was removed/i);
+    assert.doesNotMatch(JSON.stringify(e), /ZK004|removed container cannot hold/);
+  });
+  await s.moveBay(ADMIN, bay.id, { expectedUpdatedAt: await token(), containerId: target.id }, opts());
+  const back = await s.updateBay(ADMIN, bay.id, { expectedUpdatedAt: await token(), isActive: true }, opts());
+  assert.equal(back.isActive, true);
+});
+
 // Runs last on purpose: it empties every container but one.
 test("BC13 the last active container is never removed", { skip }, async () => {
   const all = await s.listContainers(ADMIN, opts());

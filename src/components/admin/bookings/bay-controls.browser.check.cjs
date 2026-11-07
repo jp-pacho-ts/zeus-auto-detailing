@@ -7,7 +7,8 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
-// P1-22: Add bay is a row-header button that opens a modal. The refusal and busy steps hold or
+// P1-22: Add bay is a button that opens a modal (P1-62: in each CONTAINER header, so its id carries the container id and the new bay is a section
+// on the board, not an option in the old per-type column picker). The refusal and busy steps hold or
 // answer one synthetic POST in this test's own route handler; the final add uses the real server.
 test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and Escape returns it to their buttons', { timeout: 120_000 }, async () => {
   const upstream = new URL(process.env.P120_BROWSER_ORIGIN);
@@ -47,6 +48,7 @@ test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and 
     await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     const add = page.getByRole('button', { name: 'Add bay to Wash', exact: true });
     await add.waitFor();
+    const addId = await add.getAttribute('id');
     const modal = page.getByRole('dialog', { name: 'Add a wash bay' });
     const field = modal.getByLabel('Bay name', { exact: true });
     const isFocused = (locator) => locator.evaluate((element) => document.activeElement === element);
@@ -98,10 +100,10 @@ test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and 
     const settled = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/admin/board' && r.status() === 200);
     releaseBoard();
     await settled;
-    await page.waitForFunction(() => document.activeElement?.id === 'add-bay-button-WASH');
+    await page.waitForFunction((id) => document.activeElement?.id === id, addId);
     assert.equal(await isFocused(add), true, 'focus returns to Add bay after the bay is added');
     await page.getByRole('status').filter({ hasText: name + ' added.' }).waitFor();
-    await page.getByLabel('Wash board column').selectOption({ label: name + ' (0)' });
+    await page.locator('section[data-board-column][aria-label="' + name + '"]').waitFor();
     const trigger = page.getByRole('button', { name: 'Options for ' + name, exact: true });
     await trigger.click();
     await page.getByRole('menuitem', { name: 'Remove', exact: true }).click();
