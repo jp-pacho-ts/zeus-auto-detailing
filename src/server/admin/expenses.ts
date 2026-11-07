@@ -23,7 +23,7 @@ function read<T>(options: AdminOptions, work: (tx: StaffTx) => Promise<T>): Prom
 function mapExpenseError(error: unknown): never {
   const text = error instanceof Error ? error.message : "";
   if (text.includes("ZX001")) throw new AdminServiceError("NOT_FOUND");
-  if (text.includes("ZX002")) throw new AdminServiceError("VERSION_CONFLICT", "Someone else changed this. Reload and try again.");
+  if (text.includes("ZX002")) throw new AdminServiceError("VERSION_CONFLICT", "Someone else changed this. Check the current values, then try again.");
   if (text.includes("ZX006")) throw new AdminServiceError("VALIDATION_ERROR");
   if (text.includes("ZX007")) throw fieldError("name", "A category with that name already exists.");
   if (text.includes("ZX010")) throw fieldError("categoryId", "That category is hidden. Choose another or show it again.");
