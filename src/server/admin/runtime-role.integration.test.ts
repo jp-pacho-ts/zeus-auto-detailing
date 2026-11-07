@@ -81,18 +81,33 @@ test("P1-65 provisioning writes nothing to a role that is already right", { skip
   assert.ok(untouched, "a rerun must not update the shared role row");
 });
 
-test("P1-65 an attribute that drifted is still repaired, and the condition covers all four", { skip }, async () => {
-  provisionRuntimeRole(ownerUrl);
-  const right = (await snapshot()).role;
-  assert.deepEqual(right, [{ rolsuper: false, rolcreatedb: false, rolcreaterole: false, rolreplication: false, rolbypassrls: false, rolcanlogin: true, rolinherit: false }]);
-  for (const drift of ["CREATEDB", "CREATEROLE", "INHERIT"]) {
-    await root.$executeRawUnsafe(`ALTER ROLE zeus_app ${drift}`);
-    provisionRuntimeRole(ownerUrl);
-    assert.deepEqual((await snapshot()).role, right, drift);
-  }
-  // NOLOGIN is read here, not run: it would lock out the other test files that log in as zeus_app in a parallel npm test.
+// Read, not raced: a test cannot drop a role the other files share. Two first runs on a new cluster race on the role's name index, which
+// raises unique_violation rather than duplicate_object. The parallel proof is in the P1-65 handoff.
+test("P1-65 a concurrent first CREATE ROLE is tolerated", () => {
   const script = fs.readFileSync(path.join(process.cwd(), "prisma", "sql", "runtime-role.sql"), "utf8");
-  assert.match(script, /IF \(SELECT NOT rolcanlogin OR rolcreatedb OR rolcreaterole OR rolinherit FROM pg_roles WHERE rolname = 'zeus_app'\) THEN\s+ALTER ROLE zeus_app LOGIN NOCREATEDB NOCREATEROLE NOINHERIT;\s+END IF;/);
+  assert.match(script, /CREATE ROLE zeus_app LOGIN;\s+EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;/);
+});
+
+test("P1-65 each attribute that drifted is still repaired", { skip }, async () => {
+  provisionRuntimeRole(ownerUrl);
+  const attributes = `SELECT rolcanlogin, rolcreatedb, rolcreaterole, rolinherit FROM pg_roles WHERE rolname='zeus_app'`;
+  const script = fs.readFileSync(path.join(process.cwd(), "prisma", "sql", "runtime-role.sql"), "utf8");
+  const roleBlock = /DO \$\$\s+DECLARE m record;[\s\S]*?END \$\$;/.exec(script)?.[0];
+  assert.ok(roleBlock, "the role block is in the script");
+  // The script's own role block, in a transaction that is rolled back: a committed drift would make the other test files of a parallel
+  // npm test write the shared row (the race itself), and NOLOGIN would lock them out.
+  const rolledBack = new Error("rolled back on purpose");
+  for (const drift of ["NOLOGIN", "CREATEDB", "CREATEROLE", "INHERIT"]) {
+    let repaired: unknown;
+    await assert.rejects(root.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`ALTER ROLE zeus_app ${drift}`);
+      assert.notDeepEqual(await tx.$queryRawUnsafe(attributes), [{ rolcanlogin: true, rolcreatedb: false, rolcreaterole: false, rolinherit: false }], `${drift} really drifted`);
+      await tx.$executeRawUnsafe(roleBlock);
+      repaired = await tx.$queryRawUnsafe(attributes);
+      throw rolledBack;
+    }), (e) => e === rolledBack);
+    assert.deepEqual(repaired, [{ rolcanlogin: true, rolcreatedb: false, rolcreaterole: false, rolinherit: false }], drift);
+  }
 });
 
 // Codex F2 (PM ruling 2026-10-21): the operator may run the script on the empty database before

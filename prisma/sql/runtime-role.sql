@@ -24,7 +24,7 @@ DECLARE m record;
 BEGIN
   BEGIN
     CREATE ROLE zeus_app LOGIN;
-  EXCEPTION WHEN duplicate_object THEN NULL; -- created earlier, or concurrently
+  EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; -- created earlier; a concurrent create fails on the name index instead (P1-65)
   END;
   IF (SELECT rolsuper OR rolreplication OR rolbypassrls FROM pg_roles WHERE rolname = 'zeus_app') THEN
     ALTER ROLE zeus_app NOSUPERUSER NOREPLICATION NOBYPASSRLS; -- needs a superuser; fails loudly otherwise
