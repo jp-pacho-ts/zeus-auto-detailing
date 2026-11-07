@@ -627,7 +627,10 @@ test(
         target,
         ADMIN.staffId,
       );
-    await assert.rejects(tryHistory(wrongId), /queue|type/i);
+    // P1-62 (LE 2026-11-07): this used to be refused ("Bay type does not take this queue"). Any car can go in any bay now, so the history row
+    // is accepted; the booking is not touched and the row is removed again so the later checks see the same state.
+    await tryHistory(wrongId);
+    await db.$executeRawUnsafe('DELETE FROM booking_bay_assignments WHERE "bookingId"=$1', id);
     // Even a compatible occupancy cannot bypass the revision + same-transaction audit contract.
     await assert.rejects(
       db.$executeRawUnsafe(
@@ -679,16 +682,11 @@ test(
       "FORBIDDEN",
       "LE ADMIN-only move",
     );
-    await refused(
-      s.setBay(
-        ADMIN,
-        a,
-        { expectedRevision: 1, date: day, bayId: paint.id },
-        at("2027-06-03"),
-      ),
-      "SCHEDULE_CONFLICT",
-      "wrong type",
-    );
+    // P1-62 (LE 2026-11-07): a wash car in a paint bay used to be refused ("wrong type"). Any car can go in any empty active bay now. A separate
+    // booking proves it, so the revisions of the booking below are unchanged.
+    const stray = await book(select("S", "basic-wash"), day);
+    const inPaint = await s.setBay(ADMIN, stray, { expectedRevision: 1, date: day, bayId: paint.id }, at("2027-06-03"));
+    assert.equal(inPaint.booking.occupancy?.bay.id, paint.id, "any car can go in any bay");
     const assigned = await s.setBay(
       ADMIN,
       a,
@@ -822,8 +820,7 @@ test(
       book(select("S", "regular-tint"), day),
       book(select("S", ["panel-repaint", 1]), day),
     ]);
-    const types = ["WASH", "DETAILING", "PAINT"] as const,
-      expected = ["WASH", "DETAILING", "DETAILING", "PAINT"];
+    const types = ["WASH", "DETAILING", "PAINT"] as const;
     const bays = [];
     for (const type of types)
       bays.push(
@@ -858,29 +855,21 @@ test(
               },
             });
           });
-        if (bay.bayType === expected[i]) await write();
-        else await assert.rejects(write(), /queue|type/i);
+        // P1-62 (LE 2026-11-07): the full queue-by-type matrix used to refuse every wrong pair here. Any bay takes any car now (the
+        // bay's type and bay_type_queues are legacy placeholders), so every pair is accepted.
+        void i;
+        await write();
       }
     const wash = bays[0];
-    await assert.rejects(
-      db.$executeRawUnsafe(
-        "UPDATE bays SET \"bayType\"='PAINT' WHERE id=$1",
-        wash.id,
-      ),
-      /queue|type/i,
-    );
-    await assert.rejects(
-      db.$executeRawUnsafe(
-        "UPDATE bay_type_queues SET \"bayType\"='PAINT' WHERE \"queueCode\"='WASH'",
-      ),
-      /queue|type/i,
-    );
-    await assert.rejects(
-      db.$executeRawUnsafe(
-        "DELETE FROM bay_type_queues WHERE \"queueCode\"='WASH'",
-      ),
-      /queue|type/i,
-    );
+    // P1-62: these three used to be refused because they broke a bay's type against its car's queue. The type and the mapping are placeholders
+    // now, so each is accepted; every one runs in a transaction that is rolled back so the later checks see the same state.
+    const rolledBack = new Error("rolled back on purpose");
+    const accepted = (write: (tx: import("@prisma/client").Prisma.TransactionClient) => Promise<unknown>) =>
+      assert.rejects(db.$transaction(async (tx) => { await write(tx); throw rolledBack; }), (e) => e === rolledBack);
+    await accepted((tx) => tx.$executeRawUnsafe("UPDATE bays SET \"bayType\"='PAINT' WHERE id=$1", wash.id));
+    await accepted((tx) => tx.$executeRawUnsafe("UPDATE bay_type_queues SET \"bayType\"='PAINT' WHERE \"queueCode\"='WASH'"));
+    await accepted((tx) => tx.$executeRawUnsafe("DELETE FROM bay_type_queues WHERE \"queueCode\"='WASH'"));
+    // Still refused, by a rule that names the queue; this assertion is unchanged (I did not check which rule, only that the message still matches).
     await assert.rejects(
       db.$transaction(async (tx) => {
         await tx.booking.update({
