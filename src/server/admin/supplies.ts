@@ -1,5 +1,7 @@
 import "server-only";
 import type { SupplyItem } from "@prisma/client";
+
+type ItemRow = SupplyItem & { _count: { movements: number } };
 import type { AdminSupplyItem, AdminSupplyList, AdminSupplyMovement, AdminSupplyMovements } from "@/types/admin-contracts";
 import { AdminIdSchema, SupplyCreateSchema, SupplyListSchema, SupplyMovementsSchema, SupplyRemoveSchema, SupplyStockSchema, SupplyUpdateSchema } from "@/lib/admin-validation";
 import { stockStatus } from "@/lib/supplies";
@@ -33,12 +35,13 @@ function mapSupplyError(error: unknown): never {
   throw error;
 }
 
-const toItem = (r: SupplyItem): AdminSupplyItem => ({
+const withCount = { _count: { select: { movements: true } } } as const;
+const toItem = (r: ItemRow): AdminSupplyItem => ({
   id: r.id, name: r.name, category: r.category, unit: r.unit, currentStock: r.currentStock, reorderLevel: r.reorderLevel, costPerUnitCentavos: r.costPerUnitCentavos,
-  isActive: r.isActive, revision: r.revision, status: stockStatus(r.currentStock, r.reorderLevel), createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(),
+  isActive: r.isActive, revision: r.revision, status: stockStatus(r.currentStock, r.reorderLevel), hasHistory: r._count.movements > 0, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(),
 });
 async function itemOrThrow(tx: StaffTx, id: string): Promise<AdminSupplyItem> {
-  const r = await tx.supplyItem.findUnique({ where: { id } });
+  const r = await tx.supplyItem.findUnique({ where: { id }, include: withCount });
   if (!r) throw new AdminServiceError("NOT_FOUND");
   return toItem(r);
 }
@@ -47,7 +50,7 @@ export async function listSupplies(actor: StaffActor, input: unknown, options: A
   authorize(actor, "SUPPLY_READ");
   const v = parse(SupplyListSchema, input ?? {});
   return read(options, async (tx) => {
-    const rows = await tx.supplyItem.findMany({ where: v.includeArchived ? {} : { isActive: true }, orderBy: [{ isActive: "desc" }, { nameKey: "asc" }] });
+    const rows = await tx.supplyItem.findMany({ where: v.includeArchived ? {} : { isActive: true }, include: withCount, orderBy: [{ isActive: "desc" }, { nameKey: "asc" }] });
     const items = rows.map(toItem);
     return { items, lowOrOutCount: items.filter((i) => i.isActive && (i.status === "LOW" || i.status === "OUT")).length };
   });

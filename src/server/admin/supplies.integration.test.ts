@@ -65,8 +65,10 @@ test("SU2 an item is added with or without a starting stock; the starting stock 
   const bare = await add({ category: "  Wash  " });
   assert.deepEqual([bare.currentStock, bare.category, bare.unit, bare.costPerUnitCentavos, bare.revision, bare.isActive, bare.status], [0, "Wash", "bottle", 10_000, 1, true, "OUT"]);
   assert.equal((await moves(bare.id)).length, 0);
+  assert.equal(bare.hasHistory, false, "never used");
   const started = await add({ startingStock: 12, name: "Iron X Spray" });
   assert.equal(started.currentStock, 12);
+  assert.equal(started.hasHistory, true, "the starting stock is a movement, so Delete will archive it");
   const [open] = await moves(started.id);
   assert.deepEqual([open.kind, open.delta, open.stockAfter, open.unitCostCentavos, open.note, open.actorStaffId], ["OPENING", 12, 12, null, null, ADMIN.staffId]);
   await refused(add({ name: "  iron x SPRAY " }), "VALIDATION_ERROR", "duplicate", (e) => assert.deepEqual(Object.keys(e.fieldErrors), ["name"]));

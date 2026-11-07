@@ -312,7 +312,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             )}
             {tab === "Bay board" && <BayWorkspace role={staff.role} />}
             {tab === "Team & Commissions" && <DetailersTab role={staff.role} />}
-            {tab === "Supplies & Inventory" && <InventoryTab />}
+            {tab === "Supplies & Inventory" && <InventoryTab role={staff.role} />}
             {tab === "Sales Analytics" && <AnalyticsTab />}
           </div>
         </main>

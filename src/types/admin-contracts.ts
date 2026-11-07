@@ -336,6 +336,8 @@ export interface AdminSupplyItem {
   isActive: boolean;
   revision: number;
   status: AdminSupplyStatus;
+  /** True when the item has any movement: Delete then archives it instead of erasing it. */
+  hasHistory: boolean;
   createdAt: ISOInstant;
   updatedAt: ISOInstant;
 }
