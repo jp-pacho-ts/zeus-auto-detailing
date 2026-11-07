@@ -120,7 +120,8 @@ test("containers: ADMIN gets Add container, a menu on every container, Add bay a
   assert.equal(admin.includes("sr-only"), false, "nothing on the board is an absolutely positioned sr-only span");
   assert.equal(admin.includes("<dialog"), false, "no dialog is open until asked");
   const staff = render("STAFF");
-  for (const hidden of ["Add bay", "Add container", "Options for", "aria-haspopup", "Move car"]) assert.equal(staff.includes(hidden), false, hidden);
+  for (const hidden of ["Add bay", "Add container", "Options for", "aria-haspopup", "Move car", "Drag to bay", "Drag this card", "Assign worker", "Remove Synthetic Technician", 'draggable="true"', "cursor-grab"]) assert.equal(staff.includes(hidden), false, hidden);
+  assert.ok(staff.includes("Synthetic Technician"), "STAFF still sees who is assigned");
   assert.ok(staff.includes("ZEUS-TEST17") && staff.includes("ZEUS-TEST19"), "STAFF still sees and opens cards");
 });
 
