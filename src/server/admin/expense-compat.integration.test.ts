@@ -19,7 +19,7 @@ const MIGRATION = "20261109000000_expenses";
 test("EC0 the migration text writes only its own tables and replaces no function", { skip: false }, () => {
   const sql = fs.readFileSync(path.join(process.cwd(), "prisma", "migrations", MIGRATION, "migration.sql"), "utf8").split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
   assert.doesNotMatch(sql, /CREATE OR REPLACE/i, "no live function is replaced");
-  assert.doesNotMatch(sql, /ALTER TABLE\s+"?(?!expense)/i, "no live table is altered");
+  assert.doesNotMatch(sql, /ALTER TABLE\s+"?(?!expense)[a-z]/i, "no live table is altered");
   assert.doesNotMatch(sql, /\bDROP\b/i, "nothing is dropped");
   // A data change starts a statement. "ON UPDATE CASCADE", "BEFORE UPDATE" and "FOR UPDATE" in DDL or a lock are not data changes.
   const targets = [...sql.matchAll(/(?:^|;|\bTHEN)[ \t]*(?:UPDATE|INSERT INTO|DELETE FROM)\s+(?:public\.)?"?([a-z_]+)"?/gim)].map((m) => m[1].toLowerCase());

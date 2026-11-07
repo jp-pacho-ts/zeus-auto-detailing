@@ -120,7 +120,7 @@ test("EX1 the seeded categories are as listed, in order; the derived names are r
   for (const name of ["Stock bought", " COMMISSIONS paid "]) await refused(s.addExpenseCategory(ADMIN, { id: randomUUID(), name }, opts()), "VALIDATION_ERROR", name);
   await assert.rejects(app.$queryRawUnsafe(`SELECT admin_category_create($1, $2, 'stock BOUGHT')`, ADMIN.staffId, randomUUID()), /ZX013|reserved/, "the database refuses it too");
   const rent = list[0];
-  await assert.rejects(app.$queryRawUnsafe(`SELECT admin_category_update($1, $2, $3, 'commissions paid', NULL)`, ADMIN.staffId, rent.id, rent.revision), /ZX013|reserved/, "and on a rename");
+  await assert.rejects(app.$queryRawUnsafe(`SELECT admin_category_update($1, $2, $3::integer, 'commissions paid', NULL)`, ADMIN.staffId, rent.id, rent.revision), /ZX013|reserved/, "and on a rename");
 });
 
 test("EX2 an expense round trips; required fields, amount and text bounds are refused; a future or too-old date is refused in words", { skip }, async () => {
@@ -240,7 +240,7 @@ test("EX8 categories: add, rename, hide and show; duplicates refused; retry harm
   const rolledBack = new Error("rolled back on purpose");
   await assert.rejects(db.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(`UPDATE expense_categories SET "isActive" = false WHERE id <> '${id}'`);
-    await tx.$queryRawUnsafe(`SELECT admin_category_update($1, $2, $3, NULL, false)`, ADMIN.staffId, id, shown.revision);
+    await tx.$queryRawUnsafe(`SELECT admin_category_update($1, $2, $3::integer, NULL, false)`, ADMIN.staffId, id, shown.revision);
     throw rolledBack;
   }), /ZX014|last category/, "the last active category is refused");
 });
@@ -251,7 +251,7 @@ test("EX9 a priced stock-in counts delta times cost in bigint; an unpriced stock
   const item = await s.addSupply(ADMIN, { id: randomUUID(), name: "Expense Wax", unit: "bottle", reorderLevel: 0, costPesos: "9.00", startingStock: 5 }, opts());
   let cur = await s.recordStock(ADMIN, item.id, { id: randomUUID(), expectedRevision: item.revision, kind: "RECEIVE", quantity: 3, unitCostPesos: "100.50" }, opts());
   cur = await s.recordStock(ADMIN, item.id, { id: randomUUID(), expectedRevision: cur.revision, kind: "RECEIVE", quantity: 2 }, opts());
-  cur = await s.recordStock(ADMIN, item.id, { id: randomUUID(), expectedRevision: cur.revision, kind: "USE", quantity: 1 }, opts());
+  await s.recordStock(ADMIN, item.id, { id: randomUUID(), expectedRevision: cur.revision, kind: "USE", quantity: 1 }, opts());
   let after = await totals(today, today);
   assert.equal(after.stockBought - before.stockBought, BigInt(30_150), "3 x 100.50");
   assert.equal(after.pricedStockIns - before.pricedStockIns, 1);
