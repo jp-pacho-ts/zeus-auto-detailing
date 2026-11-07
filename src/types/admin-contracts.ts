@@ -247,13 +247,39 @@ export interface AdminTeamPerson {
   hasHistory: boolean;
   revision: number;
   createdAt: ISOInstant;
+  nickname: string | null;
+  position: string | null;
+  hiredOn: LocalDate | null;
+}
+/** P1-64: the details the admin keeps about a person. ADMIN only, never in a customer response, a log or an audit label. */
+export interface AdminStaffProfile {
+  nickname: string | null;
+  position: string | null;
+  contactEmail: string | null;
+  address: string | null;
+  birthDate: LocalDate | null;
+  hiredOn: LocalDate | null;
+  emergencyName: string | null;
+  emergencyPhone: string | null;
+  notes: string | null;
+}
+export interface AdminTeamPersonDetail {
+  person: AdminTeamPerson;
+  profile: AdminStaffProfile;
+}
+/** What Remove will do, shown before the admin confirms. */
+export interface AdminTeamRemovePreview {
+  openJobs: { bookingId: UUID; referenceCode: string }[];
+  unpaidCentavos: number;
+  unpaidJobs: number;
 }
 export interface AdminTeam {
   people: AdminTeamPerson[];
   defaultRateBp: number;
   settingsRevision: number;
 }
-export type AdminTeamRemoveOutcome = "DELETED" | "DEACTIVATED";
+/** DELETED: nothing pointed at the person, the row is gone. REMOVED: hidden for good; the name stays on history, personal details are erased. */
+export type AdminTeamRemoveOutcome = "DELETED" | "REMOVED";
 
 export interface AdminCommissionSettings {
   defaultRateBp: number;

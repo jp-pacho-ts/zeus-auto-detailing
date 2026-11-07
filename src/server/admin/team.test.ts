@@ -22,9 +22,11 @@ test("TeamCreateSchema: a name is required, optional fields are checked, and not
   ok(TeamCreateSchema, { name: "Maria Santos" });
   ok(TeamCreateSchema, { name: "Maria", phone: "+63 917 555 0101", email: "maria@example.test", ratePercent: "12.5" });
   ok(TeamCreateSchema, { name: "Maria", email: "", ratePercent: null });
+  // P1-64: a browser-made uuid makes a retried Add harmless, so an id is now accepted; anything but a uuid is still refused below.
+  ok(TeamCreateSchema, { name: "Maria", id: ID });
   for (const input of [{}, { name: "" }, { name: "  " }, { name: "x".repeat(81) }, { name: "a\u0000b" }, { name: "M", phone: "call me" }, { name: "M", phone: "1".repeat(31) },
     { name: "M", email: "nope" }, { name: "M", ratePercent: "100.5" }, { name: "M", ratePercent: "" }, { name: "M", ratePercent: 10 },
-    { name: "M", role: "ADMIN" }, { name: "M", id: ID }, { name: "M", isActive: true }, { name: "M", commissionRateBp: 1000 }, { name: "M", revision: 3 }])
+    { name: "M", role: "ADMIN" }, { name: "M", id: "not-a-uuid" }, { name: "M", isActive: true }, { name: "M", commissionRateBp: 1000 }, { name: "M", revision: 3 }])
     bad(TeamCreateSchema, input);
   assert.equal(TeamCreateSchema.parse({ name: "  Trim Me  ", email: " UP@Example.TEST " }).email, "up@example.test");
 });

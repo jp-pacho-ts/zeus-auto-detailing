@@ -27,10 +27,10 @@ test("rates read as plain percentages and the default line is exact", () => {
 test("removing tells the truth about what will happen and what did", () => {
   assert.match(removeWarning({ name: "Ana", openJobs: 2, hasHistory: true }), /still on 2 open jobs/);
   assert.match(removeWarning({ name: "Ana", openJobs: 1, hasHistory: false }), /1 open job\. /);
-  assert.match(removeWarning({ name: "Ana", openJobs: 0, hasHistory: true }), /made inactive/);
+  assert.match(removeWarning({ name: "Ana", openJobs: 0, hasHistory: true }), /name stays.*erased for good/);
   assert.match(removeWarning({ name: "Ana", openJobs: 0, hasHistory: false }), /can't be undone/);
   assert.match(removeResult("DELETED", "Ana"), /was removed/);
-  assert.match(removeResult("DEACTIVATED", "Ana"), /job history/);
+  assert.match(removeResult("REMOVED", "Ana"), /name stays.*erased/);
 });
 
 test("only detailers are managed on this screen", () => {

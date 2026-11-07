@@ -15,6 +15,20 @@ import {
   loadForWrite,
   mutate,
 } from "./mutation";
+import type { StaffTx } from "@/server/auth/db-admission";
+
+// The one way an assignment ends: revision first, then the row, then its audit row, all in the caller's transaction.
+export async function takeOff(tx: StaffTx, actor: StaffActor, bookingId: string, targetStaffId: string, expectedRevision: number): Promise<void> {
+  await bump(tx, bookingId, expectedRevision);
+  await tx.bookingWorkerAssignment.delete({ where: { bookingId_staffId: { bookingId, staffId: targetStaffId } } });
+  await audit(tx, actor, {
+    action: "WORKER_UNASSIGNED",
+    bookingId,
+    targetStaffId,
+    fromRevision: expectedRevision,
+    toRevision: expectedRevision + 1,
+  });
+}
 
 async function worker(
   actor: StaffActor,
@@ -52,18 +66,20 @@ async function worker(
         bookingId,
         "Choose an active staff member from the Team list.",
       );
+    if (remove) {
+      await takeOff(tx, actor, bookingId, targetStaffId, v.expectedRevision);
+      return { booking: await detailOrThrow(tx, bookingId), noChange: false };
+    }
     await bump(tx, bookingId, v.expectedRevision);
-    if (remove) await tx.bookingWorkerAssignment.delete({ where: key });
-    else
-      await tx.bookingWorkerAssignment.create({
-        data: {
-          bookingId,
-          staffId: targetStaffId,
-          assignedByStaffId: actor.staffId,
-        },
-      });
+    await tx.bookingWorkerAssignment.create({
+      data: {
+        bookingId,
+        staffId: targetStaffId,
+        assignedByStaffId: actor.staffId,
+      },
+    });
     await audit(tx, actor, {
-      action: remove ? "WORKER_UNASSIGNED" : "WORKER_ASSIGNED",
+      action: "WORKER_ASSIGNED",
       bookingId,
       targetStaffId,
       fromRevision: v.expectedRevision,

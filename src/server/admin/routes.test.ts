@@ -48,7 +48,9 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   // P1-37 Team and commissions.
   ["GET", "/api/admin/team", () => import("@/app/api/admin/team/route"), {}],
   ["POST", "/api/admin/team", () => import("@/app/api/admin/team/route"), {}],
+  ["GET", `/api/admin/team/${ID}`, () => import("@/app/api/admin/team/[id]/route"), { id: ID }],
   ["PATCH", `/api/admin/team/${ID}`, () => import("@/app/api/admin/team/[id]/route"), { id: ID }],
+  ["GET", `/api/admin/team/${ID}/remove-preview`, () => import("@/app/api/admin/team/[id]/remove-preview/route"), { id: ID }],
   ["POST", `/api/admin/team/${ID}/active`, () => import("@/app/api/admin/team/[id]/active/route"), { id: ID }],
   ["POST", `/api/admin/team/${ID}/remove`, () => import("@/app/api/admin/team/[id]/remove/route"), { id: ID }],
   ["GET", "/api/admin/commissions?from=2027-03-01&to=2027-03-07", () => import("@/app/api/admin/commissions/route"), {}],

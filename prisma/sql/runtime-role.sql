@@ -95,7 +95,10 @@ BEGIN
     'admin_supply_stock(text, text, text, integer, text, bigint, integer, text)', 'admin_supply_remove(text, text, integer)', 'admin_supply_restore(text, text, integer)',
     -- P1-62 bay containers: the four ADMIN writers. The helpers and trigger functions are executable by nobody but their owner.
     'admin_container_create(text, text, text, text[])', 'admin_container_update(text, text, timestamptz, text, text[], boolean)',
-    'admin_container_remove(text, text, timestamptz)', 'admin_bay_move(text, text, text, timestamptz)'
+    'admin_container_remove(text, text, timestamptz)', 'admin_bay_move(text, text, text, timestamptz)',
+    -- P1-64 Staff profiles: staff_profiles itself gets nothing at all, every read and write is one of these. guard_removed_staff() is executable by nobody but its owner.
+    'admin_team_list_v2(text)', 'admin_staff_create_v2(text, text, text, text, text, integer)', 'admin_staff_profile_get(text, text)',
+    'admin_staff_profile_set(text, text, integer, text, text, text, text, date, date, text, text, text)', 'admin_staff_remove_v2(text, text, integer)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);
@@ -179,7 +182,7 @@ END $$;
 -- catalog_hold_segments, booking_assignments, slot_capacity_overrides, commission_payouts,
 -- inventory_items, inventory_transactions, service_recipes, booking_delete_tokens (P1-29, written only
 -- by delete_booking()), admin_audit_events (P1-37, written only by the admin functions and the accrual
--- trigger), and EXECUTE on publish_catalog.
+-- trigger), staff_profiles (P1-64, read and written only by the admin functions), and EXECUTE on publish_catalog.
 
 -- Owner default privileges for future tables (S-06). Each migration that adds a table revokes
 -- these and grants its exact list; this script, run after it, is the final word.

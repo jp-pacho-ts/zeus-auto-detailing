@@ -44,14 +44,14 @@ export function defaultRateLine(defaultBp: number): string {
 export function removeResult(outcome: AdminTeamRemoveOutcome, name: string): string {
   return outcome === "DELETED"
     ? `${name} was removed from the team.`
-    : `${name} has job history, so they were made inactive instead. Their past jobs and commissions are kept.`;
+    : `${name} was removed. Their name stays on past jobs and commissions; their personal details were erased.`;
 }
 
 export function removeWarning(person: Pick<AdminTeamPerson, "name" | "openJobs" | "hasHistory">): string {
   if (person.openJobs > 0)
     return `${person.name} is still on ${person.openJobs} open ${person.openJobs === 1 ? "job" : "jobs"}. Take them off those jobs first.`;
   return person.hasHistory
-    ? `${person.name} has job history. They will be made inactive and their past jobs and commissions are kept.`
+    ? `${person.name} will be removed. Their name stays on past jobs and commissions; their personal details are erased for good.`
     : `${person.name} will be removed from the team. This can't be undone.`;
 }
 
