@@ -103,7 +103,11 @@ BEGIN
     'admin_expense_create(text, text, date, text, bigint, text, text)', 'admin_expense_update(text, text, integer, date, text, bigint, text, text)',
     'admin_expense_void(text, text, integer, text)', 'admin_expense_restore(text, text, integer)', 'admin_category_create(text, text, text)', 'admin_category_update(text, text, integer, text, boolean)',
     -- P1-42 Settings: the one ADMIN writer. The trigger functions are executable by nobody but their owner.
-    'admin_shop_settings_set(text, integer, boolean, text, boolean)'
+    'admin_shop_settings_set(text, integer, boolean, text, boolean)',
+    -- P1-41 User Management: the five writers/readers.
+    'admin_user_list(text)', 'admin_user_create(text, text, text, text, text, text, text)',
+    'admin_user_update(text, text, text, text, text, boolean, integer)',
+    'admin_user_reset_password(text, text, text)', 'auth_user_change_password(text, text, text)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);
@@ -191,7 +195,7 @@ END $$;
 -- catalog_hold_segments, booking_assignments, slot_capacity_overrides, commission_payouts,
 -- inventory_items, inventory_transactions, service_recipes, booking_delete_tokens (P1-29, written only
 -- by delete_booking()), admin_audit_events (P1-37, written only by the admin functions and the accrual
--- trigger), staff_profiles (P1-64, read and written only by the admin functions), and EXECUTE on publish_catalog.
+-- trigger), user_audit_events (P1-41, written only by user management functions), staff_profiles (P1-64, read and written only by the admin functions), and EXECUTE on publish_catalog.
 
 -- Owner default privileges for future tables (S-06). Each migration that adds a table revokes
 -- these and grants its exact list; this script, run after it, is the final word.

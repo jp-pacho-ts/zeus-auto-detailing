@@ -23,3 +23,4 @@ export { getExpenseMonth, addExpense, updateExpense, removeExpense, restoreExpen
 export { expenseTotals, type ExpenseTotals } from "./expenses-read";
 export { getAnalytics } from "./analytics";
 export { getShopSettings, setShopSettings } from "./shop-settings";
+export { listUsers, createUser, updateUser, resetUserPassword } from "./users";

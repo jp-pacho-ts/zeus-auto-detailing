@@ -243,6 +243,8 @@ model Staff {
   shopSettingsAudits    ShopSettingsAuditEvent[]
   commissionSettingsSet CommissionSettings[]
   adminAuditActed       AdminAuditEvent[]
+  userAuditActed        UserAuditEvent[]          @relation("UserAuditActor")
+  userAuditTargeted     UserAuditEvent[]          @relation("UserAuditTarget")
 
   @@map("staff")
 }
@@ -1302,4 +1304,22 @@ model ShopSettingsAuditEvent {
 
   @@index([createdAt])
   @@map("shop_settings_audit_events")
+}
+
+// P1-41: Insert-only, one row per user account creation, update, or password reset.
+model UserAuditEvent {
+  id           String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  action       String
+  actorStaffId String
+  targetStaffId String
+  details      String?
+  txId         BigInt   @default(dbgenerated("txid_current()"))
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  actor  Staff @relation("UserAuditActor", fields: [actorStaffId], references: [id], onDelete: Restrict)
+  target Staff @relation("UserAuditTarget", fields: [targetStaffId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@index([targetStaffId])
+  @@map("user_audit_events")
 }
