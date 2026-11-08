@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 // P1-62 A2 (LE 2026-11-07): the board is one fixed Waiting lane, the containers in the middle, one fixed Done lane. The three-row (Wash,
 // Detailing, Paint) structure, its sideways-scrolling rows and the edge fades are gone, so the tests of those were replaced by tests of the
-// new structure (below). The pure edge-scroll helpers are still exported and keep their tests.
+// new structure (below). The edge-scroll helpers and their test went in P1-62b: nothing else called them.
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { createElement } from "react";
@@ -193,37 +193,25 @@ test("Board day and Refresh board sit in one toolbar with the view switch, befor
   assert.equal(html.split('aria-label="Board day"').length, 2, "one Board day field");
 });
 
-test("P1-25: edgeScrollStep and revealColumnScrollLeft follow the UI/UX speed curve and sideways-only reveal rules", () => {
-  const { edgeScrollStep, revealColumnScrollLeft } = require("./bay-board");
-  const rect = { left: 100, right: 900, top: 200, bottom: 700, width: 800 };
-  const midScroll = { scrollLeft: 300, clientWidth: 800, scrollWidth: 2000 };
-  // Outside vertical span -> no scroll
-  assert.deepEqual(edgeScrollStep(895, 150, rect, midScroll, 16), { dir: 0, speed: 0, delta: 0 });
-  // Center of row -> no scroll
-  assert.deepEqual(edgeScrollStep(500, 400, rect, midScroll, 16), { dir: 0, speed: 0, delta: 0 });
-  // Inner edge of right 80px zone (x = 820 -> depth = 0) -> 0
-  assert.deepEqual(edgeScrollStep(820, 400, rect, midScroll, 20), { dir: 0, speed: 0, delta: 0 });
-  // Halfway into right 80px zone (x = 860 -> depth = 0.5) -> speed = 150 + 850 * 0.25 = 362.5 px/s
-  const halfRight = edgeScrollStep(860, 400, rect, midScroll, 20);
-  assert.equal(halfRight.dir, 1);
-  assert.equal(halfRight.speed, 362.5);
-  assert.ok(Math.abs(halfRight.delta - 362.5 * 0.02) < 1e-6);
-  // At right edge or up to 40px outside (x = 920 -> depth clamped to 1) and dt capped at 50ms -> speed = 1000 px/s, delta = 50px
-  const fullRight = edgeScrollStep(920, 400, rect, midScroll, 120);
-  assert.deepEqual(fullRight, { dir: 1, speed: 1000, delta: 50 });
-  // Beyond 40px outside -> no scroll
-  assert.deepEqual(edgeScrollStep(945, 400, rect, midScroll, 20), { dir: 0, speed: 0, delta: 0 });
-  // Left edge zone at start of row (scrollLeft = 0) -> cannot scroll left further
-  assert.deepEqual(edgeScrollStep(110, 400, rect, { ...midScroll, scrollLeft: 0 }, 20), { dir: 0, speed: 0, delta: 0 });
-  // Left edge zone when scrolled right -> negative delta
-  const leftStep = edgeScrollStep(100, 400, rect, midScroll, 20);
-  assert.deepEqual(leftStep, { dir: -1, speed: 1000, delta: -20 });
-
-  // Sideways column reveal (Section 9B):
-  // Left edge under 48px fade -> scrollLeft = col.offsetLeft - 48
-  assert.equal(revealColumnScrollLeft({ offsetLeft: 200, offsetWidth: 240 }, { scrollLeft: 180, clientWidth: 800, scrollWidth: 2000 }), 152);
-  // Right edge under 48px fade -> scrollLeft = col.offsetLeft + col.offsetWidth - clientWidth + 48
-  assert.equal(revealColumnScrollLeft({ offsetLeft: 750, offsetWidth: 240 }, { scrollLeft: 100, clientWidth: 800, scrollWidth: 2000 }), 238);
-  // Already visible between fades -> unchanged
-  assert.equal(revealColumnScrollLeft({ offsetLeft: 300, offsetWidth: 240 }, { scrollLeft: 100, clientWidth: 800, scrollWidth: 2000 }), 100);
+// P1-62b (review F3): only someone who can drop a car is told to drop one, or to use a control they do not have.
+test("drop hints and the Add bay hint show to ADMIN only; STAFF still gets the plain words", () => {
+  const admin = render("ADMIN"), staff = render("STAFF");
+  for (const hint of ["Empty. Drop a car here.", "Drop a car here to return it to Waiting.", "Drop a finished car here"]) assert.ok(admin.includes(hint), hint);
+  assert.doesNotMatch(staff, /Drop a/, "STAFF cannot drop");
+  assert.doesNotMatch(staff, /Done \(finish\)/, "STAFF has no finish control to be told about");
+  for (const words of [">Empty.<", "Every waiting car is here.", "Shows who worked and when it finished."]) assert.ok(staff.includes(words), words);
+  const noBays = { ...board, containers: [{ ...containers[0], bays: [] }], bays: [] };
+  const resources = require("./use-admin-resource");
+  mock.method(resources, "useAdminResource", (url: string | null) => ({
+    data: url?.startsWith("/api/admin/board?") ? noBays : null, loading: false, error: null, reload: async () => {}, setData: () => {},
+  }));
+  try {
+    const page = (role: "ADMIN" | "STAFF") => renderToStaticMarkup(createElement(require("./bay-board").BayBoard, { role }));
+    assert.ok(page("ADMIN").includes("No bays yet. Use Add bay."));
+    const seen = page("STAFF");
+    assert.ok(seen.includes("No bays yet."));
+    assert.equal(seen.includes("Use Add bay"), false, "STAFF has no Add bay");
+  } finally {
+    mock.restoreAll();
+  }
 });

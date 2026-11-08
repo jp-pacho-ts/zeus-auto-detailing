@@ -49,7 +49,8 @@ test('mobile drawer contains focus, makes background inert, restores focus and p
         assert.equal(await nav.evaluate(el => el.contains(document.activeElement)), true, 'drawer traversal stays visible');
       }
       assert.equal(await page.locator('#admin-content').evaluate(el => Boolean(el.closest('[inert]'))), true, 'content must be inert');
-      await page.locator('header').getByRole('link', { name: /New Booking/ }).evaluate(el => el.focus());
+      // The header is inert while the drawer is open, so a plain role lookup finds nothing; the next assertion is what proves it cannot take focus.
+      await page.locator('header').getByRole('link', { name: /New Booking/, includeHidden: true }).evaluate(el => el.focus());
       assert.equal(await nav.evaluate(el => el.contains(document.activeElement)), true, 'covered header cannot take focus');
       await menu.evaluate(el => el.focus());
       assert.equal(await nav.evaluate(el => el.contains(document.activeElement)), true, 'covered mobile bar cannot take focus');

@@ -346,7 +346,7 @@ test('staff names flow: a name typed on the Team screen is offered on the bookin
   // The booking drawer: the typed name is offered, the admin is not; assign it.
   await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
   await page.getByLabel('Board day').waitFor();
-  const card = page.getByRole('region', { name: 'Waiting · Wash', exact: true }).locator('article').first();
+  const card = page.getByRole('region', { name: 'Waiting', exact: true }).locator('article[aria-label^="ZEUS-"]').first();
   await card.waitFor();
   await card.getByRole('button', { name: await card.getAttribute('aria-label'), exact: true }).click();
   await dialog.getByText('Booking details').waitFor();
