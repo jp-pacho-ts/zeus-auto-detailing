@@ -279,6 +279,98 @@ function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOn
   return (
     <div className="space-y-6">
       {!historyOnly && (<>
+      <section className="rounded border border-border bg-[#121214] p-4">
+        <h2 className="font-bold">Find bookings</h2>
+        <form
+          key={date}
+          onSubmit={search}
+          className="mt-3 flex flex-wrap items-end gap-3"
+        >
+          <label className="min-w-0 basis-full sm:basis-0 flex-1 text-xs">
+            Name, phone, last 4 digits or reference
+            <input
+              name="q"
+              maxLength={80}
+              className={fieldClass}
+              autoComplete="off"
+            />
+          </label>
+          <label className="text-xs">
+            From
+            <input
+              name="from"
+              type="date"
+              required
+              defaultValue={date}
+              className={fieldClass}
+            />
+          </label>
+          <label className="text-xs">
+            To
+            <input
+              name="to"
+              type="date"
+              required
+              defaultValue={date}
+              className={fieldClass}
+            />
+          </label>
+          <label className="text-xs">
+            Status
+            <select
+              name="status"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className={fieldClass}
+            >
+              {[
+                "ALL",
+                "PENDING",
+                "CONFIRMED",
+                "IN_PROGRESS",
+                "COMPLETED",
+                "CANCELLED",
+              ].map((s) => (
+                <option key={s} value={s}>
+                  {s === "ALL" ? "All statuses" : statusLabel(s)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button disabled={list.loading}>Search bookings</Button>
+          {listing && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setListing(null)}
+            >
+              Clear search
+            </Button>
+          )}
+        </form>
+        <LoadState
+          loading={list.loading}
+          error={list.error}
+          retry={list.reload}
+        />
+        {list.data && (
+          <>
+            <BookingRows
+              bookings={list.data.items}
+              filter="ALL"
+              role={role}
+              busy={busy}
+              onSelect={setSelected}
+              onReorder={reorder}
+            />
+            {list.data.nextCursor && (
+              <Button variant="outline" onClick={nextPage}>
+                Next bookings page
+              </Button>
+            )}
+          </>
+        )}
+      </section>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard
           title="Day's Bookings"
@@ -340,27 +432,6 @@ function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOn
                 }
               }}
             />
-          </label>
-          <label className="text-xs">
-            Booking status
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className={fieldClass}
-            >
-              {[
-                "ALL",
-                "PENDING",
-                "CONFIRMED",
-                "IN_PROGRESS",
-                "COMPLETED",
-                "CANCELLED",
-              ].map((s) => (
-                <option key={s} value={s}>
-                  {s === "ALL" ? "All statuses" : statusLabel(s)}
-                </option>
-              ))}
-            </select>
           </label>
           <Button
             variant="outline"
@@ -429,93 +500,6 @@ function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOn
           onClose={() => setSelected(null)}
         />
       )}
-      <section className="rounded border border-border bg-[#121214] p-4">
-        <h2 className="font-bold">Find bookings</h2>
-        <form
-          key={date}
-          onSubmit={search}
-          className="mt-3 flex flex-wrap items-end gap-3"
-        >
-          <label className="min-w-0 basis-full sm:basis-0 flex-1 text-xs">
-            Name, phone, last 4 digits or reference
-            <input
-              name="q"
-              maxLength={80}
-              className={fieldClass}
-              autoComplete="off"
-            />
-          </label>
-          <label className="text-xs">
-            From
-            <input
-              name="from"
-              type="date"
-              required
-              defaultValue={date}
-              className={fieldClass}
-            />
-          </label>
-          <label className="text-xs">
-            To
-            <input
-              name="to"
-              type="date"
-              required
-              defaultValue={date}
-              className={fieldClass}
-            />
-          </label>
-          <label className="text-xs">
-            Search status
-            <select name="status" className={fieldClass}>
-              {[
-                "ALL",
-                "PENDING",
-                "CONFIRMED",
-                "IN_PROGRESS",
-                "COMPLETED",
-                "CANCELLED",
-              ].map((s) => (
-                <option key={s} value={s}>
-                  {s === "ALL" ? "All" : statusLabel(s)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button disabled={list.loading}>Search bookings</Button>
-          {listing && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setListing(null)}
-            >
-              Clear search
-            </Button>
-          )}
-        </form>
-        <LoadState
-          loading={list.loading}
-          error={list.error}
-          retry={list.reload}
-        />
-        {list.data && (
-          <>
-            <BookingRows
-              bookings={list.data.items}
-              filter="ALL"
-              role={role}
-              busy={busy}
-              onSelect={setSelected}
-              onReorder={reorder}
-            />
-            {list.data.nextCursor && (
-              <Button variant="outline" onClick={nextPage}>
-                Next bookings page
-              </Button>
-            )}
-          </>
-        )}
-      </section>
       </>)}
       {role === "ADMIN" && historyOnly && (
         <section className="rounded border border-border bg-[#121214] p-4">
