@@ -437,3 +437,52 @@ export interface AdminDoneCard {
   /** The finish moment (the booking's terminal time). */
   finishedAt: ISOInstant;
 }
+
+// -----------------------------------------------------------------------------
+// P1-39 Expenses (ADMIN only). One row's amount fits a number; totals may not, so they are decimal strings of centavos.
+// -----------------------------------------------------------------------------
+export interface AdminExpenseCategory {
+  id: UUID;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  revision: number;
+}
+export interface AdminExpense {
+  id: UUID;
+  expenseDate: LocalDate;
+  categoryId: UUID;
+  categoryName: string;
+  amountCentavos: number;
+  payee: string | null;
+  note: string | null;
+  revision: number;
+  removed: boolean;
+  createdAt: ISOInstant;
+}
+export interface AdminExpenseEvent {
+  seq: string;
+  kind: "CREATED" | "EDITED" | "VOIDED" | "RESTORED";
+  revision: number;
+  expenseDate: LocalDate;
+  /** The name it had at that time. */
+  categoryName: string;
+  amountCentavos: number;
+  payee: string | null;
+  note: string | null;
+  reason: string | null;
+  actorName: string;
+  createdAt: ISOInstant;
+}
+export interface AdminExpenseMonth {
+  month: string;
+  expenses: AdminExpense[];
+  nextCursor: string | null;
+  /** total = manual + stockBought + commissionsPaid. commissionsOwed is a separate note and not in the total. */
+  totals: { total: string; manual: string; stockBought: string; commissionsPaid: string; commissionsOwed: string };
+  byCategory: { categoryId: UUID; name: string; total: string }[];
+  pricedStockIns: number;
+  unpricedStockIns: number;
+  /** The last 12 months, oldest first. */
+  series: { month: string; total: string; manual: string; stockBought: string; commissionsPaid: string }[];
+}

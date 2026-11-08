@@ -64,6 +64,16 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["PATCH", `/api/admin/bay-containers/${ID}`, () => import("@/app/api/admin/bay-containers/[id]/route"), { id: ID }],
   ["POST", `/api/admin/bay-containers/${ID}/remove`, () => import("@/app/api/admin/bay-containers/[id]/remove/route"), { id: ID }],
   ["POST", `/api/admin/bays/${ID}/move`, () => import("@/app/api/admin/bays/[bayId]/move/route"), { bayId: ID }],
+  // P1-39 Expenses.
+  ["GET", "/api/admin/expenses", () => import("@/app/api/admin/expenses/route"), {}],
+  ["POST", "/api/admin/expenses", () => import("@/app/api/admin/expenses/route"), {}],
+  ["PATCH", `/api/admin/expenses/${ID}`, () => import("@/app/api/admin/expenses/[id]/route"), { id: ID }],
+  ["POST", `/api/admin/expenses/${ID}/remove`, () => import("@/app/api/admin/expenses/[id]/remove/route"), { id: ID }],
+  ["POST", `/api/admin/expenses/${ID}/restore`, () => import("@/app/api/admin/expenses/[id]/restore/route"), { id: ID }],
+  ["GET", `/api/admin/expenses/${ID}/history`, () => import("@/app/api/admin/expenses/[id]/history/route"), { id: ID }],
+  ["GET", "/api/admin/expense-categories", () => import("@/app/api/admin/expense-categories/route"), {}],
+  ["POST", "/api/admin/expense-categories", () => import("@/app/api/admin/expense-categories/route"), {}],
+  ["PATCH", `/api/admin/expense-categories/${ID}`, () => import("@/app/api/admin/expense-categories/[id]/route"), { id: ID }],
   // P1-38 Supplies.
   ["GET", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],
   ["POST", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],

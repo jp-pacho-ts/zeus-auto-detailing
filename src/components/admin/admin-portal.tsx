@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BarChart3,
   Boxes,
+  Wallet,
   ClipboardList,
   Columns3,
   Users,
@@ -18,6 +19,7 @@ import { BookingsTab } from "./bookings-tab";
 import { BayWorkspace } from "./bay-workspace";
 import { DetailersTab } from "./detailers-tab";
 import { InventoryTab } from "./inventory-tab";
+import { ExpensesTab } from "./expenses-tab";
 import { AnalyticsTab } from "./analytics-tab";
 import type { StaffSessionView } from "@/server/auth/types";
 import { adminRequest } from "./bookings/client";
@@ -30,6 +32,7 @@ export type AdminTab =
   | "Bay board"
   | "Team & Commissions"
   | "Supplies & Inventory"
+  | "Expenses"
   | "Sales Analytics";
 
 interface NavItem {
@@ -45,6 +48,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: "Bay board", icon: Columns3 },
   { name: "Team & Commissions", icon: Users },
   { name: "Supplies & Inventory", icon: Boxes },
+  { name: "Expenses", icon: Wallet },
   { name: "Sales Analytics", icon: BarChart3 },
 ];
 
@@ -313,6 +317,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             {tab === "Bay board" && <BayWorkspace role={staff.role} />}
             {tab === "Team & Commissions" && <DetailersTab role={staff.role} />}
             {tab === "Supplies & Inventory" && <InventoryTab role={staff.role} />}
+            {tab === "Expenses" && <ExpensesTab role={staff.role} />}
             {tab === "Sales Analytics" && <AnalyticsTab />}
           </div>
         </main>

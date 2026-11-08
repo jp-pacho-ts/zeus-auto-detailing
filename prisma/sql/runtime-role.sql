@@ -98,7 +98,10 @@ BEGIN
     'admin_container_remove(text, text, timestamptz)', 'admin_bay_move(text, text, text, timestamptz)',
     -- P1-64 Staff profiles: staff_profiles itself gets nothing at all, every read and write is one of these. guard_removed_staff() is executable by nobody but its owner.
     'admin_team_list_v2(text)', 'admin_staff_create_v2(text, text, text, text, text, integer)', 'admin_staff_profile_get(text, text)',
-    'admin_staff_profile_set(text, text, integer, text, text, text, text, date, date, text, text, text)', 'admin_staff_remove_v2(text, text, integer)'
+    'admin_staff_profile_set(text, text, integer, text, text, text, text, date, date, text, text, text)', 'admin_staff_remove_v2(text, text, integer)',
+    -- P1-39 Expenses: the six ADMIN writers. The trigger functions are executable by nobody but their owner.
+    'admin_expense_create(text, text, date, text, bigint, text, text)', 'admin_expense_update(text, text, integer, date, text, bigint, text, text)',
+    'admin_expense_void(text, text, integer, text)', 'admin_expense_restore(text, text, integer)', 'admin_category_create(text, text, text)', 'admin_category_update(text, text, integer, text, boolean)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);
@@ -161,6 +164,8 @@ BEGIN
     ['supply_items', 'SELECT'], ['supply_movements', 'SELECT'],
     -- Bay containers (P1-62): read only. bay_container_audit_events gets nothing at all, and bays gains no column privilege (a bay moves only through admin_bay_move).
     ['bay_containers', 'SELECT'],
+    -- Expenses (P1-39): read only. Every write is an owner-run function.
+    ['expense_categories', 'SELECT'], ['expenses', 'SELECT'], ['expense_events', 'SELECT'], ['expense_category_events', 'SELECT'],
 
     -- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
     -- owner URL, never by the app; the app reads no staff phone numbers.

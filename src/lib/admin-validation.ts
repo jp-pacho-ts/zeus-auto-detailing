@@ -4,6 +4,7 @@ import { z } from "zod";
 import { QueueCodeSchema } from "@/types/catalog-contracts";
 import { percentToBasisPoints } from "./commission";
 import { MAX_STOCK, pesosToCentavos } from "./supplies";
+import { expensePesosToCentavos, isReservedCategoryName } from "./expenses";
 import { LocalDateSchema } from "./validation";
 
 const Id = z
@@ -313,6 +314,32 @@ export const SupplyStockSchema = z
   .transform((v) => ({ ...v, unitCostCentavos: v.unitCostPesos === undefined ? undefined : (pesosToCentavos(v.unitCostPesos) as number) }));
 export const SupplyRemoveSchema = z.object({ expectedRevision: Revision }).strict();
 export const SupplyListSchema = z.object({ includeArchived: z.enum(["true", "false"]).default("false").transform((v) => v === "true") }).strict();
+// P1-39 Expenses. Amounts are typed in pesos and become integer centavos here. Required: date, category, amount. The browser makes `id` once per form
+// content, so a retry after a lost response cannot record the same expense twice. An edit is "set these values": a payee or note left out is cleared.
+const ExpensePesos = z.string().refine((v) => expensePesosToCentavos(v) !== null, "Enter an amount in pesos, more than zero, with at most two decimals, up to 100,000,000.00.");
+const ExpensePayee = z.string().trim().min(1, "Enter who was paid or leave it out.").max(80, "Use 80 characters or fewer.");
+const ExpenseNote = z.string().trim().min(1, "Enter a note or leave it out.").max(200, "Use 200 characters or fewer.");
+const ExpenseFields = { date: LocalDateSchema, categoryId: Id, amountPesos: ExpensePesos, payee: ExpensePayee.optional(), note: ExpenseNote.optional() };
+function withCentavos<T extends { amountPesos: string }>(v: T) { return { ...v, amountCentavos: expensePesosToCentavos(v.amountPesos) as number }; }
+export const ExpenseCreateSchema = z.object({ id: Id, ...ExpenseFields }).strict().transform(withCentavos);
+export const ExpenseUpdateSchema = z.object({ expectedRevision: Revision, ...ExpenseFields }).strict().transform(withCentavos);
+export const ExpenseVoidSchema = z.object({ expectedRevision: Revision, reason: z.string().trim().min(1, "Give a reason or leave it out.").max(200, "Use 200 characters or fewer.").optional() }).strict();
+export const ExpenseRestoreSchema = z.object({ expectedRevision: Revision }).strict();
+export const ExpenseMonthSchema = z
+  .object({
+    month: z.string().regex(/^20[0-9]{2}-(0[1-9]|1[0-2])$/, "Use a month like 2026-11."),
+    categoryId: Id.optional(),
+    includeRemoved: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
+    cursor: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{1,18}$/).refine((c) => LocalDateSchema.safeParse(c.split("_")[0]).success).optional(),
+  })
+  .strict();
+export const ExpenseTotalsSchema = z.object({ from: LocalDateSchema, to: LocalDateSchema }).strict().refine((v) => v.from <= v.to, "The first day must not be after the last day.");
+const ExpenseCategoryName = z.string().trim().min(1, "Enter a name.").max(40, "Use 40 characters or fewer.").refine((v) => !isReservedCategoryName(v), "That name is used by the automatic lines. Choose another.");
+export const ExpenseCategoryCreateSchema = z.object({ id: Id, name: ExpenseCategoryName }).strict();
+export const ExpenseCategoryUpdateSchema = z
+  .object({ expectedRevision: Revision, name: ExpenseCategoryName.optional(), isActive: z.boolean().optional() })
+  .strict()
+  .refine((v) => v.name !== undefined || v.isActive !== undefined, "Change the name or whether it is shown.");
 export const SupplyMovementsSchema = z.object({ cursor: z.string().regex(/^[0-9]{1,18}$/).optional() }).strict();
 
 // P1-62 A1 bay containers. The browser makes the id of a new container (a retry after a lost response adds it once).
