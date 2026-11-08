@@ -35,6 +35,7 @@ export const ADMIN_OPS = [
   "EXPENSE_READ", // P1-39: ADMIN only (money); P1-40's profit reads through this too
   "EXPENSE_WRITE", // P1-39: add, edit, remove and restore expenses and manage categories; ADMIN only
   "FINISH_BOOKING", // P1-34: ADMIN only; drop a car on Done
+  "ANALYTICS_READ", // P1-40: sales figures are money; ADMIN only
 ] as const;
 export type AdminOp = (typeof ADMIN_OPS)[number];
 
