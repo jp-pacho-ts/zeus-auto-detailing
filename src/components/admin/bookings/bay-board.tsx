@@ -39,8 +39,7 @@ const pill = "inline-flex max-w-full shrink-0 items-center truncate rounded-full
 const lane = "min-w-0 space-y-3 rounded border border-border bg-[#0f0f11] p-3 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-13rem)] lg:overflow-y-auto";
 const finishTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" });
 
-// viewSwitch: BookingsTab's Board / List switch, drawn on the left of the board toolbar (P1-22).
-export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: React.ReactNode }) {
+export function BayBoard({ role }: { role: UserRole }) {
   const [date, setDate] = React.useState(shopDate),
     [selected, setSelected] = React.useState<string | null>(null),
     [zone, setZone] = React.useState<Zone>("BAYS"),
@@ -389,33 +388,26 @@ export function BayBoard({ role, viewSwitch }: { role: UserRole; viewSwitch?: Re
 
   return (
     <div className="min-w-0 space-y-4">
-      {/* P1-22: one toolbar row from lg (switch left, day and refresh right); two lines below. */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        {viewSwitch}
-        <div className="flex items-end gap-3">
-          <label className="min-w-0 flex-1 text-xs lg:flex lg:flex-none lg:items-center lg:gap-2">
-            Board day
-            <input
-              id="board-day-input"
-              aria-label="Board day"
-              type="date"
-              value={date}
-              disabled={busy}
-              className={fieldClass + " lg:mt-0 lg:w-44"}
-              onChange={(e) => {
-                if (e.target.value) {
-                  clearDrag();
-                  setDate(e.target.value);
-                  setSelected(null);
-                  showStatus("", false);
-                }
-              }}
-            />
-          </label>
-          <Button variant="outline" className="shrink-0" onClick={() => void refresh()} disabled={busy}>
-            Refresh board
-          </Button>
-        </div>
+      <div className="flex items-center">
+        <label className="min-w-0 flex items-center gap-2 text-xs">
+          Board day
+          <input
+            id="board-day-input"
+            aria-label="Board day"
+            type="date"
+            value={date}
+            disabled={busy}
+            className={fieldClass + " w-44"}
+            onChange={(e) => {
+              if (e.target.value) {
+                clearDrag();
+                setDate(e.target.value);
+                setSelected(null);
+                showStatus("", false);
+              }
+            }}
+          />
+        </label>
       </div>
       <p className="text-xs text-muted-foreground">
         One car per bay until done or returned to Waiting. Any car can go in any empty bay. Earlier open cars stay visible.

@@ -438,7 +438,6 @@ export interface AdminDoneCard {
   finishedAt: ISOInstant;
 }
 
-<<<<<<< HEAD
 // -----------------------------------------------------------------------------
 // P1-39 Expenses (ADMIN only). One row's amount fits a number; totals may not, so they are decimal strings of centavos.
 // -----------------------------------------------------------------------------

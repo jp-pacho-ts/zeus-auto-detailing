@@ -72,18 +72,11 @@ function render(role = "ADMIN", cap: number | null = null, bayState = "ready") {
     mock.restoreAll();
   }
 }
-test("calendar derives eight operating bays from live active flags, without a brand fallback", () => {
-  const { html, urls } = render();
-  assert.ok(urls.includes("/api/admin/bays"));
-  assert.ok(html.includes("8 Bays Operating"));
-  assert.ok(html.includes("Refresh bays"));
-  for (const state of ["loading", "error"]) {
-    const result = render("ADMIN", null, state).html;
-    assert.equal(result.includes("8 Bays Operating"), false);
-    assert.ok(
-      result.includes(state === "loading" ? "Loading" : "Bay request failed"),
-    );
-  }
+test("BayWorkspace renders directly without the removed refresh bar", () => {
+  const { html } = render();
+  assert.equal(html.includes("Bays Operating"), false);
+  assert.equal(html.includes("Refresh bays"), false);
+  assert.ok(html.includes("Assign cars to bays"));
 });
 test("queue headers distinguish no limit, zero and set limits", () => {
   const off = render().list;

@@ -8,6 +8,7 @@ import type { AdminShopSettings } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import { adminRequest, AdminRequestError } from "./bookings/client";
 import { CapSettings } from "./bookings/cap-settings";
+import { HoursManager } from "./calendar/hours-manager";
 import { fieldClass, LoadState } from "./bookings/use-admin-resource";
 import {
   bookingLine, BOOKING_INTRO, CONFIRM_MAINTENANCE, emailCounts, emailStatus, EMAIL_INTRO, LIMITS_INTRO, messageProblem, savedText, updateBody, websiteLine, WEBSITE_INTRO,
@@ -109,6 +110,8 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                 options={[["OPEN", "Open"], ["PAUSED", "Paused"]]} onChoose={(v) => void save({ bookingPaused: v === "PAUSED" })} />
             </div>
           </Card>
+
+          <HoursManager />
 
           <Card title="Daily limits" intro={LIMITS_INTRO}>
             <label className="block max-w-xs text-xs text-muted-foreground">
