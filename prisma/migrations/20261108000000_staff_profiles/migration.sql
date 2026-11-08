@@ -219,6 +219,7 @@ BEGIN
   INSERT INTO public.admin_audit_events (action, "actorStaffId", "targetStaffId", "targetLabel", "newValue") VALUES ('STAFF_REMOVED', p_actor, p_id, left(s.name, 80), 'DELETED');
   RETURN 'DELETED';
  END IF;
+ DELETE FROM public.staff_credentials WHERE "staffId" = p_id;
  UPDATE public.staff SET phone = '', email = 'removed-' || replace(p_id, '-', '') || '@staff.invalid', "isActive" = false, "removedAt" = now(), revision = s.revision + 1, "updatedAt" = now() WHERE id = p_id;
  UPDATE public.staff_sessions SET "revokedAt" = statement_timestamp(), "revokedReason" = 'DEACTIVATED' WHERE "staffId" = p_id AND "revokedAt" IS NULL;
  INSERT INTO public.admin_audit_events (action, "actorStaffId", "targetStaffId", "reason") VALUES ('STAFF_DEACTIVATED', p_actor, p_id, 'Removed: personal details erased');

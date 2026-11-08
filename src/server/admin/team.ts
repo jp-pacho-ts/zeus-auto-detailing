@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
 import type { AdminStaffProfile, AdminTeam, AdminTeamPerson, AdminTeamPersonDetail, AdminTeamRemoveOutcome, AdminTeamRemovePreview } from "@/types/admin-contracts";
-import { AdminIdSchema, type StaffProfileSchema, TeamActiveSchema, TeamCreateSchema, TeamRemoveSchema, TeamUpdateSchema } from "@/lib/admin-validation";
+import { AdminIdSchema, type StaffProfileSchema, TeamCreateSchema, TeamRemoveSchema, TeamUpdateSchema } from "@/lib/admin-validation";
 import { percentToBasisPoints, safeCentavos } from "@/lib/commission";
 import { withStaffDb, type StaffTx } from "@/server/auth/db-admission";
 import { authorize, parse, type AdminOptions, type StaffActor } from "./context";
@@ -152,20 +152,6 @@ export async function updatePerson(actor: StaffActor, id: unknown, input: unknow
   });
 }
 
-export async function setPersonActive(actor: StaffActor, id: unknown, input: unknown, options: AdminOptions = {}): Promise<AdminTeamPerson> {
-  authorize(actor, "TEAM_WRITE");
-  const staffId = parse(AdminIdSchema, id), v = parse(TeamActiveSchema, input);
-  return mutate(options, "team_active", async (tx) => {
-    await staffNameOnly(tx, actor, staffId);
-    let changed: boolean;
-    try {
-      const [row] = await tx.$queryRaw<{ r: { changed: boolean } }[]>`SELECT admin_staff_set_active(${actor.staffId}, ${staffId}, ${v.active}, ${v.expectedRevision}::integer) AS r`;
-      changed = row.r.changed;
-    } catch (error) { return mapTeamError(error); }
-    adminEvent(v.active ? "admin.team.reactivated" : "admin.team.deactivated", { actorStaffId: actor.staffId, targetStaffId: staffId, changed });
-    return personOrThrow(tx, actor, staffId);
-  });
-}
 
 const OPEN_JOBS = (tx: StaffTx, staffId: string) => tx.$queryRaw<{ id: string; referenceCode: string; revision: number }[]>`
   SELECT b.id, b."referenceCode", b.revision FROM booking_worker_assignments w JOIN bookings b ON b.id = w."bookingId"

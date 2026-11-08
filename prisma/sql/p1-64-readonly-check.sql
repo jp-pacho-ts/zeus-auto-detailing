@@ -40,7 +40,8 @@ checks(name, ok, detail) AS (
     FROM fn LEFT JOIN pg_proc p ON p.oid = to_regprocedure('public.' || fn.sig)
   UNION ALL SELECT 'every removed row is inactive and holds no personal detail',
     NOT EXISTS(SELECT 1 FROM public.staff s WHERE s."removedAt" IS NOT NULL AND (s."isActive" OR s.phone <> '' OR s.email NOT LIKE 'removed-%@staff.invalid'
-      OR EXISTS(SELECT 1 FROM public.staff_profiles p WHERE p."staffId" = s.id))), ''
+      OR EXISTS(SELECT 1 FROM public.staff_profiles p WHERE p."staffId" = s.id)
+      OR EXISTS(SELECT 1 FROM public.staff_credentials c WHERE c."staffId" = s.id))), ''
   UNION ALL SELECT 'every profile belongs to a staff name', NOT EXISTS(SELECT 1 FROM public.staff_profiles p JOIN public.staff s ON s.id = p."staffId" WHERE s.role <> 'DETAILER'), ''
   UNION ALL SELECT 'info: staff names on the Team', true, (SELECT count(*)::text FROM public.staff WHERE role = 'DETAILER' AND "removedAt" IS NULL)
   UNION ALL SELECT 'info: of those, inactive from before this change (Remove still works on them)', true, (SELECT count(*)::text FROM public.staff WHERE role = 'DETAILER' AND "removedAt" IS NULL AND NOT "isActive")

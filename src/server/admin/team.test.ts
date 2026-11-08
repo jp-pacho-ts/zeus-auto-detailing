@@ -2,7 +2,7 @@
 // strict Zod schemas. The database functions repeat every rule; see team.integration.test.ts and commissions.integration.test.ts.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema, TeamActiveSchema, TeamCreateSchema, TeamRemoveSchema, TeamUpdateSchema } from "@/lib/admin-validation";
+import { CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema, TeamCreateSchema, TeamRemoveSchema, TeamUpdateSchema } from "@/lib/admin-validation";
 import { canPerform } from "./roles";
 
 const ID = "0b8b3b3e-2b1a-4e5c-9f00-000000000001";
@@ -41,9 +41,9 @@ test("TeamUpdateSchema: the revision is required, an absent field means leave al
   assert.equal(TeamUpdateSchema.parse({ expectedRevision: 1, ratePercent: null }).ratePercent, null);
 });
 
-test("TeamActiveSchema, TeamRemoveSchema, CommissionDefaultSchema, CommissionPaidSchema are strict", () => {
-  ok(TeamActiveSchema, { expectedRevision: 1, active: false });
-  for (const input of [{ expectedRevision: 1 }, { active: true }, { expectedRevision: 1, active: "no" }, { expectedRevision: 1, active: true, role: "ADMIN" }]) bad(TeamActiveSchema, input);
+test("TeamRemoveSchema, CommissionDefaultSchema, CommissionPaidSchema are strict", () => {
+  ok(TeamRemoveSchema, { expectedRevision: 1 });
+  for (const input of [{}, { expectedRevision: 0 }, { expectedRevision: "one" }, { expectedRevision: 1, extra: 2 }]) bad(TeamRemoveSchema, input);
   ok(TeamRemoveSchema, { expectedRevision: 3 });
   for (const input of [{}, { expectedRevision: 3, force: true }]) bad(TeamRemoveSchema, input);
   ok(CommissionDefaultSchema, { expectedRevision: 1, ratePercent: "10" });

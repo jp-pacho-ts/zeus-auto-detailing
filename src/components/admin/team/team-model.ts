@@ -47,9 +47,7 @@ export function removeResult(outcome: AdminTeamRemoveOutcome, name: string): str
     : `${name} was removed. Their name stays on past jobs and commissions; their personal details were erased.`;
 }
 
-export function removeWarning(person: Pick<AdminTeamPerson, "name" | "openJobs" | "hasHistory">): string {
-  if (person.openJobs > 0)
-    return `${person.name} is still on ${person.openJobs} open ${person.openJobs === 1 ? "job" : "jobs"}. Take them off those jobs first.`;
+export function removeWarning(person: Pick<AdminTeamPerson, "name" | "hasHistory">): string {
   return person.hasHistory
     ? `${person.name} will be removed. Their name stays on past jobs and commissions; their personal details are erased for good.`
     : `${person.name} will be removed from the team. This can't be undone.`;

@@ -197,6 +197,8 @@ test("SP8 Remove, a person nothing points at: details and row are gone, the name
 test("SP9 Remove, a person with history: hidden for good, name kept, everything personal erased, sessions stopped; retry and stale behave", { skip }, async () => {
   const p = await newPerson({ name: "SP Has History", profile: FULL });
   await giveHistory(p.id);
+  await db.staffCredential.create({ data: { staffId: p.id, passwordHash: sha(), passwordChangedAt: new Date(), updatedAt: new Date() } });
+  assert.equal(await count("staff_credentials", `"staffId" = '${p.id}'`), 1);
   await refused(s.removePerson(ADMIN, p.id, { expectedRevision: 1 }, opts()), "VERSION_CONFLICT", "stale revision");
   assert.equal((await row(p.id)).removedAt, null, "a refusal changes nothing");
 
@@ -209,6 +211,7 @@ test("SP9 Remove, a person with history: hidden for good, name kept, everything 
   assert.equal(after.isActive, false);
   assert.ok(after.removedAt);
   assert.equal(await count("staff_profiles", `"staffId" = '${p.id}'`), 0, "the details are erased");
+  assert.equal(await count("staff_credentials", `"staffId" = '${p.id}'`), 0, "credentials are erased");
   assert.equal(await count("staff_sessions", `"staffId" = '${p.id}' AND "revokedAt" IS NULL`), 0, "sessions are stopped");
   const audit = await db.adminAuditEvent.findMany({ where: { targetStaffId: p.id, action: "STAFF_DEACTIVATED" } });
   assert.deepEqual(audit.map((a) => [a.reason, a.targetLabel]), [["Removed: personal details erased", null]]);
@@ -218,7 +221,6 @@ test("SP9 Remove, a person with history: hidden for good, name kept, everything 
   await refused(s.removePreview(ADMIN, p.id, opts()), "NOT_FOUND", "preview");
   await refused(s.updatePerson(ADMIN, p.id, { expectedRevision: after.revision, name: "Back Again" }, opts()), "NOT_FOUND", "the older edit function");
   await refused(s.updatePerson(ADMIN, p.id, { expectedRevision: after.revision, profile: FULL }, opts()), "NOT_FOUND", "edit details");
-  await refused(s.setPersonActive(ADMIN, p.id, { expectedRevision: after.revision, active: true }, opts()), "NOT_FOUND", "the older reactivate");
 
   const retry = await s.removePerson(ADMIN, p.id, { expectedRevision: p.revision }, opts());
   assert.equal(retry.outcome, "REMOVED", "the first call moved the revision; a retry carrying the old one is the same answer");
@@ -258,14 +260,14 @@ test("SP11 a removed row is final, even for the owner and the operator CLI's own
 
 test("SP12 a person made inactive before this change stays listed, so Remove can clear them", { skip }, async () => {
   const p = await newPerson();
-  const off = await s.setPersonActive(ADMIN, p.id, { expectedRevision: 1, active: false }, opts());
+  await db.staff.update({ where: { id: p.id }, data: { isActive: false, revision: 2 } });
   const listed = (await s.listTeam(ADMIN, opts())).people.find((x) => x.id === p.id)!;
   assert.equal(listed.isActive, false);
-  assert.equal((await s.removePerson(ADMIN, p.id, { expectedRevision: off.revision }, opts())).outcome, "DELETED", "nothing points at them, so inactive or not they are really gone");
+  assert.equal((await s.removePerson(ADMIN, p.id, { expectedRevision: 2 }, opts())).outcome, "DELETED", "nothing points at them, so inactive or not they are really gone");
   const used = await newPerson();
   await giveHistory(used.id);
-  const usedOff = await s.setPersonActive(ADMIN, used.id, { expectedRevision: 1, active: false }, opts());
-  assert.equal((await s.removePerson(ADMIN, used.id, { expectedRevision: usedOff.revision }, opts())).outcome, "REMOVED", "with history they are hidden, and leave the list");
+  await db.staff.update({ where: { id: used.id }, data: { isActive: false, revision: 2 } });
+  assert.equal((await s.removePerson(ADMIN, used.id, { expectedRevision: 2 }, opts())).outcome, "REMOVED", "with history they are hidden, and leave the list");
   assert.ok(!(await s.listTeam(ADMIN, opts())).people.some((x) => x.id === used.id));
 });
 

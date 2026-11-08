@@ -452,13 +452,13 @@ test("C16 a completion and an admin write at the same moment do not deadlock and
   assert.ok(all.length >= 6);
 });
 
-// P1-64 (LE, R1): Remove used to be refused while the person had an open job. Remove now always works and takes them off (C35). The older deactivate keeps its refusal until the screen stops offering it.
+// P1-64 (LE, R1): Remove used to be refused while the person had an open job. Remove now always works and takes them off (C35). The older deactivate database function keeps its refusal.
 test("C17 deactivating a person who still has an open job is refused; once the job is finished their earnings survive their removal", { skip }, async () => {
   const w = await person("Open Job Worker", "10");
   const job = await inProgress([w.id], 15_000);
   const p = (await s.listTeam(ADMIN, opts())).people.find((x) => x.id === w.id)!;
   assert.equal(p.openJobs, 1);
-  await refused(s.setPersonActive(ADMIN, w.id, { expectedRevision: p.revision, active: false }, opts()), "NOT_ALLOWED", "deactivate", (e) => assert.match(e.message, /open jobs/));
+  await assert.rejects(db.$queryRaw`SELECT admin_staff_set_active(${ADMIN.staffId}, ${w.id}, false, ${p.revision}::integer)`, /ZT005/);
   assert.equal((await db.staff.findUniqueOrThrow({ where: { id: w.id } })).isActive, true);
   await finish(job);
   const removed = await s.removePerson(ADMIN, w.id, { expectedRevision: p.revision }, opts());
@@ -795,7 +795,7 @@ test("C30 the Team list holds only the staff the admin typed: ADMIN and MANAGER 
 
 test("C31 the booking's worker picker lists active staff names only: never the admin, a manager or someone made inactive", { skip }, async () => {
   const keep = await person("Picker Keep"), gone = await person("Picker Inactive");
-  await s.setPersonActive(ADMIN, gone.id, { expectedRevision: gone.revision, active: false }, opts());
+  await db.staff.update({ where: { id: gone.id }, data: { isActive: false } });
   const names = await pickerNames("2027-07-10");
   assert.ok(names.includes("Picker Keep"));
   assert.ok(!names.includes("Picker Inactive"), "inactive");
@@ -809,7 +809,7 @@ test("C32 the service refuses to assign the admin, a manager, an inactive or an 
   await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "CONFIRMED" }, o);
   const manager = await db.staff.findFirstOrThrow({ where: { role: "MANAGER", email: "p161-manager@example.test" } });
   const inactive = await person("Assign Inactive");
-  await s.setPersonActive(ADMIN, inactive.id, { expectedRevision: inactive.revision, active: false }, opts());
+  await db.staff.update({ where: { id: inactive.id }, data: { isActive: false } });
   const ok = await person("Assign Ok");
   for (const [who, label] of [[ADMIN.staffId, "the admin"], [manager.id, "a manager"], [inactive.id, "an inactive name"]] as const)
     await refused(s.assignWorker(ADMIN, b.id, who, { expectedRevision: await rev(b.id) }, o), "SCHEDULE_CONFLICT", label);
@@ -946,9 +946,7 @@ test("C38 a removed person leaves the picker and cannot be newly assigned", { sk
 test("C34 a name made inactive after being credited keeps its history, and can no longer be newly assigned; a name never credited can be removed and leaves the picker", { skip }, async () => {
   const credited = await person("History Keeper"), unused = await person("Never Used");
   const job = await shopCompleted([credited.id], [{ slug: "regular-tint", price: 50_000 }]);
-  const fresh = await s.listTeam(ADMIN, opts());
-  const rev1 = fresh.people.find((p) => p.id === credited.id)!;
-  await s.setPersonActive(ADMIN, credited.id, { expectedRevision: rev1.revision, active: false }, opts());
+  await db.staff.update({ where: { id: credited.id }, data: { isActive: false } });
   assert.equal((await entries(job.id)).length, 1, "the commission record stays");
   const day = (await header(job.id))!.completedOn.toISOString().slice(0, 10);
   const list = await s.listCommissions(ADMIN, { from: day, to: day, staffId: credited.id }, opts());

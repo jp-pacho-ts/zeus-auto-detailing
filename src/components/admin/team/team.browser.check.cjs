@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-// P1-37 real-browser check: the Team and Commissions screens against a built app on loopback with synthetic data
+// P1-37 / P1-64 real-browser check: the Team and Commissions screens against a built app on loopback with synthetic data
 // (fixture: three detailers, four completed jobs, one with nobody assigned). Same environment as
 // booking-delete.browser.check.cjs; never loads .env. Runs the real Content-Security-Policy and fails on any violation.
 const assert = require('node:assert/strict');
@@ -67,7 +67,7 @@ async function layoutRules(page, label) {
     const main = document.getElementById('admin-content');
     const out = [];
     const seen = new Set();
-    for (const el of document.querySelectorAll('[role=dialog] button, [role=dialog] input, [role=dialog] select, #admin-content button, #admin-content input, #admin-content select')) {
+    for (const el of document.querySelectorAll('[role=dialog] button, [role=dialog] input, [role=dialog] select, #admin-content button, #admin-content input, #admin-content select, aside button, aside input, aside select')) {
       const target = el.type === 'checkbox' ? el.closest('label') || el : el;
       if (seen.has(target)) continue;
       seen.add(target);
@@ -100,10 +100,9 @@ test('a detailer is told plainly this screen is for admins and sees no money or 
   await context.close();
 });
 
-test('desktop 1440: add, edit, deactivate and remove detailers; the commissions add up; mark paid; change the default rate', { timeout: 240_000 }, async () => {
+test('desktop 1440: add staff with profile drawer, edit, remove with open jobs + unpaid commission preview; commissions add up; mark paid', { timeout: 240_000 }, async () => {
   const { context, page } = await open(process.env.P120_TEST_EMAIL, process.env.P120_TEST_PASSWORD, { width: 1440, height: 900 }, 'desktop');
   await goToTeam(page);
-  const dialog = page.getByRole('dialog');
 
   // Team: the three fixture people, with rates and the shop default.
   await page.getByRole('heading', { name: 'Team', exact: true }).waitFor();
@@ -114,63 +113,146 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await layoutRules(page, 'desktop team');
   // P1-61: names only. No role labels, no account or email wording, and the plain intro.
   assert.match(body, /Add the names of your staff\. They have no login\./);
-  assert.doesNotMatch(body, /Detailer|Manager|Admin|Sign-in|sign-in|[Ee]mail|account/, 'the Team screen has no role, sign-in or email words');
+  assert.doesNotMatch(body, /Detailer|Manager|Admin|Sign-in|sign-in|account|Inactive/, 'the Team screen has no role, sign-in, account or Inactive words');
   await shot(page, 'team-1440');
 
-  // A bad percentage is refused with a plain sentence and the form stays open.
+  // Add staff: opens profile drawer beside list on desktop
   await page.getByRole('button', { name: 'Add staff' }).first().click();
-  assert.equal(await dialog.getByLabel(/[Ee]mail/).count(), 0, 'no email field');
-  await dialog.getByLabel('Full name').fill('Dora Lim');
-  await dialog.getByLabel('Commission percent (optional)').fill('abc');
-  await dialog.getByRole('button', { name: 'Add staff' }).click();
-  await dialog.getByRole('alert').waitFor();
-  assert.ok((await dialog.getByRole('alert').innerText()).length > 10, 'a plain refusal message is shown');
-  await layoutRules(page, 'desktop add dialog');
+  const addDrawer = page.locator('aside[aria-label="New staff profile"]');
+  await addDrawer.waitFor();
+  assert.equal(await addDrawer.getByLabel(/^Full name/).count(), 1, 'full name field present');
+
+  // A bad percentage is refused with a plain sentence and the form stays open.
+  await addDrawer.getByLabel('Full name').fill('Dora Lim');
+  await addDrawer.getByLabel('Commission percent (optional)').fill('abc');
+  await addDrawer.getByRole('button', { name: 'Add staff' }).click();
+  await addDrawer.getByRole('alert').waitFor();
+  assert.ok((await addDrawer.getByRole('alert').innerText()).length > 10, 'a plain refusal message is shown');
+  await layoutRules(page, 'desktop add drawer error');
   await shot(page, 'team-add-error-1440');
-  // Fix it and save.
-  await dialog.getByLabel('Commission percent (optional)').fill('15');
-  await dialog.getByLabel('Phone (optional)').fill('+63 917 555 0199');
-  await dialog.getByRole('button', { name: 'Add staff' }).click();
+
+  // Fill full profile details and save.
+  await addDrawer.getByLabel('Nickname').fill('Dorie');
+  await addDrawer.getByLabel('Position').fill('Detailer');
+  await addDrawer.getByLabel('Birth date').fill('1998-05-15');
+  await addDrawer.getByLabel('Date hired').fill('2025-01-10');
+  await addDrawer.getByLabel('Phone (optional)').fill('+63 917 555 0199');
+  await addDrawer.getByLabel('Email').fill('dora@example.test');
+  await addDrawer.getByLabel('Home address').fill('Tacloban City');
+  await addDrawer.getByLabel('Name', { exact: true }).fill('Elena Lim');
+  await addDrawer.getByLabel('Emergency contact').locator('input[type="tel"]').fill('+63 917 555 0999');
+  await addDrawer.getByLabel('Commission percent (optional)').fill('15');
+  await addDrawer.getByLabel('Notes').fill('Experienced detailer.');
+  await layoutRules(page, 'desktop add drawer filled');
+  await shot(page, 'team-add-1440');
+
+  await addDrawer.getByRole('button', { name: 'Add staff' }).click();
   await page.getByText('Dora Lim was added to the team.').waitFor();
+  await addDrawer.waitFor({ state: 'detached' });
+
+  // Survives reload
   await page.reload({ waitUntil: 'networkidle' });
   await goToTeam(page);
   await page.getByText('Dora Lim').first().waitFor();
   body = await text(page);
-  assert.match(body, /Dora Lim[\s\S]*\+63 917 555 0199[\s\S]*Commission 15%/, 'the new person survives a reload');
+  assert.match(body, /Dora Lim[\s\S]*Detailer[\s\S]*\+63 917 555 0199[\s\S]*hired 2025-01-10[\s\S]*Commission 15%/, 'the new person survives a reload with summary');
 
-  // Edit: change the percentage, then clear it back to the shop default.
-  await page.getByRole('button', { name: 'Edit Dora Lim' }).click();
-  await dialog.getByLabel('Commission percent (optional)').fill('');
-  await dialog.getByRole('button', { name: 'Save changes' }).click();
+  // Edit: open drawer, change commission rate back to shop default and update notes
+  await page.getByRole('button', { name: 'Open Dora Lim' }).click();
+  const editDrawer = page.locator('aside[aria-label="Dora Lim profile"]');
+  await editDrawer.waitFor();
+  await layoutRules(page, 'desktop edit drawer');
+  await shot(page, 'team-drawer-1440');
+
+  assert.equal(await editDrawer.getByLabel('Nickname').inputValue(), 'Dorie');
+  assert.equal(await editDrawer.getByLabel('Position').inputValue(), 'Detailer');
+  assert.equal(await editDrawer.getByLabel('Email').inputValue(), 'dora@example.test');
+  await editDrawer.getByLabel('Commission percent (optional)').fill('');
+  await editDrawer.getByRole('button', { name: 'Save changes' }).click();
   await page.getByText('Dora Lim was updated.').waitFor();
+  await editDrawer.waitFor({ state: 'detached' });
   assert.match(await text(page), /Dora Lim[\s\S]*Commission 20% \(shop default\)/);
 
-  // Deactivate and reactivate.
-  await page.getByRole('button', { name: 'Deactivate Dora Lim' }).click();
-  await page.getByText("Dora Lim is now inactive and won't be assigned new jobs.").waitFor();
-  assert.match(await text(page), /Dora Lim\s*Inactive/);
-  await page.getByRole('button', { name: 'Reactivate Dora Lim' }).click();
-  await page.getByText('Dora Lim is active again.').waitFor();
-
-  // Remove someone with no history: gone. Remove someone with history: made inactive, and the screen says so.
-  await page.getByRole('button', { name: 'Remove Dora Lim' }).click();
-  await dialog.getByText("can't be undone").waitFor();
-  await shot(page, 'team-remove-1440');
-  await dialog.getByRole('button', { name: 'Remove', exact: true }).click();
+  // Remove someone with no history (Dora Lim): gone outright
+  await page.getByRole('button', { name: 'Open Dora Lim' }).click();
+  const doraDrawer = page.locator('aside[aria-label="Dora Lim profile"]');
+  await doraDrawer.waitFor();
+  await doraDrawer.getByRole('button', { name: 'Remove Dora Lim' }).click();
+  const removeDialog = page.getByRole('dialog');
+  await removeDialog.waitFor();
+  await removeDialog.getByText('Remove Dora Lim?').waitFor();
+  await removeDialog.getByText('No open jobs').waitFor();
+  await removeDialog.getByRole('button', { name: 'Remove Dora Lim' }).click();
   await page.getByText('Dora Lim was removed from the team.').waitFor();
   assert.equal(await page.getByText('Dora Lim', { exact: true }).count(), 0, 'removed for good');
-  await page.getByRole('button', { name: 'Remove Cleo Santos' }).click();
-  await dialog.getByRole('button', { name: 'Remove', exact: true }).click();
-  await page.getByText('Cleo Santos was removed from the team.').waitFor(); // Cleo has no jobs either
-  await page.getByRole('button', { name: 'Remove Ana Reyes' }).click();
-  await dialog.getByText('has job history').waitFor();
-  await dialog.getByRole('button', { name: 'Remove', exact: true }).click();
-  await page.getByText(/Ana Reyes has job history, so they were made inactive instead/).waitFor();
-  assert.match(await text(page), /Ana Reyes\s*Inactive/);
-  await page.getByRole('button', { name: 'Reactivate Ana Reyes' }).click();
-  await page.getByText('Ana Reyes is active again.').waitFor();
 
-  // Commissions.
+  // Also remove Cleo Santos (no jobs either)
+  await page.getByRole('button', { name: 'Open Cleo Santos' }).click();
+  const cleoDrawer = page.locator('aside[aria-label="Cleo Santos profile"]');
+  await cleoDrawer.waitFor();
+  await cleoDrawer.getByRole('button', { name: 'Remove Cleo Santos' }).click();
+  await removeDialog.getByRole('button', { name: 'Remove Cleo Santos' }).click();
+  await page.getByText('Cleo Santos was removed from the team.').waitFor();
+  assert.equal(await page.getByText('Cleo Santos', { exact: true }).count(), 0);
+
+  // Now test Remove with open job + unpaid commission preview on Ana Reyes:
+  // First assign Ana Reyes to the open booking on the Bay board
+  await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
+  await page.getByLabel('Board day').waitFor();
+  const card = page.getByRole('region', { name: 'Waiting', exact: true }).locator('article[aria-label^="ZEUS-"]').first();
+  await card.waitFor();
+  await card.getByRole('button', { name: await card.getAttribute('aria-label'), exact: true }).click();
+  const bookingDialog = page.getByRole('dialog');
+  await bookingDialog.getByText('Booking details').waitFor();
+  const picker = bookingDialog.getByLabel('Add assigned worker');
+  await picker.locator('option', { hasText: 'Ana Reyes' }).waitFor({ state: 'attached' });
+  await picker.selectOption({ label: 'Ana Reyes' });
+  await bookingDialog.getByRole('button', { name: 'Assign worker' }).click();
+  await bookingDialog.getByRole('button', { name: 'Remove Ana Reyes' }).waitFor();
+  await page.keyboard.press('Escape');
+  await bookingDialog.waitFor({ state: 'detached' });
+
+  // Back to Team: Ana now has 1 open job!
+  await goToTeam(page);
+  await page.getByRole('heading', { name: 'Team', exact: true }).waitFor();
+  assert.match(await text(page), /Ana Reyes[\s\S]*1 open job/);
+
+  // Open profile drawer for Ana Reyes and initiate Remove
+  await page.getByRole('button', { name: 'Open Ana Reyes' }).click();
+  const anaDrawer = page.locator('aside[aria-label="Ana Reyes profile"]');
+  await anaDrawer.waitFor();
+  await anaDrawer.getByRole('button', { name: 'Remove Ana Reyes' }).click();
+
+  // The Remove preview dialog displays open jobs and unpaid commissions!
+  await removeDialog.waitFor();
+  await removeDialog.getByText('Remove Ana Reyes?').waitFor();
+  await removeDialog.getByText(/1 open job/).waitFor();
+  await removeDialog.getByText(/they will be taken off them and will not earn commission on them/).waitFor();
+  await removeDialog.getByText(/₱300\.00 unpaid commission/).waitFor();
+  await removeDialog.getByText(/stays\. You can still mark it paid on the Commissions screen/).waitFor();
+  await layoutRules(page, 'desktop remove preview dialog');
+  await shot(page, 'team-remove-1440');
+
+  // Confirm Remove: the single button works even though she is on an open job!
+  await removeDialog.getByRole('button', { name: 'Remove Ana Reyes' }).click();
+  await page.getByText(/Ana Reyes was removed\. Their name stays on past jobs and commissions; their personal details were erased\./).waitFor();
+  assert.equal(await page.locator('#admin-content').getByText('Ana Reyes', { exact: true }).count(), 0, 'Ana Reyes is gone from Team list');
+
+  // Verify Ana Reyes is gone from the worker picker on Bay board
+  await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
+  await page.getByLabel('Board day').waitFor();
+  const checkCard = page.getByRole('region', { name: 'Waiting', exact: true }).locator('article[aria-label^="ZEUS-"]').first();
+  await checkCard.waitFor();
+  await checkCard.getByRole('button', { name: await checkCard.getAttribute('aria-label'), exact: true }).click();
+  await bookingDialog.getByText('Booking details').waitFor();
+  const checkPicker = bookingDialog.getByLabel('Add assigned worker');
+  const offered = await checkPicker.locator('option').allInnerTexts();
+  assert.ok(!offered.some((o) => o.includes('Ana Reyes')), 'removed staff Ana Reyes is gone from worker picker: ' + offered.join(', '));
+  await page.keyboard.press('Escape');
+  await bookingDialog.waitFor({ state: 'detached' });
+
+  // Commissions tab: Ana Reyes is still visible and payable!
+  await goToTeam(page);
   await page.getByRole('tab', { name: 'Commissions' }).click();
   await page.getByTestId('default-rate-line').waitFor();
   assert.equal(await page.getByTestId('default-rate-line').innerText(), 'Default rate is 20% until you change it.');
@@ -183,21 +265,23 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   assert.match(body, /Counted: Regular Tint ₱1,000\.00/, 'which service counted');
   assert.match(body, /Not counted: Basic Wash ₱180\.00 \(car wash does not earn commission\)/, 'which service did not count, and why');
   assert.match(body, /Commission base ₱1,000\.00/, 'the base used is the tint only, not the wash');
-  assert.match(body, /Ana Reyes\s*2 jobs\s*Earned ₱300\.00/);
+  assert.match(body, /Ana Reyes\s*2 jobs\s*Earned ₱300\.00/, 'removed staff Ana Reyes still visible on commissions');
   assert.match(body, /Ben Cruz\s*2 jobs\s*Earned ₱375\.00/);
   assert.match(body, /1 completed booking in this range had nobody assigned, so no commission was earned\./);
   assert.match(body, /shared by 2 of ₱1,000\.01/, 'the shared job says how it was split');
   await layoutRules(page, 'desktop commissions');
   await shot(page, 'commissions-1440');
 
+  // The Person filter dropdown includes Ana Reyes even though she was removed!
+  const personFilter = page.getByLabel('Person');
+  const filterOptions = await personFilter.locator('option').allInnerTexts();
+  assert.ok(filterOptions.includes('Ana Reyes'), 'removed staff Ana Reyes is in the Person filter dropdown: ' + filterOptions.join(', '));
+
   // A bad range is refused before asking the server.
   const toDate = page.getByLabel('To', { exact: true }), fromDate = page.getByLabel('From', { exact: true });
   await toDate.fill('2000-01-01');
   await page.getByRole('alert').filter({ hasText: "can't be before" }).waitFor();
-  // Wait for each range answer itself (the old rows stay on screen meanwhile, so 'By person' alone proves nothing).
   const answered = () => page.waitForResponse((r) => r.url().includes('/api/admin/commissions?') && r.ok());
-  // A range of one day (today, where the fixture's jobs completed) is allowed. It must be a day WITH data: the first day of the month has none,
-  // and the page then shows no 'By person' list at all.
   const monthFrom = await fromDate.inputValue();
   const today = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
   await fromDate.fill(today);
@@ -207,7 +291,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await page.getByText('By person').waitFor();
 
   // Mark Ben's two jobs paid; the totals and the filter agree, and it survives a reload.
-  await page.waitForLoadState('networkidle'); // let the range refetch finish before ticking, or the ticks can land on rows that are about to be replaced
+  await page.waitForLoadState('networkidle');
   for (const box of await page.getByRole('checkbox', { name: /^Select Ben Cruz/ }).all()) await box.check();
   await page.getByText('2 selected').waitFor();
   await page.getByRole('button', { name: 'Mark paid' }).click();
@@ -217,7 +301,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   assert.match(body, /Unpaid\s*₱300\.00/);
   await page.getByLabel('Show').selectOption('UNPAID');
   await page.getByText('By person').waitFor();
-  await page.getByRole('checkbox', { name: /^Select Ben Cruz/ }).first().waitFor({ state: 'detached' }); // old rows stay until the answer arrives
+  await page.getByRole('checkbox', { name: /^Select Ben Cruz/ }).first().waitFor({ state: 'detached' });
   assert.equal(await page.getByRole('checkbox', { name: /^Select Ben Cruz/ }).count(), 0, 'paid jobs are filtered out');
   assert.equal(await page.getByRole('checkbox', { name: /^Select Ana Reyes/ }).count(), 2);
   await page.reload({ waitUntil: 'networkidle' });
@@ -242,7 +326,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   assert.equal(await page.getByTestId('default-rate-line').innerText(), 'Default rate is 12% until you change it.');
   await layoutRules(page, 'desktop commissions after');
 
-  // Adjustments (review F1/R2): Add, Take off, a refusal below zero, paid on their own, and "owed back" after payment.
+  // Adjustments: Add, Take off, a refusal below zero, paid on their own, and "owed back" after payment.
   await page.getByLabel('Person').selectOption({ label: 'Ana Reyes' });
   await page.getByText('By person').waitFor();
   const adjust = async (mode, amount, reason, which) => {
@@ -259,11 +343,13 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   assert.match(body, /Adjustment ₱300\.00/, 'the adjustment shows under the job');
   assert.match(body, /Coating priced after the job/);
   assert.match(body, /Ana Reyes\s*2 jobs\s*Earned ₱600\.00/, 'the totals include it');
+
   // A "Take off" larger than the job is worth is refused with a plain sentence, and nothing changes.
   await adjust('TAKE', '9999', 'Far too much', 0);
   await page.locator('#admin-content').getByRole('alert').filter({ hasText: 'below zero' }).waitFor();
   assert.match(await text(page), /Earned ₱600\.00/, 'nothing changed after the refusal');
   await page.getByRole('button', { name: 'Cancel' }).click();
+
   // A client-side refusal: a typed minus sign is not how it is done.
   await page.getByRole('button', { name: 'Add adjustment' }).nth(0).click();
   await page.getByLabel('Amount (pesos)').fill('-5');
@@ -272,7 +358,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await page.locator('#admin-content').getByRole('alert').filter({ hasText: 'no minus sign' }).waitFor();
   await page.getByRole('button', { name: 'Cancel' }).click();
   await adjust('TAKE', '100', 'Part of it was a mistake', 0);
-  await page.getByText('Part of it was a mistake').waitFor(); // the new line itself, not the notice (the notice text repeats)
+  await page.getByText('Part of it was a mistake').waitFor();
   assert.match(await text(page), /Ana Reyes\s*2 jobs\s*Earned ₱500\.00/);
   await layoutRules(page, 'desktop commissions with adjustments');
   await shot(page, 'commissions-adjusted-1440');
@@ -284,6 +370,7 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   body = await text(page);
   assert.match(body, /Paid\s*₱300\.00/);
   assert.match(body, /Unpaid\s*₱200\.00/);
+
   // Pay everything for Ana, then take more off: the screen says "Owed back", not a bare negative.
   for (const box of await page.locator('#admin-content').getByRole('checkbox').all()) await box.check();
   await page.getByRole('button', { name: 'Mark paid' }).click();
@@ -303,22 +390,23 @@ test('desktop 1440: add, edit, deactivate and remove detailers; the commissions 
   await context.close();
 });
 
-test('phone 390: both screens fit, nothing scrolls sideways or as a page, every control is 44 px, and the dialogs fit', { timeout: 240_000 }, async () => {
+test('phone 390: both screens fit, nothing scrolls sideways or as a page, every control is 44 px, and the drawer fits full-screen', { timeout: 240_000 }, async () => {
   const { context, page } = await open(process.env.P120_TEST_EMAIL, process.env.P120_TEST_PASSWORD, { width: 390, height: 844 }, 'phone');
   await goToTeam(page);
-  const dialog = page.getByRole('dialog');
   await page.getByRole('heading', { name: 'Team', exact: true }).waitFor();
   await layoutRules(page, 'phone team');
   await shot(page, 'team-390');
 
+  // Add staff: opens full-screen drawer on phone
   await page.getByRole('button', { name: 'Add staff' }).first().click();
-  await dialog.waitFor();
-  const box = await dialog.locator('> div').nth(1).boundingBox();
-  assert.ok(box.x >= 0 && box.x + box.width <= 390 && box.y >= 0 && box.y + box.height <= 844, `the add dialog fits the phone: ${JSON.stringify(box)}`);
-  await layoutRules(page, 'phone add dialog');
+  const drawer = page.locator('aside[aria-label="New staff profile"]');
+  await drawer.waitFor();
+  const box = await drawer.boundingBox();
+  assert.ok(box.x >= 0 && box.x + box.width <= 391 && box.y >= 0 && box.y + box.height <= 845, `the profile drawer fits the phone: ${JSON.stringify(box)}`);
+  await layoutRules(page, 'phone add drawer');
   await shot(page, 'team-add-390');
-  await page.keyboard.press('Escape');
-  await dialog.waitFor({ state: 'detached' });
+  await drawer.getByRole('button', { name: 'Close' }).click();
+  await drawer.waitFor({ state: 'detached' });
 
   await page.getByRole('tab', { name: 'Commissions' }).click();
   await page.getByText('By person').waitFor();
@@ -338,9 +426,10 @@ test('staff names flow: a name typed on the Team screen is offered on the bookin
   const { context, page } = await open(process.env.P120_TEST_EMAIL, process.env.P120_TEST_PASSWORD, { width: 1440, height: 900 }, 'flow');
   await goToTeam(page);
   await page.getByRole('button', { name: 'Add staff' }).first().click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Full name').fill('Eve Tan');
-  await dialog.getByRole('button', { name: 'Add staff' }).click();
+  const drawer = page.locator('aside[aria-label="New staff profile"]');
+  await drawer.waitFor();
+  await drawer.getByLabel('Full name').fill('Eve Tan');
+  await drawer.getByRole('button', { name: 'Add staff' }).click();
   await page.getByText('Eve Tan was added to the team.').waitFor();
 
   // The booking drawer: the typed name is offered, the admin is not; assign it.
@@ -349,17 +438,18 @@ test('staff names flow: a name typed on the Team screen is offered on the bookin
   const card = page.getByRole('region', { name: 'Waiting', exact: true }).locator('article[aria-label^="ZEUS-"]').first();
   await card.waitFor();
   await card.getByRole('button', { name: await card.getAttribute('aria-label'), exact: true }).click();
-  await dialog.getByText('Booking details').waitFor();
-  const picker = dialog.getByLabel('Add assigned worker');
-  await picker.locator('option', { hasText: 'Eve Tan' }).waitFor({ state: 'attached' }); // the picker fills in after the board answers
+  const bookingDialog = page.getByRole('dialog');
+  await bookingDialog.getByText('Booking details').waitFor();
+  const picker = bookingDialog.getByLabel('Add assigned worker');
+  await picker.locator('option', { hasText: 'Eve Tan' }).waitFor({ state: 'attached' });
   const offered = await picker.locator('option').allInnerTexts();
   assert.ok(offered.includes('Eve Tan'), 'the typed name is offered: ' + offered.join(', '));
   assert.ok(!offered.some((n) => /Catalog Test Admin/.test(n)), 'the admin is never offered: ' + offered.join(', '));
   await picker.selectOption({ label: 'Eve Tan' });
-  await dialog.getByRole('button', { name: 'Assign worker' }).click();
-  await dialog.getByRole('button', { name: 'Remove Eve Tan' }).waitFor();
+  await bookingDialog.getByRole('button', { name: 'Assign worker' }).click();
+  await bookingDialog.getByRole('button', { name: 'Remove Eve Tan' }).waitFor();
   await page.keyboard.press('Escape');
-  await dialog.waitFor({ state: 'detached' });
+  await bookingDialog.waitFor({ state: 'detached' });
 
   // Complete that booking through the real services (the fixture script, with the real clock), then read the commission on the screen.
   const done = spawnSync(process.execPath, ['--require', './src/server/__tests__/register.cjs', 'src/server/admin/team-browser.fixture.ts', '--complete'], { env: process.env, encoding: 'utf8' });

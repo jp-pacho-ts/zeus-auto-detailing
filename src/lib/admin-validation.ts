@@ -254,9 +254,6 @@ export const TeamUpdateSchema = z
     profile: StaffProfileSchema.optional(),
   })
   .strict();
-export const TeamActiveSchema = z
-  .object({ expectedRevision: Revision, active: z.boolean() })
-  .strict();
 export const TeamRemoveSchema = z.object({ expectedRevision: Revision }).strict();
 export const CommissionDefaultSchema = z
   .object({ expectedRevision: Revision, ratePercent: Percent })
