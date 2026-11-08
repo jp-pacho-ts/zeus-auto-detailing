@@ -723,3 +723,20 @@ test("P1-24: rejection and hanging SMTP keep the committed response and log only
         assert.equal(smtp.attempts.length, attempts, "a later replay never retries a failed customer confirmation");
     }
 });
+test("P1-42 the database pause: no new booking, customers told, an earlier booking still replays, and open brings it back", { skip }, async () => {
+    const f = await fixture("dbpause"), earlier = await f.request(), later = await f.request();
+    const setPaused = (paused: boolean) => f.db.$executeRawUnsafe(`UPDATE shop_settings SET "bookingPaused" = ${paused}, revision = revision + 1 WHERE id = 1`);
+    assert.equal(code(await f.create(earlier)), "OK");
+    await setPaused(true);
+    assert.equal(code(await f.create(later)), "ONLINE_BOOKING_UNAVAILABLE");
+    assert.equal(await f.db.booking.count(), 1, "nothing new was saved");
+    const replay = await f.create({ ...earlier, turnstileToken: "fresh" });
+    assert.equal(code(replay), "OK");
+    assert.equal(replay.created, false, "the booking made before the pause still answers");
+    const paused = await getDayAvailability({ vehicleCategoryId: later.vehicleCategoryId, lines: later.lines, fromDate: day(), days: 3 }, f.options);
+    assert.ok(paused.ok && paused.data.onlineBookingStatus === "PAUSED", JSON.stringify(paused));
+    await setPaused(false);
+    const open = await getDayAvailability({ vehicleCategoryId: later.vehicleCategoryId, lines: later.lines, fromDate: day(), days: 3 }, f.options);
+    assert.ok(open.ok && open.data.onlineBookingStatus === "OPEN", JSON.stringify(open));
+    assert.equal(code(await f.create(later)), "OK");
+});

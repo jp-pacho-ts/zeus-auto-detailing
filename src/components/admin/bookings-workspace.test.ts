@@ -73,11 +73,11 @@ test("the calendar component starts at overview; history is a separate customer 
   assert.doesNotMatch(html, /aria-label="Calendar view"/);
 });
 
-test("Bay board opens Kanban and retains bay/hour setup without customer booking tabs", () => {
+test("Bay board renders directly without customer booking tabs or redundant section buttons", () => {
   const html = render("portal", { initialTab: "Bay board" });
   assert.match(html, /<h1[^>]*>Bay board<\/h1>/);
   assert.match(html, /Board day/);
-  assert.match(html, />Bays<\/button>/);
-  assert.match(html, />Opening hours<\/button>/);
+  assert.doesNotMatch(html, />Bays<\/button>/);
+  assert.doesNotMatch(html, />Opening hours<\/button>/);
   assert.doesNotMatch(html, /aria-label="Bookings view"|Customer booking history/);
 });

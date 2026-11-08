@@ -239,6 +239,8 @@ model Staff {
   expenseCategoryEvents ExpenseCategoryEvent[]    @relation("ExpenseCategoryEventActor")
   supplyAudits          SupplyAuditEvent[]        @relation("SupplyAuditActor")
   containerAudits       BayContainerAuditEvent[]  @relation("ContainerAuditActor")
+  shopSettingsSet       ShopSettings[]
+  shopSettingsAudits    ShopSettingsAuditEvent[]
   commissionSettingsSet CommissionSettings[]
   adminAuditActed       AdminAuditEvent[]
 
@@ -1270,4 +1272,34 @@ model ExpenseCategoryEvent {
 
   @@index([categoryId, seq])
   @@map("expense_category_events")
+}
+
+// P1-42 Settings (migration 20261110000000). One row, id 1: the app reads it; the one write is admin_shop_settings_set().
+model ShopSettings {
+  id                 Int      @id @db.SmallInt
+  maintenance        Boolean  @default(false)
+  maintenanceMessage String?
+  bookingPaused      Boolean  @default(false)
+  revision           Int      @default(1)
+  updatedAt          DateTime @default(now()) @db.Timestamptz(3)
+  updatedByStaffId   String?
+  updatedBy          Staff?   @relation(fields: [updatedByStaffId], references: [id], onDelete: Restrict)
+
+  @@map("shop_settings")
+}
+
+// Insert-only, one row per setting changed. The runtime role has no privilege on it.
+model ShopSettingsAuditEvent {
+  id            String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  action        String   @default("SETTING_CHANGED")
+  actorStaffId  String
+  actor         Staff    @relation(fields: [actorStaffId], references: [id], onDelete: Restrict)
+  setting       String
+  previousValue String?
+  newValue      String?
+  txId          BigInt   @default(dbgenerated("txid_current()"))
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([createdAt])
+  @@map("shop_settings_audit_events")
 }

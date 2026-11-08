@@ -76,6 +76,9 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["PATCH", `/api/admin/expense-categories/${ID}`, () => import("@/app/api/admin/expense-categories/[id]/route"), { id: ID }],
   // P1-40 Sales & Analytics.
   ["GET", "/api/admin/analytics", () => import("@/app/api/admin/analytics/route"), {}],
+  // P1-42 Settings.
+  ["GET", "/api/admin/settings", () => import("@/app/api/admin/settings/route"), {}],
+  ["PUT", "/api/admin/settings", () => import("@/app/api/admin/settings/route"), {}],
   // P1-38 Supplies.
   ["GET", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],
   ["POST", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],

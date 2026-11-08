@@ -11,6 +11,7 @@ import { bookingDbNow } from "./bookings-locks";
 import { bookingError, unavailable } from "./bookings-errors";
 import { enterBooking, publicReadAdmission, withBookingDb } from "./bookings-admission";
 import { parseBookingConfiguration } from "./bookings-credentials";
+import { databaseBookingPaused, effectiveBookingMode } from "./online-booking-mode";
 import { trustedClientKey } from "./auth/client-identity";
 import { sha256 } from "./bookings-hash";
 import type { CreateDayBookingOptions } from "./bookings-create";
@@ -35,7 +36,7 @@ export async function getDayAvailability(input: unknown, options: CreateDayBooki
                 return { ok: false as const, error: bookingError(q.error.code, q.error.message, { commitState: "NOT_APPLICABLE", fieldErrors: q.error.fieldErrors }) };
             const through = addDays(manilaToday(now), 90), days = await readDayStates(tx, q.quote.queueId, r.fromDate, through, now);
             return { ok: true as const, data: {
-                    timezone: "Asia/Manila" as const, days: days.slice(0, r.days), nextAvailableDay: days.find(d => d.state === "AVAILABLE")?.date ?? null, searchedThrough: through, generatedAt: now.toISOString(), quote: signQuote(q.quote, c.quote, now), onlineBookingStatus: c.mode
+                    timezone: "Asia/Manila" as const, days: days.slice(0, r.days), nextAvailableDay: days.find(d => d.state === "AVAILABLE")?.date ?? null, searchedThrough: through, generatedAt: now.toISOString(), quote: signQuote(q.quote, c.quote, now), onlineBookingStatus: effectiveBookingMode(c.mode, await databaseBookingPaused(tx))
                 } };
         }, options.signal);
     }

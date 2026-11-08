@@ -540,3 +540,17 @@ export interface AdminAnalytics extends AdminAnalyticsSales {
     lowOrOutCount: number;
   };
 }
+
+// -----------------------------------------------------------------------------
+// P1-42 Settings (ADMIN only). No secret, address or password: email is a yes or no and two counts.
+// -----------------------------------------------------------------------------
+export interface AdminShopSettings {
+  revision: number;
+  maintenance: boolean;
+  maintenanceMessage: string | null;
+  bookingPaused: boolean;
+  /** The server setting ONLINE_BOOKING_MODE says PAUSED: the screen cannot open it. */
+  bookingPausedByServer: boolean;
+  updatedAt: ISOInstant;
+  email: { configured: boolean; failedLast7Days: number; waitingLast7Days: number };
+}

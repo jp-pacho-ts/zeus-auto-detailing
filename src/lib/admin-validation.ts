@@ -351,10 +351,20 @@ export const ContainerUpdateSchema = z
   .refine((v) => v.name !== undefined || v.usualQueues !== undefined, "Change the name or the label.");
 export const ContainerRemoveSchema = z.object({ expectedUpdatedAt: Instant }).strict();
 export const BayMoveSchema = z.object({ expectedUpdatedAt: Instant, containerId: Id }).strict();
-
 // P1-40: at most a year, the same limit as CommissionListSchema because the range is passed on to it.
 export const AnalyticsQuerySchema = z
   .object({ from: LocalDateSchema, to: LocalDateSchema })
   .strict()
   .refine((v) => v.to >= v.from, { message: "The end day can't be before the start day.", path: ["to"] })
   .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 <= 365, { message: "Choose a range of one year or less.", path: ["to"] });
+
+// P1-42: every value each time, so a retry is the same request. An empty message means none.
+export const ShopSettingsUpdateSchema = z
+  .object({
+    expectedRevision: Revision,
+    maintenance: z.boolean(),
+    bookingPaused: z.boolean(),
+    maintenanceMessage: z.string().trim().max(200, "Keep the message to 200 characters.").regex(/^\P{Cc}*$/u, "The message can only be one line of plain text.").nullable(),
+  })
+  .strict()
+  .transform((v) => ({ ...v, maintenanceMessage: v.maintenanceMessage === "" ? null : v.maintenanceMessage }));

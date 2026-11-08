@@ -68,10 +68,12 @@ function render(role: "ADMIN" | "STAFF") {
 }
 const at = (html: string, s: string) => html.indexOf(s);
 
-test("Bay board defaults to Kanban: one Waiting lane, the containers, one Done lane, in that order", () => {
+test("Bay board renders directly: one Waiting lane, the containers, one Done lane, in that order", () => {
   const html = render("ADMIN");
-  assert.ok(html.includes('aria-pressed="true">Kanban'));
-  for (const value of ["Bays", "Opening hours", "Synthetic Toyota Vios", "No plate", "Basic Wash", "Synthetic Technician", "Carry-over", "Wash", "Detailing", "Express wash"])
+  assert.equal(html.includes('>Kanban</button>'), false);
+  assert.equal(html.includes('>Bays</button>'), false);
+  assert.equal(html.includes('>Opening hours</button>'), false);
+  for (const value of ["Synthetic Toyota Vios", "No plate", "Basic Wash", "Synthetic Technician", "Carry-over", "Wash", "Detailing", "Express wash"])
     assert.ok(html.includes(value), value);
   const waiting = at(html, 'aria-label="Waiting"'), wash = at(html, 'aria-label="Wash"'), done = at(html, 'aria-label="Done"');
   assert.ok(waiting > 0 && waiting < wash && wash < at(html, 'aria-label="Detailing"') && at(html, 'aria-label="Express wash"') < done, "Waiting, containers, Done");
@@ -183,14 +185,13 @@ test("only an ADMIN card that is not mid-write or blocked can be dragged", () =>
   for (const role of ["STAFF", "DETAILER", "MANAGER"]) assert.equal(cardDraggable(role, false, false), false, role);
 });
 
-// P1-22 (LE 2026-10-29): Board day and Refresh board share the view switch's row, on its right from lg up and below it under lg.
-test("Board day and Refresh board sit in one toolbar with the view switch, before the helper text", () => {
+// P1-22 / P1-42: Board day sits in the toolbar before the helper text; no Refresh board button.
+test("Board day sits in the toolbar before the helper text", () => {
   const html = render("ADMIN");
-  const toolbar = html.search(/<div class="[^"]*\blg:flex-row\b[^"]*\blg:justify-between\b[^"]*"><div role="group" aria-label="Bay board sections"/);
-  assert.ok(toolbar >= 0, "the view switch opens a wrapping toolbar row");
-  const day = html.indexOf('aria-label="Board day"', toolbar), refresh = html.indexOf("Refresh board", toolbar), helper = html.indexOf("One car per bay");
-  assert.ok(day > toolbar && refresh > day && helper > refresh);
+  const day = html.indexOf('aria-label="Board day"'), helper = html.indexOf("One car per bay");
+  assert.ok(day > 0 && helper > day);
   assert.equal(html.split('aria-label="Board day"').length, 2, "one Board day field");
+  assert.equal(html.includes("Refresh board"), false, "no Refresh board button");
 });
 
 // P1-62b (review F3): only someone who can drop a car is told to drop one, or to use a control they do not have.

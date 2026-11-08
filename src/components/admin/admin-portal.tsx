@@ -11,6 +11,7 @@ import {
   Columns3,
   Users,
   LogOut,
+  Settings,
   Menu,
   X,
 } from "lucide-react";
@@ -21,7 +22,11 @@ import { DetailersTab } from "./detailers-tab";
 import { InventoryTab } from "./inventory-tab";
 import { ExpensesTab } from "./expenses-tab";
 import { AnalyticsTab } from "./analytics-tab";
+import { SettingsTab } from "./settings-tab";
+import { MAINTENANCE_BANNER } from "./settings/settings-model";
+import { useKeptResource } from "./team/use-kept-resource";
 import type { StaffSessionView } from "@/server/auth/types";
+import type { AdminShopSettings } from "@/types/admin-contracts";
 import { adminRequest } from "./bookings/client";
 import { LoadState, useAdminResource } from "./bookings/use-admin-resource";
 import { brandConfig } from "@/config/brand";
@@ -33,7 +38,8 @@ export type AdminTab =
   | "Team & Commissions"
   | "Supplies & Inventory"
   | "Expenses"
-  | "Sales Analytics";
+  | "Sales Analytics"
+  | "Settings";
 
 interface NavItem {
   name: AdminTab;
@@ -50,6 +56,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: "Supplies & Inventory", icon: Boxes },
   { name: "Expenses", icon: Wallet },
   { name: "Sales Analytics", icon: BarChart3 },
+  { name: "Settings", icon: Settings },
 ];
 
 export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
@@ -57,6 +64,8 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
     NAV_ITEMS.some((n) => n.name === initialTab) ? initialTab! : "Bookings",
   );
   const session = useAdminResource<StaffSessionView>("/api/admin/auth/session");
+  // The banner: a site left in maintenance must be impossible to miss on any admin screen.
+  const shopSettings = useKeptResource<AdminShopSettings>(session.data?.role === "ADMIN" ? "/api/admin/settings" : null);
   const [signingOut, setSigningOut] = React.useState(false),
     [logoutError, setLogoutError] = React.useState<string | null>(null);
   const leaving = React.useRef(false);
@@ -271,6 +280,9 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
 
       {/* Main Admin Content */}
       <div inert={menuOpen} className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {shopSettings.data?.maintenance && (
+          <p role="status" className="shrink-0 border-b border-primary bg-primary/10 px-4 py-2 text-xs font-bold text-foreground sm:px-8 lg:px-10">{MAINTENANCE_BANNER}</p>
+        )}
         <header className="shrink-0 border-b border-border px-4 py-4 sm:px-8 lg:px-10 lg:py-6">
           <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
             <div>
@@ -319,6 +331,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             {tab === "Supplies & Inventory" && <InventoryTab role={staff.role} />}
             {tab === "Expenses" && <ExpensesTab role={staff.role} />}
             {tab === "Sales Analytics" && <AnalyticsTab role={staff.role} />}
+            {tab === "Settings" && <SettingsTab role={staff.role} onChanged={shopSettings.reload} />}
           </div>
         </main>
       </div>

@@ -36,6 +36,8 @@ export const ADMIN_OPS = [
   "EXPENSE_WRITE", // P1-39: add, edit, remove and restore expenses and manage categories; ADMIN only
   "FINISH_BOOKING", // P1-34: ADMIN only; drop a car on Done
   "ANALYTICS_READ", // P1-40: sales figures are money; ADMIN only
+  "SETTINGS_READ", // P1-42: the switches and the email state; ADMIN only
+  "SETTINGS_WRITE", // P1-42: a switch that can take the site down; ADMIN only, the database function repeats the check
 ] as const;
 export type AdminOp = (typeof ADMIN_OPS)[number];
 

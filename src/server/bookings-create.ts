@@ -12,6 +12,7 @@ import { bookingRequestHash, sha256 } from "./bookings-hash";
 import { lockBookingDates, lockBookingShop, bookingDbNow } from "./bookings-locks";
 import { BookingFailure, bookingError, paused, unavailable } from "./bookings-errors";
 import { createAdmission, enterBooking, withBookingDb } from "./bookings-admission";
+import { databaseBookingPaused, effectiveBookingMode } from "./online-booking-mode";
 import { parseBookingConfiguration, grantExpiry, signManagementToken, type BookingConfiguration } from "./bookings-credentials";
 import { verifyTurnstile, turnstileRemoteIp } from "./bookings-turnstile";
 import { readDayStates, dayWindow, validDay } from "./availability-days";
@@ -188,13 +189,13 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
                 return { prior };
             if (await tx.booking.findFirst({ where: { idempotencyKey: { equals: r.idempotencyKey, mode: "insensitive" } }, select: { id: true } }))
                 return { prior: fail(bookingError("IDEMPOTENCY_CONFLICT", "This retry key belongs to a previous submission.")) };
-            return { budget: newEffectBudget(await counts(tx, now), clientHash, c.shopDailyBudget, now) };
+            return { budget: newEffectBudget(await counts(tx, now), clientHash, c.shopDailyBudget, now), databasePaused: await databaseBookingPaused(tx) };
         }, options.signal);
         if ("prior" in preflight && preflight.prior && !("refresh" in preflight.prior))
             return preflight.prior;
         const refresh = "prior" in preflight && preflight.prior && "refresh" in preflight.prior;
         if (!refresh) {
-            if (c.mode === "PAUSED")
+            if (effectiveBookingMode(c.mode, "databasePaused" in preflight && Boolean(preflight.databasePaused)) === "PAUSED")
                 return fail(paused(300));
             if ("budget" in preflight && preflight.budget)
                 return fail(preflight.budget);
@@ -213,6 +214,9 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
                 return prior;
             if (await tx.booking.findFirst({ where: { idempotencyKey: { equals: r.idempotencyKey, mode: "insensitive" } }, select: { id: true } }))
                 return fail(bookingError("IDEMPOTENCY_CONFLICT", "This retry key belongs to a previous submission."));
+            // Under the shop lock, as the switch is: once a pause has committed, no later booking gets through.
+            if (!prior && await databaseBookingPaused(tx))
+                return fail(paused(300));
             const cts = await counts(tx, now), budget = newEffectBudget(cts, clientHash, Infinity, now);
             if (budget)
                 return fail(budget);
