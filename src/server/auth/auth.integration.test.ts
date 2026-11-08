@@ -443,7 +443,7 @@ test("tampered, unknown, expired, idle, revoked and stale-generation cookies are
   assert.equal(await resolve(m.session.generateSessionToken()), null); // unknown
   // Absolute expiry.
   const t1 = await fresh();
-  await db.$executeRaw`UPDATE staff_sessions SET "expiresAt" = statement_timestamp(), "idleExpiresAt" = statement_timestamp() WHERE "tokenHash" = ${m.session.hashSessionToken(t1)}`;
+  await db.$executeRaw`UPDATE staff_sessions SET "createdAt" = statement_timestamp() - interval '2 seconds', "expiresAt" = statement_timestamp() - interval '1 second', "idleExpiresAt" = statement_timestamp() - interval '1 second' WHERE "tokenHash" = ${m.session.hashSessionToken(t1)}`;
   assert.equal(await resolve(t1), null);
   // Idle expiry, and the refresh cannot resurrect it.
   const t2 = await fresh();
