@@ -104,6 +104,31 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
   const canMarkPaid = selectableIds(chosen, true).length > 0;
   const canMarkUnpaid = selectableIds(chosen, false).length > 0;
 
+  // P1-64: include removed people who have commissions in this period so they can still be filtered
+  const peopleOptions = React.useMemo(() => {
+    const list: { id: string; name: string }[] = team.people
+      .filter((p) => p.role === "DETAILER")
+      .map((p) => ({ id: p.id, name: p.name }));
+    const known = new Set(list.map((p) => p.id));
+    if (data?.totals) {
+      for (const t of data.totals) {
+        if (!known.has(t.staffId)) {
+          known.add(t.staffId);
+          list.push({ id: t.staffId, name: t.staffName });
+        }
+      }
+    }
+    if (data?.entries) {
+      for (const en of data.entries) {
+        if (!known.has(en.staffId)) {
+          known.add(en.staffId);
+          list.push({ id: en.staffId, name: en.staffName });
+        }
+      }
+    }
+    return list;
+  }, [team.people, data]);
+
   return (
     <section aria-labelledby="commissions-heading" className="rounded border border-border bg-[#121214]">
       <div className="border-b border-border p-4 sm:p-6">
@@ -133,7 +158,7 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
         <label className="block text-xs font-semibold text-muted-foreground">Person
           <select className={fieldClass} value={staffId} onChange={(e) => setStaffId(e.target.value)}>
             <option value="">Everyone</option>
-            {team.people.filter((p) => p.role === "DETAILER").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {peopleOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
         <label className="block text-xs font-semibold text-muted-foreground">Show

@@ -202,12 +202,45 @@ const PersonPhone = z
   .max(30, "Use 30 characters or fewer.")
   .regex(/^[0-9+() -]*$/, "Use digits, spaces, + ( ) and - only.");
 const PersonEmail = z.string().trim().toLowerCase().max(120).email("Enter a valid email.");
+// P1-64: the details the admin keeps about a person. Every key is sent every time ("set these values"); null or blank clears that detail.
+const ProfileLine = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, `Use ${max} characters or fewer.`)
+    .refine((s) => !/[\u0000-\u001f\u007f]/.test(s), "Use letters, numbers and normal punctuation.")
+    .transform((s) => s || null)
+    .nullable();
+const ProfileText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, `Use ${max} characters or fewer.`)
+    .refine((s) => !/[\u0000-\u0009\u000b-\u001f\u007f]/.test(s), "Use letters, numbers and normal punctuation.")
+    .transform((s) => s || null)
+    .nullable();
+export const StaffProfileSchema = z
+  .object({
+    nickname: ProfileLine(40),
+    position: ProfileLine(40),
+    contactEmail: z.union([PersonEmail, z.literal("")]).transform((s) => s || null).nullable(),
+    address: ProfileText(300),
+    birthDate: LocalDateSchema.nullable(),
+    hiredOn: LocalDateSchema.nullable(),
+    emergencyName: ProfileLine(80),
+    emergencyPhone: PersonPhone.transform((s) => s || null).nullable(),
+    notes: ProfileText(1000),
+  })
+  .strict();
 export const TeamCreateSchema = z
   .object({
+    // P1-64: made once per form by the browser, so a retry after a lost response cannot add a second person.
+    id: Id.optional(),
     name: PersonName,
     phone: PersonPhone.optional(),
     email: z.union([PersonEmail, z.literal("")]).optional(),
     ratePercent: Percent.nullable().optional(),
+    profile: StaffProfileSchema.optional(),
   })
   .strict();
 // An absent field is left alone; ratePercent null clears the personal rate (use the default).
@@ -218,10 +251,8 @@ export const TeamUpdateSchema = z
     phone: PersonPhone.optional(),
     email: PersonEmail.optional(),
     ratePercent: Percent.nullable().optional(),
+    profile: StaffProfileSchema.optional(),
   })
-  .strict();
-export const TeamActiveSchema = z
-  .object({ expectedRevision: Revision, active: z.boolean() })
   .strict();
 export const TeamRemoveSchema = z.object({ expectedRevision: Revision }).strict();
 export const CommissionDefaultSchema = z

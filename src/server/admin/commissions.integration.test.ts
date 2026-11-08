@@ -452,17 +452,17 @@ test("C16 a completion and an admin write at the same moment do not deadlock and
   assert.ok(all.length >= 6);
 });
 
-test("C17 deactivating or removing a person who still has an open job is refused, and works once the job is finished", { skip }, async () => {
+// P1-64 (LE, R1): Remove used to be refused while the person had an open job. Remove now always works and takes them off (C35). The older deactivate database function keeps its refusal.
+test("C17 deactivating a person who still has an open job is refused; once the job is finished their earnings survive their removal", { skip }, async () => {
   const w = await person("Open Job Worker", "10");
   const job = await inProgress([w.id], 15_000);
   const p = (await s.listTeam(ADMIN, opts())).people.find((x) => x.id === w.id)!;
   assert.equal(p.openJobs, 1);
-  await refused(s.setPersonActive(ADMIN, w.id, { expectedRevision: p.revision, active: false }, opts()), "NOT_ALLOWED", "deactivate", (e) => assert.match(e.message, /open jobs/));
-  await refused(s.removePerson(ADMIN, w.id, { expectedRevision: p.revision }, opts()), "NOT_ALLOWED", "remove", (e) => assert.match(e.message, /open jobs/));
+  await assert.rejects(db.$queryRaw`SELECT admin_staff_set_active(${ADMIN.staffId}, ${w.id}, false, ${p.revision}::integer)`, /ZT005/);
   assert.equal((await db.staff.findUniqueOrThrow({ where: { id: w.id } })).isActive, true);
   await finish(job);
   const removed = await s.removePerson(ADMIN, w.id, { expectedRevision: p.revision }, opts());
-  assert.equal(removed.outcome, "DEACTIVATED", "they have commission history now, so they are deactivated, not erased");
+  assert.equal(removed.outcome, "REMOVED", "they have commission history now, so they are hidden, not erased");
   assert.equal((await entries(job.id)).length, 1, "their earnings are still there");
 });
 
@@ -795,7 +795,7 @@ test("C30 the Team list holds only the staff the admin typed: ADMIN and MANAGER 
 
 test("C31 the booking's worker picker lists active staff names only: never the admin, a manager or someone made inactive", { skip }, async () => {
   const keep = await person("Picker Keep"), gone = await person("Picker Inactive");
-  await s.setPersonActive(ADMIN, gone.id, { expectedRevision: gone.revision, active: false }, opts());
+  await db.staff.update({ where: { id: gone.id }, data: { isActive: false } });
   const names = await pickerNames("2027-07-10");
   assert.ok(names.includes("Picker Keep"));
   assert.ok(!names.includes("Picker Inactive"), "inactive");
@@ -809,7 +809,7 @@ test("C32 the service refuses to assign the admin, a manager, an inactive or an 
   await s.setBookingStatus(ADMIN, b.id, { expectedRevision: await rev(b.id), status: "CONFIRMED" }, o);
   const manager = await db.staff.findFirstOrThrow({ where: { role: "MANAGER", email: "p161-manager@example.test" } });
   const inactive = await person("Assign Inactive");
-  await s.setPersonActive(ADMIN, inactive.id, { expectedRevision: inactive.revision, active: false }, opts());
+  await db.staff.update({ where: { id: inactive.id }, data: { isActive: false } });
   const ok = await person("Assign Ok");
   for (const [who, label] of [[ADMIN.staffId, "the admin"], [manager.id, "a manager"], [inactive.id, "an inactive name"]] as const)
     await refused(s.assignWorker(ADMIN, b.id, who, { expectedRevision: await rev(b.id) }, o), "SCHEDULE_CONFLICT", label);
@@ -829,12 +829,124 @@ test("C33 names typed on the Team screen, assigned to a booking, are credited wh
   assert.deepEqual(list.entries.filter((e) => e.bookingReference === job.reference).map((e) => [e.staffName, e.amountCentavos]), [["Flow Ana", 10_000], ["Flow Ben", 10_000]]);
 });
 
+// P1-64 R1: Remove on a person with open jobs: the preview tells the truth first, then they come off in one transaction, each booking with its revision and audit row.
+test("C35 Remove takes a person off their open jobs, after showing them; the job's other worker is untouched, and finishing it credits nobody for the removed person", { skip }, async () => {
+  const a = await person("Removed Ana", "20"), b = await person("Staying Ben", "10");
+  const job1 = await inProgress([a.id, b.id], 20_000), job2 = await inProgress([a.id], 10_000);
+  const refs = [job1.reference, job2.reference].sort();
+  const preview = await s.removePreview(ADMIN, a.id, opts());
+  assert.deepEqual(preview.openJobs.map((j) => j.referenceCode).sort(), refs, "the preview names the jobs");
+  assert.deepEqual(preview.openJobs.map((j) => j.bookingId).sort(), [job1.id, job2.id].sort());
+  assert.deepEqual([preview.unpaidCentavos, preview.unpaidJobs], [0, 0]);
+  const [rev1, rev2] = [await rev(job1.id), await rev(job2.id)];
+  const p = (await s.listTeam(ADMIN, opts())).people.find((x) => x.id === a.id)!;
+  const removed = await s.removePerson(ADMIN, a.id, { expectedRevision: p.revision }, opts());
+  assert.equal(removed.outcome, "REMOVED", "they were assigned, so the audit trail points at them");
+  assert.deepEqual([...removed.takenOff].sort(), refs, "the answer names the jobs again");
+  assert.equal(await count("booking_worker_assignments", `"staffId" = '${a.id}'`), 0);
+  assert.equal(await count("booking_worker_assignments", `"bookingId" = '${job1.id}' AND "staffId" = '${b.id}'`), 1, "the other worker stays");
+  assert.deepEqual([await rev(job1.id), await rev(job2.id)], [rev1 + 1, rev2 + 1], "each booking's revision moved once");
+  for (const job of [job1, job2]) {
+    const rows = await db.bookingAuditEvent.findMany({ where: { bookingId: job.id, targetStaffId: a.id, action: "WORKER_UNASSIGNED" } });
+    assert.equal(rows.length, 1, "one audit row per booking");
+    assert.equal(rows[0].actorStaffId, ADMIN.staffId);
+  }
+  await finish(job1);
+  await finish(job2);
+  assert.deepEqual((await entries(job1.id)).map((e) => e.staffId), [b.id], "only the worker still on the job is credited");
+  assert.deepEqual(await entries(job2.id), [], "nobody is credited for the removed person");
+});
+
+test("C36 a Remove that fails partway leaves everything as it was: still assigned, same revisions, no audit row, details and person intact", { skip }, async () => {
+  const a = await person("Failing Remove", "20");
+  const job = await inProgress([a.id], 10_000);
+  const p = (await s.listTeam(ADMIN, opts())).people.find((x) => x.id === a.id)!;
+  await s.updatePerson(ADMIN, a.id, { expectedRevision: p.revision, name: "Failing Remove Two" }, opts()); // the revision below is now stale
+  const before = await rev(job.id);
+  await refused(s.removePerson(ADMIN, a.id, { expectedRevision: p.revision }, opts()), "VERSION_CONFLICT", "the database refuses after the service took them off");
+  assert.equal(await count("booking_worker_assignments", `"staffId" = '${a.id}' AND "bookingId" = '${job.id}'`), 1, "still assigned");
+  assert.equal(await rev(job.id), before, "the revision did not move");
+  assert.equal(await count("booking_audit_events", `"bookingId" = '${job.id}' AND "targetStaffId" = '${a.id}' AND action = 'WORKER_UNASSIGNED'`), 0);
+  assert.equal((await db.staff.findUniqueOrThrow({ where: { id: a.id } })).removedAt, null);
+  await finish(job); // tidy: the worker keeps their open job from counting in the later tests
+});
+
+test("C37 unpaid commission survives removal: the preview equals the Commissions screen, the name stays there and on the card, it can still be marked paid and adjusted", { skip }, async () => {
+  const a = await person("Paid After Removal", "10");
+  const job1 = await completed([a.id], 100_000), job2 = await completed([a.id], 50_000);
+  const [e1] = await entries(job1.id);
+  await s.adjustCommission(ADMIN, { id: randomUUID(), entryId: e1.id, amountCentavos: -2_500, reason: "P1-64 test" }, opts());
+  const days = [(await header(job1.id))!, (await header(job2.id))!].map((h) => h.completedOn.toISOString().slice(0, 10)).sort();
+  const range = { from: days[0], to: days[1], staffId: a.id };
+  const screen = await s.listCommissions(ADMIN, range, opts());
+  const preview = await s.removePreview(ADMIN, a.id, opts());
+  assert.equal(preview.unpaidCentavos, screen.totals[0].unpaidCentavos, "the preview's number is the screen's number");
+  assert.equal(preview.unpaidCentavos, 10_000 + 5_000 - 2_500);
+  assert.equal(preview.unpaidJobs, 2);
+  const before = await count("commission_entries", `"staffId" = '${a.id}'`);
+  const p = (await s.listTeam(ADMIN, opts())).people.find((x) => x.id === a.id)!;
+  assert.equal((await s.removePerson(ADMIN, a.id, { expectedRevision: p.revision }, opts())).outcome, "REMOVED");
+  assert.equal(await count("commission_entries", `"staffId" = '${a.id}'`), before, "the money rows are not touched");
+  const after = await s.listCommissions(ADMIN, range, opts());
+  assert.equal(after.totals[0].staffName, "Paid After Removal", "the name stays on the Commissions screen");
+  assert.equal(after.totals[0].unpaidCentavos, preview.unpaidCentavos, "the amount owed is unchanged");
+  await s.setCommissionsPaid(ADMIN, { ids: after.entries.flatMap((e) => [e.id, ...e.adjustments.map((x) => x.id)]), paid: true }, opts());
+  const paid = await s.listCommissions(ADMIN, range, opts());
+  assert.equal(paid.totals[0].unpaidCentavos, 0, "it can still be marked paid after removal");
+  const card = await s.getBookingDetail(ADMIN, job1.id, opts());
+  assert.ok(JSON.stringify(card).includes("Paid After Removal"), "the past booking still shows the name as it was");
+});
+
+// P1-64 F1 (ZEUS-CLAUDE-1): a declined booking is closed, so Remove cannot take anyone off it (the database refuses, and its card keeps the name). Reinstating
+// reopens it, so that is where a person no longer active comes off. Two of them, because the database allows one revision bump per booking per transaction.
+test("C39 a removed person does not come back through a reinstated booking and earns nothing on it; a worker still active stays and is credited", { skip }, async () => {
+  const gone1 = await person("Declined Gone One", "20"), gone2 = await person("Declined Gone Two", "20"), stays = await person("Declined Stays", "10");
+  const day = nextDay(), o = at(day);
+  const job = { ...(await book(select("S", "basic-wash"), day)), day };
+  const tintId = bySlug(r0(), "regular-tint").id;
+  await s.addLine(ADMIN, job.id, { expectedRevision: await rev(job.id), serviceId: tintId, quantity: 1 }, o);
+  const tint = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: job.id, serviceId: tintId, removedAt: null } });
+  await s.setLinePrice(ADMIN, job.id, tint.id, { expectedRevision: await rev(job.id), priceCentavos: 20_000, reason: "P1-64 test price" }, o);
+  for (const w of [gone1, gone2, stays]) await s.assignWorker(ADMIN, job.id, w.id, { expectedRevision: await rev(job.id) }, o);
+  await s.declineBooking(ADMIN, job.id, { expectedRevision: await rev(job.id), reason: "P1-64 test" }, o);
+  for (const w of [gone1, gone2]) {
+    const p = (await s.listTeam(ADMIN, opts())).people.find((x) => x.id === w.id)!;
+    assert.deepEqual(await s.removePerson(ADMIN, w.id, { expectedRevision: p.revision }, opts()), { outcome: "REMOVED", takenOff: [] }, "a declined job is not an open one");
+  }
+  assert.equal(await count("booking_worker_assignments", `"bookingId" = '${job.id}'`), 3, "the declined card keeps the names");
+
+  const back = await s.setBookingStatus(ADMIN, job.id, { expectedRevision: await rev(job.id), status: "PENDING", reason: "Declined by mistake" }, o);
+  assert.deepEqual(back.booking.assignedWorkers.map((w) => w.staffId), [stays.id], "the answer shows who is really on it");
+  assert.deepEqual((await db.bookingWorkerAssignment.findMany({ where: { bookingId: job.id } })).map((w) => w.staffId), [stays.id]);
+  for (const w of [gone1, gone2]) {
+    const rows = await db.bookingAuditEvent.findMany({ where: { bookingId: job.id, targetStaffId: w.id, action: "WORKER_UNASSIGNED" } });
+    assert.equal(rows.length, 1, "one audit row each");
+    assert.equal(rows[0].actorStaffId, ADMIN.staffId);
+  }
+  await s.setBookingStatus(ADMIN, job.id, { expectedRevision: await rev(job.id), status: "CONFIRMED" }, o);
+  const n = ++seq;
+  const bay = await s.createBay(ADMIN, { name: "Bay " + n, sortOrder: n, bayType: "WASH" }, o);
+  await s.setBay(ADMIN, job.id, { expectedRevision: await rev(job.id), date: day, bayId: bay.id }, o);
+  await s.setBookingStatus(ADMIN, job.id, { expectedRevision: await rev(job.id), status: "IN_PROGRESS" }, o);
+  await finish(job);
+  assert.deepEqual((await entries(job.id)).map((e) => e.staffId), [stays.id], "only the worker still active is credited");
+});
+
+test("C38 a removed person leaves the picker and cannot be newly assigned", { skip }, async () => {
+  const a = await person("Picker Leaver");
+  const job = await completed([a.id], 10_000);
+  assert.ok((await entries(job.id)).length === 1);
+  const p = (await s.listTeam(ADMIN, opts())).people.find((x) => x.id === a.id)!;
+  await s.removePerson(ADMIN, a.id, { expectedRevision: p.revision }, opts());
+  assert.ok(!(await pickerNames("2027-07-11")).includes("Picker Leaver"));
+  const next = await book(select("S", "basic-wash"), nextDay());
+  await refused(s.assignWorker(ADMIN, next.id, a.id, { expectedRevision: await rev(next.id) }, opts()), "SCHEDULE_CONFLICT", "a removed name cannot be assigned");
+});
+
 test("C34 a name made inactive after being credited keeps its history, and can no longer be newly assigned; a name never credited can be removed and leaves the picker", { skip }, async () => {
   const credited = await person("History Keeper"), unused = await person("Never Used");
   const job = await shopCompleted([credited.id], [{ slug: "regular-tint", price: 50_000 }]);
-  const fresh = await s.listTeam(ADMIN, opts());
-  const rev1 = fresh.people.find((p) => p.id === credited.id)!;
-  await s.setPersonActive(ADMIN, credited.id, { expectedRevision: rev1.revision, active: false }, opts());
+  await db.staff.update({ where: { id: credited.id }, data: { isActive: false } });
   assert.equal((await entries(job.id)).length, 1, "the commission record stays");
   const day = (await header(job.id))!.completedOn.toISOString().slice(0, 10);
   const list = await s.listCommissions(ADMIN, { from: day, to: day, staffId: credited.id }, opts());

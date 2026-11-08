@@ -5,6 +5,11 @@ import { adminRoute, type RouteContext } from "@/server/admin/http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export async function GET(request: NextRequest, context: RouteContext<{ id: string }>) {
+  const p = await context.params;
+  return adminRoute(request, (actor) => admin.getPerson(actor, p.id));
+}
+
 export async function PATCH(request: NextRequest, context: RouteContext<{ id: string }>) {
   const p = await context.params;
   return adminRoute(request, (actor, body) => admin.updatePerson(actor, p.id, body));

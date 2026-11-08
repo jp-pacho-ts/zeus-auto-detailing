@@ -59,7 +59,6 @@ test("T1 STAFF and unauthenticated roles are refused for every Team operation, a
   await refused(s.listTeam(STAFF, opts()), "FORBIDDEN", "list");
   await refused(s.addPerson(STAFF, { name: "Nobody" }, opts()), "FORBIDDEN", "add");
   await refused(s.updatePerson(STAFF, id, { expectedRevision: 1, name: "X" }, opts()), "FORBIDDEN", "update");
-  await refused(s.setPersonActive(STAFF, id, { expectedRevision: 1, active: false }, opts()), "FORBIDDEN", "active");
   await refused(s.removePerson(STAFF, id, { expectedRevision: 1 }, opts()), "FORBIDDEN", "remove");
   assert.deepEqual([await count("staff"), await count("admin_audit_events")], before);
 });
@@ -107,12 +106,13 @@ test("T5 add: a duplicate email is a plain field error", { skip }, async () => {
   assert.equal(await count("staff"), before);
 });
 
-test("T6 add: invalid input is refused with nothing written (Zod), and a stray role or id in the body is refused", { skip }, async () => {
+// P1-64: an id used to be refused outright. A browser-made uuid now makes a retried Add harmless (SP5), so only an id that is not a uuid is refused here.
+test("T6 add: invalid input is refused with nothing written (Zod), and a stray role or a malformed id in the body is refused", { skip }, async () => {
   const before = [await count("staff"), await count("admin_audit_events")];
   const bad: unknown[] = [
     {}, { name: "" }, { name: "   " }, { name: "x".repeat(81) }, { name: "Line\nBreak" }, { name: "Ok", phone: "abc" }, { name: "Ok", phone: "1".repeat(31) },
     { name: "Ok", email: "not-an-email" }, { name: "Ok", ratePercent: "101" }, { name: "Ok", ratePercent: "-1" }, { name: "Ok", ratePercent: "1.234" },
-    { name: "Ok", ratePercent: "abc" }, { name: "Ok", ratePercent: "" }, { name: "Ok", role: "ADMIN" }, { name: "Ok", id: randomUUID() }, { name: "Ok", isActive: false },
+    { name: "Ok", ratePercent: "abc" }, { name: "Ok", ratePercent: "" }, { name: "Ok", role: "ADMIN" }, { name: "Ok", id: "not-a-uuid" }, { name: "Ok", isActive: false },
     { name: "Ok", commissionRateBp: 5000 },
   ];
   for (const input of bad) await refused(s.addPerson(ADMIN, input, opts()), "VALIDATION_ERROR", JSON.stringify(input));
@@ -164,9 +164,7 @@ test("T10 ADMIN and MANAGER accounts cannot be changed from the Team screen at a
   const before = await db.staff.findUniqueOrThrow({ where: { id: managerRow.id } });
   await refused(s.updatePerson(ADMIN, managerRow.id, { expectedRevision: before.revision, name: "Renamed Manager" }, opts()), "NOT_ALLOWED", "name");
   await refused(s.updatePerson(ADMIN, managerRow.id, { expectedRevision: before.revision, phone: "0917" }, opts()), "NOT_ALLOWED", "phone");
-  await refused(s.setPersonActive(ADMIN, managerRow.id, { expectedRevision: before.revision, active: false }, opts()), "NOT_ALLOWED", "deactivate");
   await refused(s.removePerson(ADMIN, managerRow.id, { expectedRevision: before.revision }, opts()), "NOT_ALLOWED", "remove");
-  await refused(s.setPersonActive(ADMIN, adminRow.id, { expectedRevision: 1, active: false }, opts()), "NOT_ALLOWED", "yourself");
   const after = await db.staff.findUniqueOrThrow({ where: { id: managerRow.id } });
   assert.deepEqual([after.name, after.isActive, after.revision, after.role], [before.name, true, before.revision, "MANAGER"]);
   // P1-61: before, a percentage was accepted for these rows (the old rule: "only a rate"). The admin is never credited, so now it is refused too.
@@ -176,29 +174,32 @@ test("T10 ADMIN and MANAGER accounts cannot be changed from the Team screen at a
   assert.deepEqual([unrated.commissionRateBp, unrated.revision, unrated.name], [null, before.revision, "Team Manager"]);
 });
 
-test("T11 deactivate and reactivate: sessions are revoked, the revision moves, a repeat is a no-op, and each change is audited once", { skip }, async () => {
+test("T11 database deactivate and reactivate: sessions are revoked, the revision moves, a repeat is a no-op, and each change is audited once", { skip }, async () => {
   const p = await newPerson();
   const future = new Date(Date.now() + 3_600_000);
   await db.staffSession.create({ data: { tokenHash: sha(), staffId: p.id, credentialGeneration: 1, createdAt: new Date(), lastSeenAt: new Date(), idleExpiresAt: future, expiresAt: future } });
-  const off = await s.setPersonActive(ADMIN, p.id, { expectedRevision: 1, active: false }, opts());
+  await db.$queryRaw`SELECT admin_staff_set_active(${ADMIN.staffId}, ${p.id}, false, 1::integer)`;
+  const off = await db.staff.findUniqueOrThrow({ where: { id: p.id } });
   assert.deepEqual([off.isActive, off.revision], [false, 2]);
   const session = await db.staffSession.findFirstOrThrow({ where: { staffId: p.id } });
   assert.equal(session.revokedReason, "DEACTIVATED");
   assert.ok(session.revokedAt);
-  const again = await s.setPersonActive(ADMIN, p.id, { expectedRevision: 2, active: false }, opts());
-  assert.equal(again.revision, 2);
-  const on = await s.setPersonActive(ADMIN, p.id, { expectedRevision: 2, active: true }, opts());
+  await db.$queryRaw`SELECT admin_staff_set_active(${ADMIN.staffId}, ${p.id}, false, 2::integer)`;
+  assert.equal((await db.staff.findUniqueOrThrow({ where: { id: p.id } })).revision, 2);
+  await db.$queryRaw`SELECT admin_staff_set_active(${ADMIN.staffId}, ${p.id}, true, 2::integer)`;
+  const on = await db.staff.findUniqueOrThrow({ where: { id: p.id } });
   assert.deepEqual([on.isActive, on.revision], [true, 3]);
   assert.ok((await db.staffSession.findFirstOrThrow({ where: { staffId: p.id } })).revokedAt, "earlier sessions stay revoked");
   const kinds = (await db.adminAuditEvent.findMany({ where: { targetStaffId: p.id }, orderBy: { createdAt: "asc" } })).map((a) => a.action);
   assert.deepEqual(kinds, ["STAFF_CREATED", "STAFF_DEACTIVATED", "STAFF_REACTIVATED"]);
-  await refused(s.setPersonActive(ADMIN, p.id, { expectedRevision: 1, active: false }, opts()), "VERSION_CONFLICT", "stale");
+  await assert.rejects(db.$queryRaw`SELECT admin_staff_set_active(${ADMIN.staffId}, ${p.id}, false, 1::integer)`, /ZT002/);
 });
 
-test("T12 remove: a person with no history is deleted (the audit row keeps only the name); a person with history is deactivated", { skip }, async () => {
+// P1-64 (LE): a person with history used to be deactivated and stay listed. Now they are hidden for good with their personal details erased (SP9 has the rest).
+test("T12 remove: a person with no history is deleted (the audit row keeps only the name); a person with history is hidden with the name kept", { skip }, async () => {
   const fresh = await s.addPerson(ADMIN, { name: "Removed Person Zed" }, opts());
   const gone = await s.removePerson(ADMIN, fresh.id, { expectedRevision: 1 }, opts());
-  assert.deepEqual([gone.outcome, gone.person], ["DELETED", null]);
+  assert.deepEqual([gone.outcome, gone.takenOff], ["DELETED", []]);
   assert.equal(await count("staff", `id = '${fresh.id}'`), 0);
   const removed = (await audits("STAFF_REMOVED")).filter((a) => a.targetStaffId === fresh.id);
   assert.equal(removed.length, 1);
@@ -209,13 +210,17 @@ test("T12 remove: a person with no history is deleted (the audit row keeps only 
   const future = new Date(Date.now() + 3_600_000);
   await db.staffSession.create({ data: { tokenHash: sha(), staffId: used.id, credentialGeneration: 1, createdAt: new Date(), lastSeenAt: new Date(), idleExpiresAt: future, expiresAt: future } });
   const kept = await s.removePerson(ADMIN, used.id, { expectedRevision: 1 }, opts());
-  assert.equal(kept.outcome, "DEACTIVATED");
-  assert.deepEqual([kept.person?.isActive, kept.person?.revision], [false, 2]);
+  assert.equal(kept.outcome, "REMOVED");
+  const hidden = await db.staff.findUniqueOrThrow({ where: { id: used.id } });
+  assert.deepEqual([hidden.isActive, hidden.revision, hidden.name], [false, 2, used.name]);
+  assert.ok(hidden.removedAt);
   assert.equal(await count("staff", `id = '${used.id}'`), 1);
   const rows = (await audits("STAFF_DEACTIVATED")).filter((a) => a.targetStaffId === used.id);
-  assert.deepEqual(rows.map((r) => [r.reason, r.targetLabel]), [["Removed: has history", null]]);
+  assert.deepEqual(rows.map((r) => [r.reason, r.targetLabel]), [["Removed: personal details erased", null]]);
   await refused(s.removePerson(ADMIN, randomUUID(), { expectedRevision: 1 }, opts()), "NOT_FOUND", "unknown");
-  await refused(s.removePerson(ADMIN, used.id, { expectedRevision: 1 }, opts()), "VERSION_CONFLICT", "stale");
+  const stale = await newPerson();
+  await s.updatePerson(ADMIN, stale.id, { expectedRevision: 1, name: "Stale Target" }, opts());
+  await refused(s.removePerson(ADMIN, stale.id, { expectedRevision: 1 }, opts()), "VERSION_CONFLICT", "stale");
 });
 
 test("T13 the list: phones for ADMIN only, default rate and revision, sign-in and history flags, the placeholder email hidden", { skip }, async () => {
@@ -223,6 +228,9 @@ test("T13 the list: phones for ADMIN only, default rate and revision, sign-in an
   const future = new Date(Date.now() + 3_600_000);
   await db.staffSession.create({ data: { tokenHash: sha(), staffId: withHistory.id, credentialGeneration: 1, createdAt: new Date(), lastSeenAt: new Date(), idleExpiresAt: future, expiresAt: future } });
   const clean = await newPerson();
+  // P1-64: T12's person with history is hidden now, so this list needs its own inactive person for the sort check below to mean anything.
+  const off = await newPerson();
+  await db.$queryRaw`SELECT admin_staff_set_active(${ADMIN.staffId}, ${off.id}, false, ${off.revision}::integer)`;
   const team = await s.listTeam(ADMIN, opts());
   assert.deepEqual([team.defaultRateBp, team.settingsRevision], [2000, 1]);
   const byId = new Map(team.people.map((p) => [p.id, p]));
@@ -235,6 +243,7 @@ test("T13 the list: phones for ADMIN only, default rate and revision, sign-in an
   assert.ok(team.people.every((p) => p.role === "DETAILER"));
   // Active people first, then by role and name.
   const inactiveAt = team.people.findIndex((p) => !p.isActive);
+  assert.ok(inactiveAt >= 0, "an inactive person is on the list");
   assert.ok(team.people.slice(inactiveAt).every((p) => !p.isActive), "inactive people sort last");
 });
 

@@ -19,7 +19,7 @@ const root = new PrismaClient({ datasources: { db: { url: parent ?? "postgresql:
 const ownerUrl = parent ? siblingDatabaseUrl(parent, "runtime_role") : "postgresql://unused@localhost/zeus_t007_unused_runtime_role";
 let owner: PrismaClient, app: PrismaClient;
 const NO_ACCESS = ["_prisma_migrations", "catalog_publishers", "catalog_publication_events", "catalog_hold_segments", "booking_assignments",
-  "commission_payouts", "inventory_items", "inventory_transactions", "service_recipes"];
+  "commission_payouts", "inventory_items", "inventory_transactions", "service_recipes", "staff_profiles"];
 
 before(async () => {
   if (skip) return;

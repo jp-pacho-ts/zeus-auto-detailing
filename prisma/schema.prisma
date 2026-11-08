@@ -208,7 +208,9 @@ model Staff {
   revision              Int                       @default(1)
   updatedAt             DateTime?                 @db.Timestamptz(3)
   isActive              Boolean                   @default(true)
+  removedAt             DateTime?                 @db.Timestamptz(3) // P1-64: hidden for good; the name stays on history, personal details are erased
   createdAt             DateTime                  @default(now())
+  profile               StaffProfile?
   catalogPublishers     CatalogPublisher[]
   catalogEvents         CatalogPublicationEvent[]
   assignments           BookingAssignment[]
@@ -237,6 +239,25 @@ model Staff {
   adminAuditActed       AdminAuditEvent[]
 
   @@map("staff")
+}
+
+// P1-64: the details the admin keeps about a person. The runtime role has no privilege here: reads and writes are owner-run functions.
+model StaffProfile {
+  staffId        String    @id
+  staff          Staff     @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  nickname       String?
+  position       String?
+  contactEmail   String?
+  address        String?
+  birthDate      DateTime? @db.Date
+  hiredOn        DateTime? @db.Date
+  emergencyName  String?
+  emergencyPhone String?
+  notes          String?
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@map("staff_profiles")
 }
 
 // ADR-003 Option A. The credential row is the per-staff lock for every auth writer.

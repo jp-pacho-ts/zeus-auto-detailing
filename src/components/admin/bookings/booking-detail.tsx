@@ -94,6 +94,7 @@ export function BookingDetail({
     setError(null);
     setNotice(null);
     try {
+      const beforeWorkers = b.assignedWorkers ?? [];
       const result = await adminRequest<
         AdminWriteResult | AdminNotifyResult | AdminDeleteResult
       >(`/api/admin/bookings/${id}${path}`, {
@@ -109,13 +110,23 @@ export function BookingDetail({
       }
       resource.setData(result.booking);
       void onChanged();
-      setNotice(
-        "notice" in result
-          ? notifyNotice(result.notice)
-          : result.noChange
-            ? "No change was needed."
-            : "Booking updated.",
+      const droppedWorkers = beforeWorkers.filter(
+        (w) => !result.booking.assignedWorkers.some((nw) => nw.staffId === w.staffId),
       );
+      if (path === "/status" && (body as { status?: string }).status === "PENDING" && droppedWorkers.length > 0) {
+        const names = droppedWorkers.map((w) => w.name).join(", ");
+        setNotice(
+          `Booking reinstated. ${names} ${droppedWorkers.length === 1 ? "is" : "are"} no longer active and ${droppedWorkers.length === 1 ? "was" : "were"} removed from the booking.`,
+        );
+      } else {
+        setNotice(
+          "notice" in result
+            ? notifyNotice(result.notice)
+            : result.noChange
+              ? "No change was needed."
+              : "Booking updated.",
+        );
+      }
     } catch (e) {
       if (!mounted.current) return;
       if (e instanceof AdminRequestError) {

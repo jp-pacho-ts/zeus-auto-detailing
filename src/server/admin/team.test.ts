@@ -2,7 +2,7 @@
 // strict Zod schemas. The database functions repeat every rule; see team.integration.test.ts and commissions.integration.test.ts.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema, TeamActiveSchema, TeamCreateSchema, TeamRemoveSchema, TeamUpdateSchema } from "@/lib/admin-validation";
+import { CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema, TeamCreateSchema, TeamRemoveSchema, TeamUpdateSchema } from "@/lib/admin-validation";
 import { canPerform } from "./roles";
 
 const ID = "0b8b3b3e-2b1a-4e5c-9f00-000000000001";
@@ -22,9 +22,11 @@ test("TeamCreateSchema: a name is required, optional fields are checked, and not
   ok(TeamCreateSchema, { name: "Maria Santos" });
   ok(TeamCreateSchema, { name: "Maria", phone: "+63 917 555 0101", email: "maria@example.test", ratePercent: "12.5" });
   ok(TeamCreateSchema, { name: "Maria", email: "", ratePercent: null });
+  // P1-64: a browser-made uuid makes a retried Add harmless, so an id is now accepted; anything but a uuid is still refused below.
+  ok(TeamCreateSchema, { name: "Maria", id: ID });
   for (const input of [{}, { name: "" }, { name: "  " }, { name: "x".repeat(81) }, { name: "a\u0000b" }, { name: "M", phone: "call me" }, { name: "M", phone: "1".repeat(31) },
     { name: "M", email: "nope" }, { name: "M", ratePercent: "100.5" }, { name: "M", ratePercent: "" }, { name: "M", ratePercent: 10 },
-    { name: "M", role: "ADMIN" }, { name: "M", id: ID }, { name: "M", isActive: true }, { name: "M", commissionRateBp: 1000 }, { name: "M", revision: 3 }])
+    { name: "M", role: "ADMIN" }, { name: "M", id: "not-a-uuid" }, { name: "M", isActive: true }, { name: "M", commissionRateBp: 1000 }, { name: "M", revision: 3 }])
     bad(TeamCreateSchema, input);
   assert.equal(TeamCreateSchema.parse({ name: "  Trim Me  ", email: " UP@Example.TEST " }).email, "up@example.test");
 });
@@ -39,9 +41,9 @@ test("TeamUpdateSchema: the revision is required, an absent field means leave al
   assert.equal(TeamUpdateSchema.parse({ expectedRevision: 1, ratePercent: null }).ratePercent, null);
 });
 
-test("TeamActiveSchema, TeamRemoveSchema, CommissionDefaultSchema, CommissionPaidSchema are strict", () => {
-  ok(TeamActiveSchema, { expectedRevision: 1, active: false });
-  for (const input of [{ expectedRevision: 1 }, { active: true }, { expectedRevision: 1, active: "no" }, { expectedRevision: 1, active: true, role: "ADMIN" }]) bad(TeamActiveSchema, input);
+test("TeamRemoveSchema, CommissionDefaultSchema, CommissionPaidSchema are strict", () => {
+  ok(TeamRemoveSchema, { expectedRevision: 1 });
+  for (const input of [{}, { expectedRevision: 0 }, { expectedRevision: "one" }, { expectedRevision: 1, extra: 2 }]) bad(TeamRemoveSchema, input);
   ok(TeamRemoveSchema, { expectedRevision: 3 });
   for (const input of [{}, { expectedRevision: 3, force: true }]) bad(TeamRemoveSchema, input);
   ok(CommissionDefaultSchema, { expectedRevision: 1, ratePercent: "10" });
