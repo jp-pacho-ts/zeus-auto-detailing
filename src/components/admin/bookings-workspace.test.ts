@@ -81,3 +81,23 @@ test("Bay board renders directly without customer booking tabs or redundant sect
   assert.doesNotMatch(html, />Opening hours<\/button>/);
   assert.doesNotMatch(html, /aria-label="Bookings view"|Customer booking history/);
 });
+
+test("P1-35: Find bookings is first on the Bookings page, above the tiles and the queues, with one Status filter", () => {
+  const html = render("bookings", {});
+  const at = (re: RegExp) => html.search(re);
+  const find = at(/>Find bookings</), tiles = at(/Day(&#x27;|')s Bookings/), queueDay = at(/Queue day/);
+  assert.ok(find >= 0 && tiles >= 0 && queueDay >= 0, "all three are on the page");
+  assert.ok(find < tiles, "the search comes before the metric tiles");
+  assert.ok(find < queueDay, "the search comes before the queues");
+  assert.ok(html.indexOf("Search bookings") < tiles, "the search button is up there too");
+  assert.doesNotMatch(html, /Booking status|Search status/, "the two status dropdowns are one control now");
+  assert.equal((html.match(/<select/g) ?? []).length, 1, "one Status filter on the page");
+  assert.match(html, /<label[^>]*>Status<select/);
+  assert.match(html, /Refresh queues/, "the day controls stay with the queues");
+});
+
+test("P1-35: STAFF sees the same top search, and History still has none", () => {
+  const staff = render("bookings", { role: "STAFF" });
+  assert.ok(staff.search(/>Find bookings</) < staff.search(/Day(&#x27;|')s Bookings/));
+  assert.doesNotMatch(render("bookings", { initialView: "HISTORY" }), /Find bookings/);
+});
