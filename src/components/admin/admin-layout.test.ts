@@ -36,9 +36,10 @@ test("phones and tablets get a menu button that opens the same navigation as a d
   assert.match(portal, /Escape/, "Escape closes the drawer");
 });
 
-test("the bay board lays a container's bays out in a sideways-scrolling single row and stretches Waiting and Done", () => {
+test("the bay board lays a container's bays out in a sideways-scrolling single row and pins Waiting and Done to screen height", () => {
   const board = fs.readFileSync(path.join(dir, "bookings", "bay-board.tsx"), "utf8");
   assert.match(board, /data-board-row-scroll/);
   assert.match(board, /overflow-x-auto/);
-  assert.match(board, /lg:items-stretch/);
+  assert.match(board, /lg:sticky lg:top-0 lg:h-\[calc\(100dvh-13rem\)\]/);
+  assert.match(board, /lg:items-start/);
 });

@@ -36,7 +36,7 @@ type Pending = { card: AdminBoardCard; bayId: string; text: string };
 
 // One grey outline pill for every service tag: no colour per kind.
 const pill = "inline-flex min-w-0 max-w-full items-center truncate rounded-full border border-border px-2 py-0.5 text-xs leading-tight text-muted-foreground";
-const lane = "min-w-0 flex-col gap-3 rounded border border-border bg-[#0f0f11] p-3 lg:min-h-[calc(100dvh-13rem)]";
+const lane = "min-w-0 flex-col gap-3 rounded border border-border bg-[#0f0f11] p-3 lg:sticky lg:top-0 lg:h-[calc(100dvh-13rem)] lg:overflow-y-auto";
 const finishTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" });
 
 export function BayBoard({ role }: { role: UserRole }) {
@@ -453,7 +453,7 @@ export function BayBoard({ role }: { role: UserRole }) {
               </Button>
             ))}
           </div>
-          <div className="grid min-w-0 gap-3 lg:grid-cols-[18rem_minmax(0,1fr)_18rem] lg:items-stretch">
+          <div className="grid min-w-0 gap-3 lg:grid-cols-[18rem_minmax(0,1fr)_18rem] lg:items-start">
             <section
               aria-label="Waiting"
               data-board-zone="WAITING"
