@@ -2,7 +2,6 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import type {
-  AdminBay,
   AdminDayBoard,
   AdminBookingDetail,
   AdminDayQueues,
@@ -62,8 +61,7 @@ export function BookingDetail({
       `/api/admin/bookings/${id}`,
     ),
     b = resource.data;
-  const bays = useAdminResource<AdminBay[]>("/api/admin/bays"),
-    catalog = useAdminResource<BookingCatalog>(
+  const catalog = useAdminResource<BookingCatalog>(
       role === "ADMIN" ? "/api/catalog" : null,
     );
   const workers = useAdminResource<AdminDayBoard>(
@@ -900,73 +898,6 @@ export function BookingDetail({
                   <Button disabled={disabled}>Add service</Button>
                 </form>
               )}
-            </>
-          )}
-          {admin && open && b.snapshot === "QUEUE_V3" && (
-            <>
-              <LoadState
-                loading={bays.loading}
-                error={bays.error}
-                retry={bays.reload}
-              />
-              {bays.data && (
-                <form
-                  className="grid items-end gap-3 sm:grid-cols-3"
-                  onSubmit={(e) =>
-                    submit(
-                      e,
-                      (f) =>
-                        void write(
-                          "/bay",
-                          {
-                            date: String(f.get("date")),
-                            bayId: String(f.get("bay")) || null,
-                          },
-                          "PUT",
-                        ),
-                    )
-                  }
-                >
-                  <label className="text-xs">
-                    Bay date
-                    <input
-                      name="date"
-                      type="date"
-                      required
-                      min={b.bookingDate}
-                      defaultValue={
-                        b.bookingDate > shopDate() ? b.bookingDate : shopDate()
-                      }
-                      className={fieldClass}
-                    />
-                  </label>
-                  <label className="text-xs">
-                    Assign bay
-                    <select
-                      name="bay"
-                      defaultValue={b.occupancy?.bay.id ?? ""}
-                      className={fieldClass}
-                    >
-                      <option value="">Unassigned</option>
-                      {bays.data
-                        .filter((bay) => bay.isActive)
-                        .map((bay) => (
-                          <option key={bay.id} value={bay.id}>
-                            {bay.name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <Button disabled={disabled}>Save bay assignment</Button>
-                </form>
-              )}
-              <ul className="text-xs text-muted-foreground">
-                {b.bays.map((a) => (
-                  <li key={a.date}>
-                    {a.date} · {a.bay.name}
-                  </li>
-                ))}
-              </ul>
             </>
           )}
           {admin && (
