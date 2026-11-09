@@ -26,12 +26,22 @@ interface Options {
   notification?: NotificationConfiguration;
   bookingId?: string;
 }
+function cleanEnvValue(val: string | undefined): string | undefined {
+  if (!val) return undefined;
+  let clean = val.trim();
+  if (clean.endsWith(";")) clean = clean.slice(0, -1).trim();
+  if ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
+    clean = clean.slice(1, -1).trim();
+  }
+  return clean || undefined;
+}
+
 export function notificationConfiguration(
   env: Record<string, string | undefined> = process.env,
 ): NotificationConfiguration | null {
-  const resendApiKey = env.RESEND_API_KEY?.trim();
+  const resendApiKey = cleanEnvValue(env.RESEND_API_KEY);
   if (resendApiKey) {
-    const rawOrigin = env.APP_ORIGIN || "https://zeusautodetailingtacloban.com";
+    const rawOrigin = cleanEnvValue(env.APP_ORIGIN) || "https://zeusautodetailingtacloban.com";
     let origin = "https://zeusautodetailingtacloban.com";
     try {
       const url = new URL(rawOrigin);
@@ -41,8 +51,8 @@ export function notificationConfiguration(
     } catch {
       // fallback
     }
-    const from = env.RESEND_FROM || env.SMTP_FROM || "Zeus Auto Detailing <onboarding@resend.dev>";
-    const shopEmail = env.RESEND_SHOP_NOTIFY_EMAIL || env.SMTP_SHOP_NOTIFY_EMAIL || "zeuscw.mgmt@gmail.com";
+    const from = cleanEnvValue(env.RESEND_FROM) || cleanEnvValue(env.SMTP_FROM) || "Zeus Auto Detailing <onboarding@resend.dev>";
+    const shopEmail = cleanEnvValue(env.RESEND_SHOP_NOTIFY_EMAIL) || cleanEnvValue(env.SMTP_SHOP_NOTIFY_EMAIL) || "zeuscw.mgmt@gmail.com";
     return {
       provider: "resend",
       resendApiKey,
@@ -140,7 +150,7 @@ export function shopNotificationMessage(
 export function customerConfirmationMessage(
   booking: DayBookingView,
   origin: string,
-): { subject: string; text: string } {
+): { subject: string; text: string; html: string } {
   const forQuote = booking.lines.some((line) => line.priceStatus === "FOR_QUOTE");
   const services = booking.lines.map((line) =>
     "- " + line.name + (line.quantity > 1 ? " × " + line.quantity : "") +
@@ -149,12 +159,16 @@ export function customerConfirmationMessage(
   const estimate = booking.estimatedTotalCentavos === null
     ? "To be quoted by the shop."
     : brandConfig.currency + " " + (booking.estimatedTotalCentavos / 100).toFixed(2);
+  const manageUrl = origin + "/book/manage";
   return {
     subject: "Booking received " + booking.referenceCode,
     text: [
       brandConfig.businessName,
       "Booking reference: " + booking.referenceCode,
       "Your request is sent. The shop will text or call you to confirm.",
+      "Please monitor your booking on our site.",
+      "Manage your booking: " + manageUrl,
+      "To check your booking's progress, open that page and enter your reference code and last name.",
       "Drop-off day: " + booking.bookingDate + " (" + brandConfig.timezone + ")",
       "Opening hours: " + brandConfig.operatingSchedule,
       "Vehicle size: " + booking.vehicleCategoryName,
@@ -162,18 +176,46 @@ export function customerConfirmationMessage(
       ...services,
       "Estimated total: " + estimate,
       ...(forQuote ? ["Some services are for quote. The shop will confirm the final price."] : []),
-      "Manage your booking: " + origin + "/book/manage",
-      "To check your booking's progress, open that page and enter your reference code and last name.",
       "Phone: " + brandConfig.supportPhone,
       "Messenger: " + brandConfig.facebookMessengerUrl,
     ].join("\n"),
+    html: `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background-color: #121214; color: #ededed; border: 1px solid #27272a; border-radius: 8px; padding: 24px;">
+  <h2 style="color: #f59e0b; margin-top: 0; text-transform: uppercase; letter-spacing: 0.5px;">${brandConfig.businessName}</h2>
+  <p style="font-size: 16px; margin: 0 0 12px 0;"><strong>Booking Received</strong></p>
+  <p style="margin: 0 0 8px 0;">Booking reference: <strong style="font-family: monospace; color: #f59e0b; font-size: 18px;">${booking.referenceCode}</strong></p>
+  <p style="margin: 0 0 16px 0; color: #d4d4d8;">Your request is sent. The shop will text or call you to confirm.</p>
+  <div style="background-color: #18181b; border: 1px solid #3f3f46; border-radius: 6px; padding: 18px; margin: 20px 0; text-align: center;">
+    <p style="margin: 0 0 12px 0; font-size: 14px; color: #d4d4d8; font-weight: 500;">Please monitor your booking progress on our site:</p>
+    <a href="${manageUrl}" style="background-color: #f59e0b; color: #000; font-weight: bold; text-decoration: none; padding: 12px 24px; border-radius: 6px; display: inline-block; font-size: 14px;">Monitor Your Booking &rarr;</a>
+    <p style="margin: 12px 0 0 0; font-size: 12px; color: #a1a1aa;">Open that page and enter your reference code (<strong>${booking.referenceCode}</strong>) and last name to view status.</p>
+  </div>
+  <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 16px;">
+    <tr><td style="padding: 6px 0; color: #a1a1aa;">Drop-off day:</td><td style="padding: 6px 0; font-weight: bold; text-align: right;">${booking.bookingDate} (${brandConfig.timezone})</td></tr>
+    <tr><td style="padding: 6px 0; color: #a1a1aa;">Opening hours:</td><td style="padding: 6px 0; text-align: right;">${brandConfig.operatingSchedule}</td></tr>
+    <tr><td style="padding: 6px 0; color: #a1a1aa;">Vehicle size:</td><td style="padding: 6px 0; text-align: right;">${booking.vehicleCategoryName}</td></tr>
+    <tr><td style="padding: 6px 0; color: #a1a1aa;">Estimated total:</td><td style="padding: 6px 0; font-weight: bold; color: #f59e0b; text-align: right;">${estimate}</td></tr>
+  </table>
+  <div style="margin-top: 14px; border-top: 1px solid #27272a; padding-top: 12px;">
+    <p style="margin: 0 0 6px 0; color: #a1a1aa; font-size: 12px;">Selected services:</p>
+    <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
+      ${booking.lines.map((l) => `<li>${l.name}${l.quantity > 1 ? ` × ${l.quantity}` : ""}${l.priceStatus === "FOR_QUOTE" ? " (for quote)" : ""}</li>`).join("")}
+    </ul>
+    ${forQuote ? `<p style="color: #fbbf24; font-size: 12px; margin: 8px 0 0 0;">Some services are for quote. The shop will confirm the final price.</p>` : ""}
+  </div>
+  <div style="margin-top: 20px; border-top: 1px solid #27272a; padding-top: 12px; font-size: 12px; color: #71717a;">
+    <p style="margin: 0 0 4px 0;">Phone: ${brandConfig.supportPhone} | Messenger: <a href="${brandConfig.facebookMessengerUrl}" style="color: #f59e0b;">Zeus Detailing</a></p>
+    <p style="margin: 0;">${brandConfig.address}</p>
+  </div>
+</div>
+    `.trim(),
   };
 }
 
 export function customerReminderMessage(
   booking: DayBookingView,
   origin: string,
-): { subject: string; text: string } {
+): { subject: string; text: string; html: string } {
   const forQuote = booking.lines.some((line) => line.priceStatus === "FOR_QUOTE");
   const services = booking.lines.map((line) =>
     "- " + line.name + (line.quantity > 1 ? " × " + line.quantity : "") +
@@ -182,6 +224,7 @@ export function customerReminderMessage(
   const estimate = booking.estimatedTotalCentavos === null
     ? "To be quoted by the shop."
     : brandConfig.currency + " " + (booking.estimatedTotalCentavos / 100).toFixed(2);
+  const manageUrl = origin + "/book/manage";
   return {
     subject: `Appointment Reminder: Detailing tomorrow at ${brandConfig.businessName} [${booking.referenceCode}]`,
     text: [
@@ -189,6 +232,8 @@ export function customerReminderMessage(
       "Hello! This is a friendly reminder that your vehicle detailing appointment is scheduled for tomorrow.",
       "",
       "Booking reference: " + booking.referenceCode,
+      "Please monitor your booking on our site.",
+      "Manage your booking: " + manageUrl,
       "Drop-off day: Tomorrow, " + booking.bookingDate + " (" + brandConfig.timezone + ")",
       "Opening hours: " + brandConfig.operatingSchedule,
       "Vehicle size: " + booking.vehicleCategoryName,
@@ -200,10 +245,40 @@ export function customerReminderMessage(
       "Please bring your vehicle to our shop during opening hours so our detailers can start on schedule.",
       "Shop address: " + brandConfig.address,
       "",
-      "Manage your booking: " + origin + "/book/manage",
       "Phone: " + brandConfig.supportPhone,
       "Messenger: " + brandConfig.facebookMessengerUrl,
     ].join("\n"),
+    html: `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background-color: #121214; color: #ededed; border: 1px solid #27272a; border-radius: 8px; padding: 24px;">
+  <h2 style="color: #f59e0b; margin-top: 0; text-transform: uppercase; letter-spacing: 0.5px;">${brandConfig.businessName}</h2>
+  <p style="font-size: 16px; margin: 0 0 12px 0;"><strong>Appointment Reminder (Tomorrow)</strong></p>
+  <p style="margin: 0 0 8px 0;">Booking reference: <strong style="font-family: monospace; color: #f59e0b; font-size: 18px;">${booking.referenceCode}</strong></p>
+  <p style="margin: 0 0 16px 0; color: #d4d4d8;">This is a friendly reminder that your vehicle detailing appointment is scheduled for tomorrow.</p>
+  <div style="background-color: #18181b; border: 1px solid #3f3f46; border-radius: 6px; padding: 18px; margin: 20px 0; text-align: center;">
+    <p style="margin: 0 0 12px 0; font-size: 14px; color: #d4d4d8; font-weight: 500;">Please monitor your booking progress on our site:</p>
+    <a href="${manageUrl}" style="background-color: #f59e0b; color: #000; font-weight: bold; text-decoration: none; padding: 12px 24px; border-radius: 6px; display: inline-block; font-size: 14px;">Monitor Your Booking &rarr;</a>
+    <p style="margin: 12px 0 0 0; font-size: 12px; color: #a1a1aa;">Open that page and enter your reference code (<strong>${booking.referenceCode}</strong>) and last name to view status.</p>
+  </div>
+  <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 16px;">
+    <tr><td style="padding: 6px 0; color: #a1a1aa;">Drop-off day:</td><td style="padding: 6px 0; font-weight: bold; text-align: right;">Tomorrow, ${booking.bookingDate} (${brandConfig.timezone})</td></tr>
+    <tr><td style="padding: 6px 0; color: #a1a1aa;">Opening hours:</td><td style="padding: 6px 0; text-align: right;">${brandConfig.operatingSchedule}</td></tr>
+    <tr><td style="padding: 6px 0; color: #a1a1aa;">Vehicle size:</td><td style="padding: 6px 0; text-align: right;">${booking.vehicleCategoryName}</td></tr>
+    <tr><td style="padding: 6px 0; color: #a1a1aa;">Estimated total:</td><td style="padding: 6px 0; font-weight: bold; color: #f59e0b; text-align: right;">${estimate}</td></tr>
+  </table>
+  <div style="margin-top: 14px; border-top: 1px solid #27272a; padding-top: 12px;">
+    <p style="margin: 0 0 6px 0; color: #a1a1aa; font-size: 12px;">Selected services:</p>
+    <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
+      ${booking.lines.map((l) => `<li>${l.name}${l.quantity > 1 ? ` × ${l.quantity}` : ""}${l.priceStatus === "FOR_QUOTE" ? " (for quote)" : ""}</li>`).join("")}
+    </ul>
+    ${forQuote ? `<p style="color: #fbbf24; font-size: 12px; margin: 8px 0 0 0;">Some services are for quote. The shop will confirm the final price.</p>` : ""}
+  </div>
+  <p style="margin: 16px 0 0 0; font-size: 13px; color: #fbbf24;">Please bring your vehicle to our shop during opening hours so our detailers can start on schedule.</p>
+  <div style="margin-top: 20px; border-top: 1px solid #27272a; padding-top: 12px; font-size: 12px; color: #71717a;">
+    <p style="margin: 0 0 4px 0;">Phone: ${brandConfig.supportPhone} | Messenger: <a href="${brandConfig.facebookMessengerUrl}" style="color: #f59e0b;">Zeus Detailing</a></p>
+    <p style="margin: 0;">${brandConfig.address}</p>
+  </div>
+</div>
+    `.trim(),
   };
 }
 
@@ -298,7 +373,7 @@ export async function sendSmtpMessage(
 export async function sendSmtpClassified(
   config: NotificationConfiguration,
   to: string,
-  message: { subject: string; text: string },
+  message: { subject: string; text: string; html?: string },
   messageId: string,
 ): Promise<"sent" | Exclude<EmailFailureReason, "config_missing">> {
   if (config.provider === "resend" && config.resendApiKey) {
@@ -314,6 +389,7 @@ export async function sendSmtpClassified(
           to: [to],
           subject: message.subject,
           text: message.text,
+          ...(message.html ? { html: message.html } : {}),
           headers: {
             "Message-ID": messageId,
           },
@@ -362,6 +438,7 @@ export async function sendSmtpClassified(
           to,
           subject: message.subject,
           text: message.text,
+          ...(message.html ? { html: message.html } : {}),
           messageId,
         })
         .then((info): "sent" | "refused" =>
