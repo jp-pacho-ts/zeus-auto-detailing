@@ -109,7 +109,11 @@ BEGIN
     'admin_user_update(text, text, text, text, text, boolean, integer)',
     'admin_user_reset_password(text, text, text)', 'auth_user_change_password(text, text, text)',
     -- P1-41b: Edit booking details
-    'admin_booking_update_details(text, text, text, text, text, text, text, text, integer)'
+    'admin_booking_update_details(text, text, text, text, text, text, text, text, integer)',
+    -- P1-41e: Service catalog management
+    'admin_user_update(text, text, text, text, text, boolean, bigint)',
+    'admin_service_list(text)', 'admin_service_update(text, text, text, text, text, jsonb)',
+    'admin_service_create(text, text, text, text, text, text, jsonb)', 'admin_service_toggle_active(text, text, boolean)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);

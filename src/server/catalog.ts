@@ -26,9 +26,8 @@ function publicDuration(offer: ReleaseOffer): PublicDuration {
 function publicOffer(service: ReleaseService, offer: ReleaseOffer): ServiceSizeOffer {
   // Durations are informational only (ADR-005); onlineBooking is the same rule pricing applies.
   const common = { id: offer.id, vehicleCategoryId: offer.vehicleCategoryId, duration: publicDuration(offer), onlineBooking: offerBooking(service, offer) };
-  // Comparison prices stay null until a reviewed release and contract enable their display.
   if (offer.state === "OFFERED" && offer.unitPriceCentavos !== null) {
-    return { ...common, state: "OFFERED", bookingMode: offer.bookingMode, unitPriceCentavos: offer.unitPriceCentavos, compareAtCentavos: null };
+    return { ...common, state: "OFFERED", bookingMode: offer.bookingMode, unitPriceCentavos: offer.unitPriceCentavos, compareAtCentavos: offer.compareAtCentavos ?? null };
   }
   if (offer.state === "NOT_OFFERED") return { ...common, state: "NOT_OFFERED", bookingMode: "QUOTE_REQUIRED", unitPriceCentavos: null, compareAtCentavos: null };
   return { ...common, state: "UNCONFIRMED", bookingMode: "QUOTE_REQUIRED", unitPriceCentavos: offer.unitPriceCentavos, compareAtCentavos: null };

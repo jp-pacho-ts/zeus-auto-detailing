@@ -81,8 +81,18 @@ export function offerLabel(service: ServicePackage, sizeId: string, quantity = 1
   const offer = offerFor(service, sizeId);
   if (!offer || offer.onlineBooking === "UNAVAILABLE")
     return { bookable: false, forQuote: false, text: "Not offered for this size" };
-  if (offer.onlineBooking === "PRICED" && offer.unitPriceCentavos !== null)
-    return { bookable: true, forQuote: false, text: money(offer.unitPriceCentavos * quantity) };
+  if (offer.onlineBooking === "PRICED" && offer.unitPriceCentavos !== null) {
+    const hasDiscount = typeof offer.compareAtCentavos === "number" && offer.compareAtCentavos > offer.unitPriceCentavos;
+    return {
+      bookable: true,
+      forQuote: false,
+      text: money(offer.unitPriceCentavos * quantity),
+      ...(hasDiscount ? {
+        compareAtText: money(offer.compareAtCentavos! * quantity),
+        discountPercent: Math.round(((offer.compareAtCentavos! - offer.unitPriceCentavos) / offer.compareAtCentavos!) * 100),
+      } : {}),
+    };
+  }
   const reference = offer.unitPriceCentavos ?? service.referenceUnitPriceCentavos;
   return {
     bookable: true,

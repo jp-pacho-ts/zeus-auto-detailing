@@ -14,12 +14,14 @@ import {
   KeyRound,
   LogOut,
   Settings,
+  Sparkles,
   Menu,
   X,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { BookingsTab } from "./bookings-tab";
 import { BayWorkspace } from "./bay-workspace";
+import { ServicesTab } from "./services-tab";
 import { DetailersTab } from "./detailers-tab";
 import { InventoryTab } from "./inventory-tab";
 import { ExpensesTab } from "./expenses-tab";
@@ -39,6 +41,7 @@ export type AdminTab =
   | "Bookings"
   | "Bay Calendar"
   | "Bay board"
+  | "Services"
   | "Team & Commissions"
   | "Supplies & Inventory"
   | "Expenses"
@@ -58,6 +61,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { name: "Bookings", icon: ClipboardList },
   { name: "Bay board", icon: Columns3 },
+  { name: "Services", icon: Sparkles },
   { name: "Team & Commissions", icon: Users },
   { name: "Supplies & Inventory", icon: Boxes },
   { name: "Expenses", icon: Wallet },
@@ -344,6 +348,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               <BookingsTab role={staff.role} initialView={initialTab === "Bay Calendar" ? "CALENDAR" : "BOOKINGS"} />
             )}
             {tab === "Bay board" && <BayWorkspace role={staff.role} />}
+            {tab === "Services" && <ServicesTab role={staff.role} />}
             {tab === "Team & Commissions" && <DetailersTab role={staff.role} />}
             {tab === "Supplies & Inventory" && <InventoryTab role={staff.role} />}
             {tab === "Expenses" && <ExpensesTab role={staff.role} />}
