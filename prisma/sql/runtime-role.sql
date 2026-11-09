@@ -107,7 +107,9 @@ BEGIN
     -- P1-41 User Management: the five writers/readers.
     'admin_user_list(text)', 'admin_user_create(text, text, text, text, text, text, text)',
     'admin_user_update(text, text, text, text, text, boolean, integer)',
-    'admin_user_reset_password(text, text, text)', 'auth_user_change_password(text, text, text)'
+    'admin_user_reset_password(text, text, text)', 'auth_user_change_password(text, text, text)',
+    -- P1-41b: Edit booking details
+    'admin_booking_update_details(text, text, text, text, text, text, text, text, integer)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);

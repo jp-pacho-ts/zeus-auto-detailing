@@ -36,19 +36,19 @@ test("UserCreateSchema: requires name, email, role; validates types strictly", (
     name: "Alex Doe",
     email: "alex@example.test",
     phone: "+63 917 555 1234",
-    role: "STAFF",
+    role: "SUPERADMIN",
   });
   ok(UserCreateSchema, {
     name: "Alex Doe",
     email: "alex@example.test",
-    role: "DETAILER",
-  });
+  }); // defaults to ADMIN
 
   // Rejections
   bad(UserCreateSchema, {});
   bad(UserCreateSchema, { name: "", email: "alex@example.test", role: "ADMIN" });
   bad(UserCreateSchema, { name: "Alex", email: "not-an-email", role: "ADMIN" });
-  bad(UserCreateSchema, { name: "Alex", email: "alex@example.test", role: "SUPERUSER" });
+  bad(UserCreateSchema, { name: "Alex", email: "alex@example.test", role: "DETAILER" }); // detailers have no accounts
+  bad(UserCreateSchema, { name: "Alex", email: "alex@example.test", role: "STAFF" });
   bad(UserCreateSchema, { name: "Alex", email: "alex@example.test", role: "ADMIN", extraField: 123 });
   bad(UserCreateSchema, { name: "Alex", email: "alex@example.test", role: "ADMIN", id: "not-a-uuid" });
 });
@@ -57,23 +57,23 @@ test("UserUpdateSchema: requires expectedRevision, name, role, isActive", () => 
   ok(UserUpdateSchema, {
     expectedRevision: 1,
     name: "Alex Doe",
-    role: "STAFF",
+    role: "ADMIN",
     isActive: true,
   });
   ok(UserUpdateSchema, {
     expectedRevision: 2,
     name: "Alex Doe",
     phone: "0917-123-4567",
-    role: "ADMIN",
+    role: "SUPERADMIN",
     isActive: false,
   });
 
   // Rejections
   bad(UserUpdateSchema, {});
-  bad(UserUpdateSchema, { expectedRevision: 0, name: "Alex", role: "STAFF", isActive: true });
-  bad(UserUpdateSchema, { expectedRevision: 1, name: "", role: "STAFF", isActive: true });
-  bad(UserUpdateSchema, { expectedRevision: 1, name: "Alex", role: "INVALID", isActive: true });
-  bad(UserUpdateSchema, { expectedRevision: 1, name: "Alex", role: "STAFF" }); // missing isActive
+  bad(UserUpdateSchema, { expectedRevision: 0, name: "Alex", role: "ADMIN", isActive: true });
+  bad(UserUpdateSchema, { expectedRevision: 1, name: "", role: "ADMIN", isActive: true });
+  bad(UserUpdateSchema, { expectedRevision: 1, name: "Alex", role: "DETAILER", isActive: true });
+  bad(UserUpdateSchema, { expectedRevision: 1, name: "Alex", role: "ADMIN" }); // missing isActive
 });
 
 test("UserChangePasswordSchema: validates presence of current and new passwords", () => {

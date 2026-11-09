@@ -9,3 +9,8 @@ export async function GET(request: NextRequest, context: RouteContext<{ id: stri
   const p = await context.params;
   return adminRoute(request, (actor) => admin.getBookingDetail(actor, p.id));
 }
+
+export async function PATCH(request: NextRequest, context: RouteContext<{ id: string }>) {
+  const p = await context.params;
+  return adminRoute(request, (actor, body) => admin.updateBookingDetails(actor, p.id, body));
+}

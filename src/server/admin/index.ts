@@ -5,6 +5,7 @@ import "server-only";
 export { getDayQueues, listBookings, searchBookings, getBookingDetail, listBays, getCaps } from "./reads";
 export {
   setBookingStatus, finishBooking, declineBooking, moveBooking, reorderQueueDay, addLine, removeLine, setLineStatus, setLinePrice, setBay, notifyCustomer,
+  updateBookingDetails,
 } from "./bookings-write";
 export { createBay, updateBay, setDefaultCap, setCapOverride, deleteCapOverride } from "./settings-write";
 export { getSchedule, setWeekHours, addClosedDate, removeClosedDate, getCalendar } from "./schedule";

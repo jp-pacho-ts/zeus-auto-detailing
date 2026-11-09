@@ -42,7 +42,7 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
   const [createName, setCreateName] = React.useState("");
   const [createEmail, setCreateEmail] = React.useState("");
   const [createPhone, setCreatePhone] = React.useState("");
-  const [createRole, setCreateRole] = React.useState<"ADMIN" | "STAFF" | "DETAILER">("STAFF");
+  const [createRole, setCreateRole] = React.useState<"SUPERADMIN" | "ADMIN">("ADMIN");
   const [createSaving, setCreateSaving] = React.useState(false);
   const [createError, setCreateError] = React.useState<string | null>(null);
   const [createFieldErrors, setCreateFieldErrors] = React.useState<Record<string, string[]>>({});
@@ -50,7 +50,7 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
   // Edit form state
   const [editName, setEditName] = React.useState("");
   const [editPhone, setEditPhone] = React.useState("");
-  const [editRole, setEditRole] = React.useState<"ADMIN" | "STAFF" | "DETAILER">("STAFF");
+  const [editRole, setEditRole] = React.useState<"SUPERADMIN" | "ADMIN">("ADMIN");
   const [editActive, setEditActive] = React.useState(true);
   const [editSaving, setEditSaving] = React.useState(false);
   const [editError, setEditError] = React.useState<string | null>(null);
@@ -93,7 +93,7 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
       setCreateName("");
       setCreateEmail("");
       setCreatePhone("");
-      setCreateRole("STAFF");
+      setCreateRole("ADMIN");
       resource.reload();
       setTempPasswordModal({
         name: res.user.name,
@@ -267,14 +267,12 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                         )}
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                            u.role === "ADMIN"
-                              ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
-                              : u.role === "STAFF"
-                              ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                              : "bg-zinc-500/10 text-zinc-300 border border-zinc-500/20"
+                            u.role === "SUPERADMIN"
+                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                              : "bg-purple-500/10 text-purple-400 border border-purple-500/20"
                           }`}
                         >
-                          {u.role}
+                          {u.role === "SUPERADMIN" ? "Super Admin" : "Admin"}
                         </span>
                         {u.isActive ? (
                           <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
@@ -398,15 +396,14 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground">Role</label>
+                <label className="block text-xs font-semibold text-muted-foreground">Account Role</label>
                 <select
                   value={createRole}
-                  onChange={(e) => setCreateRole(e.target.value as "ADMIN" | "STAFF" | "DETAILER")}
+                  onChange={(e) => setCreateRole(e.target.value as "SUPERADMIN" | "ADMIN")}
                   className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 >
-                  <option value="STAFF">STAFF (Shop Operations)</option>
-                  <option value="ADMIN">ADMIN (Full Shop Manager)</option>
-                  <option value="DETAILER">DETAILER (Bay Detailing Staff)</option>
+                  <option value="ADMIN">Admin (Full shop manager)</option>
+                  <option value="SUPERADMIN">Super Admin (System Owner)</option>
                 </select>
               </div>
 
@@ -505,16 +502,21 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground">Role</label>
-                <select
-                  value={editRole}
-                  onChange={(e) => setEditRole(e.target.value as "ADMIN" | "STAFF" | "DETAILER")}
-                  className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
-                >
-                  <option value="STAFF">STAFF (Shop Operations)</option>
-                  <option value="ADMIN">ADMIN (Full Shop Manager)</option>
-                  <option value="DETAILER">DETAILER (Bay Detailing Staff)</option>
-                </select>
+                <label className="block text-xs font-semibold text-muted-foreground">Account Role</label>
+                {editUser.role === "SUPERADMIN" ? (
+                  <div className="mt-1 flex items-center gap-2 rounded border border-border bg-[#141416] px-3 py-2 text-xs text-amber-400 font-bold">
+                    Super Admin (Primary Owner Account)
+                  </div>
+                ) : (
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as "SUPERADMIN" | "ADMIN")}
+                    className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  >
+                    <option value="ADMIN">Admin (Full shop manager)</option>
+                    <option value="SUPERADMIN">Super Admin (System Owner)</option>
+                  </select>
+                )}
               </div>
 
               <div className="flex items-center justify-between rounded bg-[#141416] p-3 border border-border">
@@ -528,18 +530,22 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                   <input
                     type="checkbox"
                     checked={editActive}
-                    disabled={currentUserId === editUser.id}
+                    disabled={currentUserId === editUser.id || editUser.role === "SUPERADMIN"}
                     onChange={(e) => setEditActive(e.target.checked)}
                     className="sr-only peer"
                   />
                   <div className="w-9 h-5 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
                 </label>
               </div>
-              {currentUserId === editUser.id && (
+              {editUser.role === "SUPERADMIN" ? (
+                <p className="text-[11px] text-amber-400/90">
+                  Super Admin accounts cannot be deactivated.
+                </p>
+              ) : currentUserId === editUser.id ? (
                 <p className="text-[11px] text-muted-foreground">
                   You cannot deactivate your own signed-in administrator account.
                 </p>
-              )}
+              ) : null}
 
               <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
                 <button
