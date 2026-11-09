@@ -35,8 +35,8 @@ type BoardBay = AdminDayBoard["containers"][number]["bays"][number];
 type Pending = { card: AdminBoardCard; bayId: string; text: string };
 
 // One grey outline pill for every service tag: no colour per kind.
-const pill = "inline-flex max-w-full shrink-0 items-center truncate rounded-full border border-border px-2 py-0.5 text-[11px] leading-tight text-muted-foreground";
-const lane = "min-w-0 space-y-3 rounded border border-border bg-[#0f0f11] p-3 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-13rem)] lg:overflow-y-auto";
+const pill = "inline-flex min-w-0 max-w-full items-center truncate rounded-full border border-border px-2 py-0.5 text-xs leading-tight text-muted-foreground";
+const lane = "min-w-0 flex-col gap-3 rounded border border-border bg-[#0f0f11] p-3 lg:min-h-[calc(100dvh-13rem)]";
 const finishTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" });
 
 export function BayBoard({ role }: { role: UserRole }) {
@@ -255,10 +255,10 @@ export function BayBoard({ role }: { role: UserRole }) {
         aria-label={b.referenceCode}
         onClick={(e) => openFromCardClick(e, b.id)}
       >
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <button
             id={"board-card-" + b.id}
-            className="min-h-[44px] break-all text-left font-mono font-bold text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
+            className="min-h-[44px] shrink-0 whitespace-nowrap text-left font-mono text-xs font-bold text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
             onClick={() => setSelected(b.id)}
           >
             {b.referenceCode}
@@ -306,10 +306,10 @@ export function BayBoard({ role }: { role: UserRole }) {
         // P1-30 (LE 2026-10-30): a click anywhere on the card opens the EXISTING booking details. Controls keep their own behaviour.
         onClick={(e) => openFromCardClick(e, card.id)}
       >
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <button
             id={"board-card-" + card.id}
-            className="min-h-[44px] break-all text-left font-mono font-bold text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
+            className="min-h-[44px] shrink-0 whitespace-nowrap text-left font-mono text-xs font-bold text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
             onClick={() => setSelected(card.id)}
           >
             {card.referenceCode}
@@ -350,7 +350,7 @@ export function BayBoard({ role }: { role: UserRole }) {
               else void move(card, null);
             }}
           >
-            <p className="text-[11px] leading-tight text-muted-foreground">
+            <p className="text-xs leading-tight text-muted-foreground">
               Move {card.referenceCode} to bay · Drag this card to a bay, or use Move car.
             </p>
             <div className="flex items-center gap-1.5">
@@ -453,11 +453,11 @@ export function BayBoard({ role }: { role: UserRole }) {
               </Button>
             ))}
           </div>
-          <div className="grid min-w-0 gap-3 lg:grid-cols-[16rem_minmax(0,1fr)_17rem] lg:items-start">
+          <div className="grid min-w-0 gap-3 lg:grid-cols-[18rem_minmax(0,1fr)_18rem] lg:items-stretch">
             <section
               aria-label="Waiting"
               data-board-zone="WAITING"
-              className={(zone === "WAITING" ? "block " : "hidden ") + "lg:block " + lane}
+              className={(zone === "WAITING" ? "flex " : "hidden ") + "lg:flex " + lane}
               onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
               onDrop={dropOnWaiting}
             >
@@ -466,8 +466,8 @@ export function BayBoard({ role }: { role: UserRole }) {
                 <span className="text-xs text-muted-foreground">All services</span>
               </div>
               {board.waiting.map(cardView)}
-              {!board.waiting.length && <p className={emptySlot}>No waiting cars</p>}
-              <p className="text-[11px] text-muted-foreground">Every waiting car is here. The tag is its main service.{role === "ADMIN" && " Drop a car here to return it to Waiting."}</p>
+              {!board.waiting.length && <p className={emptySlot + " flex-1"}>No waiting cars</p>}
+              <p className="mt-auto text-xs text-muted-foreground">Every waiting car is here. The tag is its main service.{role === "ADMIN" && " Drop a car here to return it to Waiting."}</p>
             </section>
 
             <div data-board-zone="BAYS" className={(zone === "BAYS" ? "grid " : "hidden ") + "min-w-0 gap-3 lg:grid"}>
@@ -489,13 +489,13 @@ export function BayBoard({ role }: { role: UserRole }) {
                         </div>
                       )}
                     </div>
-                    <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(13rem,1fr))]">
+                    <div data-board-row-scroll className="flex gap-3 overflow-x-auto pb-1">
                       {shown.map((b) => (
                         <section
                           key={b.id}
                           aria-label={b.name}
                           data-board-column={b.id}
-                          className="flex min-w-0 flex-col gap-2 rounded border border-border bg-[#121214] p-3"
+                          className="flex min-w-[15rem] flex-1 shrink-0 flex-col gap-2 rounded border border-border bg-[#121214] p-3"
                           onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
                           onDrop={(e) => dropOnBay(e, b.id)}
                         >
@@ -508,7 +508,7 @@ export function BayBoard({ role }: { role: UserRole }) {
                           {!b.cards.length && <p className={emptySlot + " flex-1"}>{role === "ADMIN" ? "Empty. Drop a car here." : "Empty."}</p>}
                         </section>
                       ))}
-                      {!shown.length && <p className={emptySlot + " col-span-full"}>{role === "ADMIN" ? "No bays yet. Use Add bay." : "No bays yet."}</p>}
+                      {!shown.length && <p className={emptySlot + " flex-1"}>{role === "ADMIN" ? "No bays yet. Use Add bay." : "No bays yet."}</p>}
                     </div>
                   </article>
                 );
@@ -519,7 +519,7 @@ export function BayBoard({ role }: { role: UserRole }) {
             <section
               aria-label="Done"
               data-board-zone="DONE"
-              className={(zone === "DONE" ? "block " : "hidden ") + "lg:block " + lane}
+              className={(zone === "DONE" ? "flex " : "hidden ") + "lg:flex " + lane}
               onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
               onDrop={dropOnDone}
             >
@@ -528,8 +528,8 @@ export function BayBoard({ role }: { role: UserRole }) {
                 <span className="text-xs text-muted-foreground">Finished</span>
               </div>
               {board.done.map(doneView)}
-              {!board.done.length && <p className={emptySlot}>No cars finished yet</p>}
-              <p className="text-[11px] text-muted-foreground">{role === "ADMIN" && "Drop a finished car here, or use Done (finish) on its card. "}Shows who worked and when it finished.</p>
+              {!board.done.length && <p className={emptySlot + " flex-1"}>No cars finished yet</p>}
+              <p className="mt-auto text-xs text-muted-foreground">{role === "ADMIN" && "Drop a finished car here, or use Done (finish) on its card. "}Shows who worked and when it finished.</p>
             </section>
           </div>
           <p className="text-xs text-muted-foreground">

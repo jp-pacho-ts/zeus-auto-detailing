@@ -12,9 +12,12 @@ const sources = fs
   .map((f) => [f, fs.readFileSync(path.join(dir, f), "utf8")] as const);
 const portal = fs.readFileSync(path.join(dir, "admin-portal.tsx"), "utf8");
 
-test("no admin component scrolls sideways, the bay board included", () => {
+test("no admin component scrolls sideways except a bay board container's row of bays", () => {
   assert.ok(sources.length >= 10);
-  for (const [file, src] of sources) assert.doesNotMatch(src, /overflow-x-(auto|scroll)|overflow-(auto|scroll)\b(?!-)/, file);
+  for (const [file, src] of sources) {
+    if (file.replace(/\\/g, "/") === "bookings/bay-board.tsx") continue;
+    assert.doesNotMatch(src, /overflow-x-(auto|scroll)|overflow-(auto|scroll)\b(?!-)/, file);
+  }
 });
 
 test("the shell is one screen tall; only the content region scrolls, below a header that stays", () => {
@@ -33,9 +36,9 @@ test("phones and tablets get a menu button that opens the same navigation as a d
   assert.match(portal, /Escape/, "Escape closes the drawer");
 });
 
-// P1-62 A2: the old rule (rows scroll sideways, columns never wrap) is replaced by its opposite: a container lays its bays out in a wrapping grid.
-test("the bay board lays a container's bays out in a wrapping grid, never a sideways-scrolling row", () => {
+test("the bay board lays a container's bays out in a sideways-scrolling single row and stretches Waiting and Done", () => {
   const board = fs.readFileSync(path.join(dir, "bookings", "bay-board.tsx"), "utf8");
-  assert.match(board, /grid-template-columns:repeat\(auto-fill,minmax\(13rem,1fr\)\)/);
-  assert.doesNotMatch(board, /md:overflow-x-auto|data-board-row-scroll|data-board-fade/);
+  assert.match(board, /data-board-row-scroll/);
+  assert.match(board, /overflow-x-auto/);
+  assert.match(board, /lg:items-stretch/);
 });
