@@ -8,6 +8,8 @@ import { withBookingDb } from "../bookings-admission";
 import { bookingDbNow } from "../bookings-locks";
 import nodemailer from "nodemailer";
 export interface NotificationConfiguration {
+  provider?: "resend" | "smtp";
+  resendApiKey?: string;
   host: string;
   port: number;
   secure: boolean;
@@ -26,6 +28,34 @@ interface Options {
 export function notificationConfiguration(
   env: Record<string, string | undefined> = process.env,
 ): NotificationConfiguration | null {
+  const resendApiKey = env.RESEND_API_KEY?.trim();
+  if (resendApiKey) {
+    const rawOrigin = env.APP_ORIGIN || "https://zeusautodetailingtacloban.com";
+    let origin = "https://zeusautodetailingtacloban.com";
+    try {
+      const url = new URL(rawOrigin);
+      if (["http:", "https:"].includes(url.protocol)) {
+        origin = url.origin;
+      }
+    } catch {
+      // fallback
+    }
+    const from = env.RESEND_FROM || env.SMTP_FROM || "Zeus Auto Detailing <onboarding@resend.dev>";
+    const shopEmail = env.RESEND_SHOP_NOTIFY_EMAIL || env.SMTP_SHOP_NOTIFY_EMAIL || "zeuscw.mgmt@gmail.com";
+    return {
+      provider: "resend",
+      resendApiKey,
+      host: "api.resend.com",
+      port: 443,
+      secure: true,
+      user: "resend",
+      password: resendApiKey,
+      from,
+      shopEmail,
+      origin,
+    };
+  }
+
   const {
     SMTP_HOST: host,
     SMTP_PORT: rawPort,
@@ -62,6 +92,7 @@ export function notificationConfiguration(
     return null;
   }
   return {
+    provider: "smtp",
     host,
     port: Number(rawPort),
     secure: rawPort === "465",
@@ -203,6 +234,38 @@ export async function sendSmtpClassified(
   message: { subject: string; text: string },
   messageId: string,
 ): Promise<"sent" | Exclude<EmailFailureReason, "config_missing">> {
+  if (config.provider === "resend" && config.resendApiKey) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: config.from,
+          to: [to],
+          subject: message.subject,
+          text: message.text,
+          headers: {
+            "Message-ID": messageId,
+          },
+        }),
+      });
+      if (res.ok) {
+        return "sent";
+      }
+      const data = (await res.json().catch(() => ({}))) as { message?: string; name?: string };
+      console.warn(JSON.stringify({ event: "resend.error", status: res.status, data }));
+      if (res.status === 401 || res.status === 403) return "auth_rejected";
+      if (res.status === 408 || res.status === 504) return "timeout";
+      if (res.status >= 500) return "unreachable";
+      return "refused";
+    } catch {
+      return "unreachable";
+    }
+  }
+
   const transport = nodemailer.createTransport({
     host: config.host,
     port: config.port,
