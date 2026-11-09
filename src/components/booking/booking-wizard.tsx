@@ -700,7 +700,19 @@ export function BookingWizard({
               <span className="block font-bold text-foreground">{s.name}</span>
               {detail && <span className="mt-1 block text-sm text-muted-foreground">{detail}</span>}
               <span className="mt-2 block text-sm font-semibold text-foreground">
-                {offer.text}
+                {"compareAtText" in offer && offer.compareAtText && (
+                  <span className="mr-2 text-xs text-muted-foreground line-through">
+                    {offer.compareAtText}
+                  </span>
+                )}
+                <span className={"compareAtText" in offer && offer.compareAtText ? "text-emerald-400 font-bold" : ""}>
+                  {offer.text}
+                </span>
+                {"discountPercent" in offer && offer.discountPercent && (
+                  <span className="ml-2 inline-flex items-center rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
+                    {offer.discountPercent}% OFF
+                  </span>
+                )}
                 {s.unit === "PANEL" ? " · per panel count" : ""}
               </span>
             </div>

@@ -584,3 +584,65 @@ export interface AdminUserResetPasswordResult {
 export interface AdminUserChangePasswordResult {
   ok: true;
 }
+
+export interface AdminServiceOffer {
+  id: string;
+  vehicleCategoryId: string;
+  sizeCode: string;
+  state: "OFFERED" | "NOT_OFFERED" | "UNCONFIRMED";
+  bookingMode: "FIXED_ONLINE" | "QUOTE_REQUIRED";
+  unitPriceCentavos: number | null;
+  compareAtCentavos: number | null;
+  durationMinutes: number | null;
+}
+
+export interface AdminServiceItem {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  category: import("./catalog-contracts").CatalogServiceKind;
+  type: "BASE" | "ADD_ON";
+  unit: import("./catalog-contracts").PriceUnit;
+  inclusions: string[];
+  productName: string | null;
+  hardness: string | null;
+  warrantyMonths: number | null;
+  referenceUnitPriceCentavos: number | null;
+  sortOrder: number;
+  isActive: boolean;
+  offers: AdminServiceOffer[];
+}
+
+export interface AdminServiceList {
+  services: AdminServiceItem[];
+  vehicleCategories: {
+    id: string;
+    code: string;
+    name: string;
+    sortOrder: number;
+  }[];
+}
+
+export interface AdminServiceOfferInput {
+  sizeCode: string;
+  state: "OFFERED" | "NOT_OFFERED" | "UNCONFIRMED";
+  unitPriceCentavos: number | null;
+  compareAtCentavos: number | null;
+}
+
+export interface AdminServiceUpdateInput {
+  name: string;
+  description?: string | null;
+  category: import("./catalog-contracts").CatalogServiceKind;
+  offers: AdminServiceOfferInput[];
+}
+
+export interface AdminServiceCreateInput {
+  name: string;
+  description?: string | null;
+  category: import("./catalog-contracts").CatalogServiceKind;
+  type: "BASE" | "ADD_ON";
+  unit: import("./catalog-contracts").PriceUnit;
+  offers: AdminServiceOfferInput[];
+}

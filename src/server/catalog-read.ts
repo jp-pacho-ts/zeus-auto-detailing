@@ -51,7 +51,7 @@ export async function loadCurrentRelease(tx: CatalogTx): Promise<ReleaseSnapshot
   });
   const offers = await tx.serviceSizeOffer.findMany({
     where: { releaseId: release.id },
-    select: { id: true, serviceId: true, vehicleCategoryId: true, sizeCode: true, state: true, bookingMode: true, unitPriceCentavos: true,
+    select: { id: true, serviceId: true, vehicleCategoryId: true, sizeCode: true, state: true, bookingMode: true, unitPriceCentavos: true, compareAtCentavos: true,
       workPlan: { select: { kind: true, durationMinutes: true, elapsedDays: true } } },
   });
   const sizes = await tx.vehicleCategory.findMany({
@@ -67,7 +67,7 @@ export async function loadCurrentRelease(tx: CatalogTx): Promise<ReleaseSnapshot
     if (!o.workPlan) throw new CatalogIntegrityError("offer without a work plan");
     const list = byService.get(o.serviceId) ?? [];
     list.push({ id: o.id, vehicleCategoryId: o.vehicleCategoryId, sizeCode: o.sizeCode, state: o.state, bookingMode: o.bookingMode,
-      unitPriceCentavos: o.unitPriceCentavos, durationKind: o.workPlan.kind, durationMinutes: o.workPlan.durationMinutes, elapsedDays: o.workPlan.elapsedDays });
+      unitPriceCentavos: o.unitPriceCentavos, compareAtCentavos: o.compareAtCentavos, durationKind: o.workPlan.kind, durationMinutes: o.workPlan.durationMinutes, elapsedDays: o.workPlan.elapsedDays });
     byService.set(o.serviceId, list);
   }
   const sizeOrder = new Map(sizes.map((s, i) => [s.id, i]));

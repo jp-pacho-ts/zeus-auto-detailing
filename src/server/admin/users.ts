@@ -116,7 +116,7 @@ export async function updateUser(
 
   return withStaffDb("STAFF_MUTATION", async (tx: StaffTx) => {
     try {
-      await tx.$executeRawUnsafe("SELECT admin_user_update($1, $2, $3, $4, $5, $6, $7)",
+      await tx.$executeRawUnsafe("SELECT admin_user_update($1, $2, $3, $4, $5, $6, $7::integer)",
         actor.staffId,
         targetId,
         input.name,

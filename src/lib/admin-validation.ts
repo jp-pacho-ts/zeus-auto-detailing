@@ -413,3 +413,38 @@ export const BookingDetailsUpdateSchema = z
     notes: z.string().trim().max(1000, "Keep notes to 1000 characters or fewer.").transform((s) => s || null).nullable().optional(),
   })
   .strict();
+
+// P1-41e: Service catalog management
+export const CatalogServiceKindSchema = z.enum(["WASH", "DETAILING", "GRAPHENE", "TINT", "PPF", "REPAINT"]);
+export const PriceUnitSchema = z.enum(["VEHICLE", "PANEL"]);
+export const ServiceTypeSchema = z.enum(["BASE", "ADD_ON"]);
+export const OfferStateSchema = z.enum(["OFFERED", "NOT_OFFERED", "UNCONFIRMED"]);
+
+export const ServiceOfferInputSchema = z
+  .object({
+    sizeCode: z.enum(["MOTOR", "S", "M", "L", "XL"]),
+    state: OfferStateSchema,
+    unitPriceCentavos: z.number().int().min(0).max(100_000_000).nullable(),
+    compareAtCentavos: z.number().int().min(0).max(100_000_000).nullable().optional().default(null),
+  })
+  .strict();
+
+export const ServiceUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1, "Enter a service name.").max(120),
+    description: z.string().trim().max(1000).nullable().optional().default(null),
+    category: CatalogServiceKindSchema,
+    offers: z.array(ServiceOfferInputSchema),
+  })
+  .strict();
+
+export const ServiceCreateSchema = z
+  .object({
+    name: z.string().trim().min(1, "Enter a service name.").max(120),
+    description: z.string().trim().max(1000).nullable().optional().default(null),
+    category: CatalogServiceKindSchema,
+    type: ServiceTypeSchema.default("BASE"),
+    unit: PriceUnitSchema.default("VEHICLE"),
+    offers: z.array(ServiceOfferInputSchema),
+  })
+  .strict();

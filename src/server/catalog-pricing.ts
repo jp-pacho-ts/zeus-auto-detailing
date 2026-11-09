@@ -17,8 +17,9 @@ export interface ReleaseOffer {
   id: string; vehicleCategoryId: string; sizeCode: string;
   state: "OFFERED" | "NOT_OFFERED" | "UNCONFIRMED"; bookingMode: "FIXED_ONLINE" | "QUOTE_REQUIRED";
   unitPriceCentavos: number | null;
+  compareAtCentavos?: number | null;
   durationKind: "UNKNOWN" | "TIMED" | "MULTI_DAY"; durationMinutes: number | null; elapsedDays: number | null;
-} // no comparison price: it can never reach a charged amount
+}
 export interface ReleaseService {
   id: string; slug: string; name: string; description: string | null; group: CatalogServiceKind;
   type: "BASE" | "ADD_ON"; unit: PriceUnit; inclusions: string[]; productName: string | null; hardness: string | null;
