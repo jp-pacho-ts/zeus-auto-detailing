@@ -94,14 +94,8 @@ export async function createUser(
         passwordHash,
       );
 
-      const [created] = await tx.$queryRaw<UserRow[]>`
-        SELECT s.id, s.name, s.phone, s.email, s.role::text, s."isActive",
-               (c."staffId" IS NOT NULL) AS "hasCredential",
-               c."passwordChangedAt", s.revision, s."createdAt"
-        FROM public.staff s
-        LEFT JOIN public.staff_credentials c ON c."staffId" = s.id
-        WHERE s.id = ${id}
-      `;
+      const rows = await tx.$queryRaw<UserRow[]>`SELECT * FROM admin_user_get(${actor.staffId}, ${id})`;
+      const created = rows[0];
       if (!created) throw new AdminServiceError("NOT_FOUND", "Created user not found");
       return { user: toUser(created), temporaryPassword };
     } catch (error) {
@@ -132,14 +126,8 @@ export async function updateUser(
         input.expectedRevision,
       );
 
-      const [updated] = await tx.$queryRaw<UserRow[]>`
-        SELECT s.id, s.name, s.phone, s.email, s.role::text, s."isActive",
-               (c."staffId" IS NOT NULL) AS "hasCredential",
-               c."passwordChangedAt", s.revision, s."createdAt"
-        FROM public.staff s
-        LEFT JOIN public.staff_credentials c ON c."staffId" = s.id
-        WHERE s.id = ${targetId}
-      `;
+      const rows = await tx.$queryRaw<UserRow[]>`SELECT * FROM admin_user_get(${actor.staffId}, ${targetId})`;
+      const updated = rows[0];
       if (!updated) throw new AdminServiceError("NOT_FOUND", "Updated user not found");
       return toUser(updated);
     } catch (error) {
@@ -159,9 +147,8 @@ export async function resetUserPassword(
 
   return withStaffDb("STAFF_MUTATION", async (tx: StaffTx) => {
     try {
-      const [target] = await tx.$queryRaw<{ name: string; email: string }[]>`
-        SELECT name, email FROM public.staff WHERE id = ${targetId} AND "removedAt" IS NULL
-      `;
+      const rows = await tx.$queryRaw<UserRow[]>`SELECT * FROM admin_user_get(${actor.staffId}, ${targetId})`;
+      const target = rows[0];
       if (!target) throw new AdminServiceError("NOT_FOUND", "User not found.");
 
       const temporaryPassword = generateTemporaryPassword({ email: target.email, name: target.name });

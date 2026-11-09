@@ -104,8 +104,8 @@ BEGIN
     'admin_expense_void(text, text, integer, text)', 'admin_expense_restore(text, text, integer)', 'admin_category_create(text, text, text)', 'admin_category_update(text, text, integer, text, boolean)',
     -- P1-42 Settings: the one ADMIN writer. The trigger functions are executable by nobody but their owner.
     'admin_shop_settings_set(text, integer, boolean, text, boolean)',
-    -- P1-41 User Management: the five writers/readers.
-    'admin_user_list(text)', 'admin_user_create(text, text, text, text, text, text, text)',
+    -- P1-41 User Management: the writers/readers.
+    'admin_user_list(text)', 'admin_user_get(text, text)', 'admin_user_create(text, text, text, text, text, text, text)',
     'admin_user_update(text, text, text, text, text, boolean, integer)',
     'admin_user_reset_password(text, text, text)', 'auth_user_change_password(text, text, text)',
     -- P1-41b: Edit booking details
@@ -179,7 +179,7 @@ BEGIN
 
     -- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
     -- owner URL, never by the app; the app reads no staff phone numbers.
-    ['staff', 'SELECT (id, email, name, role, "isActive")'],
+    ['staff', 'SELECT (id, email, name, role, "isActive", phone, revision, "createdAt", "removedAt")'],
     ['staff_credentials', 'SELECT'],
     ['staff_credentials', 'UPDATE ("passwordHash", "failedLoginCount", "lockedUntil", "updatedAt")'],
     ['staff_sessions', 'SELECT, INSERT'],
