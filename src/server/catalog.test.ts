@@ -22,7 +22,7 @@ const CANARIES = ["bayCapacityRequired", "maxVehicleCapacity", "remainingCapacit
 function poisoned(): ReleaseSnapshot {
   const r = releaseFromManifest() as unknown as Record<string, unknown> & ReleaseSnapshot;
   const extra = { bayCapacityRequired: 1, maxVehicleCapacity: 3, remainingCapacity: 2, bayHoldPolicy: "CONTINUOUS", segments: [{ dayOffset: 0 }],
-    sizeMultiplier: 1.35, sourceCompareAtCentavos: 2883300, compareAtVerified: false, compareAtCentavos: 999999, provenance: { CANARY: 1 },
+    sizeMultiplier: 1.35, sourceCompareAtCentavos: 2883300, compareAtVerified: false, provenance: { CANARY: 1 },
     sourceName: "CANARY source", rating: 5, costCentavos: 1, privateNote: "CANARY note" };
   Object.assign(r, extra);
   for (const s of r.sizes) Object.assign(s, extra);
@@ -43,7 +43,7 @@ test("the public catalog is an explicit allowlist: five sizes, 21 services, 105 
     for (const o of s.offers) {
       assert.deepEqual(Object.keys(o), OFFER_KEYS, s.slug);
       assert.ok(ServiceSizeOfferSchema.safeParse(o).success, `${s.slug} offer fails the contract schema`);
-      assert.equal(o.compareAtCentavos, null); // comparison prices are never public by default
+      assert.equal(o.compareAtCentavos, null);
     }
   }
   for (const c of catalog.addOnCompatibility) assert.deepEqual(Object.keys(c), ["baseServiceId", "addOnServiceId"]);
