@@ -891,7 +891,7 @@ export async function notifyCustomer(
 async function notifyOnce(
   actor: StaffActor,
   bookingId: string,
-  v: { expectedRevision: number },
+  v: { expectedRevision: number; type?: "turn" | "reminder" | "confirmation" },
   options: AdminOptions,
 ): Promise<AdminNotifyResult> {
   const outcome = await mutate(options, "notify", async (tx) => {
@@ -921,14 +921,19 @@ async function notifyOnce(
     return { booking: outcome.booking, noChange: true, notice: "NO_EMAIL" };
   let notice: "SENT" | "NOT_SENT" = "NOT_SENT";
   try {
-    notice = await (options.sender ?? unavailableSender).send(bookingId);
+    notice = await (options.sender ?? unavailableSender).send(bookingId, v.type ?? "turn");
   } catch {
     notice = "NOT_SENT";
   }
   if (notice === "SENT") {
     try {
+      const reason = v.type === "reminder"
+        ? "APPOINTMENT_REMINDER_MANUAL"
+        : v.type === "confirmation"
+          ? "BOOKING_CONFIRMATION_MANUAL"
+          : undefined;
       await mutate(options, "notify_record", (tx) =>
-        audit(tx, actor, { action: "CUSTOMER_NOTIFIED", bookingId }),
+        audit(tx, actor, { action: "CUSTOMER_NOTIFIED", bookingId, reason }),
       );
     } catch {
       // The email already went out: say so. Without the row the limit cannot see it (logged, no detail).

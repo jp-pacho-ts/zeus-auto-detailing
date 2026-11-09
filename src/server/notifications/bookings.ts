@@ -6,6 +6,7 @@ import type { DayBookingView } from "@/types/contracts";
 import { prisma } from "../db";
 import { withBookingDb } from "../bookings-admission";
 import { bookingDbNow } from "../bookings-locks";
+import { publicDayBooking } from "../bookings-view";
 import nodemailer from "nodemailer";
 export interface NotificationConfiguration {
   provider?: "resend" | "smtp";
@@ -168,6 +169,44 @@ export function customerConfirmationMessage(
     ].join("\n"),
   };
 }
+
+export function customerReminderMessage(
+  booking: DayBookingView,
+  origin: string,
+): { subject: string; text: string } {
+  const forQuote = booking.lines.some((line) => line.priceStatus === "FOR_QUOTE");
+  const services = booking.lines.map((line) =>
+    "- " + line.name + (line.quantity > 1 ? " × " + line.quantity : "") +
+    (line.priceStatus === "FOR_QUOTE" ? " (for quote)" : ""),
+  );
+  const estimate = booking.estimatedTotalCentavos === null
+    ? "To be quoted by the shop."
+    : brandConfig.currency + " " + (booking.estimatedTotalCentavos / 100).toFixed(2);
+  return {
+    subject: `Appointment Reminder: Detailing tomorrow at ${brandConfig.businessName} [${booking.referenceCode}]`,
+    text: [
+      brandConfig.businessName + " - Appointment Reminder",
+      "Hello! This is a friendly reminder that your vehicle detailing appointment is scheduled for tomorrow.",
+      "",
+      "Booking reference: " + booking.referenceCode,
+      "Drop-off day: Tomorrow, " + booking.bookingDate + " (" + brandConfig.timezone + ")",
+      "Opening hours: " + brandConfig.operatingSchedule,
+      "Vehicle size: " + booking.vehicleCategoryName,
+      "Selected services:",
+      ...services,
+      "Estimated total: " + estimate,
+      ...(forQuote ? ["Some services are for quote. The shop will confirm the final price."] : []),
+      "",
+      "Please bring your vehicle to our shop during opening hours so our detailers can start on schedule.",
+      "Shop address: " + brandConfig.address,
+      "",
+      "Manage your booking: " + origin + "/book/manage",
+      "Phone: " + brandConfig.supportPhone,
+      "Messenger: " + brandConfig.facebookMessengerUrl,
+    ].join("\n"),
+  };
+}
+
 // Simple send now: no outbox/retry, including after SMTP rejection/timeout. Never throws
 // into the committed booking response. sendSmtpMessage retains its existing 3 s bound.
 export async function sendCustomerConfirmation(
@@ -196,6 +235,34 @@ export async function sendCustomerConfirmation(
   logEmailNotSent("customer_confirmation", reason, booking.id);
 }
 
+export async function sendCustomerReminder(
+  booking: DayBookingView,
+  customerEmail: string | undefined,
+  notification?: NotificationConfiguration,
+): Promise<"sent" | Exclude<EmailFailureReason, "config_missing">> {
+  if (!customerEmail) return "refused";
+  try {
+    const config = notification ?? notificationConfiguration();
+    if (!config) {
+      logEmailNotSent("reminder", "config_missing", booking.id);
+      return "refused";
+    }
+    const result = await sendSmtpClassified(
+      config,
+      customerEmail,
+      customerReminderMessage(booking, config.origin),
+      `<booking-reminder.${booking.id}.${Date.now()}@${new URL(config.origin).hostname}>`,
+    );
+    if (result !== "sent") {
+      logEmailNotSent("reminder", result, booking.id);
+    }
+    return result;
+  } catch {
+    logEmailNotSent("reminder", "error", booking.id);
+    return "error";
+  }
+}
+
 // P1-31: why a customer email did not go out, as a class only. Never the provider's message text, the
 // address, the password or a name: those can hold secrets and customer details.
 export type EmailFailureReason = "config_missing" | "auth_rejected" | "timeout" | "unreachable" | "tls_failed" | "refused" | "error";
@@ -213,7 +280,7 @@ export function classifySmtpError(error: unknown): EmailFailureReason {
 // once per process: every booking would say the same thing.
 let configMissingLogged = false;
 export function resetEmailFailureLog(): void { configMissingLogged = false; }
-export function logEmailNotSent(kind: "turn_notice" | "customer_confirmation", reason: EmailFailureReason, bookingId: string): void {
+export function logEmailNotSent(kind: "turn_notice" | "customer_confirmation" | "reminder", reason: EmailFailureReason, bookingId: string): void {
   if (reason === "config_missing") {
     if (configMissingLogged) return;
     configMissingLogged = true;
@@ -448,6 +515,7 @@ export async function drainDepositNotices(options: Options = {}): Promise<void> 
 export async function sendTurnNotice(
   bookingId: string,
   options: Options = {},
+  noticeType: "turn" | "reminder" | "confirmation" = "turn",
 ): Promise<"SENT" | "NOT_SENT"> {
   try {
     const config = options.notification ?? notificationConfiguration();
@@ -461,22 +529,31 @@ export async function sendTurnNotice(
       (tx) =>
         tx.booking.findUnique({
           where: { id: bookingId },
-          select: { customerEmail: true },
+          include: { lineItems: true },
         }),
     );
     if (!booking?.customerEmail) return "NOT_SENT";
-    const message = {
-      subject: "Your turn is coming at " + brandConfig.businessName,
-      text:
-        "Your turn is coming at " +
-        brandConfig.businessName +
-        ". Please be ready to visit the shop. Contact the shop if you need help.",
-    };
+
+    let message: { subject: string; text: string };
+    if (noticeType === "reminder") {
+      message = customerReminderMessage(publicDayBooking(booking), config.origin);
+    } else if (noticeType === "confirmation") {
+      message = customerConfirmationMessage(publicDayBooking(booking), config.origin);
+    } else {
+      message = {
+        subject: "Your turn is coming at " + brandConfig.businessName,
+        text:
+          "Your turn is coming at " +
+          brandConfig.businessName +
+          ". Please be ready to visit the shop. Contact the shop if you need help.",
+      };
+    }
+
     const result = await sendSmtpClassified(
       config,
       booking.customerEmail,
       message,
-      `<booking-turn.${randomUUID()}@${new URL(config.origin).hostname}>`,
+      `<booking-${noticeType}.${randomUUID()}@${new URL(config.origin).hostname}>`,
     );
     if (result === "sent") return "SENT";
     logEmailNotSent("turn_notice", result, bookingId);
@@ -486,6 +563,82 @@ export async function sendTurnNotice(
     return "NOT_SENT";
   }
 }
+
+export async function drainBookingReminders(options: Options = {}): Promise<number> {
+  const config = options.notification ?? notificationConfiguration();
+  if (!config) return 0;
+  const db = options.db ?? prisma;
+
+  const now = new Date();
+  const tomorrowDay = new Intl.DateTimeFormat("en-CA", {
+    timeZone: brandConfig.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+
+  const tomorrowCarrier = new Date(tomorrowDay + "T00:00:00.000Z");
+
+  const bookings = await withBookingDb(db, "NOTIFICATION", (tx) =>
+    tx.booking.findMany({
+      where: {
+        bookingDate: tomorrowCarrier,
+        status: { in: ["PENDING", "CONFIRMED"] },
+        customerEmail: { not: null },
+      },
+      include: {
+        lineItems: true,
+      },
+    }),
+  );
+
+  let sentCount = 0;
+  for (const b of bookings) {
+    if (!b.customerEmail) continue;
+
+    const alreadySent = await withBookingDb(db, "NOTIFICATION", (tx) =>
+      tx.bookingAuditEvent.findFirst({
+        where: {
+          bookingId: b.id,
+          action: "CUSTOMER_NOTIFIED",
+          reason: "APPOINTMENT_REMINDER_1_DAY_BEFORE",
+        },
+        select: { id: true },
+      }),
+    );
+    if (alreadySent) continue;
+
+    const view = publicDayBooking(b);
+    const message = customerReminderMessage(view, config.origin);
+    const result = await sendSmtpClassified(
+      config,
+      b.customerEmail,
+      message,
+      `<booking-reminder-auto.${b.id}.${Date.now()}@${new URL(config.origin).hostname}>`,
+    );
+
+    if (result === "sent") {
+      sentCount++;
+      const actorStaff = await withBookingDb(db, "NOTIFICATION", (tx) =>
+        tx.staff.findFirst({ where: { role: "ADMIN", isActive: true }, select: { id: true } }),
+      );
+      if (actorStaff) {
+        await withBookingDb(db, "NOTIFICATION", (tx) =>
+          tx.bookingAuditEvent.create({
+            data: {
+              bookingId: b.id,
+              actorStaffId: actorStaff.id,
+              action: "CUSTOMER_NOTIFIED",
+              reason: "APPOINTMENT_REMINDER_1_DAY_BEFORE",
+            },
+          }),
+        );
+      }
+    }
+  }
+  return sentCount;
+}
+
 let timer: ReturnType<typeof setInterval> | undefined;
 export function startBookingNotifications(): void {
   if (timer) return;
@@ -501,6 +654,9 @@ export function startBookingNotifications(): void {
     );
     void drainDepositNotices().catch(() =>
       console.warn(JSON.stringify({ event: "booking.deposit_notice_deferred" })),
+    );
+    void drainBookingReminders().catch(() =>
+      console.warn(JSON.stringify({ event: "booking.reminder_notice_deferred" })),
     );
   }, 30000);
   timer.unref();

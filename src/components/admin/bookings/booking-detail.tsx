@@ -415,20 +415,52 @@ export function BookingDetail({
                 </Button>
               ))}
             {open && (
-              <Button
-                variant="outline"
-                disabled={disabled}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Send the fixed turn notice to this customer's email?",
+              <>
+                <Button
+                  variant="outline"
+                  disabled={disabled || !b.customerEmail}
+                  title={!b.customerEmail ? "No customer email on file" : undefined}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Send appointment reminder email to ${b.customerEmail}?`,
+                      )
                     )
-                  )
-                    void write("/notify", {});
-                }}
-              >
-                Notify customer
-              </Button>
+                      void write("/notify", { type: "reminder" });
+                  }}
+                >
+                  Send reminder
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={disabled || !b.customerEmail}
+                  title={!b.customerEmail ? "No customer email on file" : undefined}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Resend booking confirmation email to ${b.customerEmail}?`,
+                      )
+                    )
+                      void write("/notify", { type: "confirmation" });
+                  }}
+                >
+                  Resend confirmation
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Send the fixed turn notice to this customer's email?",
+                      )
+                    )
+                      void write("/notify", {});
+                  }}
+                >
+                  Notify customer
+                </Button>
+              </>
             )}
             <Button
               variant="outline"
