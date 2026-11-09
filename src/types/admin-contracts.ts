@@ -563,7 +563,7 @@ export interface AdminUser {
   name: string;
   phone: string;
   email: string;
-  role: "ADMIN" | "STAFF" | "DETAILER";
+  role: "SUPERADMIN" | "ADMIN";
   isActive: boolean;
   hasCredential: boolean;
   passwordChangedAt: ISOInstant | null;

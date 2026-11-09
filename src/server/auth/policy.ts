@@ -4,8 +4,9 @@ import type { BookingStatus, UserRole } from "@/types/contracts";
 // Server-only staff auth contracts (ARCHITECTURE T-019, T-029, T-037).
 // Never serialized; values are reviewed defaults, changed by PR.
 
-export type StaffRole = "ADMIN" | "MANAGER" | "DETAILER"; // mirrors the Prisma enum
+export type StaffRole = "SUPERADMIN" | "ADMIN" | "MANAGER" | "DETAILER"; // mirrors the Prisma enum
 export const STAFF_ROLE_TO_USER_ROLE: Readonly<Record<StaffRole, UserRole>> = {
+  SUPERADMIN: "ADMIN",
   ADMIN: "ADMIN",
   MANAGER: "ADMIN",
   DETAILER: "STAFF",

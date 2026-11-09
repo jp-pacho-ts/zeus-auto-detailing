@@ -75,6 +75,24 @@ export function BookingDetail({
     [notice, setNotice] = React.useState<string | null>(null),
     [conflict, setConflict] = React.useState<AdminBookingDetail | null>(null),
     [typed, setTyped] = React.useState("");
+  const [editingDetails, setEditingDetails] = React.useState(false);
+  const [editName, setEditName] = React.useState("");
+  const [editPhone, setEditPhone] = React.useState("");
+  const [editEmail, setEditEmail] = React.useState("");
+  const [editModel, setEditModel] = React.useState("");
+  const [editPlate, setEditPlate] = React.useState("");
+  const [editNotes, setEditNotes] = React.useState("");
+
+  const startEditDetails = () => {
+    if (!b) return;
+    setEditName(b.customerName);
+    setEditPhone(b.customerPhone);
+    setEditEmail(b.customerEmail ?? "");
+    setEditModel(b.vehicleModel);
+    setEditPlate(b.vehiclePlate ?? "");
+    setEditNotes(b.notes ?? "");
+    setEditingDetails(true);
+  };
   const mounted = React.useRef(true),
     writing = React.useRef(false);
   React.useEffect(() => {
@@ -87,8 +105,8 @@ export function BookingDetail({
     path: string,
     body: Record<string, unknown>,
     method = "POST",
-  ) {
-    if (!b || writing.current || conflict || uncertain) return;
+  ): Promise<boolean> {
+    if (!b || writing.current || conflict || uncertain) return false;
     writing.current = true;
     setBusy(true);
     setError(null);
@@ -101,12 +119,12 @@ export function BookingDetail({
         method,
         body: { ...body, expectedRevision: b.revision },
       });
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       if ("deleted" in result) {
         // The booking is gone: refresh the board or list behind this dialog, then close it.
         void onChanged();
         onClose();
-        return;
+        return true;
       }
       resource.setData(result.booking);
       void onChanged();
@@ -127,12 +145,13 @@ export function BookingDetail({
               : "Booking updated.",
         );
       }
+      return true;
     } catch (e) {
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       if (e instanceof AdminRequestError) {
         if (e.status === 401) {
           window.location.replace("/admin/login");
-          return;
+          return false;
         }
         if (e.detail.code === "VERSION_CONFLICT" && e.currentBooking)
           setConflict(e.currentBooking);
@@ -144,6 +163,7 @@ export function BookingDetail({
           "Couldn't reach the shop server. Refresh before retrying a change.",
         );
       }
+      return false;
     } finally {
       writing.current = false;
       if (mounted.current) setBusy(false);
@@ -212,37 +232,167 @@ export function BookingDetail({
       )}
       {b && (
         <div key={b.revision} className="mt-4 space-y-5" aria-busy={busy}>
-          <div className="grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <p className="font-mono font-bold text-primary">
-                {b.referenceCode}
-              </p>
-              <p>{b.customerName}</p>
-              <p>{b.customerPhone}</p>
-              <p>{b.customerEmail ?? "No email"}</p>
-            </div>
-            <div>
-              <p>
-                {b.bookingDate} · {statusLabel(b.status)} · Revision{" "}
-                {b.revision}
-              </p>
-              <p>
-                {b.vehicleModel} · {plateLabel(b.vehiclePlate)}{" "}
-                · {b.sizeCode ?? "Legacy"}
-              </p>
-              <p>{totalLabel(b.totals)}</p>
-              <p>
-                Original receipt:{" "}
-                {b.totals.receiptTotalCentavos === null
-                  ? "For quote"
-                  : money(b.totals.receiptTotalCentavos)}
-              </p>
-            </div>
-          </div>
-          {b.notes && (
-            <p className="whitespace-pre-wrap break-words text-sm">{b.notes}</p>
+          {editingDetails ? (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const ok = await write(
+                  "",
+                  {
+                    customerName: editName.trim(),
+                    customerPhone: editPhone.trim(),
+                    customerEmail: editEmail.trim() ? editEmail.trim() : null,
+                    vehicleModel: editModel.trim(),
+                    vehiclePlate: editPlate.trim() ? editPlate.trim() : null,
+                    notes: editNotes.trim() ? editNotes.trim() : null,
+                  },
+                  "PATCH",
+                );
+                if (ok) setEditingDetails(false);
+              }}
+              className="rounded border border-primary/30 bg-muted/20 p-4 space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-primary">Edit Booking Details</h3>
+                <span className="font-mono text-xs">{b.referenceCode}</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-xs">
+                  Customer name *
+                  <input
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    maxLength={100}
+                    className={fieldClass}
+                    disabled={disabled}
+                  />
+                </label>
+                <label className="text-xs">
+                  Customer phone *
+                  <input
+                    required
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    maxLength={30}
+                    className={fieldClass}
+                    disabled={disabled}
+                  />
+                </label>
+                <label className="text-xs">
+                  Customer email
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    maxLength={100}
+                    className={fieldClass}
+                    disabled={disabled}
+                  />
+                </label>
+                <label className="text-xs">
+                  Vehicle model *
+                  <input
+                    required
+                    value={editModel}
+                    onChange={(e) => setEditModel(e.target.value)}
+                    maxLength={100}
+                    className={fieldClass}
+                    disabled={disabled}
+                  />
+                </label>
+                <label className="text-xs sm:col-span-2">
+                  Vehicle plate
+                  <input
+                    value={editPlate}
+                    onChange={(e) => setEditPlate(e.target.value)}
+                    maxLength={20}
+                    className={fieldClass}
+                    disabled={disabled}
+                  />
+                </label>
+                <label className="text-xs sm:col-span-2">
+                  Notes
+                  <textarea
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    maxLength={500}
+                    rows={3}
+                    className={fieldClass}
+                    disabled={disabled}
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button type="submit" disabled={disabled}>
+                  Save changes
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => setEditingDetails(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono font-bold text-primary">
+                      {b.referenceCode}
+                    </p>
+                    {admin && (
+                      <button
+                        type="button"
+                        onClick={startEditDetails}
+                        disabled={disabled}
+                        className="text-xs text-primary underline hover:text-primary/80 disabled:opacity-50"
+                      >
+                        Edit details
+                      </button>
+                    )}
+                  </div>
+                  <p>{b.customerName}</p>
+                  <p>{b.customerPhone}</p>
+                  <p>{b.customerEmail ?? "No email"}</p>
+                </div>
+                <div>
+                  <p>
+                    {b.bookingDate} · {statusLabel(b.status)} · Revision{" "}
+                    {b.revision}
+                  </p>
+                  <p>
+                    {b.vehicleModel} · {plateLabel(b.vehiclePlate)}{" "}
+                    · {b.sizeCode ?? "Legacy"}
+                  </p>
+                  <p>{totalLabel(b.totals)}</p>
+                  <p>
+                    Original receipt:{" "}
+                    {b.totals.receiptTotalCentavos === null
+                      ? "For quote"
+                      : money(b.totals.receiptTotalCentavos)}
+                  </p>
+                </div>
+              </div>
+              {b.notes && (
+                <p className="whitespace-pre-wrap break-words text-sm">{b.notes}</p>
+              )}
+            </>
           )}
           <div className="flex flex-wrap gap-2">
+            {admin && !editingDetails && (
+              <Button
+                variant="outline"
+                disabled={disabled}
+                onClick={startEditDetails}
+              >
+                Edit details
+              </Button>
+            )}
             {statusActions(b, role)
               .filter((s) => s !== "PENDING")
               .map((status) => (

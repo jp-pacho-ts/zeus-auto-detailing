@@ -21,6 +21,7 @@ import {
   NotifySchema,
   RemoveLineSchema,
   ReorderSchema,
+  BookingDetailsUpdateSchema,
 } from "@/lib/admin-validation";
 import { STATUS_NO_OP_ROLES } from "@/server/auth/policy";
 import type { StaffTx } from "@/server/auth/db-admission";
@@ -979,5 +980,41 @@ export async function finishBooking(
     await releaseOccupancy(tx, actor, bookingId, v.expectedRevision);
     logWrite(actor, "booking_finished", bookingId, v.expectedRevision + 1);
     return result(tx, bookingId, false);
+  });
+}
+
+// P1-41b: update booking details (customer name, phone, email, vehicle model, plate, notes)
+export async function updateBookingDetails(
+  actor: StaffActor,
+  bookingId: string,
+  rawInput: unknown,
+  options: AdminOptions = {},
+): Promise<AdminWriteResult> {
+  authorize(actor, "STATUS_CONFIRMED"); // ADMIN only
+  const id = parse(AdminIdSchema, bookingId);
+  const input = parse(BookingDetailsUpdateSchema, rawInput);
+
+  return mutate(options, "edit_details", async (tx) => {
+    try {
+      await tx.$executeRawUnsafe(
+        "SELECT admin_booking_update_details($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        actor.staffId,
+        id,
+        input.customerName,
+        input.customerPhone,
+        input.customerEmail ?? "",
+        input.vehicleModel,
+        input.vehiclePlate ?? "",
+        input.notes ?? "",
+        input.expectedRevision,
+      );
+      return result(tx, id, false);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "";
+      if (msg.includes("ZT001")) throw new AdminServiceError("NOT_FOUND", "Booking not found.");
+      if (msg.includes("ZT002")) throw new AdminServiceError("VERSION_CONFLICT", "Someone else changed this booking. Refresh and try again.");
+      if (msg.includes("ZT006")) throw new AdminServiceError("VALIDATION_ERROR");
+      throw error;
+    }
   });
 }

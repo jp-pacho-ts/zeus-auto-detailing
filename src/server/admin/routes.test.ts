@@ -23,6 +23,7 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["GET", "/api/admin/bookings", () => import("@/app/api/admin/bookings/route"), {}],
   ["POST", "/api/admin/bookings/search", () => import("@/app/api/admin/bookings/search/route"), {}],
   ["GET", `/api/admin/bookings/${ID}`, () => import("@/app/api/admin/bookings/[id]/route"), { id: ID }],
+  ["PATCH", `/api/admin/bookings/${ID}`, () => import("@/app/api/admin/bookings/[id]/route"), { id: ID }],
   ["POST", `/api/admin/bookings/${ID}/status`, () => import("@/app/api/admin/bookings/[id]/status/route"), { id: ID }],
   ["POST", `/api/admin/bookings/${ID}/decline`, () => import("@/app/api/admin/bookings/[id]/decline/route"), { id: ID }],
   ["POST", `/api/admin/bookings/${ID}/move`, () => import("@/app/api/admin/bookings/[id]/move/route"), { id: ID }],

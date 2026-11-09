@@ -28,6 +28,7 @@ enum BookingStatus {
 }
 
 enum StaffRole {
+  SUPERADMIN
   ADMIN
   MANAGER
   DETAILER
