@@ -97,15 +97,20 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
 
   React.useEffect(() => {
-    const prev = document.body.style.zoom;
-    document.body.style.zoom = zoom;
+    if (typeof document !== "undefined") {
+      document.body.style.zoom = "";
+      document.documentElement.style.zoom = "";
+    }
     try {
       localStorage.setItem("zeus_admin_zoom", zoom);
     } catch {
       // ignore
     }
     return () => {
-      document.body.style.zoom = prev;
+      if (typeof document !== "undefined") {
+        document.body.style.zoom = "";
+        document.documentElement.style.zoom = "";
+      }
     };
   }, [zoom]);
   const menuButton = React.useRef<HTMLButtonElement>(null),
@@ -204,11 +209,19 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
       </main>
     );
   const staff = session.data;
+  const zoomScale = zoom === "75%" ? 0.75 : zoom === "85%" ? 0.85 : 1;
 
   // P1-20: one screen tall. The sidebar (a drawer below md) and the header stay in place and
   // only #admin-content scrolls; nothing in the dashboard scrolls sideways.
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row">
+    <div
+      style={{
+        zoom: zoomScale,
+        width: `${100 / zoomScale}vw`,
+        height: `${100 / zoomScale}dvh`,
+      }}
+      className="flex h-dvh flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row"
+    >
       <div inert={menuOpen} className="flex shrink-0 items-center justify-between border-b border-border bg-[#121214] px-4 py-2 md:hidden">
         <Link href="/" aria-label="Return to public shop site">
           <Logo small />
@@ -351,7 +364,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
           <p role="status" className="shrink-0 border-b border-primary bg-primary/10 px-4 py-2 text-xs font-bold text-foreground sm:px-8 lg:px-10">{MAINTENANCE_BANNER}</p>
         )}
         <header className="shrink-0 border-b border-border px-4 py-4 sm:px-8 lg:px-10 lg:py-6">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
+          <div className="mx-auto flex max-w-[1600px] flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-primary">
                 {new Intl.DateTimeFormat(brandConfig.locale, {
@@ -367,29 +380,34 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               </h1>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div
-                role="group"
-                aria-label="Display scale"
-                className="hidden sm:inline-flex items-center rounded border border-border bg-[#18181b] p-0.5 text-xs text-muted-foreground"
-              >
-                {(["75%", "85%", "100%"] as const).map((level) => (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => setZoom(level)}
-                    aria-pressed={zoom === level}
-                    className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                      zoom === level
-                        ? "bg-primary text-primary-foreground font-bold"
-                        : "hover:text-foreground"
-                    }`}
-                  >
-                    {level}
-                  </button>
-                ))}
+            <div className="flex items-center gap-3">
+              <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-[#141416] px-2.5 py-1 text-xs shadow-sm">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Scale:
+                </span>
+                <div
+                  role="group"
+                  aria-label="Display scale"
+                  className="inline-flex items-center rounded-md border border-border/60 bg-[#1c1c20] p-0.5"
+                >
+                  {(["75%", "85%", "100%"] as const).map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setZoom(level)}
+                      aria-pressed={zoom === level}
+                      className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+                        zoom === level
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-[#28282e] hover:text-foreground"
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 Shop Live
               </span>
@@ -409,7 +427,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
           tabIndex={-1}
           className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 focus:outline-none sm:px-8 lg:px-10 lg:py-8"
         >
-          <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-[1600px]">
             {/* Active Tab View */}
             {tab === "Bookings" && (
               <BookingsTab role={staff.role} initialView={initialTab === "Bay Calendar" ? "CALENDAR" : "BOOKINGS"} />
