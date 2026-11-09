@@ -35,7 +35,7 @@ type BoardBay = AdminDayBoard["containers"][number]["bays"][number];
 type Pending = { card: AdminBoardCard; bayId: string; text: string };
 
 // One grey outline pill for every service tag: no colour per kind.
-const pill = "inline-flex min-w-0 max-w-full items-center truncate rounded-full border border-border px-2 py-0.5 text-xs leading-tight text-muted-foreground";
+const pill = "inline-flex min-w-0 max-w-full items-center truncate rounded-md border border-border bg-[#121214] px-2 py-0.5 text-xs font-medium leading-tight text-muted-foreground";
 const lane = "min-w-0 flex-col gap-3 rounded border border-border bg-[#0f0f11] p-3 lg:sticky lg:top-0 lg:h-[calc(100dvh-13rem)] lg:overflow-y-auto";
 const finishTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" });
 
@@ -251,25 +251,30 @@ export function BayBoard({ role }: { role: UserRole }) {
     return (
       <article
         key={b.id + "-" + boardGen}
-        className="min-w-0 cursor-pointer space-y-1 rounded border border-border bg-[#18181b] p-2.5 leading-tight"
+        className="min-w-0 cursor-pointer space-y-2 rounded-lg border border-border bg-[#18181b] p-3 leading-tight transition-colors hover:border-border/80"
         aria-label={b.referenceCode}
         onClick={(e) => openFromCardClick(e, b.id)}
       >
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2">
           <button
             id={"board-card-" + b.id}
-            className="min-h-[44px] shrink-0 whitespace-nowrap text-left font-mono text-xs font-bold text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
+            className="-my-2 inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap text-left font-mono text-xs font-bold tracking-wide text-primary underline underline-offset-4 hover:text-primary/80 focus-visible:ring-2 focus-visible:ring-primary"
             onClick={() => setSelected(b.id)}
           >
             {b.referenceCode}
           </button>
           <span data-service-tag className={pill}>{waitingTag({ queueName: b.queueName, lines: b.lines })}</span>
         </div>
-        <p className="break-words text-sm font-semibold leading-tight">
-          {b.vehicleModel} · {plateLabel(b.vehiclePlate)}
-        </p>
+        <div className="flex items-baseline justify-between gap-2 pt-0.5">
+          <p className="min-w-0 break-words text-sm font-bold tracking-tight text-foreground">
+            {b.vehicleModel} <span className="font-mono text-xs font-semibold text-muted-foreground">· {plateLabel(b.vehiclePlate)}</span>
+          </p>
+          <span className="shrink-0 rounded border border-border/80 bg-[#121214] px-1.5 py-0.5 font-mono text-[11px] font-bold text-foreground">
+            {b.sizeCode}
+          </span>
+        </div>
         <p className="break-words text-xs text-muted-foreground" title={b.lines.map((l) => l.name).join(", ")}>
-          Finished {finishTime(b.finishedAt)} · {b.workers.map((w) => w.name).join(", ") || "No staff recorded"}
+          Finished {finishTime(b.finishedAt)} · <span className="font-medium text-foreground">{b.workers.map((w) => w.name).join(", ") || "No staff recorded"}</span>
         </p>
       </article>
     );
@@ -285,7 +290,7 @@ export function BayBoard({ role }: { role: UserRole }) {
       <article
         key={card.id + "-" + boardGen}
         className={
-          "min-w-0 space-y-1.5 rounded border border-border bg-[#18181b] p-2.5 leading-tight" +
+          "min-w-0 space-y-2.5 rounded-lg border border-border bg-[#18181b] p-3 leading-tight transition-colors hover:border-border/80" +
           (canDrag ? " cursor-grab active:cursor-grabbing" : " cursor-pointer") +
           (dragging === card.id ? " opacity-50 ring-2 ring-primary" : "")
         }
@@ -306,10 +311,10 @@ export function BayBoard({ role }: { role: UserRole }) {
         // P1-30 (LE 2026-10-30): a click anywhere on the card opens the EXISTING booking details. Controls keep their own behaviour.
         onClick={(e) => openFromCardClick(e, card.id)}
       >
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2">
           <button
             id={"board-card-" + card.id}
-            className="min-h-[44px] shrink-0 whitespace-nowrap text-left font-mono text-xs font-bold text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
+            className="-my-2 inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap text-left font-mono text-xs font-bold tracking-wide text-primary underline underline-offset-4 hover:text-primary/80 focus-visible:ring-2 focus-visible:ring-primary"
             onClick={() => setSelected(card.id)}
           >
             {card.referenceCode}
@@ -318,22 +323,34 @@ export function BayBoard({ role }: { role: UserRole }) {
             {waitingTag({ queueName: "queueName" in card ? (card as AdminWaitingCard).queueName : queueName(card.queueCode), lines: card.lines })}
           </span>
         </div>
-        <p className="break-words text-sm font-semibold leading-tight">
-          {card.vehicleModel} · {plateLabel(card.vehiclePlate)}
-        </p>
-        <p className="break-words text-xs leading-tight text-muted-foreground">
-          {card.sizeCode} · {statusLabel(card.status)}
-          {card.bookingDate < date ? " · Carry-over " + card.bookingDate : " · " + card.bookingDate}
-          {" · Staff: "}
-          <span className="text-foreground">{staffNames}</span>
-        </p>
-        {firstLine && (
-          <p className="truncate text-xs text-muted-foreground" title={allLinesTitle}>
-            <span className="text-foreground">{firstLine.name}</span> · {statusLabel(firstLine.workStatus)}
-            {extraLines > 0 ? ` · +${extraLines} more` : ""}
-            <span className="ml-1">· {card.progress.done}/{card.progress.total} done</span>
+        <div className="flex items-baseline justify-between gap-2 pt-0.5">
+          <p className="min-w-0 break-words text-sm font-bold tracking-tight text-foreground">
+            {card.vehicleModel} <span className="font-mono text-xs font-semibold text-muted-foreground">· {plateLabel(card.vehiclePlate)}</span>
           </p>
+          <span className="shrink-0 rounded border border-border/80 bg-[#121214] px-1.5 py-0.5 font-mono text-[11px] font-bold text-foreground">
+            {card.sizeCode}
+          </span>
+        </div>
+        {firstLine && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-[#121214] px-2.5 py-1.5 text-xs" title={allLinesTitle}>
+            <p className="min-w-0 truncate text-muted-foreground">
+              <span className="font-semibold text-foreground">{firstLine.name}</span> · {statusLabel(firstLine.workStatus)}
+              {extraLines > 0 ? ` · +${extraLines} more` : ""}
+            </p>
+            <span className="shrink-0 rounded bg-[#1e1e22] px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground">
+              · {card.progress.done}/{card.progress.total} done
+            </span>
+          </div>
         )}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs leading-tight text-muted-foreground">
+          <span>
+            {statusLabel(card.status)}
+            {card.bookingDate < date ? " · Carry-over " + card.bookingDate : " · " + card.bookingDate}
+          </span>
+          <span>
+            Staff: <span className="font-medium text-foreground">{staffNames}</span>
+          </span>
+        </div>
         {card.depositStatus && card.depositStatus !== "NONE" && (
           <p>
             <DepositBadge status={card.depositStatus} />
@@ -341,7 +358,7 @@ export function BayBoard({ role }: { role: UserRole }) {
         )}
         {role === "ADMIN" && (
           <form
-            className="space-y-1 pt-0.5"
+            className="border-t border-border/50 pt-2"
             onSubmit={(e) => {
               e.preventDefault();
               const value = String(new FormData(e.currentTarget).get("bay"));
@@ -350,14 +367,11 @@ export function BayBoard({ role }: { role: UserRole }) {
               else void move(card, null);
             }}
           >
-            <p className="text-xs leading-tight text-muted-foreground">
-              Move {card.referenceCode} to bay · Drag this card to a bay, or use Move car.
-            </p>
             <div className="flex items-center gap-1.5">
               <select
                 name="bay"
                 aria-label={"Move " + card.referenceCode + " to bay"}
-                className="min-h-[44px] min-w-0 flex-1 rounded border border-border bg-[#18181b] px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="min-h-[44px] min-w-0 flex-1 rounded-md border border-border bg-[#121214] px-2.5 py-1 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 defaultValue=""
                 disabled={busy || locked}
               >
@@ -376,7 +390,7 @@ export function BayBoard({ role }: { role: UserRole }) {
                 ))}
                 {canFinishCard(card) && <option value="DONE">Done (finish)</option>}
               </select>
-              <Button id={"board-move-" + card.id} size="sm" className="shrink-0 px-2.5" disabled={busy || locked} type="submit" variant="outline">
+              <Button id={"board-move-" + card.id} size="sm" className="shrink-0 px-3" disabled={busy || locked} type="submit" variant="outline">
                 Move car
               </Button>
             </div>
@@ -495,12 +509,12 @@ export function BayBoard({ role }: { role: UserRole }) {
                           key={b.id}
                           aria-label={b.name}
                           data-board-column={b.id}
-                          className="flex min-w-[15rem] flex-1 shrink-0 flex-col gap-2 rounded border border-border bg-[#121214] p-3"
+                          className="flex min-w-[17rem] max-w-[21rem] flex-1 shrink-0 flex-col gap-2.5 rounded-lg border border-border bg-[#121214] p-3"
                           onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
                           onDrop={(e) => dropOnBay(e, b.id)}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <h4 tabIndex={-1} className="min-w-0 break-words py-2 text-sm font-bold">{b.name}</h4>
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 tabIndex={-1} className="min-w-0 break-words text-sm font-bold">{b.name}</h4>
                             {role === "ADMIN" && b.isActive && <BayMenu bay={b} bays={board.bays} containers={containers} onDone={bayChanged} />}
                           </div>
                           {!b.isActive && <p className="text-xs text-muted-foreground">Inactive</p>}
