@@ -1,23 +1,10 @@
-BEGIN;
 -- P1-41b: Super Admin role and booking details editing
--- 1. Add SUPERADMIN to StaffRole if not present
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_type t
-    JOIN pg_enum e ON t.oid = e.enumtypid
-    WHERE t.typname = 'StaffRole' AND e.enumlabel = 'SUPERADMIN'
-  ) THEN
-    ALTER TYPE "StaffRole" ADD VALUE 'SUPERADMIN';
-  END IF;
-END $$;
-
--- 2. Designate primary operator account as SUPERADMIN
+-- 1. Designate primary operator account as SUPERADMIN
 UPDATE public.staff
 SET role = 'SUPERADMIN'
 WHERE email = 'zeuscw.mgmt@gmail.com' AND role = 'ADMIN';
 
--- 3. Update admin_user_list to ONLY return accounts with login access (SUPERADMIN and ADMIN)
+-- 2. Update admin_user_list to ONLY return accounts with login access (SUPERADMIN and ADMIN)
 CREATE OR REPLACE FUNCTION admin_user_list(p_actor text)
 RETURNS TABLE(id text, name text, phone text, email text, role text, "isActive" boolean, "hasCredential" boolean, "passwordChangedAt" timestamptz, revision integer, "createdAt" timestamp)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
@@ -33,7 +20,7 @@ BEGIN
     ORDER BY (CASE WHEN s.role = 'SUPERADMIN' THEN 0 ELSE 1 END), s.name ASC;
 END $$;
 
--- 4. Update admin_user_create to only accept SUPERADMIN or ADMIN
+-- 3. Update admin_user_create to only accept SUPERADMIN or ADMIN
 CREATE OR REPLACE FUNCTION admin_user_create(
   p_actor text, p_id text, p_name text, p_phone text, p_email text, p_role text, p_password_hash text
 ) RETURNS jsonb
@@ -78,7 +65,7 @@ BEGIN
   RETURN jsonb_build_object('id', p_id, 'revision', 1);
 END $$;
 
--- 5. Update admin_user_update with Super Admin protection
+-- 4. Update admin_user_update with Super Admin protection
 CREATE OR REPLACE FUNCTION admin_user_update(
   p_actor text, p_target_id text, p_name text, p_phone text, p_role text, p_is_active boolean, p_revision integer
 ) RETURNS jsonb
@@ -155,7 +142,7 @@ BEGIN
   RETURN jsonb_build_object('id', p_target_id, 'revision', s.revision + 1);
 END $$;
 
--- 6. Add admin_booking_update_details for editing booking details
+-- 5. Add admin_booking_update_details for editing booking details
 CREATE OR REPLACE FUNCTION admin_booking_update_details(
   p_actor text,
   p_booking_id text,
@@ -235,7 +222,7 @@ BEGIN
   RETURN jsonb_build_object('id', p_booking_id, 'revision', b.revision + 1);
 END $$;
 
--- 7. Grant execution on admin_booking_update_details to zeus_app
+-- 6. Grant execution on admin_booking_update_details to zeus_app
 REVOKE ALL ON FUNCTION admin_booking_update_details(text, text, text, text, text, text, text, text, integer) FROM PUBLIC;
 
 DO $$ BEGIN
@@ -243,5 +230,3 @@ DO $$ BEGIN
     GRANT EXECUTE ON FUNCTION admin_booking_update_details(text, text, text, text, text, text, text, text, integer) TO zeus_app;
   END IF;
 END $$;
-
-COMMIT;
