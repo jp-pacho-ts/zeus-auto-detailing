@@ -176,7 +176,10 @@ export const CapOverrideSchema = z
 export const CapOverrideDeleteSchema = z
   .object({ expectedRevision: Revision })
   .strict();
-export const NotifySchema = z.object({ expectedRevision: Revision }).strict();
+export const NotifySchema = z.object({
+  expectedRevision: Revision,
+  type: z.enum(["turn", "reminder", "confirmation"]).optional().default("turn"),
+}).strict();
 // P1-34: finish a car (every service done, booking completed); the revision stops a stale card.
 export const FinishBookingSchema = z.object({ expectedRevision: Revision }).strict();
 // Malformed numbers are not a 400: they get the fixed empty result (PM decision D8).
