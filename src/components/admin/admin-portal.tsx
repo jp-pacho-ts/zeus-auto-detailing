@@ -70,18 +70,6 @@ const NAV_ITEMS: NavItem[] = [
   { name: "Settings", icon: Settings },
 ];
 
-function getInitialZoom(): "75%" | "85%" | "100%" {
-  if (typeof window === "undefined") return "75%";
-  try {
-    const saved = localStorage.getItem("zeus_admin_zoom");
-    if (saved === "75%" || saved === "85%" || saved === "100%") return saved;
-    if (window.innerWidth < 640) return "100%";
-  } catch {
-    // localStorage may be unavailable
-  }
-  return "75%";
-}
-
 export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const [tab, setTab] = React.useState<AdminTab>(
     NAV_ITEMS.some((n) => n.name === initialTab) ? initialTab! : "Bookings",
@@ -92,7 +80,6 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const [signingOut, setSigningOut] = React.useState(false),
     [logoutError, setLogoutError] = React.useState<string | null>(null);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
-  const [zoom, setZoom] = React.useState<"75%" | "85%" | "100%">(getInitialZoom);
   const leaving = React.useRef(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
 
@@ -100,19 +87,21 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
     if (typeof document !== "undefined") {
       document.body.style.zoom = "";
       document.documentElement.style.zoom = "";
-    }
-    try {
-      localStorage.setItem("zeus_admin_zoom", zoom);
-    } catch {
-      // ignore
+      document.documentElement.style.fontSize = "75%";
+      try {
+        localStorage.removeItem("zeus_admin_zoom");
+      } catch {
+        // ignore
+      }
     }
     return () => {
       if (typeof document !== "undefined") {
         document.body.style.zoom = "";
         document.documentElement.style.zoom = "";
+        document.documentElement.style.fontSize = "";
       }
     };
-  }, [zoom]);
+  }, []);
   const menuButton = React.useRef<HTMLButtonElement>(null),
     firstNavItem = React.useRef<HTMLButtonElement>(null),
     navigation = React.useRef<HTMLElement>(null),
@@ -209,19 +198,11 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
       </main>
     );
   const staff = session.data;
-  const zoomScale = zoom === "75%" ? 0.75 : zoom === "85%" ? 0.85 : 1;
 
   // P1-20: one screen tall. The sidebar (a drawer below md) and the header stay in place and
   // only #admin-content scrolls; nothing in the dashboard scrolls sideways.
   return (
-    <div
-      style={{
-        zoom: zoomScale,
-        width: `${100 / zoomScale}vw`,
-        height: `${100 / zoomScale}dvh`,
-      }}
-      className="flex h-dvh flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row"
-    >
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row">
       <div inert={menuOpen} className="flex shrink-0 items-center justify-between border-b border-border bg-[#121214] px-4 py-2 md:hidden">
         <Link href="/" aria-label="Return to public shop site">
           <Logo small />
@@ -300,26 +281,6 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
 
         {/* Staff footer */}
         <div className="mt-auto border-t border-border pt-4 space-y-2.5">
-          <div className="flex items-center justify-between text-xs text-muted-foreground md:hidden">
-            <span>Scale</span>
-            <div className="inline-flex rounded border border-border bg-[#18181b] p-0.5">
-              {(["75%", "85%", "100%"] as const).map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => setZoom(level)}
-                  aria-pressed={zoom === level}
-                  className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                    zoom === level
-                      ? "bg-primary text-primary-foreground font-bold"
-                      : "hover:text-foreground"
-                  }`}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
-          </div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
@@ -380,34 +341,8 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               </h1>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-[#141416] px-2.5 py-1 text-xs shadow-sm">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Scale:
-                </span>
-                <div
-                  role="group"
-                  aria-label="Display scale"
-                  className="inline-flex items-center rounded-md border border-border/60 bg-[#1c1c20] p-0.5"
-                >
-                  {(["75%", "85%", "100%"] as const).map((level) => (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => setZoom(level)}
-                      aria-pressed={zoom === level}
-                      className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
-                        zoom === level
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "text-muted-foreground hover:bg-[#28282e] hover:text-foreground"
-                      }`}
-                    >
-                      {level}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <span className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 Shop Live
               </span>
