@@ -45,7 +45,7 @@ export async function loadCurrentRelease(tx: CatalogTx): Promise<ReleaseSnapshot
   const { release } = head;
   if (release.state !== "PUBLISHED") throw new CatalogIntegrityError("catalog head is not a published release");
   const versions = await tx.catalogServiceVersion.findMany({
-    where: { releaseId: release.id }, orderBy: [{ sortOrder: "asc" }, { slug: "asc" }],
+    where: { releaseId: release.id, service: { isActive: true } }, orderBy: [{ sortOrder: "asc" }, { slug: "asc" }],
     select: { serviceId: true, slug: true, name: true, description: true, group: true, type: true, unit: true, inclusions: true,
       productName: true, hardness: true, warrantyMonths: true, referenceUnitPriceCentavos: true, sortOrder: true, queueCode: true },
   });
@@ -71,6 +71,7 @@ export async function loadCurrentRelease(tx: CatalogTx): Promise<ReleaseSnapshot
     byService.set(o.serviceId, list);
   }
   const sizeOrder = new Map(sizes.map((s, i) => [s.id, i]));
+  const activeServiceIds = new Set(versions.map((v) => v.serviceId));
   return {
     releaseId: release.id, version: release.version, manifestSha256: release.manifestSha256,
     sizes: sizes.map((s, i) => ({ id: s.id, code: sizeCodes[i].data!, name: s.name, description: s.description, sortOrder: s.sortOrder })),
@@ -81,6 +82,8 @@ export async function loadCurrentRelease(tx: CatalogTx): Promise<ReleaseSnapshot
         inclusions: [...v.inclusions], productName: v.productName, hardness: v.hardness, warrantyMonths: v.warrantyMonths,
         referenceUnitPriceCentavos: v.referenceUnitPriceCentavos, sortOrder: v.sortOrder, queueCode: v.queueCode, offers: own };
     }),
-    compatibility: compatibility.map((c) => ({ baseServiceId: c.baseServiceId, addOnServiceId: c.addOnServiceId, sizeCodes: [...c.sizeCodes] })),
+    compatibility: compatibility
+      .filter((c) => activeServiceIds.has(c.baseServiceId) && activeServiceIds.has(c.addOnServiceId))
+      .map((c) => ({ baseServiceId: c.baseServiceId, addOnServiceId: c.addOnServiceId, sizeCodes: [...c.sizeCodes] })),
   };
 }

@@ -10,6 +10,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext<{ id:
   return adminRoute(request, (actor, body) => admin.updateAdminService(actor, id, body));
 }
 
+export async function POST(request: NextRequest, { params }: RouteContext<{ id: string }>) {
+  const { id } = await params;
+  return adminRoute(request, (actor) => admin.toggleAdminService(actor, id, true));
+}
+
 export async function DELETE(request: NextRequest, { params }: RouteContext<{ id: string }>) {
   const { id } = await params;
   return adminRoute(request, (actor) => admin.toggleAdminService(actor, id, false));

@@ -219,20 +219,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
       if (svc.isActive) {
         await adminRequest(`/api/admin/services/${svc.id}`, { method: "DELETE" });
       } else {
-        await adminRequest(`/api/admin/services/${svc.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({
-            name: svc.name,
-            description: svc.description,
-            category: svc.category,
-            offers: svc.offers.map((o) => ({
-              sizeCode: o.sizeCode,
-              state: "OFFERED",
-              unitPriceCentavos: o.unitPriceCentavos,
-              compareAtCentavos: o.compareAtCentavos,
-            })),
-          }),
-        });
+        await adminRequest(`/api/admin/services/${svc.id}`, { method: "POST" });
       }
       resource.reload();
     } catch (err) {
