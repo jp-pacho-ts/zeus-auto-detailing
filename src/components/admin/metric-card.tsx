@@ -8,12 +8,15 @@ export interface MetricCardProps {
 
 export function MetricCard({ title, value, meta }: MetricCardProps) {
   return (
-    <div className="rounded border border-border bg-[#18181b] p-5">
-      <span className="text-xs font-medium text-muted-foreground">{title}</span>
-      <b className="mt-2 block text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+    <div className="group relative overflow-hidden rounded-xl border border-border bg-[#161619] p-4 transition-colors hover:border-primary/40 hover:bg-[#18181c]">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground">{title}</span>
+        <span className="h-1.5 w-1.5 rounded-full bg-primary/60 transition-transform group-hover:scale-125" aria-hidden="true" />
+      </div>
+      <b className="mt-2 block font-mono text-2xl font-bold tracking-tight tabular-nums text-foreground sm:text-3xl">
         {value}
       </b>
-      <small className="mt-1 block text-xs font-semibold text-emerald-400">
+      <small className="mt-1.5 block text-xs font-medium text-emerald-400">
         {meta}
       </small>
     </div>

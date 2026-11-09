@@ -1,6 +1,57 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-card: rgb(var(--card));
+  --color-card-foreground: rgb(var(--card-foreground));
+  --color-popover: rgb(var(--popover));
+  --color-popover-foreground: rgb(var(--popover-foreground));
+  --color-primary: rgb(var(--primary));
+  --color-primary-foreground: rgb(var(--primary-foreground));
+  --color-primary-hover: rgb(var(--primary-hover));
+  --color-secondary: rgb(var(--secondary));
+  --color-secondary-foreground: rgb(var(--secondary-foreground));
+  --color-muted: rgb(var(--muted));
+  --color-muted-foreground: rgb(var(--muted-foreground));
+  --color-accent: rgb(var(--accent));
+  --color-accent-foreground: rgb(var(--accent-foreground));
+  --color-destructive: rgb(var(--destructive));
+  --color-destructive-foreground: rgb(var(--destructive-foreground));
+  --color-border: rgb(var(--border));
+  --color-input: rgb(var(--input));
+  --color-ring: rgb(var(--ring));
+  --color-success: rgb(var(--success));
+  --color-warning: rgb(var(--warning));
+  --color-obsidian: #09090b;
+  --color-surface: #121214;
+  --color-surface-card: #18181b;
+  --color-gold: #c08818;
+  --color-gold-hover: #d49b28;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --font-sans: var(--brand-font-sans);
+
+  --animate-zeus-shine: zeus-shine 2.6s ease-in-out 1.4s infinite;
+  --animate-zeus-ring: zeus-ring 1.9s ease-out 1.4s infinite;
+  --animate-zeus-fade: zeus-fade 400ms ease-out both;
+
+  @keyframes zeus-shine {
+    0% { transform: translateX(-120%); }
+    60%, 100% { transform: translateX(420%); }
+  }
+  @keyframes zeus-ring {
+    0% { transform: scale(1); opacity: 0.7; }
+    100% { transform: scale(1.7); opacity: 0; }
+  }
+  @keyframes zeus-fade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+}
 
 @layer base {
   /* Brand tokens derived from src/config/brand.ts via RootLayout style injection */
@@ -45,6 +96,18 @@
     @apply bg-background text-foreground antialiased;
     font-size: 1rem;
     line-height: 1.5;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  #admin-content,
+  [data-board-zone="WAITING"],
+  [data-board-zone="DONE"] {
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
   }
 
   :focus-visible {

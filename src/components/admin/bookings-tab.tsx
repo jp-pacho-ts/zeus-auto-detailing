@@ -59,7 +59,7 @@ function BookingRows({
   return (
     <div>
       <table className="block w-full text-left text-xs xl:table">
-        <thead className="hidden border-b border-border bg-[#18181b] text-muted-foreground xl:table-header-group">
+        <thead className="sticky top-0 z-10 hidden border-b border-border bg-[#18181b]/95 backdrop-blur-xs text-muted-foreground xl:table-header-group">
           <tr>
             {[
               "Reference",
@@ -83,12 +83,12 @@ function BookingRows({
           {filtered(bookings).map((b) => (
             <tr
               key={b.id}
-              className="grid grid-cols-1 gap-3 p-4 hover:bg-[#18181b]/50 sm:grid-cols-2 xl:table-row xl:p-0"
+              className="grid grid-cols-1 gap-3 p-4 transition-colors hover:bg-[#18181b]/50 sm:grid-cols-2 xl:table-row xl:p-0"
             >
               <td className={cell + " font-mono font-bold text-primary"}>
                 {cellLabel("Reference")}
                 <button
-                  className="min-h-[44px] break-all text-left underline focus-visible:ring-2 focus-visible:ring-primary"
+                  className="inline-flex min-h-[44px] items-center whitespace-nowrap text-left underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-primary"
                   onClick={() => onSelect(b.id)}
                 >
                   {b.referenceCode}
@@ -119,7 +119,7 @@ function BookingRows({
                   {statusLabel(b.status)}
                 </span>
               </td>
-              <td className={cell + " tabular-nums"}>
+              <td className={cell + " font-mono tabular-nums"}>
                 {cellLabel("Amount")}
                 {totalLabel(b.totals)}
               </td>
@@ -602,7 +602,7 @@ export function BookingsTab({
   };
   const viewSwitch = (
     <div className="min-w-0 space-y-2">
-    <div role="group" aria-label="Bookings view" className="flex flex-wrap gap-2">
+    <div role="group" aria-label="Bookings view" className="inline-flex flex-wrap gap-1.5 rounded-lg border border-border bg-[#121214] p-1">
       <Button
         id="bookings-view-BOOKINGS"
         variant={view === "BOOKINGS" ? "default" : "outline"}

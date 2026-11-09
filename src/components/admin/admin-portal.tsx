@@ -2,10 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { LazyMotion, domAnimation, m, useReducedMotion } from "motion/react";
 import {
   ArrowRight,
   BarChart3,
   Boxes,
+  ChevronDown,
+  ExternalLink,
   Wallet,
   ClipboardList,
   Columns3,
@@ -82,6 +85,27 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
   const leaving = React.useRef(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [profileOpen, setProfileOpen] = React.useState(false);
+  const profileRef = React.useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
+
+  React.useEffect(() => {
+    if (!profileOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setProfileOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [profileOpen]);
 
   React.useEffect(() => {
     if (typeof document !== "undefined") {
@@ -198,10 +222,17 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
       </main>
     );
   const staff = session.data;
+  const initials = staff.displayName
+    .split(/\s+/)
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("");
+  const isMaintenance = Boolean(shopSettings.data?.maintenance);
 
   // P1-20: one screen tall. The sidebar (a drawer below md) and the header stay in place and
   // only #admin-content scrolls; nothing in the dashboard scrolls sideways.
   return (
+    <LazyMotion features={domAnimation}>
     <div className="flex h-dvh flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row">
       <div inert={menuOpen} className="flex shrink-0 items-center justify-between border-b border-border bg-[#121214] px-4 py-2 md:hidden">
         <Link href="/" aria-label="Return to public shop site">
@@ -266,12 +297,24 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   if (menuOpen) closeMenu();
                 }}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex w-full min-h-[44px] items-center gap-3 rounded px-3 py-2 text-xs font-medium transition-colors ${
+                className={`relative flex w-full min-h-[44px] items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
                   isActive
                     ? "bg-primary/10 text-primary font-bold"
                     : "text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
                 }`}
               >
+                {isActive && (
+                  <m.span
+                    layoutId="admin-sidebar-active"
+                    aria-hidden="true"
+                    transition={
+                      reduceMotion
+                        ? { duration: 0 }
+                        : { type: "spring", stiffness: 420, damping: 34 }
+                    }
+                    className="pointer-events-none absolute inset-y-1.5 left-0 w-1 rounded-r-full bg-primary"
+                  />
+                )}
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{name}</span>
               </button>
@@ -284,11 +327,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-                {staff.displayName
-                  .split(/\s+/)
-                  .map((n) => n[0])
-                  .slice(0, 2)
-                  .join("")}
+                {initials}
               </div>
               <div>
                 <p className="text-xs font-bold text-foreground">
@@ -321,13 +360,13 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
 
       {/* Main Admin Content */}
       <div inert={menuOpen} className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {shopSettings.data?.maintenance && (
+        {isMaintenance && (
           <p role="status" className="shrink-0 border-b border-primary bg-primary/10 px-4 py-2 text-xs font-bold text-foreground sm:px-8 lg:px-10">{MAINTENANCE_BANNER}</p>
         )}
-        <header className="shrink-0 border-b border-border px-4 py-4 sm:px-8 lg:px-10 lg:py-6">
-          <div className="mx-auto flex max-w-[1600px] flex-wrap items-end justify-between gap-4">
+        <header className="shrink-0 border-b border-border bg-[#09090b]/95 px-4 py-3.5 backdrop-blur-xs sm:px-8 lg:px-10 lg:py-4">
+          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
                 {new Intl.DateTimeFormat(brandConfig.locale, {
                   timeZone: brandConfig.timezone,
                   weekday: "long",
@@ -336,23 +375,129 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   year: "numeric",
                 }).format(new Date())}
               </p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {tab}
               </h1>
             </div>
 
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                Shop Live
+            <div className="flex items-center gap-3">
+              <span
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${
+                  isMaintenance
+                    ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                    : "border-emerald-500/25 bg-emerald-500/10 text-emerald-400"
+                }`}
+              >
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    isMaintenance
+                      ? "bg-amber-400"
+                      : "bg-emerald-400 animate-pulse"
+                  }`}
+                />
+                {isMaintenance ? "Maintenance Mode" : "Shop Live"}
               </span>
+
               <Link
                 href="/book"
-                className="inline-flex min-h-[40px] items-center gap-2 rounded bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary-hover"
+                className="group relative inline-flex min-h-[40px] items-center gap-2 overflow-hidden rounded-md bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-xs transition-all hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary"
               >
-                New Booking{" "}
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>New Booking</span>
+                <ArrowRight
+                  className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
               </Link>
+
+              <div ref={profileRef} className="relative">
+                <button
+                  type="button"
+                  aria-label="Account menu"
+                  aria-haspopup="menu"
+                  aria-expanded={profileOpen}
+                  onClick={() => setProfileOpen((v) => !v)}
+                  className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-border bg-[#121214] px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-[#18181b] focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-[11px] font-bold text-primary">
+                    {initials}
+                  </span>
+                  <span className="hidden max-w-[8rem] truncate sm:inline">
+                    {staff.displayName}
+                  </span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${
+                      profileOpen ? "rotate-180" : ""
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {profileOpen && (
+                  <div
+                    role="menu"
+                    aria-label="Account actions"
+                    className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-border bg-[#121214] p-1.5 shadow-xl"
+                  >
+                    <div className="border-b border-border/70 px-3 py-2">
+                      <p className="truncate text-xs font-bold text-foreground">
+                        {staff.displayName}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {staff.role === "ADMIN" ? "Shop Manager" : "Shop Staff"}
+                      </p>
+                    </div>
+                    <div className="py-1">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setProfileOpen(false);
+                          setTab("Settings");
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground"
+                      >
+                        <Settings className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                        <span>Shop settings</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setProfileOpen(false);
+                          setChangePasswordOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground"
+                      >
+                        <KeyRound className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                        <span>Change password</span>
+                      </button>
+                      <Link
+                        href="/"
+                        role="menuitem"
+                        onClick={() => setProfileOpen(false)}
+                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                        <span>Public shop site</span>
+                      </Link>
+                    </div>
+                    <div className="border-t border-border/70 pt-1">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setProfileOpen(false);
+                          void signOut();
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-rose-400 transition-colors hover:bg-rose-500/10"
+                      >
+                        <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Sign out</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -384,5 +529,6 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         onClose={() => setChangePasswordOpen(false)}
       />
     </div>
+    </LazyMotion>
   );
 }
