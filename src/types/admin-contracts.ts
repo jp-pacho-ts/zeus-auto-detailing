@@ -554,3 +554,33 @@ export interface AdminShopSettings {
   updatedAt: ISOInstant;
   email: { configured: boolean; failedLast7Days: number; waitingLast7Days: number };
 }
+
+// -----------------------------------------------------------------------------
+// P1-41 User Management & Password Change
+// -----------------------------------------------------------------------------
+export interface AdminUser {
+  id: UUID;
+  name: string;
+  phone: string;
+  email: string;
+  role: "ADMIN" | "STAFF" | "DETAILER";
+  isActive: boolean;
+  hasCredential: boolean;
+  passwordChangedAt: ISOInstant | null;
+  revision: number;
+  createdAt: ISOInstant;
+}
+
+export interface AdminUserCreateResult {
+  user: AdminUser;
+  temporaryPassword: string;
+}
+
+export interface AdminUserResetPasswordResult {
+  ok: true;
+  temporaryPassword: string;
+}
+
+export interface AdminUserChangePasswordResult {
+  ok: true;
+}

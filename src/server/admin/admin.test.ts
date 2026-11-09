@@ -48,6 +48,8 @@ test("the role matrix follows ADR-005 §15, A3 and PM decisions D4/D5", () => {
     // P1-38: supplies hold costs; ADMIN only.
     "SETTINGS_READ", "SETTINGS_WRITE", // P1-42: ADMIN only.
     "SUPPLY_READ", "SUPPLY_WRITE",
+    // P1-41: User management; ADMIN only.
+    "USER_READ", "USER_WRITE",
     // P1-39: expenses are money; ADMIN only.
     "EXPENSE_READ", "EXPENSE_WRITE",
     // P1-40: sales figures are money; ADMIN only.

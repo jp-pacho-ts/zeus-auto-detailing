@@ -10,6 +10,8 @@ import {
   ClipboardList,
   Columns3,
   Users,
+  UserCog,
+  KeyRound,
   LogOut,
   Settings,
   Menu,
@@ -23,6 +25,8 @@ import { InventoryTab } from "./inventory-tab";
 import { ExpensesTab } from "./expenses-tab";
 import { AnalyticsTab } from "./analytics-tab";
 import { SettingsTab } from "./settings-tab";
+import { UsersTab } from "./users-tab";
+import { ChangePasswordDialog } from "./change-password-dialog";
 import { MAINTENANCE_BANNER } from "./settings/settings-model";
 import { useKeptResource } from "./team/use-kept-resource";
 import type { StaffSessionView } from "@/server/auth/types";
@@ -39,6 +43,7 @@ export type AdminTab =
   | "Supplies & Inventory"
   | "Expenses"
   | "Sales Analytics"
+  | "Users"
   | "Settings";
 
 interface NavItem {
@@ -47,6 +52,7 @@ interface NavItem {
     className?: string;
     "aria-hidden"?: boolean | "true" | "false";
   }>;
+  adminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -56,6 +62,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: "Supplies & Inventory", icon: Boxes },
   { name: "Expenses", icon: Wallet },
   { name: "Sales Analytics", icon: BarChart3 },
+  { name: "Users", icon: UserCog, adminOnly: true },
   { name: "Settings", icon: Settings },
 ];
 
@@ -68,6 +75,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const shopSettings = useKeptResource<AdminShopSettings>(session.data?.role === "ADMIN" ? "/api/admin/settings" : null);
   const [signingOut, setSigningOut] = React.useState(false),
     [logoutError, setLogoutError] = React.useState<string | null>(null);
+  const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
   const leaving = React.useRef(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuButton = React.useRef<HTMLButtonElement>(null),
@@ -222,7 +230,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         </p>
 
         <nav aria-label="Shop Operations Navigation" className="space-y-1">
-          {NAV_ITEMS.map(({ name, icon: Icon }, i) => {
+          {NAV_ITEMS.filter((item) => !item.adminOnly || staff.role === "ADMIN").map(({ name, icon: Icon }, i) => {
             const isActive = tab === name;
             return (
               <button
@@ -248,7 +256,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         </nav>
 
         {/* Staff footer */}
-        <div className="mt-auto border-t border-border pt-4">
+        <div className="mt-auto border-t border-border pt-4 space-y-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
@@ -275,6 +283,15 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               <LogOut className="h-4 w-4" aria-hidden="true" /> Sign out
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setChangePasswordOpen(true)}
+            className="flex w-full items-center gap-2 rounded border border-border bg-[#141416] px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-[#1e1e22] transition-colors"
+          >
+            <KeyRound className="h-3.5 w-3.5 text-primary" />
+            <span>Change password</span>
+          </button>
         </div>
       </aside>
 
@@ -331,10 +348,16 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             {tab === "Supplies & Inventory" && <InventoryTab role={staff.role} />}
             {tab === "Expenses" && <ExpensesTab role={staff.role} />}
             {tab === "Sales Analytics" && <AnalyticsTab role={staff.role} />}
+            {tab === "Users" && <UsersTab role={staff.role} currentUserId={staff.staffId} />}
             {tab === "Settings" && <SettingsTab role={staff.role} onChanged={shopSettings.reload} />}
           </div>
         </main>
       </div>
+
+      <ChangePasswordDialog
+        isOpen={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+      />
     </div>
   );
 }

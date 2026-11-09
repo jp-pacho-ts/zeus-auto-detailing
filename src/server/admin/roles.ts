@@ -38,6 +38,8 @@ export const ADMIN_OPS = [
   "ANALYTICS_READ", // P1-40: sales figures are money; ADMIN only
   "SETTINGS_READ", // P1-42: the switches and the email state; ADMIN only
   "SETTINGS_WRITE", // P1-42: a switch that can take the site down; ADMIN only, the database function repeats the check
+  "USER_READ", // P1-41: User management; ADMIN only
+  "USER_WRITE", // P1-41: User management; ADMIN only
 ] as const;
 export type AdminOp = (typeof ADMIN_OPS)[number];
 

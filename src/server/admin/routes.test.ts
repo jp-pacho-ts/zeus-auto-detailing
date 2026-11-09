@@ -87,6 +87,12 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["POST", `/api/admin/supplies/${ID}/remove`, () => import("@/app/api/admin/supplies/[id]/remove/route"), { id: ID }],
   ["POST", `/api/admin/supplies/${ID}/restore`, () => import("@/app/api/admin/supplies/[id]/restore/route"), { id: ID }],
   ["GET", `/api/admin/supplies/${ID}/movements`, () => import("@/app/api/admin/supplies/[id]/movements/route"), { id: ID }],
+  // P1-41 Users and Change Password.
+  ["GET", "/api/admin/users", () => import("@/app/api/admin/users/route"), {}],
+  ["POST", "/api/admin/users", () => import("@/app/api/admin/users/route"), {}],
+  ["PATCH", `/api/admin/users/${ID}`, () => import("@/app/api/admin/users/[id]/route"), { id: ID }],
+  ["POST", `/api/admin/users/${ID}/reset-password`, () => import("@/app/api/admin/users/[id]/reset-password/route"), { id: ID }],
+  ["POST", "/api/admin/auth/change-password", () => import("@/app/api/admin/auth/change-password/route"), {}],
 ];
 const call = async (method: string, target: string, load: () => Promise<Record<string, unknown>>, params: Record<string, string>, headers: Record<string, string>, body?: string) => {
   const handler = (await load())[method] as Handler;

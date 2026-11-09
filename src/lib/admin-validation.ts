@@ -368,3 +368,35 @@ export const ShopSettingsUpdateSchema = z
   })
   .strict()
   .transform((v) => ({ ...v, maintenanceMessage: v.maintenanceMessage === "" ? null : v.maintenanceMessage }));
+
+// P1-41: User management and password change
+export const UserRoleSchema = z.enum(["ADMIN", "STAFF", "DETAILER"]);
+
+export const UserCreateSchema = z
+  .object({
+    id: Id.optional(),
+    name: PersonName,
+    phone: PersonPhone.optional().default(""),
+    email: PersonEmail,
+    role: UserRoleSchema,
+  })
+  .strict();
+
+export const UserUpdateSchema = z
+  .object({
+    expectedRevision: Revision,
+    name: PersonName,
+    phone: PersonPhone.optional().default(""),
+    role: UserRoleSchema,
+    isActive: z.boolean(),
+  })
+  .strict();
+
+export const UserResetPasswordSchema = z.object({}).strict().optional().default({});
+
+export const UserChangePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Enter your current password."),
+    newPassword: z.string().min(1, "Enter a new password."),
+  })
+  .strict();
