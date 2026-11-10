@@ -3,7 +3,6 @@
 import * as React from "react";
 import {
   Calendar,
-  Filter,
   BarChart3,
   Table2,
   TrendingUp,
@@ -12,7 +11,6 @@ import {
   AlertCircle,
   Boxes,
   CheckCircle2,
-  X,
 } from "lucide-react";
 import { formatPesos } from "@/lib/commission";
 import type { AdminAnalytics } from "@/types/admin-contracts";
@@ -34,15 +32,12 @@ import {
   periodLabel,
   periodRange,
   REVENUE_DEFINITION,
-  SERVICE_GROUPS,
-  serviceMatchesGroup,
   STATUS_ROWS,
   stockNote,
   stockValueText,
   unpricedNotice,
   type AnalyticsPeriod,
   type AnalyticsPreset,
-  type ServiceGroupCode,
 } from "./analytics/analytics-model";
 import { ColumnChart } from "./analytics/column-chart";
 import { RankedBars } from "./analytics/ranked-bars";
@@ -124,16 +119,8 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
   const figures = useKeptResource<AdminAnalytics>(isAdmin ? analyticsUrl(period) : null);
   const [asTable, setAsTable] = React.useState(false);
   const [viewMode, setViewMode] = React.useState<ViewMode>("ALL");
-  const [selectedCategory, setSelectedCategory] = React.useState<ServiceGroupCode>("ALL");
 
   const data = figures.data;
-
-  // Filter top services by selected category
-  const filteredServices = React.useMemo(() => {
-    if (!data) return [];
-    if (selectedCategory === "ALL") return data.topServices;
-    return data.topServices.filter((s) => serviceMatchesGroup(s.name, selectedCategory));
-  }, [data, selectedCategory]);
 
   if (!isAdmin) {
     return (
@@ -259,44 +246,6 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
             </label>
           </div>
         )}
-
-        {/* Service Category Filter Chips */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          <div className="mr-1.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">
-            <Filter className="h-3.5 w-3.5 text-primary" />
-            <span>Category:</span>
-          </div>
-          {SERVICE_GROUPS.map((group) => {
-            const isSelected = selectedCategory === group.code;
-            return (
-              <button
-                key={group.code}
-                type="button"
-                onClick={() => setSelectedCategory(group.code)}
-                aria-pressed={isSelected}
-                className={`flex min-h-[36px] items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-all ${FOCUS} ${
-                  isSelected
-                    ? "border-primary/60 bg-primary/15 text-primary shadow-xs"
-                    : "border-border/60 bg-[#141416] text-muted-foreground hover:border-border hover:text-foreground"
-                }`}
-              >
-                {group.label}
-                {isSelected && group.code !== "ALL" && (
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedCategory("ALL");
-                    }}
-                    className="ml-0.5 rounded-full p-0.5 hover:bg-primary/20"
-                    title="Clear filter"
-                  >
-                    <X className="h-3 w-3" />
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {problem && (
@@ -590,23 +539,10 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <Section
                 title="By service category"
-                note="One job can count in two groups (e.g., wash with tint). Click to filter top services."
-                action={
-                  selectedCategory !== "ALL" ? (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCategory("ALL")}
-                      className="text-xs font-medium text-primary hover:underline"
-                    >
-                      Show all
-                    </button>
-                  ) : undefined
-                }
+                note="One job can count in two groups (e.g., wash with tint)."
               >
                 <RankedBars
                   empty="Nothing in this period."
-                  selectedKey={selectedCategory === "ALL" ? null : selectedCategory}
-                  onSelectKey={(code) => setSelectedCategory(code as ServiceGroupCode)}
                   rows={data.byGroup.map((g) => ({
                     key: g.code,
                     label: groupLabel(g.code),
@@ -627,20 +563,12 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
               </Section>
 
               <Section
-                title={
-                  selectedCategory === "ALL"
-                    ? "Top services"
-                    : `Top services (${groupLabel(selectedCategory)})`
-                }
+                title="Top services"
                 note="Ranked by gross revenue, times booked in brackets."
               >
                 <RankedBars
-                  empty={
-                    selectedCategory === "ALL"
-                      ? "Nothing in this period."
-                      : `No ${groupLabel(selectedCategory)} services in this period.`
-                  }
-                  rows={filteredServices.map((t) => ({
+                  empty="Nothing in this period."
+                  rows={data.topServices.map((t) => ({
                     key: t.serviceId,
                     label: `${t.name} (${t.count})`,
                     centavos: t.revenueCentavos,
