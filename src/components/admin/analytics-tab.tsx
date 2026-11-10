@@ -510,7 +510,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
               )}
 
               {hasBars && asTable && (
-                <div className="mt-4 overflow-x-auto">
+                <div className="mt-4">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border/80 text-left text-xs font-semibold text-muted-foreground">

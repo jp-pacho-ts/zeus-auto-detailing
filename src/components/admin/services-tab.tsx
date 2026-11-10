@@ -12,6 +12,7 @@ import {
   X,
   Power,
   Percent,
+  Ban,
 } from "lucide-react";
 import type {
   AdminServiceList,
@@ -82,6 +83,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     pricePhp: string;
     comparePhp: string;
   }>>({});
+  const [editCommissionMode, setEditCommissionMode] = React.useState<"DEFAULT" | "NONE" | "CUSTOM">("DEFAULT");
   const [editCommissionRate, setEditCommissionRate] = React.useState<string>("");
   const [editSaving, setEditSaving] = React.useState(false);
   const [editError, setEditError] = React.useState<string | null>(null);
@@ -91,6 +93,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
   const [createName, setCreateName] = React.useState("");
   const [createDesc, setCreateDesc] = React.useState("");
   const [createCategory, setCreateCategory] = React.useState<CatalogServiceKind>("WASH");
+  const [createCommissionMode, setCreateCommissionMode] = React.useState<"DEFAULT" | "NONE" | "CUSTOM">("DEFAULT");
   const [createCommissionRate, setCreateCommissionRate] = React.useState<string>("");
   const [createType, setCreateType] = React.useState<"BASE" | "ADD_ON">("BASE");
   const [createUnit, setCreateUnit] = React.useState<PriceUnit>("VEHICLE");
@@ -110,11 +113,18 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setEditName(svc.name);
     setEditDesc(svc.description ?? "");
     setEditCategory(svc.category);
-    setEditCommissionRate(
-      svc.commissionRateBp !== null && svc.commissionRateBp !== undefined
-        ? (svc.commissionRateBp / 100).toString()
-        : "",
-    );
+    const commBp = svc.commissionRateBp;
+    let mode: "DEFAULT" | "NONE" | "CUSTOM" = "DEFAULT";
+    let customVal = "";
+    if (commBp === 0) {
+      mode = "NONE";
+      customVal = "0";
+    } else if (commBp !== null && commBp !== undefined) {
+      mode = "CUSTOM";
+      customVal = (commBp / 100).toString();
+    }
+    setEditCommissionMode(mode);
+    setEditCommissionRate(customVal);
     const offerMap: Record<string, { offered: boolean; pricePhp: string; comparePhp: string }> = {};
     for (const size of SIZE_ORDER) {
       const off = svc.offers.find((o) => o.sizeCode === size);
@@ -132,6 +142,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setCreateName("");
     setCreateDesc("");
     setCreateCategory("WASH");
+    setCreateCommissionMode("DEFAULT");
     setCreateCommissionRate("");
     setCreateType("BASE");
     setCreateUnit("VEHICLE");
@@ -161,6 +172,15 @@ export function ServicesTab({ role }: ServicesTabProps) {
       };
     });
 
+    let commissionPayload: string | null = null;
+    if (editCommissionMode === "NONE") {
+      commissionPayload = "0";
+    } else if (editCommissionMode === "CUSTOM") {
+      commissionPayload = editCommissionRate.trim() || null;
+    } else {
+      commissionPayload = null;
+    }
+
     try {
       await adminRequest(`/api/admin/services/${editService.id}`, {
         method: "PATCH",
@@ -168,7 +188,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           name: editName,
           description: editDesc || null,
           category: editCategory,
-          commissionRatePercent: editCommissionRate.trim() || null,
+          commissionRatePercent: commissionPayload,
           offers: offersPayload,
         }),
       });
@@ -201,6 +221,15 @@ export function ServicesTab({ role }: ServicesTabProps) {
       };
     });
 
+    let commissionPayload: string | null = null;
+    if (createCommissionMode === "NONE") {
+      commissionPayload = "0";
+    } else if (createCommissionMode === "CUSTOM") {
+      commissionPayload = createCommissionRate.trim() || null;
+    } else {
+      commissionPayload = null;
+    }
+
     try {
       await adminRequest("/api/admin/services", {
         method: "POST",
@@ -210,7 +239,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           category: createCategory,
           type: createType,
           unit: createUnit,
-          commissionRatePercent: createCommissionRate.trim() || null,
+          commissionRatePercent: commissionPayload,
           offers: offersPayload,
         }),
       });
@@ -405,12 +434,27 @@ export function ServicesTab({ role }: ServicesTabProps) {
                       <span className={`h-1.5 w-1.5 rounded-full ${svc.isActive ? "bg-emerald-400" : "bg-zinc-400"}`} />
                       {svc.isActive ? "Active Online" : "Hidden"}
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
-                      <Percent className="h-2.5 w-2.5" />
-                      {svc.commissionRateBp !== null && svc.commissionRateBp !== undefined
-                        ? `${svc.commissionRateBp / 100}% Comm.`
-                        : "Default Comm."}
-                    </span>
+                    {svc.commissionRateBp === 0 ? (
+                      <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-800/80 px-2 py-0.5 text-[10px] font-bold text-zinc-400">
+                        <Ban className="h-2.5 w-2.5 text-zinc-400" />
+                        No Comm.
+                      </span>
+                    ) : svc.commissionRateBp !== null && svc.commissionRateBp !== undefined ? (
+                      <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                        <Percent className="h-2.5 w-2.5" />
+                        {svc.commissionRateBp / 100}% Comm.
+                      </span>
+                    ) : svc.category === "WASH" ? (
+                      <span className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900/60 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+                        <Ban className="h-2.5 w-2.5 text-zinc-600" />
+                        No Comm. (Default)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[10px] font-bold text-amber-300/80">
+                        <Percent className="h-2.5 w-2.5" />
+                        Default Comm.
+                      </span>
+                    )}
                   </div>
                   {svc.description && (
                     <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2 max-w-3xl">
@@ -575,17 +619,47 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground">Commission Rate (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    value={editCommissionRate}
-                    onChange={(e) => setEditCommissionRate(e.target.value)}
-                    placeholder="e.g. 10 (blank for default)"
+                  <label className="block text-xs font-semibold text-muted-foreground">Commission Setting</label>
+                  <select
+                    value={editCommissionMode}
+                    onChange={(e) => {
+                      const m = e.target.value as "DEFAULT" | "NONE" | "CUSTOM";
+                      setEditCommissionMode(m);
+                      if (m === "NONE") setEditCommissionRate("0");
+                      else if (m === "DEFAULT") setEditCommissionRate("");
+                      else if (editCommissionRate === "0" || !editCommissionRate) setEditCommissionRate("10");
+                    }}
                     className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
-                  />
+                  >
+                    <option value="DEFAULT">Default (Shop / Staff Rate)</option>
+                    <option value="NONE">No Commission (0%)</option>
+                    <option value="CUSTOM">Custom Percentage (%)</option>
+                  </select>
+                  {editCommissionMode === "CUSTOM" && (
+                    <div className="relative mt-1.5">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max="100"
+                        value={editCommissionRate}
+                        onChange={(e) => setEditCommissionRate(e.target.value)}
+                        placeholder="e.g. 10"
+                        className="w-full rounded border border-border bg-[#18181b] px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                    </div>
+                  )}
+                  {editCommissionMode === "NONE" && (
+                    <p className="mt-1 text-[11px] text-zinc-400">
+                      No commission earned for this service (0%).
+                    </p>
+                  )}
+                  {editCommissionMode === "DEFAULT" && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Follows technician profile rate or shop default.
+                    </p>
+                  )}
                 </div>
               </div>
               {editCategory === "GRAPHENE" && (
@@ -792,17 +866,47 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground">Commission Rate (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    value={createCommissionRate}
-                    onChange={(e) => setCreateCommissionRate(e.target.value)}
-                    placeholder="e.g. 10 (blank for default)"
+                  <label className="block text-xs font-semibold text-muted-foreground">Commission Setting</label>
+                  <select
+                    value={createCommissionMode}
+                    onChange={(e) => {
+                      const m = e.target.value as "DEFAULT" | "NONE" | "CUSTOM";
+                      setCreateCommissionMode(m);
+                      if (m === "NONE") setCreateCommissionRate("0");
+                      else if (m === "DEFAULT") setCreateCommissionRate("");
+                      else if (createCommissionRate === "0" || !createCommissionRate) setCreateCommissionRate("10");
+                    }}
                     className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
-                  />
+                  >
+                    <option value="DEFAULT">Default (Shop / Staff Rate)</option>
+                    <option value="NONE">No Commission (0%)</option>
+                    <option value="CUSTOM">Custom Percentage (%)</option>
+                  </select>
+                  {createCommissionMode === "CUSTOM" && (
+                    <div className="relative mt-1.5">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max="100"
+                        value={createCommissionRate}
+                        onChange={(e) => setCreateCommissionRate(e.target.value)}
+                        placeholder="e.g. 10"
+                        className="w-full rounded border border-border bg-[#18181b] px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                    </div>
+                  )}
+                  {createCommissionMode === "NONE" && (
+                    <p className="mt-1 text-[11px] text-zinc-400">
+                      No commission earned for this service (0%).
+                    </p>
+                  )}
+                  {createCommissionMode === "DEFAULT" && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Follows technician profile rate or shop default.
+                    </p>
+                  )}
                 </div>
               </div>
               {createCategory === "GRAPHENE" && (
