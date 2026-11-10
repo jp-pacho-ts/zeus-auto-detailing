@@ -26,3 +26,4 @@ export { getAnalytics } from "./analytics";
 export { getShopSettings, setShopSettings } from "./shop-settings";
 export { listUsers, createUser, updateUser, resetUserPassword } from "./users";
 export { listAdminServices, updateAdminService, createAdminService, toggleAdminService } from "./services";
+export { getWeeklyPayroll, savePayrollAdjustment, setPayrollPaid } from "./payroll";

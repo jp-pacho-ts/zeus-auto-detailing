@@ -246,8 +246,32 @@ model Staff {
   adminAuditActed       AdminAuditEvent[]
   userAuditActed        UserAuditEvent[]          @relation("UserAuditActor")
   userAuditTargeted     UserAuditEvent[]          @relation("UserAuditTarget")
+  payrollAdjustments    StaffPayrollAdjustment[]  @relation("StaffPayrollAdjustment")
+  payrollPaid           StaffPayrollAdjustment[]  @relation("StaffPayrollPaidBy")
 
   @@map("staff")
+}
+
+model StaffPayrollAdjustment {
+  id                  String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  staffId             String
+  staff               Staff     @relation("StaffPayrollAdjustment", fields: [staffId], references: [id], onDelete: Restrict)
+  weekStart           DateTime  @db.Date
+  daysAbsent          Int       @default(0)
+  dailyRateCentavos   Int       @default(20000)
+  cashAdvanceCentavos BigInt    @default(0)
+  advanceNotes        String?
+  isPaid              Boolean   @default(false)
+  paidAt              DateTime? @db.Timestamptz(3)
+  paidByStaffId       String?
+  paidBy              Staff?    @relation("StaffPayrollPaidBy", fields: [paidByStaffId], references: [id], onDelete: Restrict)
+  createdAt           DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@unique([staffId, weekStart])
+  @@index([weekStart])
+  @@index([staffId])
+  @@map("staff_payroll_adjustments")
 }
 
 // P1-64: the details the admin keeps about a person. The runtime role has no privilege here: reads and writes are owner-run functions.

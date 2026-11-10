@@ -5,10 +5,11 @@ import type { UserRole } from "@/types/contracts";
 import type { AdminTeam } from "@/types/admin-contracts";
 import { LoadState } from "./bookings/use-admin-resource";
 import { CommissionsPanel } from "./team/commissions-panel";
+import { PayrollPanel } from "./team/payroll-panel";
 import { TeamPanel } from "./team/team-panel";
 import { useKeptResource } from "./team/use-kept-resource";
 
-type View = "TEAM" | "COMMISSIONS";
+type View = "TEAM" | "COMMISSIONS" | "PAYROLL";
 
 // Money and phone numbers are for admins only; the server refuses everyone else, and this screen says so plainly first.
 export function DetailersTab({ role }: { role: UserRole }) {
@@ -25,8 +26,8 @@ export function DetailersTab({ role }: { role: UserRole }) {
 
   return (
     <div className="space-y-4">
-      <div role="tablist" aria-label="Team and commissions" className="flex gap-2">
-        {([["TEAM", "Team"], ["COMMISSIONS", "Commissions"]] as const).map(([id, label]) => (
+      <div role="tablist" aria-label="Team, commissions, and payroll" className="flex flex-wrap gap-2">
+        {([["TEAM", "Team Directory"], ["COMMISSIONS", "Commissions"], ["PAYROLL", "Weekly Payroll"]] as const).map(([id, label]) => (
           <button
             key={id}
             type="button"
@@ -40,9 +41,15 @@ export function DetailersTab({ role }: { role: UserRole }) {
         ))}
       </div>
       <LoadState loading={team.loading} error={team.error} retry={team.reload} />
-      {team.data && (view === "TEAM"
-        ? <TeamPanel team={team.data} reload={team.reload} />
-        : <CommissionsPanel team={team.data} reloadTeam={team.reload} />)}
+      {team.data && (
+        view === "TEAM" ? (
+          <TeamPanel team={team.data} reload={team.reload} />
+        ) : view === "COMMISSIONS" ? (
+          <CommissionsPanel team={team.data} reloadTeam={team.reload} />
+        ) : (
+          <PayrollPanel team={team.data} reloadTeam={team.reload} />
+        )
+      )}
     </div>
   );
 }

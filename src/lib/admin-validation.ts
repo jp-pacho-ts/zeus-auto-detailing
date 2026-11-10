@@ -285,6 +285,30 @@ export const CommissionPaidSchema = z
   .object({ ids: z.array(Id).min(1).max(200), paid: z.boolean() })
   .strict();
 
+export const PayrollQuerySchema = z
+  .object({
+    weekStart: LocalDateSchema,
+  })
+  .strict();
+
+export const PayrollAdjustSchema = z
+  .object({
+    staffId: Id,
+    weekStart: LocalDateSchema,
+    daysAbsent: z.number().int().min(0).max(6),
+    cashAdvanceCentavos: z.number().int().min(0).max(1_000_000_000_000),
+    advanceNotes: z.string().trim().max(250).optional().nullable(),
+  })
+  .strict();
+
+export const PayrollPaidSchema = z
+  .object({
+    staffId: Id,
+    weekStart: LocalDateSchema,
+    isPaid: z.boolean(),
+  })
+  .strict();
+
 // P1-38 Supplies & Inventory. Money is typed in pesos and becomes integer centavos here; the browser makes `id` once per form content
 // so a retry after a lost response cannot record the same thing twice.
 const SupplyName = z.string().trim().min(1, "Enter a name.").max(80, "Use 80 characters or fewer.");

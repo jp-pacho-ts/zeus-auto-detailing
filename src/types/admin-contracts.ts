@@ -281,6 +281,43 @@ export interface AdminTeam {
 /** DELETED: nothing pointed at the person, the row is gone. REMOVED: hidden for good; the name stays on history, personal details are erased. */
 export type AdminTeamRemoveOutcome = "DELETED" | "REMOVED";
 
+export interface AdminPayrollStaffItem {
+  staffId: UUID;
+  staffName: string;
+  phone: string;
+  role: string;
+  position: string | null;
+  isActive: boolean;
+  dailyRateCentavos: number;
+  standardDays: number;
+  daysAbsent: number;
+  daysWorked: number;
+  baseSalaryCentavos: number;
+  commissionEarnedCentavos: number;
+  grossPayCentavos: number;
+  cashAdvanceCentavos: number;
+  advanceNotes: string | null;
+  netPayoutCentavos: number;
+  isPaid: boolean;
+  paidAt: ISOInstant | null;
+}
+
+export interface AdminWeeklyPayroll {
+  weekStart: LocalDate;
+  weekEnd: LocalDate;
+  items: AdminPayrollStaffItem[];
+  totals: {
+    totalStaff: number;
+    totalBaseSalaryCentavos: number;
+    totalCommissionsCentavos: number;
+    totalGrossPayCentavos: number;
+    totalCashAdvanceCentavos: number;
+    totalNetPayoutCentavos: number;
+    paidCount: number;
+    unpaidCount: number;
+  };
+}
+
 export interface AdminCommissionSettings {
   defaultRateBp: number;
   revision: number;
