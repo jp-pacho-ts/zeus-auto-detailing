@@ -5,7 +5,6 @@ import {
   Search,
   Calendar as CalendarIcon,
   Plus,
-  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "./metric-card";
@@ -472,266 +471,315 @@ function BookingsList({
         </div>
       </div>
 
-      {/* 1. FIND BOOKINGS & CUSTOMER HISTORY (COMMAND CENTER) */}
+      {/* 1. EXECUTIVE METRIC KPI TILES (Overview at Top) */}
       {!historyOnly && (
-        <section className="rounded-xl border border-border bg-[#121214] p-5 shadow-xs space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
-            <div className="flex items-center gap-2">
-              <Search className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-bold text-foreground">Find bookings</h2>
-            </div>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <MetricCard
+            title="Day's Bookings"
+            value={
+              day.data
+                ? String(all.filter((b) => b.status !== "CANCELLED").length)
+                : "—"
+            }
+            meta="Live queue visits"
+          />
+          <MetricCard
+            title="Current Charges"
+            value={
+              day.data
+                ? money(
+                    all
+                      .filter((b) => b.status !== "CANCELLED")
+                      .reduce((n, b) => n + b.totals.currentTotalCentavos, 0),
+                  )
+                : "—"
+            }
+            meta="For-quote estimates excluded"
+          />
+          <MetricCard
+            title="In Progress"
+            value={
+              day.data
+                ? String(all.filter((b) => b.status === "IN_PROGRESS").length)
+                : "—"
+            }
+            meta="Across the day's queues"
+          />
+          <MetricCard
+            title="Pending Action"
+            value={
+              day.data
+                ? String(all.filter((b) => b.status === "PENDING").length)
+                : "—"
+            }
+            meta="Needs staff confirmation"
+          />
+        </div>
+      )}
 
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Presets */}
-              <div className="flex flex-wrap items-center gap-1">
-                {(
-                  [
-                    ["TODAY", "Today"],
-                    ["THIS_WEEK", "This week"],
-                    ["LAST_WEEK", "Last week"],
-                    ["THIS_MONTH", "This month"],
-                  ] as const
-                ).map(([p, label]) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => {
-                      setSearchMode("SEARCH");
-                      applySearchPreset(p);
-                    }}
-                    className="rounded border border-border bg-[#18181b] px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-[#202024] hover:text-foreground transition-colors"
-                  >
-                    {label}
-                  </button>
-                ))}
+      {/* 2. UNIFIED WORKSPACE: FIND BOOKINGS & TABLE */}
+      {!historyOnly && (
+        <section className="rounded-xl border border-border bg-[#121214] shadow-xs overflow-hidden">
+          {/* Table Header / Find bookings Toolbar */}
+          <div className="p-4 border-b border-border/80 bg-[#141416] space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Search className="h-4 w-4 text-primary" />
+                <h2 className="text-sm font-bold text-foreground">Find bookings</h2>
               </div>
 
-              {/* Mode Toggle for Admins */}
-              {role === "ADMIN" && (
-                <div className="flex items-center rounded-lg border border-border bg-[#18181b] p-0.5 ml-1">
-                  <button
-                    type="button"
-                    onClick={() => setSearchMode("SEARCH")}
-                    className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
-                      searchMode === "SEARCH"
-                        ? "bg-zinc-800 text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Search bookings
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSearchMode("HISTORY")}
-                    className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
-                      searchMode === "HISTORY"
-                        ? "bg-zinc-800 text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    History
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Search Form Mode */}
-          {searchMode === "SEARCH" && (
-            <form
-              key={date}
-              onSubmit={search}
-              className="flex flex-wrap items-end gap-3"
-            >
-              <label className="min-w-0 basis-full sm:basis-0 flex-1 text-xs font-semibold text-muted-foreground">
-                Name, phone, last 4 digits or reference
-                <input
-                  name="q"
-                  maxLength={80}
-                  className={fieldClass}
-                  autoComplete="off"
-                  placeholder="e.g. John Doe, 0917..., ZEUS-1234"
-                />
-              </label>
-              <label className="text-xs font-semibold text-muted-foreground">
-                From
-                <input
-                  name="from"
-                  type="date"
-                  required
-                  value={searchFrom}
-                  onChange={(e) => setSearchFrom(e.target.value)}
-                  className={fieldClass}
-                />
-              </label>
-              <label className="text-xs font-semibold text-muted-foreground">
-                To
-                <input
-                  name="to"
-                  type="date"
-                  required
-                  value={searchTo}
-                  onChange={(e) => setSearchTo(e.target.value)}
-                  className={fieldClass}
-                />
-              </label>
-              <label className="text-xs font-semibold text-muted-foreground">
-                Status
-                <select
-                  name="status"
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                  className={fieldClass}
-                >
-                  {[
-                    "ALL",
-                    "PENDING",
-                    "CONFIRMED",
-                    "IN_PROGRESS",
-                    "COMPLETED",
-                    "CANCELLED",
-                  ].map((s) => (
-                    <option key={s} value={s}>
-                      {s === "ALL" ? "All statuses" : statusLabel(s)}
-                    </option>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Presets */}
+                <div className="flex flex-wrap items-center gap-1">
+                  {(
+                    [
+                      ["TODAY", "Today"],
+                      ["THIS_WEEK", "This week"],
+                      ["LAST_WEEK", "Last week"],
+                      ["THIS_MONTH", "This month"],
+                    ] as const
+                  ).map(([p, label]) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => {
+                        setSearchMode("SEARCH");
+                        applySearchPreset(p);
+                      }}
+                      className="rounded border border-border bg-[#18181b] px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-[#202024] hover:text-foreground transition-colors"
+                    >
+                      {label}
+                    </button>
                   ))}
-                </select>
-              </label>
-              <Button disabled={list.loading} className="min-h-[40px] px-4 font-bold">
-                Search bookings
-              </Button>
-              {listing && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="min-h-[40px]"
-                  onClick={() => {
-                    setListing(null);
-                    setSearchPage(1);
-                    setCursorHistory([]);
-                  }}
-                >
-                  Clear search
-                </Button>
-              )}
-            </form>
-          )}
+                </div>
 
-          {/* History Mode (Admin only) */}
-          {searchMode === "HISTORY" && role === "ADMIN" && (
-            <div className="space-y-4 pt-1">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
-                  Customer Booking History Lookup
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Read-only lifetime phone record search across all completed and confirmed bookings.
-                </p>
+                {/* Mode Toggle for Admins */}
+                {role === "ADMIN" && (
+                  <div className="flex items-center rounded-lg border border-border bg-[#18181b] p-0.5 ml-1">
+                    <button
+                      type="button"
+                      onClick={() => setSearchMode("SEARCH")}
+                      className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+                        searchMode === "SEARCH"
+                          ? "bg-zinc-800 text-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Search bookings
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSearchMode("HISTORY")}
+                      className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+                        searchMode === "HISTORY"
+                          ? "bg-zinc-800 text-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      History
+                    </button>
+                  </div>
+                )}
               </div>
+            </div>
+
+            {/* Search Form Mode */}
+            {searchMode === "SEARCH" && (
               <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const phone = String(new FormData(e.currentTarget).get("phone")).trim();
-                  if (phone === historyPhone) void history.reload();
-                  else setHistoryPhone(phone);
-                }}
-                className="flex flex-wrap items-end gap-3"
+                key={date}
+                onSubmit={search}
+                className="flex flex-wrap items-end gap-3 pt-1"
               >
                 <label className="min-w-0 basis-full sm:basis-0 flex-1 text-xs font-semibold text-muted-foreground">
-                  Customer phone
+                  Name, phone, last 4 digits or reference
                   <input
-                    name="phone"
-                    required
-                    maxLength={64}
+                    name="q"
+                    maxLength={80}
+                    className={fieldClass}
                     autoComplete="off"
-                    placeholder="Enter phone number (e.g. 09171234567)"
+                    placeholder="e.g. John Doe, 0917..., ZEUS-1234"
+                  />
+                </label>
+                <label className="text-xs font-semibold text-muted-foreground">
+                  From
+                  <input
+                    name="from"
+                    type="date"
+                    required
+                    value={searchFrom}
+                    onChange={(e) => setSearchFrom(e.target.value)}
                     className={fieldClass}
                   />
                 </label>
-                <Button disabled={history.loading} className="min-h-[40px] px-4 font-bold">
-                  Look up history
+                <label className="text-xs font-semibold text-muted-foreground">
+                  To
+                  <input
+                    name="to"
+                    type="date"
+                    required
+                    value={searchTo}
+                    onChange={(e) => setSearchTo(e.target.value)}
+                    className={fieldClass}
+                  />
+                </label>
+                <label className="text-xs font-semibold text-muted-foreground">
+                  Status
+                  <select
+                    name="status"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className={fieldClass}
+                  >
+                    {[
+                      "ALL",
+                      "PENDING",
+                      "CONFIRMED",
+                      "IN_PROGRESS",
+                      "COMPLETED",
+                      "CANCELLED",
+                    ].map((s) => (
+                      <option key={s} value={s}>
+                        {s === "ALL" ? "All statuses" : statusLabel(s)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button disabled={list.loading} className="min-h-[40px] px-4 font-bold">
+                  Search bookings
                 </Button>
-                <Button
-                  type="reset"
-                  variant="outline"
-                  className="min-h-[40px]"
-                  onClick={() => setHistoryPhone(null)}
-                >
-                  Clear history
-                </Button>
+                {listing && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-[40px]"
+                    onClick={() => {
+                      setListing(null);
+                      setSearchPage(1);
+                      setCursorHistory([]);
+                    }}
+                  >
+                    Clear search
+                  </Button>
+                )}
               </form>
+            )}
 
-              <LoadState
-                loading={history.loading}
-                error={history.error}
-                retry={history.reload}
-              />
+            {/* History Mode (Admin only) */}
+            {searchMode === "HISTORY" && role === "ADMIN" && (
+              <div className="space-y-4 pt-1">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
+                    Customer Booking History Lookup
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Read-only lifetime phone record search across all completed and confirmed bookings.
+                  </p>
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const phone = String(new FormData(e.currentTarget).get("phone")).trim();
+                    if (phone === historyPhone) void history.reload();
+                    else setHistoryPhone(phone);
+                  }}
+                  className="flex flex-wrap items-end gap-3"
+                >
+                  <label className="min-w-0 basis-full sm:basis-0 flex-1 text-xs font-semibold text-muted-foreground">
+                    Customer phone
+                    <input
+                      name="phone"
+                      required
+                      maxLength={64}
+                      autoComplete="off"
+                      placeholder="Enter phone number (e.g. 09171234567)"
+                      className={fieldClass}
+                    />
+                  </label>
+                  <Button disabled={history.loading} className="min-h-[40px] px-4 font-bold">
+                    Look up history
+                  </Button>
+                  <Button
+                    type="reset"
+                    variant="outline"
+                    className="min-h-[40px]"
+                    onClick={() => setHistoryPhone(null)}
+                  >
+                    Clear history
+                  </Button>
+                </form>
 
-              {history.data && (
-                <div className="mt-3 space-y-2">
-                  <div className="flex items-center justify-between border-b border-border pb-2 text-xs font-semibold text-muted-foreground">
-                    <span>Customer Record for {historyPhone}</span>
-                    <span>{history.data.bookings.length} past appointments found</span>
-                  </div>
-                  {history.data.bookings.length === 0 && (
-                    <p className="p-4 text-center text-sm text-muted-foreground">
-                      No bookings found for this phone number.
-                    </p>
-                  )}
-                  {history.data.bookings.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      className="flex min-h-[44px] w-full items-center justify-between rounded-lg border border-border bg-[#18181b]/50 p-3 text-left text-xs transition-colors hover:border-primary/40 hover:bg-[#18181b] focus-visible:ring-2 focus-visible:ring-primary"
-                      onClick={() => setSelected(b.id)}
-                    >
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-primary">
-                            {b.referenceCode}
+                <LoadState
+                  loading={history.loading}
+                  error={history.error}
+                  retry={history.reload}
+                />
+
+                {history.data && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between border-b border-border pb-2 text-xs font-semibold text-muted-foreground">
+                      <span>Customer Record for {historyPhone}</span>
+                      <span>{history.data.bookings.length} past appointments found</span>
+                    </div>
+                    {history.data.bookings.length === 0 && (
+                      <p className="p-4 text-center text-sm text-muted-foreground">
+                        No bookings found for this phone number.
+                      </p>
+                    )}
+                    {history.data.bookings.map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        className="flex min-h-[44px] w-full items-center justify-between rounded-lg border border-border bg-[#18181b]/50 p-3 text-left text-xs transition-colors hover:border-primary/40 hover:bg-[#18181b] focus-visible:ring-2 focus-visible:ring-primary"
+                        onClick={() => setSelected(b.id)}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-primary">
+                              {b.referenceCode}
+                            </span>
+                            <span className="text-foreground font-semibold">
+                              {b.bookingDate}
+                            </span>
+                            <span className="text-muted-foreground">· {b.queueName}</span>
+                            <span className="rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-300">
+                              {statusLabel(b.status)}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground">
+                            {b.services.join(", ")}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono font-bold text-foreground">
+                            {totalLabel(b.totals)}
                           </span>
-                          <span className="text-foreground font-semibold">
-                            {b.bookingDate}
-                          </span>
-                          <span className="text-muted-foreground">· {b.queueName}</span>
-                          <span className="rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-300">
-                            {statusLabel(b.status)}
+                          <span className="text-xs font-semibold text-primary underline">
+                            Open
                           </span>
                         </div>
-                        <p className="text-muted-foreground">
-                          {b.services.join(", ")}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-foreground">
-                          {totalLabel(b.totals)}
-                        </span>
-                        <span className="text-xs font-semibold text-primary underline">
-                          Open
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                  {history.data.truncated && (
-                    <p className="text-[11px] text-muted-foreground text-center pt-1">
-                      Showing the latest 50 bookings.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                      </button>
+                    ))}
+                    {history.data.truncated && (
+                      <p className="text-[11px] text-muted-foreground text-center pt-1">
+                        Showing the latest 50 bookings.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Search Results Display */}
-          {searchMode === "SEARCH" && (
-            <>
+          {searchMode === "SEARCH" && listing && (
+            <div>
               <LoadState
                 loading={list.loading}
                 error={list.error}
                 retry={list.reload}
               />
               {list.data && (
-                <div className="mt-4 rounded-lg border border-border/80 bg-[#161618] overflow-hidden">
+                <div>
                   <div className="flex items-center justify-between border-b border-border/70 px-4 py-2.5 bg-[#141416]">
                     <span className="text-xs font-bold text-foreground">
                       Search Results ({list.data.items.length} returned)
@@ -784,263 +832,224 @@ function BookingsList({
                   </div>
                 </div>
               )}
-            </>
-          )}
-        </section>
-      )}
-
-      {/* 2. EXECUTIVE METRIC KPI TILES */}
-      {!historyOnly && (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <MetricCard
-            title="Day's Bookings"
-            value={
-              day.data
-                ? String(all.filter((b) => b.status !== "CANCELLED").length)
-                : "—"
-            }
-            meta="Live queue visits"
-          />
-          <MetricCard
-            title="Current Charges"
-            value={
-              day.data
-                ? money(
-                    all
-                      .filter((b) => b.status !== "CANCELLED")
-                      .reduce((n, b) => n + b.totals.currentTotalCentavos, 0),
-                  )
-                : "—"
-            }
-            meta="For-quote estimates excluded"
-          />
-          <MetricCard
-            title="In Progress"
-            value={
-              day.data
-                ? String(all.filter((b) => b.status === "IN_PROGRESS").length)
-                : "—"
-            }
-            meta="Across the day's queues"
-          />
-          <MetricCard
-            title="Pending Action"
-            value={
-              day.data
-                ? String(all.filter((b) => b.status === "PENDING").length)
-                : "—"
-            }
-            meta="Needs staff confirmation"
-          />
-        </div>
-      )}
-
-      {/* 3. DAILY QUEUES SCHEDULE & BOOKINGS TABLE WITH PAGINATION */}
-      {!historyOnly && (
-        <section className="rounded-xl border border-border bg-[#121214] shadow-xs overflow-hidden">
-          {/* Day Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4 bg-[#141416]">
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
-                <span>Queue day</span>
-                <input
-                  type="date"
-                  value={date}
-                  required
-                  className={fieldClass}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setDate(e.target.value);
-                      setQueuePage(1);
-                      setSelected(null);
-                      setListing(null);
-                      setHistoryPhone(null);
-                      setError(null);
-                    }
-                  }}
-                />
-              </label>
-
-              {/* Quick Day Jumps */}
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const prev = new Date(Date.parse(date + "T00:00:00Z") - 86_400_000).toISOString().slice(0, 10);
-                    setDate(prev);
-                    setQueuePage(1);
-                    setSelected(null);
-                    setListing(null);
-                    setHistoryPhone(null);
-                    setError(null);
-                  }}
-                  className="rounded border border-border bg-[#18181b] px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-[#202025] hover:text-foreground transition-colors"
-                >
-                  Yesterday
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const today = shopDate();
-                    setDate(today);
-                    setQueuePage(1);
-                    setSelected(null);
-                    setListing(null);
-                    setHistoryPhone(null);
-                    setError(null);
-                  }}
-                  className="rounded border border-border bg-[#18181b] px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-[#202025] hover:text-foreground transition-colors"
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = new Date(Date.parse(date + "T00:00:00Z") + 86_400_000).toISOString().slice(0, 10);
-                    setDate(next);
-                    setQueuePage(1);
-                    setSelected(null);
-                    setListing(null);
-                    setHistoryPhone(null);
-                    setError(null);
-                  }}
-                  className="rounded border border-border bg-[#18181b] px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-[#202025] hover:text-foreground transition-colors"
-                >
-                  Tomorrow
-                </button>
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy || day.loading}
-              onClick={() => void day.reload()}
-              className="flex items-center gap-1.5 text-xs font-semibold"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${busy || day.loading ? "animate-spin" : ""}`} />
-              <span>Refresh queues</span>
-            </Button>
-          </div>
-
-          {/* Queue Filter Tabs */}
-          {day.data && (
-            <div className="flex flex-wrap items-center gap-1.5 border-b border-border/80 px-4 py-2 bg-[#161618]">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveQueueTab("ALL");
-                  setQueuePage(1);
-                }}
-                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  activeQueueTab === "ALL"
-                    ? "bg-primary text-primary-foreground shadow-xs font-bold"
-                    : "text-muted-foreground hover:bg-[#1f1f23] hover:text-foreground"
-                }`}
-              >
-                All Queues ({all.length})
-              </button>
-              {day.data.queues.map((q) => (
-                <button
-                  key={q.code}
-                  type="button"
-                  onClick={() => {
-                    setActiveQueueTab(q.code);
-                    setQueuePage(1);
-                  }}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    activeQueueTab === q.code
-                      ? "bg-primary text-primary-foreground shadow-xs font-bold"
-                      : "text-muted-foreground hover:bg-[#1f1f23] hover:text-foreground"
-                  }`}
-                >
-                  {q.name} ({q.bookings.length})
-                </button>
-              ))}
-              {Boolean(day.data.legacy.length) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveQueueTab("LEGACY");
-                    setQueuePage(1);
-                  }}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    activeQueueTab === "LEGACY"
-                      ? "bg-primary text-primary-foreground shadow-xs font-bold"
-                      : "text-muted-foreground hover:bg-[#1f1f23] hover:text-foreground"
-                  }`}
-                >
-                  Legacy ({day.data.legacy.length})
-                </button>
-              )}
             </div>
           )}
 
-          <LoadState loading={day.loading} error={day.error} retry={day.reload} />
+          {/* Daily Queues Schedule & Bookings Table (when not actively listing search results) */}
+          {searchMode === "SEARCH" && !listing && (
+            <div>
+              {/* Day Toolbar - Without the redundant refresh queues button */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4 bg-[#141416]">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
+                    <span>Queue day</span>
+                    <input
+                      type="date"
+                      value={date}
+                      required
+                      className={fieldClass}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setDate(e.target.value);
+                          setQueuePage(1);
+                          setSelected(null);
+                          setListing(null);
+                          setHistoryPhone(null);
+                          setError(null);
+                        }
+                      }}
+                    />
+                  </label>
 
-          {error && (
-            <p role="alert" className="p-4 text-sm text-rose-400">
-              {error} The queue has been refreshed; review it before another change.
-            </p>
-          )}
-
-          {day.data?.closed && (
-            <p className="p-4 text-sm font-semibold text-amber-400 bg-amber-500/10 border-b border-amber-500/20">
-              Closed · {day.data.closed.reason}
-            </p>
-          )}
-
-          {/* Bookings Table with Pagination */}
-          {day.data && (
-            <>
-              <BookingRows
-                bookings={pagedQueueBookings}
-                queueCode={activeQueueTab !== "ALL" && activeQueueTab !== "LEGACY" ? activeQueueTab : undefined}
-                filter={filter}
-                role={role}
-                busy={busy}
-                onSelect={setSelected}
-                onReorder={reorder}
-              />
-
-              {/* Pagination Bar for Queue Day */}
-              {activeBookings.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 bg-[#141416]">
-                  <p className="text-xs text-muted-foreground">
-                    Showing{" "}
-                    <span className="font-bold text-foreground">
-                      {(queuePage - 1) * QUEUE_PAGE_SIZE + 1}
-                    </span>{" "}
-                    to{" "}
-                    <span className="font-bold text-foreground">
-                      {Math.min(queuePage * QUEUE_PAGE_SIZE, activeBookings.length)}
-                    </span>{" "}
-                    of <span className="font-bold text-foreground">{activeBookings.length}</span> bookings
-                  </p>
-                  <div className="flex items-center gap-1.5">
+                  {/* Quick Day Jumps */}
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      disabled={queuePage <= 1}
-                      onClick={() => setQueuePage((p) => Math.max(1, p - 1))}
-                      className="rounded border border-border bg-[#18181b] px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-[#202025] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                      onClick={() => {
+                        const prev = new Date(Date.parse(date + "T00:00:00Z") - 86_400_000).toISOString().slice(0, 10);
+                        setDate(prev);
+                        setQueuePage(1);
+                        setSelected(null);
+                        setListing(null);
+                        setHistoryPhone(null);
+                        setError(null);
+                      }}
+                      className="rounded border border-border bg-[#18181b] px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-[#202025] hover:text-foreground transition-colors"
                     >
-                      Previous
+                      Yesterday
                     </button>
-                    <span className="px-2 text-xs font-bold text-muted-foreground">
-                      Page {queuePage} of {totalQueuePages}
-                    </span>
                     <button
                       type="button"
-                      disabled={queuePage >= totalQueuePages}
-                      onClick={() => setQueuePage((p) => Math.min(totalQueuePages, p + 1))}
-                      className="rounded border border-border bg-[#18181b] px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-[#202025] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                      onClick={() => {
+                        const today = shopDate();
+                        setDate(today);
+                        setQueuePage(1);
+                        setSelected(null);
+                        setListing(null);
+                        setHistoryPhone(null);
+                        setError(null);
+                      }}
+                      className="rounded border border-border bg-[#18181b] px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-[#202025] hover:text-foreground transition-colors"
                     >
-                      Next
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = new Date(Date.parse(date + "T00:00:00Z") + 86_400_000).toISOString().slice(0, 10);
+                        setDate(next);
+                        setQueuePage(1);
+                        setSelected(null);
+                        setListing(null);
+                        setHistoryPhone(null);
+                        setError(null);
+                      }}
+                      className="rounded border border-border bg-[#18181b] px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-[#202025] hover:text-foreground transition-colors"
+                    >
+                      Tomorrow
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Queue Filter Tabs */}
+              {day.data && (
+                <div className="flex flex-wrap items-center gap-1.5 border-b border-border/80 px-4 py-2 bg-[#161618]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveQueueTab("ALL");
+                      setQueuePage(1);
+                    }}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      activeQueueTab === "ALL"
+                        ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                        : "text-muted-foreground hover:bg-[#1f1f23] hover:text-foreground"
+                    }`}
+                  >
+                    All Queues ({all.length})
+                  </button>
+                  {day.data.queues.map((q) => (
+                    <button
+                      key={q.code}
+                      type="button"
+                      onClick={() => {
+                        setActiveQueueTab(q.code);
+                        setQueuePage(1);
+                      }}
+                      className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        activeQueueTab === q.code
+                          ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                          : "text-muted-foreground hover:bg-[#1f1f23] hover:text-foreground"
+                      }`}
+                    >
+                      {q.name} ({q.bookings.length})
+                    </button>
+                  ))}
+                  {Boolean(day.data.legacy.length) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveQueueTab("LEGACY");
+                        setQueuePage(1);
+                      }}
+                      className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        activeQueueTab === "LEGACY"
+                          ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                          : "text-muted-foreground hover:bg-[#1f1f23] hover:text-foreground"
+                      }`}
+                    >
+                      Legacy ({day.data.legacy.length})
+                    </button>
+                  )}
+                </div>
               )}
-            </>
+
+              {/* Queue Capacity & Committed Status */}
+              {day.data && day.data.queues.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/70 px-4 py-2 text-xs text-muted-foreground bg-[#141416]/80">
+                  {day.data.queues.map((q) => (
+                    <span key={q.code} className="inline-flex items-center gap-1.5">
+                      <span className="font-semibold text-foreground/90">{q.name}:</span>
+                      <span>
+                        {q.committed} committed ·{" "}
+                        {q.effectiveCap === null
+                          ? "no limit"
+                          : `Limit ${q.effectiveCap}`}
+                        {!q.isActive ? " · Inactive" : ""}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <LoadState loading={day.loading} error={day.error} retry={day.reload} />
+
+              {error && (
+                <p role="alert" className="p-4 text-sm text-rose-400">
+                  {error} The queue has been refreshed; review it before another change.
+                </p>
+              )}
+
+              {day.data?.closed && (
+                <p className="p-4 text-sm font-semibold text-amber-400 bg-amber-500/10 border-b border-amber-500/20">
+                  Closed · {day.data.closed.reason}
+                </p>
+              )}
+
+              {/* Bookings Table with Pagination */}
+              {day.data && (
+                <>
+                  <BookingRows
+                    bookings={pagedQueueBookings}
+                    queueCode={activeQueueTab !== "ALL" && activeQueueTab !== "LEGACY" ? activeQueueTab : undefined}
+                    filter={filter}
+                    role={role}
+                    busy={busy}
+                    onSelect={setSelected}
+                    onReorder={reorder}
+                  />
+
+                  {/* Pagination Bar for Queue Day */}
+                  {activeBookings.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 bg-[#141416]">
+                      <p className="text-xs text-muted-foreground">
+                        Showing{" "}
+                        <span className="font-bold text-foreground">
+                          {(queuePage - 1) * QUEUE_PAGE_SIZE + 1}
+                        </span>{" "}
+                        to{" "}
+                        <span className="font-bold text-foreground">
+                          {Math.min(queuePage * QUEUE_PAGE_SIZE, activeBookings.length)}
+                        </span>{" "}
+                        of <span className="font-bold text-foreground">{activeBookings.length}</span> bookings
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={queuePage <= 1}
+                          onClick={() => setQueuePage((p) => Math.max(1, p - 1))}
+                          className="rounded border border-border bg-[#18181b] px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-[#202025] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                        >
+                          Previous
+                        </button>
+                        <span className="px-2 text-xs font-bold text-muted-foreground">
+                          Page {queuePage} of {totalQueuePages}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={queuePage >= totalQueuePages}
+                          onClick={() => setQueuePage((p) => Math.min(totalQueuePages, p + 1))}
+                          className="rounded border border-border bg-[#18181b] px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-[#202025] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </section>
       )}
