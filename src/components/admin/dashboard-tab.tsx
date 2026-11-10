@@ -22,7 +22,7 @@ import type {
 import type { UserRole } from "@/types/contracts";
 import type { AdminTab } from "./admin-portal";
 import { analyticsUrl, manilaToday, periodRange } from "./analytics/analytics-model";
-import { money, shopDate, statusLabel, totalLabel } from "./bookings/booking-Utils";
+import { money, shopDate, statusLabel, totalLabel } from "./bookings/model";
 import { LoadState, useAdminResource } from "./bookings/use-admin-resource";
 import { MetricCard } from "./metric-card";
 import { useKeptResource } from "./team/use-kept-resource";
@@ -61,7 +61,7 @@ export function DashboardTab({
   const allBays = board.data
     ? board.data.containers.flatMap((c) => c.bays)
     : [];
-  const occupiedBays = allBays.filter((b) => b.car !== null).length;
+  const occupiedBays = allBays.filter((b) => b.cards.length > 0).length;
   const waitingCount = board.data ? board.data.waiting.length : 0;
   const doneTodayCount = board.data ? board.data.done.length : 0;
 
@@ -201,7 +201,7 @@ export function DashboardTab({
             )}
             {board.data?.containers.map((container) => {
               const busyCount = container.bays.filter(
-                (b) => b.car !== null,
+                (b) => b.cards.length > 0,
               ).length;
               return (
                 <div key={container.id} className="p-4">
@@ -214,53 +214,55 @@ export function DashboardTab({
                     </span>
                   </div>
                   <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                    {container.bays.map((bay) => (
-                      <div
-                        key={bay.id}
-                        className={`rounded-md border p-3 ${
-                          bay.car
-                            ? "border-primary/30 bg-[#161619]"
-                            : "border-border/70 bg-[#0d0d0f]"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-xs font-bold text-foreground">
-                            {bay.name}
-                          </span>
-                          <span
-                            className={`inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider ${
-                              bay.car
-                                ? "border border-amber-500/30 bg-amber-500/15 text-amber-400"
-                                : "border border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
-                            }`}
-                          >
-                            {bay.car ? "Occupied" : "Open"}
-                          </span>
-                        </div>
-                        {bay.car ? (
-                          <div className="mt-2 space-y-1 text-xs">
-                            <p className="font-semibold text-foreground">
-                              <span className="font-mono text-primary">
-                                {bay.car.referenceCode}
-                              </span>{" "}
-                              · {bay.car.vehicleModel}
-                            </p>
-                            <p className="truncate text-muted-foreground">
-                              {bay.car.firstServiceName}
-                              {bay.car.moreServiceCount > 0
-                                ? ` +${bay.car.moreServiceCount} more`
-                                : ""}{" "}
-                              · {bay.car.progress.done}/{bay.car.progress.total}{" "}
-                              done
-                            </p>
+                    {container.bays.map((bay) => {
+                      const car = bay.cards[0] ?? null;
+                      return (
+                        <div
+                          key={bay.id}
+                          className={`rounded-md border p-3 ${
+                            car
+                              ? "border-primary/30 bg-[#161619]"
+                              : "border-border/70 bg-[#0d0d0f]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-xs font-bold text-foreground">
+                              {bay.name}
+                            </span>
+                            <span
+                              className={`inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider ${
+                                car
+                                  ? "border border-amber-500/30 bg-amber-500/15 text-amber-400"
+                                  : "border border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+                              }`}
+                            >
+                              {car ? "Occupied" : "Open"}
+                            </span>
                           </div>
-                        ) : (
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            Ready for next vehicle
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                          {car ? (
+                            <div className="mt-2 space-y-1 text-xs">
+                              <p className="font-semibold text-foreground">
+                                <span className="font-mono text-primary">
+                                  {car.referenceCode}
+                                </span>{" "}
+                                · {car.vehicleModel}
+                              </p>
+                              <p className="truncate text-muted-foreground">
+                                {car.lines[0]?.name ?? "Service"}
+                                {car.lines.length > 1
+                                  ? ` +${car.lines.length - 1} more`
+                                  : ""}{" "}
+                                · {car.progress.done}/{car.progress.total} done
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Ready for next vehicle
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
