@@ -10,7 +10,7 @@ import type {
 } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import { adminRequest, AdminRequestError } from "./client";
-import { fieldClass, LoadState, useAdminResource } from "./use-admin-resource";
+import { LoadState, useAdminResource } from "./use-admin-resource";
 import { shopDate, statusLabel } from "./model";
 import { bayPayload, canDrop, isControlTarget, plateLabel, writeFeedback } from "./board-model";
 import { AddBay, addBayButtonId, BayMenu } from "./bay-controls";
@@ -36,7 +36,7 @@ type Pending = { card: AdminBoardCard; bayId: string; text: string };
 
 // One grey outline pill for every service tag: no colour per kind.
 const pill = "inline-flex min-w-0 max-w-full items-center truncate rounded-md border border-border bg-[#121214] px-2 py-0.5 text-xs font-medium leading-tight text-muted-foreground";
-const lane = "min-w-0 flex-col gap-3 rounded border border-border bg-[#0f0f11] p-3 lg:sticky lg:top-0 lg:h-[calc(100dvh-13rem)] lg:overflow-y-auto";
+const lane = "min-w-0 flex-col gap-3 rounded-lg border border-border bg-[#121214] p-3.5 lg:sticky lg:top-0 lg:h-[calc(100dvh-13rem)] lg:overflow-y-auto";
 const finishTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" });
 
 export function BayBoard({ role }: { role: UserRole }) {
@@ -402,30 +402,49 @@ export function BayBoard({ role }: { role: UserRole }) {
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="flex items-center">
-        <label className="min-w-0 flex items-center gap-2 text-xs">
-          Board day
-          <input
-            id="board-day-input"
-            aria-label="Board day"
-            type="date"
-            value={date}
-            disabled={busy}
-            className={fieldClass + " w-44"}
-            onChange={(e) => {
-              if (e.target.value) {
-                clearDrag();
-                setDate(e.target.value);
-                setSelected(null);
-                showStatus("", false);
-              }
-            }}
-          />
-        </label>
+      {/* Unified Board Control Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-[#121214] px-4 py-3">
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="inline-flex items-center gap-2.5 whitespace-nowrap text-xs font-semibold text-foreground">
+            <span>Board day</span>
+            <input
+              id="board-day-input"
+              aria-label="Board day"
+              type="date"
+              value={date}
+              disabled={busy}
+              className="min-h-[38px] w-40 rounded-md border border-border bg-[#18181b] px-3 py-1.5 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              onChange={(e) => {
+                if (e.target.value) {
+                  clearDrag();
+                  setDate(e.target.value);
+                  setSelected(null);
+                  showStatus("", false);
+                }
+              }}
+            />
+          </label>
+          {board && (
+            <div className="hidden items-center gap-2 border-l border-border pl-4 text-xs sm:flex">
+              <span className="rounded-md border border-border bg-[#18181b] px-2.5 py-1 font-mono text-muted-foreground">
+                Waiting: <b className="text-foreground">{board.waiting.length}</b>
+              </span>
+              <span className="rounded-md border border-border bg-[#18181b] px-2.5 py-1 font-mono text-muted-foreground">
+                Active Bays:{" "}
+                <b className="text-primary">
+                  {allBays.filter((b) => b.cards.length > 0).length}/{allBays.length}
+                </b>
+              </span>
+              <span className="rounded-md border border-border bg-[#18181b] px-2.5 py-1 font-mono text-muted-foreground">
+                Done: <b className="text-emerald-400">{board.done.length}</b>
+              </span>
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          One car per bay until done or returned to Waiting. Any car can go in any empty bay. Earlier open cars stay visible.
+        </p>
       </div>
-      <p className="text-xs text-muted-foreground">
-        One car per bay until done or returned to Waiting. Any car can go in any empty bay. Earlier open cars stay visible.
-      </p>
       <div
         data-board-notice={refusal && message ? "refusal" : undefined}
         className={
@@ -467,7 +486,7 @@ export function BayBoard({ role }: { role: UserRole }) {
               </Button>
             ))}
           </div>
-          <div className="grid min-w-0 gap-3 lg:grid-cols-[18rem_minmax(0,1fr)_18rem] lg:items-start">
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)_16rem] lg:items-start">
             <section
               aria-label="Waiting"
               data-board-zone="WAITING"
@@ -475,25 +494,31 @@ export function BayBoard({ role }: { role: UserRole }) {
               onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
               onDrop={dropOnWaiting}
             >
-              <div className="flex items-baseline justify-between gap-2">
-                <h2 tabIndex={-1} className="text-base font-bold">Waiting ({board.waiting.length})</h2>
-                <span className="text-xs text-muted-foreground">All services</span>
+              <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5">
+                <h2 tabIndex={-1} className="text-sm font-bold tracking-tight">Waiting ({board.waiting.length})</h2>
+                <span className="rounded bg-[#18181b] px-2 py-0.5 text-[0.7rem] font-medium text-muted-foreground">All services</span>
               </div>
               {board.waiting.map(cardView)}
-              {!board.waiting.length && <p className={emptySlot + " flex-1"}>No waiting cars</p>}
-              <p className="mt-auto text-xs text-muted-foreground">Every waiting car is here. The tag is its main service.{role === "ADMIN" && " Drop a car here to return it to Waiting."}</p>
+              {!board.waiting.length && <p className={emptySlot}>No waiting cars</p>}
+              <p className="mt-auto border-t border-border/60 pt-2.5 text-[0.7rem] leading-relaxed text-muted-foreground">Every waiting car is here. The tag is its main service.{role === "ADMIN" && " Drop a car here to return it to Waiting."}</p>
             </section>
 
-            <div data-board-zone="BAYS" className={(zone === "BAYS" ? "grid " : "hidden ") + "min-w-0 gap-3 lg:grid"}>
+            <div data-board-zone="BAYS" className={(zone === "BAYS" ? "grid " : "hidden ") + "min-w-0 gap-4 lg:grid"}>
               {containers.map((c) => {
                 const shown = c.bays.filter((b) => b.isActive || b.cards.length);
+                const inUseCount = shown.filter((b) => b.cards.length > 0).length;
                 return (
-                  <article key={c.id} aria-label={c.name} data-container={c.id} className="min-w-0 space-y-3 rounded border border-border bg-[#0f0f11] p-3">
-                    <div className="flex items-start justify-between gap-2">
+                  <article key={c.id} aria-label={c.name} data-container={c.id} className="min-w-0 overflow-hidden rounded-lg border border-border bg-[#121214]">
+                    <div className="flex items-center justify-between gap-3 border-b border-border bg-[#16161a] px-4 py-3">
                       <div className="min-w-0">
-                        <h3 tabIndex={-1} className="break-words text-base font-bold">{c.name}</h3>
-                        <p className="text-xs text-muted-foreground">
-                          {usualForLine(c.usualQueues)} · {shown.filter((b) => b.cards.length).length} of {shown.length} in use
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <h3 tabIndex={-1} className="break-words text-sm font-bold tracking-tight text-foreground">{c.name}</h3>
+                          <span className="rounded-full border border-border bg-[#0d0d0f] px-2.5 py-0.5 font-mono text-[0.7rem] font-semibold tabular-nums text-muted-foreground">
+                            {inUseCount} of {shown.length} in use
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {usualForLine(c.usualQueues)} · {inUseCount} of {shown.length} in use
                         </p>
                       </div>
                       {role === "ADMIN" && (
@@ -503,25 +528,44 @@ export function BayBoard({ role }: { role: UserRole }) {
                         </div>
                       )}
                     </div>
-                    <div data-board-row-scroll className="flex gap-3 overflow-x-auto pb-1">
-                      {shown.map((b) => (
-                        <section
-                          key={b.id}
-                          aria-label={b.name}
-                          data-board-column={b.id}
-                          className="flex min-w-[17rem] max-w-[21rem] flex-1 shrink-0 flex-col gap-2.5 rounded-lg border border-border bg-[#121214] p-3"
-                          onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
-                          onDrop={(e) => dropOnBay(e, b.id)}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <h4 tabIndex={-1} className="min-w-0 break-words text-sm font-bold">{b.name}</h4>
-                            {role === "ADMIN" && b.isActive && <BayMenu bay={b} bays={board.bays} containers={containers} onDone={bayChanged} />}
-                          </div>
-                          {!b.isActive && <p className="text-xs text-muted-foreground">Inactive</p>}
-                          {b.cards.map(cardView)}
-                          {!b.cards.length && <p className={emptySlot + " flex-1"}>{role === "ADMIN" ? "Empty. Drop a car here." : "Empty."}</p>}
-                        </section>
-                      ))}
+                    <div data-board-row-scroll className="flex gap-3.5 overflow-x-auto p-3.5">
+                      {shown.map((b) => {
+                        const hasCar = b.cards.length > 0;
+                        return (
+                          <section
+                            key={b.id}
+                            aria-label={b.name}
+                            data-board-column={b.id}
+                            className={`flex min-w-[17rem] max-w-[21rem] flex-1 shrink-0 flex-col gap-2.5 rounded-lg border p-3 transition-colors ${
+                              hasCar
+                                ? "border-primary/35 bg-[#17171b]"
+                                : "border-border/80 bg-[#0d0d0f]"
+                            }`}
+                            onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
+                            onDrop={(e) => dropOnBay(e, b.id)}
+                          >
+                            <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span
+                                  aria-hidden="true"
+                                  className={`h-2 w-2 shrink-0 rounded-full ${
+                                    !b.isActive
+                                      ? "bg-zinc-500"
+                                      : hasCar
+                                        ? "bg-amber-400"
+                                        : "bg-emerald-400"
+                                  }`}
+                                />
+                                <h4 tabIndex={-1} className="min-w-0 break-words text-xs font-bold text-foreground">{b.name}</h4>
+                              </div>
+                              {role === "ADMIN" && b.isActive && <BayMenu bay={b} bays={board.bays} containers={containers} onDone={bayChanged} />}
+                            </div>
+                            {!b.isActive && <p className="text-xs text-muted-foreground">Inactive</p>}
+                            {b.cards.map(cardView)}
+                            {!b.cards.length && <p className={emptySlot}>{role === "ADMIN" ? "Empty. Drop a car here." : "Empty."}</p>}
+                          </section>
+                        );
+                      })}
                       {!shown.length && <p className={emptySlot + " flex-1"}>{role === "ADMIN" ? "No bays yet. Use Add bay." : "No bays yet."}</p>}
                     </div>
                   </article>
@@ -537,13 +581,13 @@ export function BayBoard({ role }: { role: UserRole }) {
               onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
               onDrop={dropOnDone}
             >
-              <div className="flex items-baseline justify-between gap-2">
-                <h2 tabIndex={-1} className="text-base font-bold">Done ({board.done.length})</h2>
-                <span className="text-xs text-muted-foreground">Finished</span>
+              <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5">
+                <h2 tabIndex={-1} className="text-sm font-bold tracking-tight">Done ({board.done.length})</h2>
+                <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[0.7rem] font-medium text-emerald-400">Finished</span>
               </div>
               {board.done.map(doneView)}
-              {!board.done.length && <p className={emptySlot + " flex-1"}>No cars finished yet</p>}
-              <p className="mt-auto text-xs text-muted-foreground">{role === "ADMIN" && "Drop a finished car here, or use Done (finish) on its card. "}Shows who worked and when it finished.</p>
+              {!board.done.length && <p className={emptySlot}>No cars finished yet</p>}
+              <p className="mt-auto border-t border-border/60 pt-2.5 text-[0.7rem] leading-relaxed text-muted-foreground">{role === "ADMIN" && "Drop a finished car here, or use Done (finish) on its card. "}Shows who worked and when it finished.</p>
             </section>
           </div>
           <p className="text-xs text-muted-foreground">
