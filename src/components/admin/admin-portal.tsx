@@ -9,6 +9,8 @@ import {
   Boxes,
   ChevronDown,
   ExternalLink,
+  PanelLeftClose,
+  PanelLeftOpen,
   Wallet,
   ClipboardList,
   Columns3,
@@ -54,6 +56,7 @@ export type AdminTab =
 
 interface NavItem {
   name: AdminTab;
+  group: "Operations" | "Management" | "System";
   icon: React.ComponentType<{
     className?: string;
     "aria-hidden"?: boolean | "true" | "false";
@@ -62,15 +65,21 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { name: "Bookings", icon: ClipboardList },
-  { name: "Bay board", icon: Columns3 },
-  { name: "Services", icon: Sparkles },
-  { name: "Team & Commissions", icon: Users },
-  { name: "Supplies & Inventory", icon: Boxes },
-  { name: "Expenses", icon: Wallet },
-  { name: "Sales Analytics", icon: BarChart3 },
-  { name: "Users", icon: UserCog, adminOnly: true },
-  { name: "Settings", icon: Settings },
+  { name: "Bookings", group: "Operations", icon: ClipboardList },
+  { name: "Bay board", group: "Operations", icon: Columns3 },
+  { name: "Services", group: "Operations", icon: Sparkles },
+  { name: "Team & Commissions", group: "Management", icon: Users },
+  { name: "Supplies & Inventory", group: "Management", icon: Boxes },
+  { name: "Expenses", group: "Management", icon: Wallet },
+  { name: "Sales Analytics", group: "Management", icon: BarChart3 },
+  { name: "Users", group: "System", icon: UserCog, adminOnly: true },
+  { name: "Settings", group: "System", icon: Settings },
+];
+
+const NAV_GROUPS: Array<{ key: NavItem["group"]; label: string }> = [
+  { key: "Operations", label: "Operations" },
+  { key: "Management", label: "Shop & Finance" },
+  { key: "System", label: "System" },
 ];
 
 export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
@@ -85,9 +94,31 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
   const leaving = React.useRef(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
+    try {
+      return (
+        typeof window !== "undefined" &&
+        window.localStorage.getItem("zeus_admin_sidebar_collapsed") === "1"
+      );
+    } catch {
+      return false;
+    }
+  });
   const [profileOpen, setProfileOpen] = React.useState(false);
   const profileRef = React.useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
+
+  const toggleSidebarCollapsed = React.useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("zeus_admin_sidebar_collapsed", next ? "1" : "0");
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  }, []);
 
   React.useEffect(() => {
     if (!profileOpen) return;
@@ -264,96 +295,159 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         aria-modal={menuOpen ? true : undefined}
         id="admin-nav"
         aria-label="Shop Management Sidebar"
-        className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] flex-col overflow-y-auto border-r border-border bg-[#121214] p-6 md:static md:z-auto md:flex md:w-64 md:max-w-none md:shrink-0`}
+        className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] flex-col border-r border-border bg-[#121214] transition-[width] duration-200 ease-out md:static md:z-auto md:flex md:max-w-none md:shrink-0 ${
+          sidebarCollapsed ? "md:w-[4.5rem]" : "md:w-64"
+        }`}
       >
-        <div className="mb-8 flex items-center justify-between">
-          <Link href="/" aria-label="Return to public shop site">
-            <Logo small />
+        {/* Sidebar Header */}
+        <div
+          className={`flex h-16 shrink-0 items-center border-b border-border/80 px-4 ${
+            sidebarCollapsed && !menuOpen
+              ? "md:justify-center md:px-2"
+              : "justify-between"
+          }`}
+        >
+          <Link
+            href="/"
+            aria-label="Return to public shop site"
+            title="Return to public shop site"
+            className="inline-flex items-center rounded-md focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            {sidebarCollapsed && !menuOpen ? (
+              <>
+                <span className="hidden h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 font-display text-sm font-black tracking-tighter text-primary md:inline-flex">
+                  Z
+                </span>
+                <span className="md:hidden">
+                  <Logo small />
+                </span>
+              </>
+            ) : (
+              <Logo small />
+            )}
           </Link>
+
           <button
             type="button"
             aria-label="Close menu"
             onClick={closeMenu}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:hidden"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground hover:bg-[#18181b] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:hidden"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Shop Management
-        </p>
-
-        <nav aria-label="Shop Operations Navigation" className="space-y-1">
-          {NAV_ITEMS.filter((item) => !item.adminOnly || staff.role === "ADMIN").map(({ name, icon: Icon }, i) => {
-            const isActive = tab === name;
-            return (
-              <button
-                type="button"
-                key={name}
-                ref={i === 0 ? firstNavItem : undefined}
-                onClick={() => {
-                  setTab(name);
-                  if (menuOpen) closeMenu();
-                }}
-                aria-current={isActive ? "page" : undefined}
-                className={`relative flex w-full min-h-[44px] items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
-                  isActive
-                    ? "bg-primary/10 text-primary font-bold"
-                    : "text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
-                }`}
-              >
-                {isActive && (
-                  <m.span
-                    layoutId="admin-sidebar-active"
-                    aria-hidden="true"
-                    transition={
-                      reduceMotion
-                        ? { duration: 0 }
-                        : { type: "spring", stiffness: 420, damping: 34 }
-                    }
-                    className="pointer-events-none absolute inset-y-1.5 left-0 w-1 rounded-r-full bg-primary"
-                  />
-                )}
-                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>{name}</span>
-              </button>
+        {/* Grouped Navigation */}
+        <nav
+          aria-label="Shop Operations Navigation"
+          className="flex-1 space-y-5 overflow-y-auto px-3 py-4"
+        >
+          {(() => {
+            const visibleItems = NAV_ITEMS.filter(
+              (item) => !item.adminOnly || staff.role === "ADMIN",
             );
-          })}
+            const firstVisibleName = visibleItems[0]?.name;
+            return NAV_GROUPS.map((group, groupIdx) => {
+              const groupItems = visibleItems.filter(
+                (item) => item.group === group.key,
+              );
+              if (groupItems.length === 0) return null;
+              return (
+                <div
+                  key={group.key}
+                  className={
+                    groupIdx > 0 && sidebarCollapsed && !menuOpen
+                      ? "md:border-t md:border-border/60 md:pt-3"
+                      : ""
+                  }
+                >
+                  <p
+                    className={`mb-1.5 px-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/75 ${
+                      sidebarCollapsed && !menuOpen ? "md:sr-only" : ""
+                    }`}
+                  >
+                    {group.label}
+                  </p>
+                  <div className="space-y-1">
+                    {groupItems.map(({ name, icon: Icon }) => {
+                      const isActive = tab === name;
+                      const isFirst = name === firstVisibleName;
+                      return (
+                        <button
+                          type="button"
+                          key={name}
+                          ref={isFirst ? firstNavItem : undefined}
+                          title={sidebarCollapsed && !menuOpen ? name : undefined}
+                          onClick={() => {
+                            setTab(name);
+                            if (menuOpen) closeMenu();
+                          }}
+                          aria-current={isActive ? "page" : undefined}
+                          className={`group relative flex w-full min-h-[42px] items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                            sidebarCollapsed && !menuOpen
+                              ? "md:justify-center md:px-0"
+                              : ""
+                          } ${
+                            isActive
+                              ? "bg-primary/12 text-primary font-bold ring-1 ring-inset ring-primary/25"
+                              : "text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
+                          }`}
+                        >
+                          {isActive && (
+                            <m.span
+                              layoutId="admin-sidebar-active"
+                              aria-hidden="true"
+                              transition={
+                                reduceMotion
+                                  ? { duration: 0 }
+                                  : { type: "spring", stiffness: 420, damping: 34 }
+                              }
+                              className="pointer-events-none absolute inset-y-2 left-0 w-1 rounded-r-full bg-primary"
+                            />
+                          )}
+                          <Icon
+                            className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${
+                              isActive ? "text-primary" : ""
+                            }`}
+                            aria-hidden="true"
+                          />
+                          <span
+                            className={
+                              sidebarCollapsed && !menuOpen
+                                ? "md:sr-only"
+                                : "truncate"
+                            }
+                          >
+                            <span>{name}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            });
+          })()}
         </nav>
 
-        {/* Staff footer */}
-        <div className="mt-auto border-t border-border pt-4 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-                {initials}
-              </div>
-              <div>
-                <p className="text-xs font-bold text-foreground">
-                  {staff.displayName}
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {staff.role === "ADMIN" ? "Shop Manager" : "Shop Staff"}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className="inline-flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap text-xs text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <LogOut className="h-4 w-4" aria-hidden="true" /> Sign out
-            </button>
-          </div>
-
+        {/* Compact Sidebar Footer: Collapse/Expand Rail Toggle */}
+        <div className="hidden border-t border-border/80 p-2.5 md:block">
           <button
             type="button"
-            onClick={() => setChangePasswordOpen(true)}
-            className="flex w-full items-center gap-2 rounded border border-border bg-[#141416] px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-[#1e1e22] transition-colors"
+            onClick={toggleSidebarCollapsed}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`flex min-h-[38px] w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary ${
+              sidebarCollapsed ? "justify-center px-0" : ""
+            }`}
           >
-            <KeyRound className="h-3.5 w-3.5 text-primary" />
-            <span>Change password</span>
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="truncate">Collapse sidebar</span>
+              </>
+            )}
           </button>
         </div>
       </aside>
