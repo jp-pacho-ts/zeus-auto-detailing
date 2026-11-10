@@ -16,7 +16,7 @@ interface AdminPageProps {
 export default async function AdminPage({ searchParams }: AdminPageProps) {
   await requireStaffPage("/admin");
   const params = await searchParams;
-  const initialTab = (params.tab as AdminTab) || "Bookings";
+  const initialTab = (params.tab as AdminTab) || "Dashboard";
 
   return <AdminPortal initialTab={initialTab} />;
 }

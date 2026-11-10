@@ -455,7 +455,7 @@ export function BayBoard({ role }: { role: UserRole }) {
           )}
         </div>
       )}
-      <LoadState loading={!board && resource.loading} error={resource.error} retry={refresh} />
+      <LoadState loading={!board && resource.loading} error={resource.error} retry={refresh} variant="board" />
       {board?.closed && <p className="text-sm">Shop closed · {board.closed.reason}</p>}
       {board && (
         <>

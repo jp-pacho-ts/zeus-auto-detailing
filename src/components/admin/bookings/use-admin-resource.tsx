@@ -1,5 +1,10 @@
 "use client";
 import * as React from "react";
+import {
+  AdminBoardSkeleton,
+  AdminRowsSkeleton,
+  AdminShellSkeleton,
+} from "@/components/ui/skeleton";
 import { adminRequest, AdminRequestError, requestGeneration } from "./client";
 export function useAdminResource<T>(
   url: string | null,
@@ -79,18 +84,23 @@ export function LoadState({
   loading,
   error,
   retry,
+  variant = "rows",
 }: {
   loading: boolean;
   error: string | null;
   retry: () => unknown;
+  variant?: "rows" | "board" | "shell";
 }) {
   return (
     <>
-      {loading && (
-        <p role="status" className="p-4 text-sm text-muted-foreground">
-          Loading shop data...
-        </p>
-      )}
+      {loading &&
+        (variant === "shell" ? (
+          <AdminShellSkeleton />
+        ) : variant === "board" ? (
+          <AdminBoardSkeleton />
+        ) : (
+          <AdminRowsSkeleton />
+        ))}
       {error && (
         <div role="alert" className="p-4 text-sm text-rose-400">
           {error}

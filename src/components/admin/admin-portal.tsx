@@ -14,6 +14,7 @@ import {
   Wallet,
   ClipboardList,
   Columns3,
+  LayoutDashboard,
   Users,
   UserCog,
   KeyRound,
@@ -24,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { DashboardTab } from "./dashboard-tab";
 import { BookingsTab } from "./bookings-tab";
 import { BayWorkspace } from "./bay-workspace";
 import { ServicesTab } from "./services-tab";
@@ -43,6 +45,7 @@ import { LoadState, useAdminResource } from "./bookings/use-admin-resource";
 import { brandConfig } from "@/config/brand";
 
 export type AdminTab =
+  | "Dashboard"
   | "Bookings"
   | "Bay Calendar"
   | "Bay board"
@@ -65,6 +68,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { name: "Dashboard", group: "Operations", icon: LayoutDashboard },
   { name: "Bookings", group: "Operations", icon: ClipboardList },
   { name: "Bay board", group: "Operations", icon: Columns3 },
   { name: "Services", group: "Operations", icon: Sparkles },
@@ -82,10 +86,15 @@ const NAV_GROUPS: Array<{ key: NavItem["group"]; label: string }> = [
 ];
 
 export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
+  const [bookingsView, setBookingsView] = React.useState<"BOOKINGS" | "CALENDAR">(
+    initialTab === "Bay Calendar" ? "CALENDAR" : "BOOKINGS",
+  );
   const [tab, setTab] = React.useState<AdminTab>(
-    NAV_ITEMS.some((n) => n.name === initialTab) || initialTab === "Settings"
-      ? initialTab!
-      : "Bookings",
+    initialTab === "Bay Calendar"
+      ? "Bookings"
+      : NAV_ITEMS.some((n) => n.name === initialTab) || initialTab === "Settings"
+        ? initialTab!
+        : "Dashboard",
   );
   const session = useAdminResource<StaffSessionView>("/api/admin/auth/session");
   // The banner: a site left in maintenance must be impossible to miss on any admin screen.
@@ -143,7 +152,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
     if (typeof document !== "undefined") {
       document.body.style.zoom = "";
       document.documentElement.style.zoom = "";
-      document.documentElement.style.fontSize = "75%";
+      document.documentElement.style.fontSize = "85%";
       try {
         localStorage.removeItem("zeus_admin_zoom");
       } catch {
@@ -244,7 +253,14 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
       </main>
     );
   if (!session.data)
-    return (
+    return session.loading ? (
+      <LoadState
+        loading={session.loading}
+        error={session.error}
+        retry={session.reload}
+        variant="shell"
+      />
+    ) : (
       <main className="min-h-screen bg-[#09090b] p-6 text-foreground">
         <LoadState
           loading={session.loading}
@@ -337,7 +353,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         {/* Categorized Navigation (text-xs matching dashboard content) */}
         <nav
           aria-label="Shop Operations Navigation"
-          className={`flex-1 space-y-5 px-3 py-4 ${
+          className={`flex-1 space-y-6 px-3.5 py-5 ${
             sidebarCollapsed && !menuOpen
               ? "overflow-visible"
               : "overflow-y-auto"
@@ -357,19 +373,21 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                 <div
                   key={group.key}
                   className={
-                    groupIdx > 0 && sidebarCollapsed && !menuOpen
-                      ? "md:border-t md:border-border md:pt-3"
+                    groupIdx > 0
+                      ? sidebarCollapsed && !menuOpen
+                        ? "md:border-t md:border-border md:pt-4"
+                        : "border-t border-border/60 pt-5"
                       : ""
                   }
                 >
                   <p
-                    className={`mb-1.5 px-2.5 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground ${
+                    className={`mb-2.5 px-3 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground ${
                       sidebarCollapsed && !menuOpen ? "md:sr-only" : ""
                     }`}
                   >
                     {group.label}
                   </p>
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {groupItems.map(({ name, icon: Icon }) => {
                       const isActive = tab === name;
                       const isFirst = name === firstVisibleName;
@@ -379,11 +397,12 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                           key={name}
                           ref={isFirst ? firstNavItem : undefined}
                           onClick={() => {
+                            if (name === "Bookings") setBookingsView("BOOKINGS");
                             setTab(name);
                             if (menuOpen) closeMenu();
                           }}
                           aria-current={isActive ? "page" : undefined}
-                          className={`group relative flex w-full min-h-[44px] items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition-colors md:min-h-0 ${
+                          className={`group relative flex w-full min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-xs transition-colors md:min-h-0 ${
                             sidebarCollapsed && !menuOpen
                               ? "md:justify-center md:px-0 md:py-2.5"
                               : ""
@@ -614,8 +633,26 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         >
           <div className="mx-auto max-w-[1600px]">
             {/* Active Tab View */}
+            {tab === "Dashboard" && (
+              <DashboardTab
+                role={staff.role}
+                onNavigate={(next) => {
+                  if (next === "Bay Calendar") {
+                    setBookingsView("CALENDAR");
+                    setTab("Bookings");
+                  } else {
+                    setBookingsView("BOOKINGS");
+                    setTab(next);
+                  }
+                }}
+              />
+            )}
             {tab === "Bookings" && (
-              <BookingsTab role={staff.role} initialView={initialTab === "Bay Calendar" ? "CALENDAR" : "BOOKINGS"} />
+              <BookingsTab
+                key={bookingsView}
+                role={staff.role}
+                initialView={bookingsView}
+              />
             )}
             {tab === "Bay board" && <BayWorkspace role={staff.role} />}
             {tab === "Services" && <ServicesTab role={staff.role} />}
