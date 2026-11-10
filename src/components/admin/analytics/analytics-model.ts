@@ -6,7 +6,7 @@ import type { AdminAnalyticsBucket, AdminAnalyticsBucketUnit } from "@/types/adm
 export type AnalyticsPreset = "THIS_MONTH" | "LAST_MONTH" | "THIS_YEAR";
 export interface AnalyticsPeriod { from: string; to: string }
 
-export const REVENUE_DEFINITION = "Final prices of the jobs finished in this period, by the day they were finished (Manila). This is what the jobs were priced at, not cash counted: the system does not record payments.";
+export const REVENUE_DEFINITION = "Final prices of the jobs finished in this period, by the day they were finished. This is what the jobs were priced at, not cash counted: the system does not record payments.";
 export const PROFIT_LATER = "Profit and expenses arrive with the Expenses page. No figure is shown until then.";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

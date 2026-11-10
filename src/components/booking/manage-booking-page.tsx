@@ -265,7 +265,7 @@ export function ManageBooking() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold sm:text-3xl">{phase === "booking" ? "Your booking" : "Open your booking"}</h1>
           <p className="mt-2 text-base text-muted-foreground">
-            {phase === "code" ? "Enter the reference code from your confirmation and the last name you booked with." : "This page is private to you. Days are in Philippine time."}
+            {phase === "code" ? "Enter the reference code from your confirmation and the last name you booked with." : "This page is private to you."}
           </p>
         </div>
 

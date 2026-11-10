@@ -831,7 +831,7 @@ export function BookingWizard({
   const intro = [
     "Prices depend on the size of your vehicle.",
     "Open a category to see its services. You can choose more than one.",
-    "Days are in Philippine time. " + arrivalWords(),
+    arrivalWords(),
     "The shop uses these details to confirm your booking.",
     "",
   ][step - 1];

@@ -76,7 +76,7 @@ test("BayWorkspace renders directly without the removed refresh bar", () => {
   const { html } = render();
   assert.equal(html.includes("Bays Operating"), false);
   assert.equal(html.includes("Refresh bays"), false);
-  assert.ok(html.includes("Assign cars to bays"));
+  assert.ok(html.includes('aria-label="Board day"'));
 });
 test("queue headers distinguish no limit, zero and set limits", () => {
   const off = render().list;

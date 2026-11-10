@@ -94,7 +94,7 @@ export function ManagedBookingDetails({
         <div className={tile}>
           <dt className={tileLabel}>{multiDay ? "Drop-off day" : "Day"}</dt>
           <dd className="mt-1 font-bold text-foreground">
-            {dateLabel(view.bookingDate)} · {view.timezone}
+            {dateLabel(view.bookingDate)}
           </dd>
           {multiDay && <p className="mt-1 text-sm text-muted-foreground">This job takes more than one day; the shop tells you when your car is ready.</p>}
         </div>
