@@ -68,6 +68,7 @@ model Service {
   price               Decimal?                @db.Decimal(10, 2)
   bayCapacityRequired Int                     @default(1)
   isActive            Boolean                 @default(true)
+  commissionRateBp    Int?
   bookings            Booking[]
   catalogVersions     CatalogServiceVersion[]
   recipes             ServiceRecipe[]

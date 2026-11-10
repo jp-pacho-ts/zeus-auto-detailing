@@ -7,6 +7,7 @@ import {
   ServiceCreateSchema,
   ServiceUpdateSchema,
 } from "@/lib/admin-validation";
+import { percentToBasisPoints } from "@/lib/commission";
 import type {
   AdminServiceList,
 } from "@/types/admin-contracts";
@@ -37,19 +38,24 @@ export async function updateAdminService(
   authorize(actor, "SETTINGS_WRITE");
   const serviceId = parse(AdminIdSchema, rawServiceId);
   const input = parse(ServiceUpdateSchema, rawInput);
+  const commissionBp =
+    input.commissionRatePercent !== undefined && input.commissionRatePercent !== null
+      ? percentToBasisPoints(input.commissionRatePercent)
+      : null;
 
   return withStaffDb(
     "STAFF_MUTATION",
     async (tx: StaffTx) => {
       try {
         await tx.$executeRawUnsafe(
-          "SELECT admin_service_update($1, $2, $3, $4, $5, $6::jsonb)",
+          "SELECT admin_service_update($1, $2, $3, $4, $5, $6::jsonb, $7::integer)",
           actor.staffId,
           serviceId,
           input.name,
           input.description ?? null,
           input.category,
           JSON.stringify(input.offers),
+          commissionBp,
         );
         return { ok: true, serviceId };
       } catch (error) {
@@ -69,6 +75,10 @@ export async function createAdminService(
 ): Promise<{ ok: true; serviceId: string }> {
   authorize(actor, "SETTINGS_WRITE");
   const input = parse(ServiceCreateSchema, rawInput);
+  const commissionBp =
+    input.commissionRatePercent !== undefined && input.commissionRatePercent !== null
+      ? percentToBasisPoints(input.commissionRatePercent)
+      : null;
 
   return withStaffDb(
     "STAFF_MUTATION",
@@ -82,7 +92,8 @@ export async function createAdminService(
             ${input.category},
             ${input.type},
             ${input.unit},
-            ${JSON.stringify(input.offers)}::jsonb
+            ${JSON.stringify(input.offers)}::jsonb,
+            ${commissionBp}::integer
           )
         `;
         const serviceId = rows[0]?.admin_service_create;

@@ -654,6 +654,7 @@ export interface AdminServiceItem {
   referenceUnitPriceCentavos: number | null;
   sortOrder: number;
   isActive: boolean;
+  commissionRateBp: number | null;
   offers: AdminServiceOffer[];
 }
 

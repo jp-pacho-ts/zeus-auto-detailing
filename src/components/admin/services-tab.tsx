@@ -82,6 +82,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     pricePhp: string;
     comparePhp: string;
   }>>({});
+  const [editCommissionRate, setEditCommissionRate] = React.useState<string>("");
   const [editSaving, setEditSaving] = React.useState(false);
   const [editError, setEditError] = React.useState<string | null>(null);
 
@@ -90,6 +91,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
   const [createName, setCreateName] = React.useState("");
   const [createDesc, setCreateDesc] = React.useState("");
   const [createCategory, setCreateCategory] = React.useState<CatalogServiceKind>("WASH");
+  const [createCommissionRate, setCreateCommissionRate] = React.useState<string>("");
   const [createType, setCreateType] = React.useState<"BASE" | "ADD_ON">("BASE");
   const [createUnit, setCreateUnit] = React.useState<PriceUnit>("VEHICLE");
   const [createOffers, setCreateOffers] = React.useState<Record<string, {
@@ -108,6 +110,11 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setEditName(svc.name);
     setEditDesc(svc.description ?? "");
     setEditCategory(svc.category);
+    setEditCommissionRate(
+      svc.commissionRateBp !== null && svc.commissionRateBp !== undefined
+        ? (svc.commissionRateBp / 100).toString()
+        : "",
+    );
     const offerMap: Record<string, { offered: boolean; pricePhp: string; comparePhp: string }> = {};
     for (const size of SIZE_ORDER) {
       const off = svc.offers.find((o) => o.sizeCode === size);
@@ -125,6 +132,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setCreateName("");
     setCreateDesc("");
     setCreateCategory("WASH");
+    setCreateCommissionRate("");
     setCreateType("BASE");
     setCreateUnit("VEHICLE");
     const offerMap: Record<string, { offered: boolean; pricePhp: string; comparePhp: string }> = {};
@@ -160,6 +168,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           name: editName,
           description: editDesc || null,
           category: editCategory,
+          commissionRatePercent: editCommissionRate.trim() || null,
           offers: offersPayload,
         }),
       });
@@ -201,6 +210,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           category: createCategory,
           type: createType,
           unit: createUnit,
+          commissionRatePercent: createCommissionRate.trim() || null,
           offers: offersPayload,
         }),
       });
@@ -395,6 +405,12 @@ export function ServicesTab({ role }: ServicesTabProps) {
                       <span className={`h-1.5 w-1.5 rounded-full ${svc.isActive ? "bg-emerald-400" : "bg-zinc-400"}`} />
                       {svc.isActive ? "Active Online" : "Hidden"}
                     </span>
+                    <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                      <Percent className="h-2.5 w-2.5" />
+                      {svc.commissionRateBp !== null && svc.commissionRateBp !== undefined
+                        ? `${svc.commissionRateBp / 100}% Comm.`
+                        : "Default Comm."}
+                    </span>
                   </div>
                   {svc.description && (
                     <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2 max-w-3xl">
@@ -533,7 +549,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
             )}
 
             <form onSubmit={handleSaveEdit} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground">Service Name *</label>
                   <input
@@ -558,7 +574,25 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground">Commission Rate (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={editCommissionRate}
+                    onChange={(e) => setEditCommissionRate(e.target.value)}
+                    placeholder="e.g. 10 (blank for default)"
+                    className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  />
+                </div>
               </div>
+              {editCategory === "GRAPHENE" && (
+                <div className="rounded border border-purple-500/30 bg-purple-500/10 p-2.5 text-xs text-purple-300">
+                  <span className="font-semibold">Coating Rule:</span> ₱1,500 chemical/product cost is automatically deducted from the base price before technician commission is calculated.
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground">Description</label>
@@ -731,7 +765,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
             )}
 
             <form onSubmit={handleSaveCreate} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground">Service Name *</label>
                   <input
@@ -757,7 +791,25 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground">Commission Rate (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={createCommissionRate}
+                    onChange={(e) => setCreateCommissionRate(e.target.value)}
+                    placeholder="e.g. 10 (blank for default)"
+                    className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  />
+                </div>
               </div>
+              {createCategory === "GRAPHENE" && (
+                <div className="rounded border border-purple-500/30 bg-purple-500/10 p-2.5 text-xs text-purple-300">
+                  <span className="font-semibold">Coating Rule:</span> ₱1,500 chemical/product cost is automatically deducted from the base price before technician commission is calculated.
+                </div>
+              )}
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>

@@ -461,6 +461,7 @@ export const ServiceUpdateSchema = z
     name: z.string().trim().min(1, "Enter a service name.").max(120),
     description: z.string().trim().max(1000).nullable().optional().default(null),
     category: CatalogServiceKindSchema,
+    commissionRatePercent: Percent.nullable().optional(),
     offers: z.array(ServiceOfferInputSchema),
   })
   .strict();
@@ -472,6 +473,7 @@ export const ServiceCreateSchema = z
     category: CatalogServiceKindSchema,
     type: ServiceTypeSchema.default("BASE"),
     unit: PriceUnitSchema.default("VEHICLE"),
+    commissionRatePercent: Percent.nullable().optional(),
     offers: z.array(ServiceOfferInputSchema),
   })
   .strict();
