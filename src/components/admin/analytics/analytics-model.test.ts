@@ -6,7 +6,7 @@ import { test } from "node:test";
 import type { AdminAnalyticsBucket } from "@/types/admin-contracts";
 import {
   analyticsUrl, averageText, barText, bucketAxisLabel, bucketLabel, chartEmptyText, chartTitle, commissionEarnedNote, compactPesos, customProblem, deletedNote, groupLabel, manilaToday,
-  niceTicks, olderNote, periodLabel, periodRange, stockNote, stockValueText, unpricedNotice, REVENUE_DEFINITION,
+  marginText, niceTicks, olderNote, periodLabel, periodRange, serviceMatchesGroup, stockNote, stockValueText, unpricedNotice, REVENUE_DEFINITION,
 } from "./analytics-model";
 
 const bucket = (start: string, end = start, extra: Partial<AdminAnalyticsBucket> = {}): AdminAnalyticsBucket => ({ start, end, future: false, revenueCentavos: 0, jobs: 0, ...extra });
@@ -113,6 +113,21 @@ test("the notices speak plainly, singular and plural, and stay silent at zero", 
 test("the commission note always says what it counts, and adds the start only for a period that begins before it, on the Manila day", () => {
   assert.equal(commissionEarnedNote("2026-11-04T16:30:00.000Z", "2026-11-05"), "On the jobs finished in this period.");
   assert.equal(commissionEarnedNote("2026-11-04T16:30:00.000Z", "2026-11-01"), "On the jobs finished in this period. Commissions began on Nov 5, 2026, so earlier jobs have none.");
+});
+
+test("marginText formats net margins cleanly and stays silent at zero revenue", () => {
+  assert.equal(marginText(0, 0), null);
+  assert.equal(marginText(50_000, 100_000), "+50.0% net margin");
+  assert.equal(marginText(-20_000, 100_000), "-20.0% net margin");
+});
+
+test("serviceMatchesGroup filters by group code", () => {
+  assert.equal(serviceMatchesGroup("Premium Wash", "ALL"), true);
+  assert.equal(serviceMatchesGroup("Premium Wash", "WASH"), true);
+  assert.equal(serviceMatchesGroup("IGL Kenzo Coating", "GRAPHENE"), true);
+  assert.equal(serviceMatchesGroup("Nano Ceramic Tint", "TINT"), true);
+  assert.equal(serviceMatchesGroup("Full Body PPF", "PPF"), true);
+  assert.equal(serviceMatchesGroup("Hood PPF", "WASH"), false);
 });
 
 test("no invented figure or code label is left on the screen", () => {

@@ -82,6 +82,44 @@ export function compactPesos(centavos: number): string {
 const GROUPS: Record<string, string> = { WASH: "Wash", DETAILING: "Detailing", GRAPHENE: "Graphene", TINT: "Tint", PPF: "PPF", REPAINT: "Repaint" };
 export const groupLabel = (code: string): string => GROUPS[code] ?? code;
 
+export const SERVICE_GROUPS = [
+  { code: "ALL", label: "All categories" },
+  { code: "WASH", label: "Wash" },
+  { code: "DETAILING", label: "Detailing" },
+  { code: "GRAPHENE", label: "Graphene" },
+  { code: "TINT", label: "Tint" },
+  { code: "PPF", label: "PPF" },
+  { code: "REPAINT", label: "Repaint" },
+] as const;
+export type ServiceGroupCode = (typeof SERVICE_GROUPS)[number]["code"];
+
+export function marginText(netCentavos: number, revenueCentavos: number): string | null {
+  if (revenueCentavos <= 0) return null;
+  const pct = (netCentavos / revenueCentavos) * 100;
+  return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% net margin`;
+}
+
+export function serviceMatchesGroup(serviceName: string, groupCode: string): boolean {
+  if (groupCode === "ALL") return true;
+  const lower = serviceName.toLowerCase();
+  switch (groupCode) {
+    case "WASH":
+      return lower.includes("wash") || lower.includes("vacuum");
+    case "DETAILING":
+      return lower.includes("detail") || lower.includes("polish") || lower.includes("engine") || lower.includes("interior") || lower.includes("exterior");
+    case "GRAPHENE":
+      return lower.includes("graphene") || lower.includes("coating") || lower.includes("igl") || lower.includes("kenzo") || lower.includes("eclipse");
+    case "TINT":
+      return lower.includes("tint");
+    case "PPF":
+      return lower.includes("ppf") || lower.includes("film");
+    case "REPAINT":
+      return lower.includes("paint") || lower.includes("panel") || lower.includes("bumper");
+    default:
+      return true;
+  }
+}
+
 export const STATUS_ROWS = [["PENDING", "Pending"], ["CONFIRMED", "Confirmed"], ["IN_PROGRESS", "In progress"], ["COMPLETED", "Finished"], ["CANCELLED", "Cancelled"]] as const;
 
 export const averageText = (centavos: number | null): string => (centavos === null ? "–" : formatPesos(centavos));
