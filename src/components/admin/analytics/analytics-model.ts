@@ -3,7 +3,7 @@ import { formatPesos } from "@/lib/commission";
 import { brandConfig } from "@/config/brand";
 import type { AdminAnalyticsBucket, AdminAnalyticsBucketUnit } from "@/types/admin-contracts";
 
-export type AnalyticsPreset = "THIS_MONTH" | "LAST_MONTH" | "THIS_YEAR";
+export type AnalyticsPreset = "TODAY" | "THIS_WEEK" | "LAST_WEEK" | "THIS_MONTH" | "LAST_MONTH" | "THIS_YEAR";
 export interface AnalyticsPeriod { from: string; to: string }
 
 export const REVENUE_DEFINITION = "Final prices of the jobs finished in this period, by the day they were finished. This is what the jobs were priced at, not cash counted: the system does not record payments.";
@@ -18,6 +18,15 @@ const short = (day: string) => `${MONTHS[parts(day).month - 1]} ${parts(day).dat
 export const manilaToday = (now: Date): string => new Intl.DateTimeFormat("en-CA", { timeZone: brandConfig.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 
 export function periodRange(preset: AnalyticsPreset, today: string): AnalyticsPeriod {
+  if (preset === "TODAY") return { from: today, to: today };
+  if (preset === "THIS_WEEK" || preset === "LAST_WEEK") {
+    const d = new Date(today + "T00:00:00Z");
+    const diffToMon = (d.getUTCDay() + 6) % 7;
+    const offset = preset === "LAST_WEEK" ? 7 : 0;
+    const mon = new Date(d.getTime() - (diffToMon + offset) * 86_400_000).toISOString().slice(0, 10);
+    const sun = new Date(d.getTime() - (diffToMon + offset - 6) * 86_400_000).toISOString().slice(0, 10);
+    return { from: mon, to: sun };
+  }
   const { year, month } = parts(today);
   if (preset === "THIS_YEAR") return { from: `${year}-01-01`, to: `${year}-12-31` };
   const zeroBased = preset === "THIS_MONTH" ? month - 1 : month - 2;

@@ -17,6 +17,9 @@ test("today is the Manila day, whatever zone the device is in", () => {
 });
 
 test("the period buttons give whole calendar periods in Manila", () => {
+  assert.deepEqual(periodRange("TODAY", "2026-11-10"), { from: "2026-11-10", to: "2026-11-10" });
+  assert.deepEqual(periodRange("THIS_WEEK", "2026-11-10"), { from: "2026-11-09", to: "2026-11-15" }, "Nov 10 2026 is Tue, week is Mon Nov 9 to Sun Nov 15");
+  assert.deepEqual(periodRange("LAST_WEEK", "2026-11-10"), { from: "2026-11-02", to: "2026-11-08" });
   assert.deepEqual(periodRange("THIS_MONTH", "2026-11-07"), { from: "2026-11-01", to: "2026-11-30" });
   assert.deepEqual(periodRange("LAST_MONTH", "2026-11-07"), { from: "2026-10-01", to: "2026-10-31" });
   assert.deepEqual(periodRange("LAST_MONTH", "2027-01-15"), { from: "2026-12-01", to: "2026-12-31" }, "across a new year");

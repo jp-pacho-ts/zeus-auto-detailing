@@ -322,54 +322,71 @@ export function DashboardTab({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                Month Revenue
-              </p>
-              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                {formatPesos(analytics.data.revenueCentavos)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {analytics.data.finishedJobs} finished jobs
-              </p>
-            </div>
-            <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                Average Ticket
-              </p>
-              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                {analytics.data.averageJobCentavos !== null
-                  ? formatPesos(analytics.data.averageJobCentavos)
-                  : "—"}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {analytics.data.fullyPricedJobs} fully priced jobs
-              </p>
-            </div>
-            <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                Unpaid Commissions
-              </p>
-              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                {formatPesos(analytics.data.commissions.unpaidCentavos)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Earned: {formatPesos(analytics.data.commissions.earnedCentavos)}
-              </p>
-            </div>
-            <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                Inventory Alerts
-              </p>
-              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                {analytics.data.stock.lowOrOutCount}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Low or out-of-stock supplies
-              </p>
-            </div>
-          </div>
+          {(() => {
+            const mtdNet = analytics.data.revenueCentavos - (analytics.data.commissions.earnedCentavos + (analytics.data.expenses?.manualCentavos ?? 0) + (analytics.data.expenses?.stockBoughtCentavos ?? 0));
+            const mtdPos = mtdNet >= 0;
+            return (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Month Revenue
+                  </p>
+                  <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                    {formatPesos(analytics.data.revenueCentavos)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {analytics.data.finishedJobs} finished jobs
+                  </p>
+                </div>
+                <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Est. Net Income
+                  </p>
+                  <p className={`mt-1 font-mono text-lg font-bold tabular-nums ${mtdPos ? "text-emerald-400" : "text-rose-400"}`}>
+                    {formatPesos(mtdNet)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    After comms &amp; expenses
+                  </p>
+                </div>
+                <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Average Ticket
+                  </p>
+                  <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                    {analytics.data.averageJobCentavos !== null
+                      ? formatPesos(analytics.data.averageJobCentavos)
+                      : "—"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {analytics.data.fullyPricedJobs} fully priced
+                  </p>
+                </div>
+                <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Unpaid Commissions
+                  </p>
+                  <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                    {formatPesos(analytics.data.commissions.unpaidCentavos)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Earned: {formatPesos(analytics.data.commissions.earnedCentavos)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Inventory Alerts
+                  </p>
+                  <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                    {analytics.data.stock.lowOrOutCount}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Low or out-of-stock
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
         </section>
       )}
     </div>

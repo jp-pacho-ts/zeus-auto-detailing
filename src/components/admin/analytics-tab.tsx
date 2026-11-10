@@ -6,7 +6,7 @@ import type { AdminAnalytics } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import {
   analyticsUrl, averageText, barText, bucketLabel, chartEmptyText, chartTitle, commissionEarnedNote, customProblem, deletedNote, groupLabel, manilaToday, olderNote, periodLabel,
-  periodRange, PROFIT_LATER, REVENUE_DEFINITION, STATUS_ROWS, stockNote, stockValueText, unpricedNotice, type AnalyticsPeriod, type AnalyticsPreset,
+  periodRange, REVENUE_DEFINITION, STATUS_ROWS, stockNote, stockValueText, unpricedNotice, type AnalyticsPeriod, type AnalyticsPreset,
 } from "./analytics/analytics-model";
 import { ColumnChart } from "./analytics/column-chart";
 import { RankedBars } from "./analytics/ranked-bars";
@@ -14,7 +14,15 @@ import { fieldClass, LoadState } from "./bookings/use-admin-resource";
 import { useKeptResource } from "./team/use-kept-resource";
 
 const CARD = "rounded border border-border bg-[#121214] p-5";
-const PRESETS: [AnalyticsPreset | "CUSTOM", string][] = [["THIS_MONTH", "This month"], ["LAST_MONTH", "Last month"], ["THIS_YEAR", "This year"], ["CUSTOM", "Custom"]];
+const PRESETS: [AnalyticsPreset | "CUSTOM", string][] = [
+  ["TODAY", "Today"],
+  ["THIS_WEEK", "This week"],
+  ["LAST_WEEK", "Last week"],
+  ["THIS_MONTH", "This month"],
+  ["LAST_MONTH", "Last month"],
+  ["THIS_YEAR", "This year"],
+  ["CUSTOM", "Custom"],
+];
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 
 function Tile({ label, value, note }: { label: string; value: string; note: string }) {
@@ -91,12 +99,36 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
 
       {data && (
         <div className={`space-y-4 ${stale ? "opacity-60" : ""}`} aria-busy={stale}>
-          <section className={CARD}>
-            <p className="text-xs text-muted-foreground">Revenue · {periodLabel(data.from, data.to)}</p>
-            <b className="mt-1 block break-words text-4xl font-bold tracking-tight text-foreground sm:text-5xl">{formatPesos(data.revenueCentavos)}</b>
-            <p className="mt-2 text-xs text-muted-foreground">{REVENUE_DEFINITION}</p>
-            {notices.map((note) => <p key={note} className="mt-1 text-xs text-muted-foreground">{note}</p>)}
-          </section>
+          {(() => {
+            const rev = data.revenueCentavos;
+            const comm = data.commissions.earnedCentavos;
+            const manual = data.expenses?.manualCentavos ?? 0;
+            const stock = data.expenses?.stockBoughtCentavos ?? 0;
+            const totalOut = comm + manual + stock;
+            const netIncome = rev - totalOut;
+            const isProfitable = netIncome >= 0;
+            return (
+              <section className={CARD}>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Revenue · {periodLabel(data.from, data.to)}</p>
+                    <b className="mt-1 block break-words text-4xl font-bold tracking-tight text-foreground sm:text-5xl">{formatPesos(rev)}</b>
+                  </div>
+                  <div className="rounded-lg border border-border bg-[#18181b] px-4 py-3 text-right">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Est. Net Income</p>
+                    <p className={`mt-1 font-mono text-2xl font-bold tabular-nums ${isProfitable ? "text-emerald-400" : "text-rose-400"}`}>
+                      {formatPesos(netIncome)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      After commissions &amp; recorded expenses
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">{REVENUE_DEFINITION}</p>
+                {notices.map((note) => <p key={note} className="mt-1 text-xs text-muted-foreground">{note}</p>)}
+              </section>
+            );
+          })()}
 
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Tile label="Finished jobs" value={String(data.finishedJobs)} note="Bookings marked finished in this period." />
@@ -165,7 +197,63 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
             </Section>
           </div>
 
-          <p className="rounded border border-dashed border-border p-5 text-sm text-muted-foreground">{PROFIT_LATER}</p>
+          {/* Profit & Loss / Net Income Summary */}
+          {(() => {
+            const rev = data.revenueCentavos;
+            const comm = data.commissions.earnedCentavos;
+            const manual = data.expenses?.manualCentavos ?? 0;
+            const stock = data.expenses?.stockBoughtCentavos ?? 0;
+            const totalOut = comm + manual + stock;
+            const netIncome = rev - totalOut;
+            const isProfitable = netIncome >= 0;
+            return (
+              <section className={CARD}>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-foreground">Profit &amp; Loss Summary</h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Operating profit after technician commissions and recorded expenses</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs text-muted-foreground">Net Income · </span>
+                    <span className={`font-mono text-base font-bold tabular-nums ${isProfitable ? "text-emerald-400" : "text-rose-400"}`}>
+                      {formatPesos(netIncome)}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded border border-border/80 bg-[#141416] p-3.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gross Revenue</p>
+                    <p className="mt-1 font-mono text-lg font-bold text-foreground">{formatPesos(rev)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{data.finishedJobs} finished jobs</p>
+                  </div>
+                  <div className="rounded border border-border/80 bg-[#141416] p-3.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Technician Commissions</p>
+                    <p className="mt-1 font-mono text-lg font-bold text-amber-400">−{formatPesos(comm)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Earned by staff on completed jobs</p>
+                  </div>
+                  <div className="rounded border border-border/80 bg-[#141416] p-3.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Operating Expenses</p>
+                    <p className="mt-1 font-mono text-lg font-bold text-rose-400">−{formatPesos(manual)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Direct shop &amp; facility expenses</p>
+                  </div>
+                  <div className="rounded border border-border/80 bg-[#141416] p-3.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Supplies &amp; Stock</p>
+                    <p className="mt-1 font-mono text-lg font-bold text-rose-400">−{formatPesos(stock)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Chemicals &amp; consumables received</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between rounded border border-border bg-[#18181b] px-4 py-3">
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Estimated Net Profit</p>
+                    <p className="text-xs text-muted-foreground">Gross revenue minus commissions, operating expenses, and supply purchases</p>
+                  </div>
+                  <p className={`font-mono text-2xl font-bold tabular-nums ${isProfitable ? "text-emerald-400" : "text-rose-400"}`}>
+                    {formatPesos(netIncome)}
+                  </p>
+                </div>
+              </section>
+            );
+          })()}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Tile label="Stock value today" value={stockValueText(data.stock.valueCentavos)} note={stockNote(data.stock.noCostItems)} />

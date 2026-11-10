@@ -539,6 +539,12 @@ export interface AdminAnalytics extends AdminAnalyticsSales {
     noCostItems: number;
     lowOrOutCount: number;
   };
+  expenses?: {
+    totalCentavos: number;
+    manualCentavos: number;
+    stockBoughtCentavos: number;
+    commissionsPaidCentavos: number;
+  };
 }
 
 // -----------------------------------------------------------------------------

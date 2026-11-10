@@ -163,6 +163,8 @@ function BookingRows({
 
 function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOnly?: boolean }) {
   const [date, setDate] = React.useState(shopDate),
+    [searchFrom, setSearchFrom] = React.useState(shopDate),
+    [searchTo, setSearchTo] = React.useState(shopDate),
     [filter, setFilter] = React.useState("ALL"),
     [selected, setSelected] = React.useState<string | null>(null),
     [busy, setBusy] = React.useState(false),
@@ -234,12 +236,37 @@ function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOn
       if (mounted.current) setBusy(false);
     }
   }
+  function applySearchPreset(p: "TODAY" | "THIS_WEEK" | "LAST_WEEK" | "THIS_MONTH") {
+    const today = shopDate();
+    let from = today;
+    let to = today;
+    if (p === "TODAY") {
+      from = today;
+      to = today;
+    } else if (p === "THIS_WEEK" || p === "LAST_WEEK") {
+      const d = new Date(today + "T00:00:00Z");
+      const diffToMon = (d.getUTCDay() + 6) % 7;
+      const offset = p === "LAST_WEEK" ? 7 : 0;
+      from = new Date(d.getTime() - (diffToMon + offset) * 86_400_000).toISOString().slice(0, 10);
+      to = new Date(d.getTime() - (diffToMon + offset - 6) * 86_400_000).toISOString().slice(0, 10);
+    } else if (p === "THIS_MONTH") {
+      const y = today.slice(0, 4);
+      const m = Number(today.slice(5, 7));
+      from = `${y}-${String(m).padStart(2, "0")}-01`;
+      to = new Date(Date.UTC(Number(y), m, 0)).toISOString().slice(0, 10);
+    }
+    setSearchFrom(from);
+    setSearchTo(to);
+    setListing({
+      url: `/api/admin/bookings?from=${from}&to=${to}&limit=25${filter === "ALL" ? "" : `&status=${filter}`}`,
+    });
+  }
   function search(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget),
       q = String(form.get("q")).trim(),
-      from = String(form.get("from")),
-      to = String(form.get("to")),
+      from = String(form.get("from") || searchFrom),
+      to = String(form.get("to") || searchTo),
       status = String(form.get("status"));
     const params = {
       from,
@@ -280,7 +307,29 @@ function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOn
     <div className="space-y-6">
       {!historyOnly && (<>
       <section className="rounded border border-border bg-[#121214] p-4">
-        <h2 className="font-bold">Find bookings</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-bold">Find bookings</h2>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground mr-1">Quick ranges:</span>
+            {(
+              [
+                ["TODAY", "Today"],
+                ["THIS_WEEK", "This week"],
+                ["LAST_WEEK", "Last week"],
+                ["THIS_MONTH", "This month"],
+              ] as const
+            ).map(([p, label]) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => applySearchPreset(p)}
+                className="rounded border border-border bg-[#18181b] px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-[#202024] hover:text-foreground"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <form
           key={date}
           onSubmit={search}
@@ -301,7 +350,8 @@ function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOn
               name="from"
               type="date"
               required
-              defaultValue={date}
+              value={searchFrom}
+              onChange={(e) => setSearchFrom(e.target.value)}
               className={fieldClass}
             />
           </label>
@@ -311,7 +361,8 @@ function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOn
               name="to"
               type="date"
               required
-              defaultValue={date}
+              value={searchTo}
+              onChange={(e) => setSearchTo(e.target.value)}
               className={fieldClass}
             />
           </label>
@@ -414,7 +465,7 @@ function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOn
         />
       </div>
       <section className="rounded border border-border bg-[#121214]">
-        <div className="flex flex-wrap items-end gap-4 border-b border-border p-4">
+        <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
           <label className="text-xs">
             Queue day
             <input
@@ -433,6 +484,50 @@ function BookingsList({ role, historyOnly = false }: { role: UserRole; historyOn
               }}
             />
           </label>
+          <div className="flex items-center gap-1.5 pb-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                const prev = new Date(Date.parse(date + "T00:00:00Z") - 86_400_000).toISOString().slice(0, 10);
+                setDate(prev);
+                setSelected(null);
+                setListing(null);
+                setHistoryPhone(null);
+                setError(null);
+              }}
+              className="rounded border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
+            >
+              Yesterday
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const today = shopDate();
+                setDate(today);
+                setSelected(null);
+                setListing(null);
+                setHistoryPhone(null);
+                setError(null);
+              }}
+              className="rounded border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = new Date(Date.parse(date + "T00:00:00Z") + 86_400_000).toISOString().slice(0, 10);
+                setDate(next);
+                setSelected(null);
+                setListing(null);
+                setHistoryPhone(null);
+                setError(null);
+              }}
+              className="rounded border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
+            >
+              Tomorrow
+            </button>
+          </div>
           <Button
             variant="outline"
             disabled={busy || day.loading}

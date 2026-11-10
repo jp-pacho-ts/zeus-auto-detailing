@@ -7,6 +7,7 @@ import type { BookingStatus } from "@/types/contracts";
 import { summarizeSales, stockSummary, type AnalyticsLineRow } from "./analytics-model";
 import { listCommissions } from "./commissions";
 import { authorize, dateCarrier, dayEnd, dayStart, isoDay, manilaDate, parse, type AdminOptions, type StaffActor } from "./context";
+import { totalsIn } from "./expenses-read";
 import { listSupplies } from "./supplies";
 
 type LineRow = Omit<AnalyticsLineRow, "finishedOn"> & { finishedOn: Date };
@@ -44,6 +45,7 @@ export async function getAnalytics(actor: StaffActor, input: unknown, options: A
   // The same reads as the Team and Supplies screens, one after the other, so these figures cannot differ from them.
   const team = await listCommissions(actor, { from, to }, options);
   const supplies = await listSupplies(actor, {}, options);
+  const exp = await withStaffDb("STAFF_READ", (tx) => totalsIn(tx, from, to), { access: "read", db: options.db, signal: options.signal });
   return {
     ...sales,
     from,
@@ -57,6 +59,12 @@ export async function getAnalytics(actor: StaffActor, input: unknown, options: A
       unpaidCentavos: team.grandTotal.unpaidCentavos,
       nobodyCredited: team.warnings.nobodyCredited,
       missingRecords: team.warnings.missingRecords,
+    },
+    expenses: {
+      totalCentavos: Number(exp.total),
+      manualCentavos: Number(exp.manual),
+      stockBoughtCentavos: Number(exp.stockBought),
+      commissionsPaidCentavos: Number(exp.commissionsPaid),
     },
     stock: { ...stockSummary(supplies.items), lowOrOutCount: supplies.lowOrOutCount },
   };
