@@ -56,7 +56,7 @@ export type AdminTab =
 
 interface NavItem {
   name: AdminTab;
-  group: "Operations" | "Management" | "System";
+  section: "floor" | "backoffice";
   icon: React.ComponentType<{
     className?: string;
     "aria-hidden"?: boolean | "true" | "false";
@@ -65,20 +65,14 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { name: "Bookings", group: "Operations", icon: ClipboardList },
-  { name: "Bay board", group: "Operations", icon: Columns3 },
-  { name: "Services", group: "Operations", icon: Sparkles },
-  { name: "Team & Commissions", group: "Management", icon: Users },
-  { name: "Supplies & Inventory", group: "Management", icon: Boxes },
-  { name: "Expenses", group: "Management", icon: Wallet },
-  { name: "Sales Analytics", group: "Management", icon: BarChart3 },
-  { name: "Users", group: "System", icon: UserCog, adminOnly: true },
-];
-
-const NAV_GROUPS: Array<{ key: NavItem["group"]; label: string }> = [
-  { key: "Operations", label: "Operations" },
-  { key: "Management", label: "Shop & Finance" },
-  { key: "System", label: "System" },
+  { name: "Bookings", section: "floor", icon: ClipboardList },
+  { name: "Bay board", section: "floor", icon: Columns3 },
+  { name: "Services", section: "floor", icon: Sparkles },
+  { name: "Team & Commissions", section: "backoffice", icon: Users },
+  { name: "Supplies & Inventory", section: "backoffice", icon: Boxes },
+  { name: "Expenses", section: "backoffice", icon: Wallet },
+  { name: "Sales Analytics", section: "backoffice", icon: BarChart3 },
+  { name: "Users", section: "backoffice", icon: UserCog, adminOnly: true },
 ];
 
 export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
@@ -296,161 +290,145 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         aria-modal={menuOpen ? true : undefined}
         id="admin-nav"
         aria-label="Shop Management Sidebar"
-        className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] flex-col border-r border-border bg-[#121214] transition-[width] duration-200 ease-out md:static md:z-auto md:flex md:max-w-none md:shrink-0 ${
-          sidebarCollapsed ? "md:w-[4.5rem]" : "md:w-64"
+        className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] flex-col border-r border-white/[0.07] bg-[#0d0d0f] transition-[width] duration-200 ease-out md:static md:z-auto md:flex md:max-w-none md:shrink-0 ${
+          sidebarCollapsed ? "md:w-16" : "md:w-60"
         }`}
       >
-        {/* Sidebar Header */}
+        {/* Sidebar Header: Brand + Same-Spot Collapse/Expand Toggle */}
         <div
-          className={`flex h-16 shrink-0 items-center border-b border-border/80 px-4 ${
+          className={`flex h-16 shrink-0 items-center border-b border-white/[0.07] px-3.5 ${
             sidebarCollapsed && !menuOpen
-              ? "md:justify-center md:px-2"
+              ? "md:justify-center md:px-0"
               : "justify-between"
           }`}
         >
           <Link
             href="/"
             aria-label="Return to public shop site"
-            title="Return to public shop site"
-            className="inline-flex items-center rounded-md focus-visible:ring-2 focus-visible:ring-primary"
+            className={`inline-flex items-center rounded-md focus-visible:ring-2 focus-visible:ring-primary ${
+              sidebarCollapsed && !menuOpen ? "md:sr-only" : ""
+            }`}
           >
-            {sidebarCollapsed && !menuOpen ? (
-              <>
-                <span className="hidden h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 font-display text-sm font-black tracking-tighter text-primary md:inline-flex">
-                  Z
-                </span>
-                <span className="md:hidden">
-                  <Logo small />
-                </span>
-              </>
-            ) : (
-              <Logo small />
-            )}
+            <Logo small />
           </Link>
+
+          <button
+            type="button"
+            onClick={toggleSidebarCollapsed}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="hidden h-9 w-9 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:border-white/[0.08] hover:bg-white/[0.05] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:inline-flex"
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4 text-primary" aria-hidden="true" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
 
           <button
             type="button"
             aria-label="Close menu"
             onClick={closeMenu}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground hover:bg-[#18181b] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:hidden"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-muted-foreground hover:bg-white/[0.05] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:hidden"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
-        {/* Grouped Navigation */}
+        {/* Distilled Navigation Rail */}
         <nav
           aria-label="Shop Operations Navigation"
-          className="flex-1 space-y-5 overflow-y-auto px-3 py-4"
+          className={`flex-1 px-2.5 py-3 ${
+            sidebarCollapsed && !menuOpen
+              ? "overflow-visible"
+              : "overflow-y-auto"
+          }`}
         >
           {(() => {
             const visibleItems = NAV_ITEMS.filter(
               (item) => !item.adminOnly || staff.role === "ADMIN",
             );
             const firstVisibleName = visibleItems[0]?.name;
-            return NAV_GROUPS.map((group, groupIdx) => {
-              const groupItems = visibleItems.filter(
-                (item) => item.group === group.key,
-              );
-              if (groupItems.length === 0) return null;
-              return (
-                <div
-                  key={group.key}
-                  className={
-                    groupIdx > 0 && sidebarCollapsed && !menuOpen
-                      ? "md:border-t md:border-border/60 md:pt-3"
-                      : ""
-                  }
-                >
-                  <p
-                    className={`mb-1.5 px-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/75 ${
-                      sidebarCollapsed && !menuOpen ? "md:sr-only" : ""
-                    }`}
-                  >
-                    {group.label}
-                  </p>
-                  <div className="space-y-1">
-                    {groupItems.map(({ name, icon: Icon }) => {
-                      const isActive = tab === name;
-                      const isFirst = name === firstVisibleName;
-                      return (
-                        <button
-                          type="button"
-                          key={name}
-                          ref={isFirst ? firstNavItem : undefined}
-                          title={sidebarCollapsed && !menuOpen ? name : undefined}
-                          onClick={() => {
-                            setTab(name);
-                            if (menuOpen) closeMenu();
-                          }}
-                          aria-current={isActive ? "page" : undefined}
-                          className={`group relative flex w-full min-h-[42px] items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-all ${
-                            sidebarCollapsed && !menuOpen
-                              ? "md:justify-center md:px-0"
-                              : ""
-                          } ${
-                            isActive
-                              ? "bg-primary/12 text-primary font-bold ring-1 ring-inset ring-primary/25"
-                              : "text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
-                          }`}
-                        >
-                          {isActive && (
-                            <m.span
-                              layoutId="admin-sidebar-active"
-                              aria-hidden="true"
-                              transition={
-                                reduceMotion
-                                  ? { duration: 0 }
-                                  : { type: "spring", stiffness: 420, damping: 34 }
-                              }
-                              className="pointer-events-none absolute inset-y-2 left-0 w-1 rounded-r-full bg-primary"
-                            />
-                          )}
-                          <Icon
-                            className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${
-                              isActive ? "text-primary" : ""
-                            }`}
+            return (
+              <div className="space-y-1">
+                {visibleItems.map(({ name, section, icon: Icon }, idx) => {
+                  const isActive = tab === name;
+                  const isFirst = name === firstVisibleName;
+                  const prevSection = idx > 0 ? visibleItems[idx - 1]?.section : section;
+                  const showDivider = section !== prevSection;
+                  return (
+                    <React.Fragment key={name}>
+                      {showDivider && (
+                        <div
+                          role="separator"
+                          aria-hidden="true"
+                          className="my-2.5 mx-1.5 h-px bg-white/[0.07]"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        ref={isFirst ? firstNavItem : undefined}
+                        onClick={() => {
+                          setTab(name);
+                          if (menuOpen) closeMenu();
+                        }}
+                        aria-current={isActive ? "page" : undefined}
+                        className={`group relative flex w-full min-h-[40px] items-center gap-3 rounded-lg px-3 py-2 text-[13px] tracking-[-0.01em] transition-colors ${
+                          sidebarCollapsed && !menuOpen
+                            ? "md:justify-center md:px-0"
+                            : ""
+                        } ${
+                          isActive
+                            ? "font-semibold text-primary"
+                            : "font-medium text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
+                        }`}
+                      >
+                        {isActive && (
+                          <m.span
+                            layoutId="admin-sidebar-active"
                             aria-hidden="true"
-                          />
-                          <span
-                            className={
-                              sidebarCollapsed && !menuOpen
-                                ? "md:sr-only"
-                                : "truncate"
+                            transition={
+                              reduceMotion
+                                ? { duration: 0 }
+                                : { type: "spring", stiffness: 420, damping: 34 }
                             }
+                            className="pointer-events-none absolute inset-0 rounded-lg bg-primary/[0.11] shadow-[inset_2.5px_0_0_0_#d4af37] ring-1 ring-inset ring-primary/20"
+                          />
+                        )}
+                        <Icon
+                          className={`relative z-10 h-[17px] w-[17px] shrink-0 transition-colors ${
+                            isActive
+                              ? "text-primary"
+                              : "text-zinc-400 group-hover:text-zinc-200"
+                          }`}
+                          aria-hidden="true"
+                        />
+                        <span
+                          className={
+                            sidebarCollapsed && !menuOpen
+                              ? "md:sr-only"
+                              : "relative z-10 truncate"
+                          }
+                        >
+                          <span>{name}</span>
+                        </span>
+                        {sidebarCollapsed && !menuOpen && (
+                          <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#18181b] px-2.5 py-1 text-xs font-medium text-zinc-100 opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:block"
                           >
-                            <span>{name}</span>
+                            {name}
                           </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            });
+                        )}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            );
           })()}
         </nav>
-
-        {/* Compact Sidebar Footer: Collapse/Expand Rail Toggle */}
-        <div className="hidden border-t border-border/80 p-2.5 md:block">
-          <button
-            type="button"
-            onClick={toggleSidebarCollapsed}
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={`flex min-h-[38px] w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary ${
-              sidebarCollapsed ? "justify-center px-0" : ""
-            }`}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-            ) : (
-              <>
-                <PanelLeftClose className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span className="truncate">Collapse sidebar</span>
-              </>
-            )}
-          </button>
-        </div>
       </aside>
 
       {/* Main Admin Content */}
