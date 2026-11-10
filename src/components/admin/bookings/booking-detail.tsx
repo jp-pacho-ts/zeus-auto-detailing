@@ -185,7 +185,7 @@ export function BookingDetail({
         if (!busy) onClose();
       }}
       aria-labelledby="booking-detail-title"
-      className="fixed max-h-[90vh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded border border-border bg-[#121214] p-4 text-foreground backdrop:bg-black/80 sm:p-6"
+      className="fixed inset-0 m-auto max-h-[90vh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded border border-border bg-[#121214] p-4 text-foreground backdrop:bg-black/80 sm:p-6"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="booking-detail-title" className="text-lg font-bold">
