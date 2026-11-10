@@ -518,7 +518,7 @@ export function BayBoard({ role }: { role: UserRole }) {
                           </span>
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {usualForLine(c.usualQueues)} · {inUseCount} of {shown.length} in use
+                          {usualForLine(c.usualQueues)}
                         </p>
                       </div>
                       {role === "ADMIN" && (
@@ -536,7 +536,7 @@ export function BayBoard({ role }: { role: UserRole }) {
                             key={b.id}
                             aria-label={b.name}
                             data-board-column={b.id}
-                            className={`flex min-w-[17rem] max-w-[21rem] flex-1 shrink-0 flex-col gap-2.5 rounded-lg border p-3 transition-colors ${
+                            className={`flex min-w-[17rem] flex-1 basis-0 shrink-0 flex-col gap-2.5 rounded-lg border p-3 transition-colors ${
                               hasCar
                                 ? "border-primary/35 bg-[#17171b]"
                                 : "border-border/80 bg-[#0d0d0f]"
