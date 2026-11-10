@@ -73,7 +73,6 @@ const NAV_ITEMS: NavItem[] = [
   { name: "Expenses", group: "Management", icon: Wallet },
   { name: "Sales Analytics", group: "Management", icon: BarChart3 },
   { name: "Users", group: "System", icon: UserCog, adminOnly: true },
-  { name: "Settings", group: "System", icon: Settings },
 ];
 
 const NAV_GROUPS: Array<{ key: NavItem["group"]; label: string }> = [
@@ -84,7 +83,9 @@ const NAV_GROUPS: Array<{ key: NavItem["group"]; label: string }> = [
 
 export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const [tab, setTab] = React.useState<AdminTab>(
-    NAV_ITEMS.some((n) => n.name === initialTab) ? initialTab! : "Bookings",
+    NAV_ITEMS.some((n) => n.name === initialTab) || initialTab === "Settings"
+      ? initialTab!
+      : "Bookings",
   );
   const session = useAdminResource<StaffSessionView>("/api/admin/auth/session");
   // The banner: a site left in maintenance must be impossible to miss on any admin screen.
