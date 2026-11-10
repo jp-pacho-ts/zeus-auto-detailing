@@ -49,7 +49,7 @@ async function worker(
     const b = await loadForWrite(tx, bookingId, v.expectedRevision, {
       v3: true,
     });
-    if (!["PENDING", "CONFIRMED", "IN_PROGRESS"].includes(b.status))
+    if (!["PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED"].includes(b.status))
       return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
     const staff = await tx.staff.findUnique({
       where: { id: targetStaffId },
@@ -88,6 +88,10 @@ async function worker(
       fromRevision: v.expectedRevision,
       toRevision: v.expectedRevision + 1,
     });
+    if (b.status === "COMPLETED") {
+      await tx.$executeRaw`DELETE FROM public.commission_accruals WHERE "bookingId" = ${bookingId} AND "creditedCount" = 0`;
+      await tx.$executeRaw`SELECT public.commission_accrue(${bookingId})`;
+    }
     return { booking: await detailOrThrow(tx, bookingId), noChange: false };
   });
 }

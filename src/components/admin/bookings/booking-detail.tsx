@@ -176,7 +176,8 @@ export function BookingDetail({
   }
   const admin = role === "ADMIN",
     disabled = busy || Boolean(conflict) || uncertain,
-    open = b && ["PENDING", "CONFIRMED", "IN_PROGRESS"].includes(b.status);
+    open = b && ["PENDING", "CONFIRMED", "IN_PROGRESS"].includes(b.status),
+    canAssignStaff = admin && Boolean(b && ["PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED"].includes(b.status) && b.snapshot === "QUEUE_V3");
   return (
     <dialog
       ref={dialog}
@@ -673,7 +674,7 @@ export function BookingDetail({
                 ?.map((w) => w.name + (w.isActive ? "" : " (inactive)"))
                 .join(", ") || "Unassigned"}
             </p>
-            {admin && open && b.snapshot === "QUEUE_V3" && (
+            {canAssignStaff && (
               <>
                 <LoadState
                   loading={workers.loading}
