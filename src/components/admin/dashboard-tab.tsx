@@ -1,17 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  ArrowRight,
-  BarChart3,
-  Boxes,
-  Calendar,
-  ClipboardList,
-  Columns3,
-  RefreshCw,
-  Users,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatPesos } from "@/lib/commission";
 import type {
@@ -73,56 +63,6 @@ export function DashboardTab({
 
   return (
     <div className="space-y-6">
-      {/* Quick-Action Command Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-[#121214] p-3.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => onNavigate("Bay board")}>
-            <Columns3 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Open Bay board
-          </Button>
-          <Button variant="outline" onClick={() => onNavigate("Bookings")}>
-            <ClipboardList className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Bookings queue
-          </Button>
-          <Button variant="outline" onClick={() => onNavigate("Bay Calendar")}>
-            <Calendar className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Calendar
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => onNavigate("Team & Commissions")}
-          >
-            <Users className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Team & Commissions
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => onNavigate("Supplies & Inventory")}
-          >
-            <Boxes className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Inventory
-          </Button>
-          {isAdmin && (
-            <Button
-              variant="outline"
-              onClick={() => onNavigate("Sales Analytics")}
-            >
-              <BarChart3 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              Sales Analytics
-            </Button>
-          )}
-        </div>
-
-        <Button
-          variant="outline"
-          disabled={day.loading || board.loading}
-          onClick={reloadAll}
-        >
-          <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-          Refresh live status
-        </Button>
-      </div>
-
       {/* Top KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard
