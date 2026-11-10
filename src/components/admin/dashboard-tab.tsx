@@ -105,7 +105,7 @@ export function DashboardTab({
         <section className="rounded-lg border border-border bg-[#121214] lg:col-span-7">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5">
             <div>
-              <h2 className="text-sm font-bold text-foreground">
+              <h2 className="text-base font-bold text-foreground">
                 Live Bay Floor
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -219,7 +219,7 @@ export function DashboardTab({
         <section className="rounded-lg border border-border bg-[#121214] lg:col-span-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5">
             <div>
-              <h2 className="text-sm font-bold text-foreground">
+              <h2 className="text-base font-bold text-foreground">
                 Today&apos;s Queue Snapshot
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -306,7 +306,7 @@ export function DashboardTab({
         <section className="rounded-lg border border-border bg-[#121214] p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-sm font-bold text-foreground">
+              <h2 className="text-base font-bold text-foreground">
                 This Month&apos;s Performance
               </h2>
               <p className="text-xs text-muted-foreground">
