@@ -14,6 +14,7 @@ import {
   PanelLeftOpen,
   Wallet,
   ClipboardList,
+  Calendar,
   Columns3,
   LayoutDashboard,
   Users,
@@ -28,6 +29,7 @@ import {
 import { Logo } from "@/components/ui/logo";
 import { DashboardTab } from "./dashboard-tab";
 import { BookingsTab } from "./bookings-tab";
+import { CalendarTab } from "./calendar-tab";
 import { BayWorkspace } from "./bay-workspace";
 import { ServicesTab } from "./services-tab";
 import { DetailersTab } from "./detailers-tab";
@@ -49,6 +51,7 @@ import { brandConfig } from "@/config/brand";
 export type AdminTab =
   | "Dashboard"
   | "Bookings"
+  | "Calendar"
   | "Bay Calendar"
   | "Bay board"
   | "Services"
@@ -74,6 +77,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { name: "Dashboard", group: "Operations", icon: LayoutDashboard },
   { name: "Bookings", group: "Operations", icon: ClipboardList },
+  { name: "Calendar", group: "Operations", icon: Calendar },
   { name: "Bay board", group: "Operations", icon: Columns3 },
   { name: "Services", group: "Operations", icon: Sparkles },
   { name: "Staff", group: "Management", icon: Users },
@@ -644,9 +648,8 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               <DashboardTab
                 role={staff.role}
                 onNavigate={(next) => {
-                  if (next === "Bay Calendar") {
-                    setBookingsView("CALENDAR");
-                    setTab("Bookings");
+                  if (next === "Bay Calendar" || next === "Calendar") {
+                    setTab("Calendar");
                   } else {
                     setBookingsView("BOOKINGS");
                     setTab(next);
@@ -659,7 +662,11 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                 key={bookingsView}
                 role={staff.role}
                 initialView={bookingsView}
+                onNavigateCalendar={() => setTab("Calendar")}
               />
+            )}
+            {(tab === "Calendar" || (tab === "Bay Calendar" && bookingsView !== "CALENDAR")) && (
+              <CalendarTab role={staff.role} />
             )}
             {tab === "Bay board" && <BayWorkspace role={staff.role} />}
             {tab === "Services" && <ServicesTab role={staff.role} />}

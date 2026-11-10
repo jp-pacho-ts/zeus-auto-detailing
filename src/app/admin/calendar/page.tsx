@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 
 export default async function CalendarPage() {
   await requireStaffPage("/admin/calendar");
-  return <AdminPortal initialTab="Bay Calendar" />;
+  return <AdminPortal initialTab="Calendar" />;
 }
