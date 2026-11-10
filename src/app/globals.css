@@ -103,10 +103,14 @@
     cursor: pointer;
   }
 
+  #admin-content {
+    scrollbar-gutter: stable;
+  }
+
+  /* No reserved gutter on the lanes: it showed as an empty strip on their right edge. */
   #admin-content,
   [data-board-zone="WAITING"],
   [data-board-zone="DONE"] {
-    scrollbar-gutter: stable;
     overscroll-behavior: contain;
   }
 
