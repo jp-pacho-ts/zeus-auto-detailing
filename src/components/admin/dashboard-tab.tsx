@@ -37,7 +37,7 @@ export function DashboardTab({
   const [today] = React.useState(shopDate);
   const isAdmin = role === "ADMIN";
   const day = useAdminResource<AdminDayQueues>(`/api/admin/queues?date=${today}`);
-  const board = useAdminResource<AdminDayBoard>(`/api/admin/bays/board?date=${today}`);
+  const board = useAdminResource<AdminDayBoard>(`/api/admin/board?date=${today}`);
   const [monthPeriod] = React.useState(() =>
     periodRange("THIS_MONTH", manilaToday(new Date())),
   );
