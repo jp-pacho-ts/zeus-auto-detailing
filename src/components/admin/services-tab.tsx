@@ -282,7 +282,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
         </div>
         <div className="rounded border border-border bg-[#141416] p-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Categories</p>
-          <p className="mt-1 text-xl font-bold text-foreground">6 Disciplines</p>
+          <p className="mt-1 text-xl font-bold text-foreground">{Object.keys(CATEGORY_LABELS).length} Service Categories</p>
         </div>
       </div>
 
