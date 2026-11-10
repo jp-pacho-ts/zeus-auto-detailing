@@ -56,7 +56,7 @@ export type AdminTab =
 
 interface NavItem {
   name: AdminTab;
-  section: "floor" | "backoffice";
+  group: "Operations" | "Management" | "Administration";
   icon: React.ComponentType<{
     className?: string;
     "aria-hidden"?: boolean | "true" | "false";
@@ -65,14 +65,20 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { name: "Bookings", section: "floor", icon: ClipboardList },
-  { name: "Bay board", section: "floor", icon: Columns3 },
-  { name: "Services", section: "floor", icon: Sparkles },
-  { name: "Team & Commissions", section: "backoffice", icon: Users },
-  { name: "Supplies & Inventory", section: "backoffice", icon: Boxes },
-  { name: "Expenses", section: "backoffice", icon: Wallet },
-  { name: "Sales Analytics", section: "backoffice", icon: BarChart3 },
-  { name: "Users", section: "backoffice", icon: UserCog, adminOnly: true },
+  { name: "Bookings", group: "Operations", icon: ClipboardList },
+  { name: "Bay board", group: "Operations", icon: Columns3 },
+  { name: "Services", group: "Operations", icon: Sparkles },
+  { name: "Team & Commissions", group: "Management", icon: Users },
+  { name: "Supplies & Inventory", group: "Management", icon: Boxes },
+  { name: "Expenses", group: "Management", icon: Wallet },
+  { name: "Sales Analytics", group: "Management", icon: BarChart3 },
+  { name: "Users", group: "Administration", icon: UserCog, adminOnly: true },
+];
+
+const NAV_GROUPS: Array<{ key: NavItem["group"]; label: string }> = [
+  { key: "Operations", label: "Operations" },
+  { key: "Management", label: "Management" },
+  { key: "Administration", label: "Administration" },
 ];
 
 export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
@@ -290,56 +296,48 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         aria-modal={menuOpen ? true : undefined}
         id="admin-nav"
         aria-label="Shop Management Sidebar"
-        className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] flex-col border-r border-white/[0.07] bg-[#0d0d0f] transition-[width] duration-200 ease-out md:static md:z-auto md:flex md:max-w-none md:shrink-0 ${
+        className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] flex-col border-r border-border bg-[#121214] transition-[width] duration-200 ease-out md:static md:z-auto md:flex md:max-w-none md:shrink-0 ${
           sidebarCollapsed ? "md:w-16" : "md:w-60"
         }`}
       >
-        {/* Sidebar Header: Brand + Same-Spot Collapse/Expand Toggle */}
-        <div
-          className={`flex h-16 shrink-0 items-center border-b border-white/[0.07] px-3.5 ${
-            sidebarCollapsed && !menuOpen
-              ? "md:justify-center md:px-0"
-              : "justify-between"
-          }`}
-        >
+        {/* Sidebar Header: Centered Logo & Flush 5rem (h-20) Height Aligned With Top Navbar */}
+        <div className="relative flex h-20 shrink-0 items-center justify-between border-b border-border px-4 md:justify-center">
           <Link
             href="/"
             aria-label="Return to public shop site"
-            className={`inline-flex items-center rounded-md focus-visible:ring-2 focus-visible:ring-primary ${
+            className={`inline-flex items-center justify-center rounded-md focus-visible:ring-2 focus-visible:ring-primary ${
               sidebarCollapsed && !menuOpen ? "md:sr-only" : ""
             }`}
           >
             <Logo small />
           </Link>
 
-          <button
-            type="button"
-            onClick={toggleSidebarCollapsed}
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="hidden h-9 w-9 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:border-white/[0.08] hover:bg-white/[0.05] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:inline-flex"
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen className="h-4 w-4 text-primary" aria-hidden="true" />
-            ) : (
-              <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
-            )}
-          </button>
+          {sidebarCollapsed && !menuOpen && (
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              className="hidden h-9 w-9 items-center justify-center rounded-md border border-border bg-[#18181b] text-primary transition-colors hover:border-primary/40 hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary md:inline-flex"
+            >
+              <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
 
           <button
             type="button"
             aria-label="Close menu"
             onClick={closeMenu}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-muted-foreground hover:bg-white/[0.05] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:hidden"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground hover:bg-[#18181b] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:hidden"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
-        {/* Distilled Navigation Rail */}
+        {/* Categorized Navigation (text-xs matching dashboard content) */}
         <nav
           aria-label="Shop Operations Navigation"
-          className={`flex-1 px-2.5 py-3 ${
+          className={`flex-1 space-y-5 px-3 py-4 ${
             sidebarCollapsed && !menuOpen
               ? "overflow-visible"
               : "overflow-y-auto"
@@ -350,85 +348,119 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               (item) => !item.adminOnly || staff.role === "ADMIN",
             );
             const firstVisibleName = visibleItems[0]?.name;
-            return (
-              <div className="space-y-1">
-                {visibleItems.map(({ name, section, icon: Icon }, idx) => {
-                  const isActive = tab === name;
-                  const isFirst = name === firstVisibleName;
-                  const prevSection = idx > 0 ? visibleItems[idx - 1]?.section : section;
-                  const showDivider = section !== prevSection;
-                  return (
-                    <React.Fragment key={name}>
-                      {showDivider && (
-                        <div
-                          role="separator"
-                          aria-hidden="true"
-                          className="my-2.5 mx-1.5 h-px bg-white/[0.07]"
-                        />
-                      )}
-                      <button
-                        type="button"
-                        ref={isFirst ? firstNavItem : undefined}
-                        onClick={() => {
-                          setTab(name);
-                          if (menuOpen) closeMenu();
-                        }}
-                        aria-current={isActive ? "page" : undefined}
-                        className={`group relative flex w-full min-h-[40px] items-center gap-3 rounded-lg px-3 py-2 text-[13px] tracking-[-0.01em] transition-colors ${
-                          sidebarCollapsed && !menuOpen
-                            ? "md:justify-center md:px-0"
-                            : ""
-                        } ${
-                          isActive
-                            ? "font-semibold text-primary"
-                            : "font-medium text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
-                        }`}
-                      >
-                        {isActive && (
-                          <m.span
-                            layoutId="admin-sidebar-active"
-                            aria-hidden="true"
-                            transition={
-                              reduceMotion
-                                ? { duration: 0 }
-                                : { type: "spring", stiffness: 420, damping: 34 }
-                            }
-                            className="pointer-events-none absolute inset-0 rounded-lg bg-primary/[0.11] shadow-[inset_2.5px_0_0_0_#d4af37] ring-1 ring-inset ring-primary/20"
-                          />
-                        )}
-                        <Icon
-                          className={`relative z-10 h-[17px] w-[17px] shrink-0 transition-colors ${
-                            isActive
-                              ? "text-primary"
-                              : "text-zinc-400 group-hover:text-zinc-200"
-                          }`}
-                          aria-hidden="true"
-                        />
-                        <span
-                          className={
+            return NAV_GROUPS.map((group, groupIdx) => {
+              const groupItems = visibleItems.filter(
+                (item) => item.group === group.key,
+              );
+              if (groupItems.length === 0) return null;
+              return (
+                <div
+                  key={group.key}
+                  className={
+                    groupIdx > 0 && sidebarCollapsed && !menuOpen
+                      ? "md:border-t md:border-border md:pt-3"
+                      : ""
+                  }
+                >
+                  <p
+                    className={`mb-1.5 px-2.5 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground ${
+                      sidebarCollapsed && !menuOpen ? "md:sr-only" : ""
+                    }`}
+                  >
+                    {group.label}
+                  </p>
+                  <div className="space-y-1">
+                    {groupItems.map(({ name, icon: Icon }) => {
+                      const isActive = tab === name;
+                      const isFirst = name === firstVisibleName;
+                      return (
+                        <button
+                          type="button"
+                          key={name}
+                          ref={isFirst ? firstNavItem : undefined}
+                          onClick={() => {
+                            setTab(name);
+                            if (menuOpen) closeMenu();
+                          }}
+                          aria-current={isActive ? "page" : undefined}
+                          className={`group relative flex w-full min-h-[44px] items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition-colors md:min-h-0 ${
                             sidebarCollapsed && !menuOpen
-                              ? "md:sr-only"
-                              : "relative z-10 truncate"
-                          }
+                              ? "md:justify-center md:px-0 md:py-2.5"
+                              : ""
+                          } ${
+                            isActive
+                              ? "font-bold text-primary"
+                              : "font-medium text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
+                          }`}
                         >
-                          <span>{name}</span>
-                        </span>
-                        {sidebarCollapsed && !menuOpen && (
-                          <span
+                          {isActive && (
+                            <m.span
+                              layoutId="admin-sidebar-active"
+                              aria-hidden="true"
+                              transition={
+                                reduceMotion
+                                  ? { duration: 0 }
+                                  : { type: "spring", stiffness: 420, damping: 34 }
+                              }
+                              className="pointer-events-none absolute inset-0 rounded-md bg-primary/10 ring-1 ring-inset ring-primary/25"
+                            />
+                          )}
+                          <Icon
+                            className={`relative z-10 h-4 w-4 shrink-0 ${
+                              isActive
+                                ? "text-primary"
+                                : "text-muted-foreground group-hover:text-foreground"
+                            }`}
                             aria-hidden="true"
-                            className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#18181b] px-2.5 py-1 text-xs font-medium text-zinc-100 opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:block"
+                          />
+                          <span
+                            className={
+                              sidebarCollapsed && !menuOpen
+                                ? "md:sr-only"
+                                : "relative z-10 truncate"
+                            }
                           >
-                            {name}
+                            <span>{name}</span>
                           </span>
-                        )}
-                      </button>
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            );
+                          {sidebarCollapsed && !menuOpen && (
+                            <span
+                              aria-hidden="true"
+                              className="pointer-events-none absolute left-full top-1/2 z-50 ml-2.5 hidden -translate-y-1/2 whitespace-nowrap rounded border border-border bg-[#18181b] px-2.5 py-1 text-xs font-medium text-foreground opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:block"
+                            >
+                              {name}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            });
           })()}
         </nav>
+
+        {/* Desktop Collapse / Expand Toggle Footer */}
+        <div className="hidden border-t border-border p-2.5 md:block">
+          <button
+            type="button"
+            onClick={toggleSidebarCollapsed}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary ${
+              sidebarCollapsed ? "justify-center px-0" : ""
+            }`}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="truncate">Collapse sidebar</span>
+              </>
+            )}
+          </button>
+        </div>
       </aside>
 
       {/* Main Admin Content */}
@@ -436,10 +468,10 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         {isMaintenance && (
           <p role="status" className="shrink-0 border-b border-primary bg-primary/10 px-4 py-2 text-xs font-bold text-foreground sm:px-8 lg:px-10">{MAINTENANCE_BANNER}</p>
         )}
-        <header className="shrink-0 border-b border-border bg-[#09090b]/95 px-4 py-3.5 backdrop-blur-xs sm:px-8 lg:px-10 lg:py-4">
-          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4">
+        <header className="flex shrink-0 items-center border-b border-border bg-[#121214] px-4 py-3 sm:px-8 md:h-20 md:py-0 lg:px-10">
+          <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
+              <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-primary">
                 {new Intl.DateTimeFormat(brandConfig.locale, {
                   timeZone: brandConfig.timezone,
                   weekday: "long",
@@ -448,7 +480,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   year: "numeric",
                 }).format(new Date())}
               </p>
-              <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              <h1 className="mt-0.5 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                 {tab}
               </h1>
             </div>
@@ -473,7 +505,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
 
               <Link
                 href="/book"
-                className="group relative inline-flex min-h-[40px] items-center gap-2 overflow-hidden rounded-md bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-xs transition-all hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary"
+                className="group relative inline-flex items-center gap-2 overflow-hidden rounded-md bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-xs transition-all hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <span>New Booking</span>
                 <ArrowRight
@@ -489,9 +521,9 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   aria-haspopup="menu"
                   aria-expanded={profileOpen}
                   onClick={() => setProfileOpen((v) => !v)}
-                  className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-border bg-[#121214] px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-[#18181b] focus-visible:ring-2 focus-visible:ring-primary"
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-[#09090b] px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-[#18181b] focus-visible:ring-2 focus-visible:ring-primary"
                 >
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-[11px] font-bold text-primary">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-[0.65rem] font-bold text-primary">
                     {initials}
                   </span>
                   <span className="hidden max-w-[8rem] truncate sm:inline">
@@ -509,13 +541,13 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   <div
                     role="menu"
                     aria-label="Account actions"
-                    className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-border bg-[#121214] p-1.5 shadow-xl"
+                    className="absolute right-0 top-full z-50 mt-2 w-52 rounded-lg border border-border bg-[#121214] p-1.5 shadow-xl"
                   >
                     <div className="border-b border-border/70 px-3 py-2">
                       <p className="truncate text-xs font-bold text-foreground">
                         {staff.displayName}
                       </p>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-[0.65rem] text-muted-foreground">
                         {staff.role === "ADMIN" ? "Shop Manager" : "Shop Staff"}
                       </p>
                     </div>
