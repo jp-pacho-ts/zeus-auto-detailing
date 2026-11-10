@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LazyMotion, domAnimation, m, useReducedMotion } from "motion/react";
 import {
   ArrowRight,
+  Banknote,
   BarChart3,
   Boxes,
   ChevronDown,
@@ -30,6 +31,7 @@ import { BookingsTab } from "./bookings-tab";
 import { BayWorkspace } from "./bay-workspace";
 import { ServicesTab } from "./services-tab";
 import { DetailersTab } from "./detailers-tab";
+import { PayrollTab } from "./payroll-tab";
 import { InventoryTab } from "./inventory-tab";
 import { ExpensesTab } from "./expenses-tab";
 import { AnalyticsTab } from "./analytics-tab";
@@ -50,6 +52,8 @@ export type AdminTab =
   | "Bay Calendar"
   | "Bay board"
   | "Services"
+  | "Staff"
+  | "Payroll & Commissions"
   | "Team & Commissions"
   | "Supplies & Inventory"
   | "Expenses"
@@ -72,7 +76,8 @@ const NAV_ITEMS: NavItem[] = [
   { name: "Bookings", group: "Operations", icon: ClipboardList },
   { name: "Bay board", group: "Operations", icon: Columns3 },
   { name: "Services", group: "Operations", icon: Sparkles },
-  { name: "Team & Commissions", group: "Management", icon: Users },
+  { name: "Staff", group: "Management", icon: Users },
+  { name: "Payroll & Commissions", group: "Management", icon: Banknote },
   { name: "Supplies & Inventory", group: "Management", icon: Boxes },
   { name: "Expenses", group: "Management", icon: Wallet },
   { name: "Sales Analytics", group: "Management", icon: BarChart3 },
@@ -92,9 +97,11 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const [tab, setTab] = React.useState<AdminTab>(
     initialTab === "Bay Calendar"
       ? "Bookings"
-      : NAV_ITEMS.some((n) => n.name === initialTab) || initialTab === "Settings"
-        ? initialTab!
-        : "Dashboard",
+      : initialTab === "Team & Commissions"
+        ? "Staff"
+        : NAV_ITEMS.some((n) => n.name === initialTab) || initialTab === "Settings"
+          ? initialTab!
+          : "Dashboard",
   );
   const session = useAdminResource<StaffSessionView>("/api/admin/auth/session");
   // The banner: a site left in maintenance must be impossible to miss on any admin screen.
@@ -656,7 +663,8 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             )}
             {tab === "Bay board" && <BayWorkspace role={staff.role} />}
             {tab === "Services" && <ServicesTab role={staff.role} />}
-            {tab === "Team & Commissions" && <DetailersTab role={staff.role} />}
+            {(tab === "Staff" || tab === "Team & Commissions") && <DetailersTab role={staff.role} />}
+            {tab === "Payroll & Commissions" && <PayrollTab role={staff.role} />}
             {tab === "Supplies & Inventory" && <InventoryTab role={staff.role} />}
             {tab === "Expenses" && <ExpensesTab role={staff.role} />}
             {tab === "Sales Analytics" && <AnalyticsTab role={staff.role} />}
