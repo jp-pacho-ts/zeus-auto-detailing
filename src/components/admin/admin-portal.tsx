@@ -521,12 +521,12 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               </h1>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               {/* Operational Status Pill */}
               {isMaintenance ? (
                 <span
                   role="status"
-                  className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 text-xs font-semibold text-amber-400"
                 >
                   <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
                   Maintenance Mode
@@ -534,7 +534,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               ) : (
                 <div
                   title="All systems operational"
-                  className="hidden sm:inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400"
+                  className="hidden sm:inline-flex h-9 items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-medium text-emerald-400"
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
                   <span>Shop Operational</span>
@@ -547,7 +547,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Public Site"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-[#18181b] px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-primary"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-[#18181b] px-3 text-xs font-medium text-zinc-300 transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <span>Public Site</span>
                 <ExternalLink className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
@@ -563,7 +563,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   aria-haspopup="menu"
                   aria-expanded={profileOpen}
                   onClick={() => setProfileOpen((v) => !v)}
-                  className="inline-flex items-center gap-2 rounded-md border border-border bg-[#09090b] px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-[#18181b] focus-visible:ring-2 focus-visible:ring-primary"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-[#18181b] px-3 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-[0.65rem] font-bold text-primary">
                     {initials}

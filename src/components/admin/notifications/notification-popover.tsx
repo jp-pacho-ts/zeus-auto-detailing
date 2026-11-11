@@ -127,11 +127,11 @@ export function NotificationPopover({
             void reload();
           }
         }}
-        className="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-border bg-[#09090b] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-[#18181b] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-[#18181b] text-zinc-300 transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-black ring-2 ring-[#121214] animate-in zoom-in-50">
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 font-mono text-[9px] font-bold text-black ring-2 ring-[#121214] animate-in zoom-in-50">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
