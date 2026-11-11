@@ -9,10 +9,10 @@ import {
   ChevronRight,
   Search,
   X,
-  Plus,
   RefreshCw,
   User,
   Percent,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -79,6 +79,9 @@ export function CommissionsPanel({
   const [adjId, setAdjId] = React.useState("");
   const [adjReason, setAdjReason] = React.useState("");
   const [adjProblem, setAdjProblem] = React.useState<string | null>(null);
+  const [adjMethod, setAdjMethod] = React.useState<"RATE" | "MANUAL">("RATE");
+  const [targetRate, setTargetRate] = React.useState("30");
+  const [applyToAllOnBooking, setApplyToAllOnBooking] = React.useState(true);
 
   const [editingRate, setEditingRate] = React.useState(false);
   const [rate, setRate] = React.useState("");
@@ -189,16 +192,44 @@ export function CommissionsPanel({
     }
     setAdjProblem(null);
     const ok = await run(async () => {
-      await adminRequest("/api/admin/commissions/adjust", {
-        method: "POST",
-        body: {
-          id: adjId,
-          entryId: adjusting,
-          amountCentavos,
-          reason: adjReason.trim(),
-        },
-      });
-      return "The adjustment was recorded.";
+      if (applyToAllOnBooking && peerEntries.length > 1 && adjMethod === "RATE") {
+        const rateNum = parseFloat(targetRate);
+        const targetBp = Math.round((isNaN(rateNum) ? 30 : rateNum) * 100);
+        let count = 0;
+        for (const peer of peerEntries) {
+          const peerTarget = Math.round((peer.shareCentavos * targetBp) / 10000);
+          const peerNet =
+            peer.amountCentavos +
+            peer.adjustments.reduce((s, a) => s + a.amountCentavos, 0);
+          const delta = peerTarget - peerNet;
+          if (delta !== 0) {
+            await adminRequest("/api/admin/commissions/adjust", {
+              method: "POST",
+              body: {
+                id: crypto.randomUUID(),
+                entryId: peer.id,
+                amountCentavos: delta,
+                reason: adjReason.trim(),
+              },
+            });
+            count++;
+          }
+        }
+        return count > 1
+          ? `Adjusted commission for ${count} detailers on ${adjustingEntry?.bookingReference}.`
+          : "The adjustment was recorded.";
+      } else {
+        await adminRequest("/api/admin/commissions/adjust", {
+          method: "POST",
+          body: {
+            id: adjId,
+            entryId: adjusting,
+            amountCentavos,
+            reason: adjReason.trim(),
+          },
+        });
+        return "The adjustment was recorded.";
+      }
     });
     if (ok) {
       setAdjusting(null);
@@ -278,10 +309,88 @@ export function CommissionsPanel({
     setPage(1);
   };
 
-  const adjustingEntry = React.useMemo(
-    () => allEntries.find((e) => e.id === adjusting),
-    [allEntries, adjusting],
-  );
+  const adjustingEntry = adjusting
+    ? allEntries.find((e) => e.id === adjusting)
+    : undefined;
+
+  const peerEntries = adjustingEntry
+    ? allEntries.filter(
+        (e) => e.bookingReference === adjustingEntry.bookingReference,
+      )
+    : [];
+
+  const adjustingCurrentNet = adjustingEntry
+    ? adjustingEntry.amountCentavos +
+      adjustingEntry.adjustments.reduce((sum, a) => sum + a.amountCentavos, 0)
+    : 0;
+
+  const calculatedPreview = (() => {
+    if (!adjustingEntry || adjMethod !== "RATE") return null;
+    const num = parseFloat(targetRate);
+    if (isNaN(num) || num <= 0 || num > 100) return null;
+    const targetBp = Math.round(num * 100);
+    const targetCentavos = Math.round(
+      (adjustingEntry.shareCentavos * targetBp) / 10000,
+    );
+    const deltaCentavos = targetCentavos - adjustingCurrentNet;
+    return { targetCentavos, deltaCentavos };
+  })();
+
+  const openAdjustment = (entry: (typeof allEntries)[number]) => {
+    setAdjusting(entry.id);
+    setAdjProblem(null);
+    setError(null);
+    freshAdjId();
+    setAdjMethod("RATE");
+    setApplyToAllOnBooking(true);
+
+    const currentPct = basisPointsToPercent(entry.rateBp);
+    const suggested = entry.rateBp === 2000 ? "30" : currentPct;
+    setTargetRate(suggested);
+
+    const targetBp = Math.round(parseFloat(suggested) * 100);
+    const targetCentavos = Math.round((entry.shareCentavos * targetBp) / 10000);
+    const currentNet =
+      entry.amountCentavos +
+      entry.adjustments.reduce((s, a) => s + a.amountCentavos, 0);
+    const delta = targetCentavos - currentNet;
+
+    if (delta >= 0) {
+      setAdjMode("ADD");
+      setAdjAmount(delta === 0 ? "0" : (delta / 100).toFixed(2));
+    } else {
+      setAdjMode("TAKE");
+      setAdjAmount((Math.abs(delta) / 100).toFixed(2));
+    }
+    setAdjReason(
+      delta !== 0
+        ? `Rate adjusted from ${currentPct}% to ${suggested}%`
+        : `Manual adjustment for ${entry.staffName}`,
+    );
+  };
+
+  const handleRateChange = (val: string) => {
+    setTargetRate(val);
+    if (!adjustingEntry) return;
+    const num = parseFloat(val);
+    if (isNaN(num) || num <= 0 || num > 100) return;
+    const targetBp = Math.round(num * 100);
+    const targetCentavos = Math.round(
+      (adjustingEntry.shareCentavos * targetBp) / 10000,
+    );
+    const delta = targetCentavos - adjustingCurrentNet;
+
+    if (delta >= 0) {
+      setAdjMode("ADD");
+      setAdjAmount((delta / 100).toFixed(2));
+    } else {
+      setAdjMode("TAKE");
+      setAdjAmount((Math.abs(delta) / 100).toFixed(2));
+    }
+    const currentPct = basisPointsToPercent(adjustingEntry.rateBp);
+    setAdjReason(`Rate adjusted from ${currentPct}% to ${val}%`);
+    freshAdjId();
+  };
 
   return (
     <div className="space-y-5">
@@ -853,11 +962,19 @@ export function CommissionsPanel({
 
                                   <td className="px-4 py-3 align-top min-w-[220px]">
                                     <div className="space-y-1 text-xs text-muted-foreground">
-                                      <p className="text-foreground">
+                                      <p className="flex items-center gap-1.5 flex-wrap text-foreground">
                                         <span className="font-semibold text-primary">
                                           {basisPointsToPercent(en.rateBp)}%
                                         </span>{" "}
-                                        of {formatPesos(en.shareCentavos)}
+                                        <span>of {formatPesos(en.shareCentavos)}</span>
+                                        <button
+                                          type="button"
+                                          title="Adjust rate"
+                                          onClick={() => openAdjustment(en)}
+                                          className="inline-flex items-center rounded p-0.5 text-muted-foreground hover:text-primary transition"
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </button>
                                         {en.creditedCount > 1
                                           ? ` (shared by ${en.creditedCount} of ${formatPesos(
                                               en.serviceTotalCentavos,
@@ -907,19 +1024,12 @@ export function CommissionsPanel({
                                       variant="ghost"
                                       size="sm"
                                       disabled={busy}
-                                      onClick={() => {
-                                        setAdjusting(en.id);
-                                        setAdjAmount("");
-                                        setAdjReason("");
-                                        setAdjMode("ADD");
-                                        freshAdjId();
-                                        setAdjProblem(null);
-                                        setError(null);
-                                      }}
-                                      className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                      aria-label="Add adjustment"
+                                      onClick={() => openAdjustment(en)}
+                                      className="h-7 text-xs text-muted-foreground hover:text-primary hover:bg-primary/5"
                                     >
-                                      <Plus className="mr-1 h-3 w-3" />
-                                      Add adjustment
+                                      <Pencil className="mr-1 h-3 w-3 text-primary" />
+                                      Adjust / Edit
                                     </Button>
                                   </td>
                                 </tr>
@@ -1097,7 +1207,7 @@ export function CommissionsPanel({
         )}
       </section>
 
-      {/* 7. ADD ADJUSTMENT MODAL / DIALOG */}
+      {/* 7. ADD / EDIT ADJUSTMENT MODAL */}
       <Dialog
         open={adjusting !== null}
         onOpenChange={(open) => {
@@ -1108,85 +1218,236 @@ export function CommissionsPanel({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Add Commission Adjustment</DialogTitle>
-          <DialogDescription>
-            {adjustingEntry
-              ? `Adjustment for ${adjustingEntry.staffName} on ${adjustingEntry.bookingReference} (${adjustingEntry.serviceName})`
-              : "Adjust the commission amount for this job."}
-          </DialogDescription>
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+              <Pencil className="h-4 w-4" />
+            </span>
+            <div>
+              <DialogTitle>Adjust Commission & Rate</DialogTitle>
+              <DialogDescription className="text-xs">
+                {adjustingEntry
+                  ? `${adjustingEntry.bookingReference} · ${adjustingEntry.serviceName} · ${adjustingEntry.staffName}`
+                  : "Adjust the commission amount or rate for this job."}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <form onSubmit={(e) => void saveAdjustment(e)} className="space-y-4 pt-2">
-          <label className="block text-xs font-semibold text-muted-foreground">
-            Change
-            <select
-              className={fieldClass}
-              value={adjMode}
-              onChange={(e) => {
-                setAdjMode(e.target.value as "ADD" | "TAKE");
-                freshAdjId();
-              }}
-            >
-              <option value="ADD">Add to the commission</option>
-              <option value="TAKE">Take off the commission</option>
-            </select>
-          </label>
+        {adjustingEntry && (
+          <form onSubmit={(e) => void saveAdjustment(e)} className="space-y-4 pt-1">
+            {/* Quick Context Card */}
+            <div className="rounded-lg border border-border/80 bg-[#141417] p-3 text-xs">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <span className="text-[11px] text-muted-foreground block">Base Share</span>
+                  <span className="font-mono font-bold text-foreground">
+                    {formatPesos(adjustingEntry.shareCentavos)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-muted-foreground block">Current Rate</span>
+                  <span className="font-mono font-bold text-amber-400">
+                    {basisPointsToPercent(adjustingEntry.rateBp)}%
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-muted-foreground block">Current Commission</span>
+                  <span className="font-mono font-bold text-emerald-400">
+                    {formatPesos(adjustingCurrentNet)}
+                  </span>
+                </div>
+              </div>
+            </div>
 
-          <label className="block text-xs font-semibold text-muted-foreground">
-            Amount (pesos)
-            <input
-              className={fieldClass}
-              value={adjAmount}
-              onChange={(e) => {
-                setAdjAmount(e.target.value);
-                freshAdjId();
-              }}
-              inputMode="decimal"
-              placeholder="e.g. 200"
-              required
-              autoComplete="off"
-            />
-          </label>
+            {/* Adjustment Method Selector */}
+            <div className="flex rounded-lg border border-border bg-[#121214] p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setAdjMethod("RATE")}
+                className={`flex-1 rounded py-1.5 font-semibold transition ${
+                  adjMethod === "RATE"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                % Set New Rate
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdjMethod("MANUAL")}
+                className={`flex-1 rounded py-1.5 font-semibold transition ${
+                  adjMethod === "MANUAL"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                ₱ Direct Amount (+ / -)
+              </button>
+            </div>
 
-          <label className="block text-xs font-semibold text-muted-foreground">
-            Reason
-            <input
-              className={fieldClass}
-              value={adjReason}
-              onChange={(e) => {
-                setAdjReason(e.target.value);
-                freshAdjId();
-              }}
-              placeholder="e.g. Chemical allowance adjustment"
-              maxLength={200}
-              required
-              autoComplete="off"
-            />
-          </label>
+            {adjMethod === "RATE" && (
+              <div className="space-y-3 rounded-lg border border-border/60 bg-[#18181b]/60 p-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-foreground">
+                    Target Commission Percentage (%)
+                  </label>
+                  <div className="relative mt-1">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0.1"
+                      max="100"
+                      value={targetRate}
+                      onChange={(e) => handleRateChange(e.target.value)}
+                      placeholder="e.g. 30"
+                      className="w-full rounded-md border border-border bg-[#121214] px-3 py-2 font-mono text-sm font-bold text-foreground focus:border-primary focus:outline-none pr-8"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-xs text-muted-foreground">
+                      %
+                    </span>
+                  </div>
+                </div>
 
-          {adjProblem && (
-            <p role="alert" className="text-xs text-rose-400 font-medium">
-              {adjProblem}
-            </p>
-          )}
+                {/* Quick percentage presets */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-muted-foreground mr-1">Presets:</span>
+                  {[10, 15, 20, 25, 30, 35, 40, 50].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => handleRateChange(pct.toString())}
+                      className={`rounded border px-2 py-0.5 text-[11px] font-mono font-semibold transition ${
+                        targetRate === pct.toString()
+                          ? "border-primary bg-primary/20 text-primary"
+                          : "border-border/70 bg-[#141416] text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy}
-              onClick={() => {
-                setAdjusting(null);
-                setAdjProblem(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" variant="gold" disabled={busy}>
-              {busy ? "Saving..." : "Save adjustment"}
-            </Button>
-          </div>
-        </form>
+                {/* Real-time calculation preview */}
+                {calculatedPreview && (
+                  <div className="rounded border border-primary/30 bg-primary/5 p-2.5 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">New Commission ({targetRate}%):</span>
+                      <span className="font-mono font-bold text-foreground">
+                        {formatPesos(calculatedPreview.targetCentavos)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border/40 pt-1">
+                      <span className="text-muted-foreground">Adjustment to record:</span>
+                      <span
+                        className={`font-mono font-bold ${
+                          calculatedPreview.deltaCentavos >= 0
+                            ? "text-emerald-400"
+                            : "text-rose-400"
+                        }`}
+                      >
+                        {calculatedPreview.deltaCentavos >= 0 ? "+" : "-"}
+                        {formatPesos(Math.abs(calculatedPreview.deltaCentavos))}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Standard fields that tests and manual adjustments rely on */}
+            <div className={adjMethod === "RATE" ? "space-y-3 border-t border-border/50 pt-3" : "space-y-3"}>
+              <label className="block text-xs font-semibold text-muted-foreground">
+                Change
+                <select
+                  className={fieldClass}
+                  value={adjMode}
+                  onChange={(e) => {
+                    setAdjMode(e.target.value as "ADD" | "TAKE");
+                    freshAdjId();
+                  }}
+                >
+                  <option value="ADD">Add to the commission</option>
+                  <option value="TAKE">Take off the commission</option>
+                </select>
+              </label>
+
+              <label className="block text-xs font-semibold text-muted-foreground">
+                Amount (pesos)
+                <input
+                  className={fieldClass}
+                  value={adjAmount}
+                  onChange={(e) => {
+                    setAdjAmount(e.target.value);
+                    freshAdjId();
+                  }}
+                  inputMode="decimal"
+                  placeholder="e.g. 200"
+                  required
+                  autoComplete="off"
+                />
+              </label>
+
+              <label className="block text-xs font-semibold text-muted-foreground">
+                Reason
+                <input
+                  className={fieldClass}
+                  value={adjReason}
+                  onChange={(e) => {
+                    setAdjReason(e.target.value);
+                    freshAdjId();
+                  }}
+                  placeholder="e.g. Rate adjusted to 30% for Interior Detailing"
+                  maxLength={200}
+                  required
+                  autoComplete="off"
+                />
+              </label>
+            </div>
+
+            {/* Multi-worker option on this booking */}
+            {peerEntries.length > 1 && (
+              <label className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-[#161619] p-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={applyToAllOnBooking}
+                  onChange={(e) => setApplyToAllOnBooking(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border accent-primary cursor-pointer"
+                />
+                <div className="text-xs">
+                  <span className="font-semibold text-foreground">
+                    Apply to all {peerEntries.length} detailers on {adjustingEntry.bookingReference}
+                  </span>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Will record this rate adjustment for {peerEntries.map((p) => p.staffName).join(", ")}.
+                  </p>
+                </div>
+              </label>
+            )}
+
+            {adjProblem && (
+              <p role="alert" className="text-xs text-rose-400 font-medium">
+                {adjProblem}
+              </p>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => {
+                  setAdjusting(null);
+                  setAdjProblem(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" variant="gold" disabled={busy}>
+                {busy ? "Saving..." : "Save adjustment"}
+              </Button>
+            </div>
+          </form>
+        )}
       </Dialog>
     </div>
   );
