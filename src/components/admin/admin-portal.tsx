@@ -39,6 +39,7 @@ import { AnalyticsTab } from "./analytics-tab";
 import { SettingsTab } from "./settings-tab";
 import { UsersTab } from "./users-tab";
 import { ChangePasswordDialog } from "./change-password-dialog";
+import { NotificationPopover } from "./notifications/notification-popover";
 import { MAINTENANCE_BANNER } from "./settings/settings-model";
 import { useKeptResource } from "./team/use-kept-resource";
 import type { StaffSessionView } from "@/server/auth/types";
@@ -551,6 +552,9 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                 <span>Public Site</span>
                 <ExternalLink className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
               </Link>
+
+              {/* Real-time Notifications & Alerts */}
+              <NotificationPopover onNavigate={(target) => setTab(target as AdminTab)} />
 
               <div ref={profileRef} className="relative">
                 <button

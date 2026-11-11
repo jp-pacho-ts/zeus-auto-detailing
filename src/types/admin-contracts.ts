@@ -690,3 +690,35 @@ export interface AdminServiceCreateInput {
   unit: import("./catalog-contracts").PriceUnit;
   offers: AdminServiceOfferInput[];
 }
+
+export type AdminNotificationType = "NEW_BOOKING" | "UPCOMING_BOOKING" | "LOW_SUPPLY" | "PAYROLL_ALERT";
+
+export type AdminNotificationTab =
+  | "Dashboard"
+  | "Bookings"
+  | "Bay Calendar"
+  | "Bay board"
+  | "Services"
+  | "Staff"
+  | "Payroll & Commissions"
+  | "Supplies & Inventory"
+  | "Expenses"
+  | "Sales Analytics"
+  | "Users"
+  | "Settings";
+
+export interface AdminNotificationItem {
+  id: string;
+  type: AdminNotificationType;
+  title: string;
+  message: string;
+  targetTab: AdminNotificationTab;
+  targetId?: string;
+  severity: "info" | "warning" | "urgent";
+  timestamp: string; // ISO string
+}
+
+export interface AdminNotificationSummary {
+  unreadCount: number;
+  items: AdminNotificationItem[];
+}

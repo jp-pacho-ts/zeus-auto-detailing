@@ -27,3 +27,4 @@ export { getShopSettings, setShopSettings } from "./shop-settings";
 export { listUsers, createUser, updateUser, resetUserPassword } from "./users";
 export { listAdminServices, updateAdminService, createAdminService, toggleAdminService } from "./services";
 export { getWeeklyPayroll, savePayrollAdjustment, setPayrollPaid } from "./payroll";
+export { getAdminNotifications } from "./notifications";
