@@ -192,9 +192,9 @@ export function UserSettingsModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="user-settings-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
     >
-      <div className="relative flex w-full max-w-xl flex-col rounded-2xl border border-border bg-white dark:bg-[#121214] shadow-2xl overflow-hidden">
+      <div className="relative my-auto flex w-full max-w-xl max-h-[calc(100vh-3rem)] flex-col rounded-2xl border border-border/90 bg-white dark:bg-[#121214] shadow-2xl overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-stone-50 dark:bg-[#18181b]/50">
           <div className="flex items-center gap-3">

@@ -327,9 +327,9 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-account-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
         >
-          <div className="relative w-full max-w-md rounded-xl border border-border bg-[#18181b] p-6 shadow-2xl">
+          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-white dark:bg-[#18181b] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <h3 id="create-account-title" className="text-base font-bold text-foreground">
                 Add Staff Account
@@ -440,9 +440,9 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="edit-account-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
         >
-          <div className="relative w-full max-w-md rounded-xl border border-border bg-[#18181b] p-6 shadow-2xl">
+          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-white dark:bg-[#18181b] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <h3 id="edit-account-title" className="text-base font-bold text-foreground">
                 Edit Staff Account
@@ -576,9 +576,9 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="reset-password-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
         >
-          <div className="relative w-full max-w-md rounded-xl border border-border bg-[#18181b] p-6 shadow-2xl">
+          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-white dark:bg-[#18181b] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <h3 id="reset-password-title" className="text-base font-bold text-foreground">
                 Reset Password
@@ -638,10 +638,10 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="temp-password-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
         >
-          <div className="relative w-full max-w-md rounded-xl border border-amber-500/40 bg-[#18181b] p-6 shadow-2xl">
-            <div className="flex items-center gap-2 pb-4 border-b border-border text-amber-400">
+          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-amber-500/40 bg-white dark:bg-[#18181b] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+            <div className="flex items-center gap-2 pb-4 border-b border-border text-amber-500 dark:text-amber-400">
               <KeyRound className="h-5 w-5" />
               <h3 id="temp-password-title" className="text-base font-bold text-foreground">
                 Temporary Password Generated

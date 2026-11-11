@@ -61,7 +61,7 @@ function Modal({ id, title, onClose, children }: { id: string; title: string; on
           (e.shiftKey ? last : first)?.focus();
         }
       }}
-      className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm rounded border border-border bg-[#121214] p-5 text-foreground backdrop:bg-black/60"
+      className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border border-border bg-white dark:bg-[#121214] p-5 text-foreground shadow-2xl backdrop:bg-black/75 backdrop:backdrop-blur-sm before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30"
     >
       <div className="space-y-3">
         <h2 id={id + "-title"} className="font-bold">{title}</h2>

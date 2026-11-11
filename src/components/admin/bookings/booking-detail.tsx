@@ -208,27 +208,27 @@ export function BookingDetail({
         if (!busy) onClose();
       }}
       aria-labelledby="booking-detail-title"
-      className="fixed inset-0 m-auto max-h-[92vh] w-[calc(100%-2rem)] max-w-4xl overflow-hidden rounded-2xl border border-zinc-800 bg-[#0e0e11] p-0 text-foreground shadow-2xl backdrop:bg-black/85 backdrop:backdrop-blur-sm flex flex-col"
+      className="fixed inset-0 m-auto max-h-[88vh] w-[calc(100%-2rem)] max-w-4xl overflow-hidden rounded-2xl border border-border bg-white dark:bg-[#0e0e11] p-0 text-foreground shadow-2xl backdrop:bg-black/85 backdrop:backdrop-blur-sm flex flex-col before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30"
     >
       {/* Sticky Header */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800/80 bg-[#131316]/95 px-5 py-3.5 backdrop-blur-md sm:px-6">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-stone-50/95 dark:bg-[#131316]/95 px-5 py-3.5 backdrop-blur-md sm:px-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400">
             <Car className="h-5 w-5" />
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 id="booking-detail-title" className="text-lg font-bold tracking-tight text-white">
+              <h2 id="booking-detail-title" className="text-lg font-bold tracking-tight text-foreground">
                 Booking details
               </h2>
               {b && (
-                <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-xs font-bold text-amber-400">
+                <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-xs font-bold text-amber-600 dark:text-amber-400">
                   {b.referenceCode}
                 </span>
               )}
             </div>
             {b && (
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-muted-foreground">
                 {b.bookingDate} · Revision {b.revision}
               </p>
             )}
@@ -245,7 +245,7 @@ export function BookingDetail({
               setUncertain(false);
               void resource.reload();
             }}
-            className="h-9 gap-1.5 border-zinc-800 bg-zinc-900/80 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white"
+            className="h-9 gap-1.5 text-xs"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />
             <span>Refresh details</span>
@@ -255,7 +255,7 @@ export function BookingDetail({
             size="sm"
             disabled={busy}
             onClick={onClose}
-            className="h-9 gap-1.5 border-zinc-800 bg-zinc-900/80 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white"
+            className="h-9 gap-1.5 text-xs"
           >
             <X className="h-4 w-4" />
             <span>Close details</span>

@@ -627,9 +627,9 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
           role="dialog"
           aria-modal="true"
           aria-labelledby="staff-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm overflow-y-auto"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
         >
-          <div className="relative w-full max-w-xl rounded-xl border border-border bg-[#141416] p-6 shadow-2xl my-8">
+          <div className="relative my-auto w-full max-w-xl max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-white dark:bg-[#141416] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-[#27272a] text-xs font-bold text-[#e8b44a]">

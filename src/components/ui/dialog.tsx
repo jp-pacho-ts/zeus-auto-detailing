@@ -35,16 +35,17 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm p-4 sm:p-6 grid place-items-center"
     >
       <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 transition-opacity"
         onClick={() => onOpenChange(false)}
+        aria-hidden="true"
       />
-      <div className="relative z-50 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-[#18181b] p-6 shadow-xl">
+      <div className="relative z-10 my-auto w-full max-w-lg max-h-[calc(100vh-3rem)] overflow-y-auto rounded-xl border border-border/90 bg-white dark:bg-[#18181b] p-6 text-foreground shadow-2xl before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
         <button
           onClick={() => onOpenChange(false)}
-          className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-stone-100 dark:hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label="Close"
         >
           <X className="h-4 w-4" />

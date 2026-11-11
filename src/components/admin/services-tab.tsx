@@ -765,9 +765,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
         >
-          <div className="w-full max-w-2xl rounded-xl border border-border bg-[#141416] p-6 shadow-2xl space-y-5 my-8">
+          <div className="relative my-auto w-full max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col rounded-xl border border-border bg-white dark:bg-[#141416] p-6 shadow-2xl space-y-5 overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
@@ -1057,9 +1057,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
         >
-          <div className="w-full max-w-2xl rounded-xl border border-border bg-[#141416] p-6 shadow-2xl space-y-5 my-8">
+          <div className="relative my-auto w-full max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col rounded-xl border border-border bg-white dark:bg-[#141416] p-6 shadow-2xl space-y-5 overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <Plus className="h-5 w-5 text-primary" />

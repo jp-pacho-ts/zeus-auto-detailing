@@ -222,7 +222,7 @@ function AddBayDialog({ id, title, validate, onSubmit, onCancel }: {
         if (!busy) onCancel();
       }}
       onKeyDown={trapTab}
-      className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm rounded border border-border bg-[#121214] p-5 text-foreground backdrop:bg-black/60"
+      className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border border-border bg-white dark:bg-[#121214] p-5 text-foreground shadow-2xl backdrop:bg-black/75 backdrop:backdrop-blur-sm before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30"
     >
       <form
         className="space-y-3"
@@ -408,7 +408,7 @@ export function BayMenu({ bay, bays, containers = [], onDone }: { bay: Bay; bays
             close();
           }}
           onKeyDown={trapTab}
-          className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm space-y-3 rounded border border-border bg-[#121214] p-5 text-foreground backdrop:bg-black/60"
+          className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm space-y-3 rounded-xl border border-border bg-white dark:bg-[#121214] p-5 text-foreground shadow-2xl backdrop:bg-black/75 backdrop:backdrop-blur-sm before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30"
         >
           <h4 id={menuId + "-title"} className="font-bold">Remove {bay.name}?</h4>
           <p id={menuId + "-text"} className="text-sm text-muted-foreground">
