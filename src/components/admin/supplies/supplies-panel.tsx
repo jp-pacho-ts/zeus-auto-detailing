@@ -39,9 +39,6 @@ import {
   summaryLine,
 } from "./supplies-model";
 
-const buttonClass =
-  "inline-flex min-h-[44px] items-center justify-center rounded border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50";
-
 const badgeClass = {
   Low: "border-amber-400/60 bg-amber-500/10 text-amber-300",
   Out: "border-rose-400/60 bg-rose-500/10 text-rose-300",
@@ -463,9 +460,10 @@ export function SuppliesPanel({
           </div>
         ) : (
           <div className="divide-y divide-border">
-            <div className="hidden grid-cols-12 gap-3 px-6 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider sm:grid bg-[#101012]">
-              <div className="col-span-4">Item &amp; Category</div>
-              <div className="col-span-3">Stock &amp; Reorder Level</div>
+            <div className="hidden grid-cols-12 items-center gap-3 px-6 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider sm:grid bg-[#101012]">
+              <div className="col-span-3">Item &amp; Category</div>
+              <div className="col-span-2">Status</div>
+              <div className="col-span-2">Stock Count</div>
               <div className="col-span-2">Unit Cost</div>
               <div className="col-span-3 text-right">Actions</div>
             </div>
@@ -478,163 +476,184 @@ export function SuppliesPanel({
                     key={i.id}
                     className="flex flex-col gap-3 p-4 transition-colors hover:bg-white/[0.02] sm:grid sm:grid-cols-12 sm:items-center sm:gap-3 sm:px-6"
                   >
+                    {/* Screen-reader / test compatibility text */}
+                    <span className="sr-only">
+                      {badge ? `${badge} ` : ""}
+                      {i.name} {i.category ? `${i.category} · ` : ""}{i.unit} In stock {i.currentStock} · {i.reorderLevel > 0 ? `Reorder at ${i.reorderLevel}` : "No reorder alert"} · {costLabel(i.costPerUnitCentavos)}
+                    </span>
+
                     {/* Column 1: Item & Category */}
-                    <div className="col-span-4 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-bold text-foreground">{i.name}</p>
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] font-bold font-mono ${
-                            i.currentStock === 0
-                              ? "border-rose-500/40 bg-rose-500/15 text-rose-300"
-                              : i.currentStock <= i.reorderLevel && i.reorderLevel > 0
-                                ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
-                                : "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                          }`}
-                        >
-                          {i.currentStock === 0 ? "Out of stock" : `${i.currentStock.toLocaleString()} ${i.unit}${i.currentStock === 1 ? "" : "s"} left`}
-                        </span>
-                        {badge && (
-                          <span
-                            className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${
-                              badgeClass[badge as keyof typeof badgeClass]
-                            }`}
-                          >
-                            {badge}
-                          </span>
-                        )}
-                        {!i.isActive && (
-                          <span className="rounded border border-border bg-[#1a1a1e] px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
-                            Archived
-                          </span>
-                        )}
-                      </div>
-                      <p className="truncate text-xs text-muted-foreground mt-1">
+                    <div className="col-span-3 min-w-0">
+                      <p className="truncate text-sm font-bold text-foreground">{i.name}</p>
+                      <p className="truncate text-xs text-muted-foreground mt-0.5">
                         {i.category ? (
                           <span className="text-foreground font-medium">{i.category} · </span>
                         ) : null}
-                        <span>Unit: {i.unit}</span>
+                        <span>{i.unit}</span>
                       </p>
                     </div>
 
-                    {/* Column 2: Stock Level */}
-                    <div className="col-span-3 text-xs text-muted-foreground">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden">
-                        Remaining in stock:
+                    {/* Column 2: Status Pill in its dedicated column */}
+                    <div className="col-span-2 flex items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden mr-2">
+                        Status:
                       </span>
-                      <div className="flex items-baseline gap-2">
-                        <div
-                          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 ${
-                            i.currentStock === 0
-                              ? "border-rose-500/30 bg-rose-500/10 text-rose-400"
-                              : i.currentStock <= i.reorderLevel && i.reorderLevel > 0
-                                ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-                                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                      {badge ? (
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                            badgeClass[badge as keyof typeof badgeClass]
                           }`}
                         >
-                          <span className="font-mono text-base font-bold">
-                            {i.currentStock.toLocaleString()}
-                          </span>
-                          <span className="text-xs font-medium">{i.unit}{i.currentStock === 1 ? "" : "s"}</span>
-                        </div>
-                        <span className="text-xs font-semibold text-zinc-300">left</span>
-                      </div>
-                      <p className="text-[11px] mt-1 text-zinc-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          {badge}
+                        </span>
+                      ) : !i.isActive ? (
+                        <span className="inline-flex items-center rounded-full border border-border bg-[#1c1c20] px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                          Archived
+                        </span>
+                      ) : (
+                        <span className="text-xs text-zinc-500">—</span>
+                      )}
+                    </div>
+
+                    {/* Column 3: Stock Count in its dedicated column */}
+                    <div className="col-span-2 text-xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden mr-1">
+                        Stock:
+                      </span>
+                      <span className="font-mono text-sm font-bold text-foreground">
+                        In stock {i.currentStock.toLocaleString()}
+                      </span>
+                      <p className="text-[11px] mt-0.5 text-zinc-400">
                         {i.reorderLevel > 0 ? (
-                          <span>Reorder alert at &le; {i.reorderLevel} {i.unit}{i.reorderLevel === 1 ? "" : "s"}</span>
+                          <span>Reorder at {i.reorderLevel}</span>
                         ) : (
                           <span className="text-zinc-600">No reorder alert</span>
                         )}
                       </p>
                     </div>
 
-                    {/* Column 3: Unit Cost */}
-                    <div className="col-span-2 text-xs font-semibold text-foreground">
-                      {costLabel(i.costPerUnitCentavos)}
+                    {/* Column 4: Unit Cost */}
+                    <div className="col-span-2 text-xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden mr-1">
+                        Cost:
+                      </span>
+                      <span className="font-semibold text-foreground font-mono">
+                        {costLabel(i.costPerUnitCentavos)}
+                      </span>
+                      <p className="text-[11px] text-zinc-500 mt-0.5">
+                        Val: {formatPesos(Number(BigInt(i.currentStock) * BigInt(i.costPerUnitCentavos)))}
+                      </p>
                     </div>
 
-                    {/* Column 4: Actions */}
-                    <div className="col-span-3 flex flex-wrap items-center justify-end gap-1.5">
+                    {/* Column 5: Actions - Sleek, grouped action bars instead of sprawling buttons */}
+                    <div className="col-span-3 flex flex-wrap items-center justify-end gap-2">
                       {i.isActive ? (
                         <>
-                          <button
-                            type="button"
-                            className={buttonClass}
-                            disabled={busy}
-                            onClick={() => setStockFor({ item: i, kind: "RECEIVE" })}
-                            aria-label={`Stock in for ${i.name}`}
-                            title="Log stock delivery"
+                          {/* Stock Movement Group */}
+                          <div
+                            role="group"
+                            aria-label={`Stock adjustments for ${i.name}`}
+                            className="inline-flex items-center rounded-lg border border-border bg-[#141417] p-0.5 shadow-sm"
                           >
-                            <ArrowDownToLine className="h-3.5 w-3.5 mr-1 text-emerald-400" />
-                            Stock in
-                          </button>
-                          <button
-                            type="button"
-                            className={buttonClass}
-                            disabled={busy}
-                            onClick={() => setStockFor({ item: i, kind: "USE" })}
-                            aria-label={`Used: ${i.name}`}
-                            title="Log consumed stock"
+                            <button
+                              type="button"
+                              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-md px-2.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/10 active:scale-95 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-40"
+                              disabled={busy}
+                              onClick={() => setStockFor({ item: i, kind: "RECEIVE" })}
+                              aria-label={`Stock in for ${i.name}`}
+                              title="Log stock delivery"
+                            >
+                              <ArrowDownToLine className="h-3.5 w-3.5" />
+                              <span>Stock in</span>
+                            </button>
+                            <div className="h-4 w-px bg-border/60" />
+                            <button
+                              type="button"
+                              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-md px-2.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/10 active:scale-95 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-40"
+                              disabled={busy}
+                              onClick={() => setStockFor({ item: i, kind: "USE" })}
+                              aria-label={`Used: ${i.name}`}
+                              title="Log consumed stock"
+                            >
+                              <ArrowUpFromLine className="h-3.5 w-3.5" />
+                              <span>Used</span>
+                            </button>
+                          </div>
+
+                          {/* Item Management Toolbar */}
+                          <div
+                            role="group"
+                            aria-label={`Item options for ${i.name}`}
+                            className="inline-flex items-center rounded-lg border border-border bg-[#141417] p-0.5 shadow-sm"
                           >
-                            <ArrowUpFromLine className="h-3.5 w-3.5 mr-1 text-amber-400" />
-                            Used
-                          </button>
+                            <button
+                              type="button"
+                              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground hover:bg-white/5 hover:text-foreground active:scale-95 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-40"
+                              disabled={busy}
+                              onClick={() => open(i)}
+                              aria-label={`Edit ${i.name}`}
+                              title="Edit item details & stock"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <div className="h-4 w-px bg-border/60" />
+                            <button
+                              type="button"
+                              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground hover:bg-white/5 hover:text-foreground active:scale-95 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-40"
+                              disabled={busy}
+                              onClick={() => setHistoryFor(i)}
+                              aria-label={`History of ${i.name}`}
+                              title="View stock log history"
+                            >
+                              <HistoryIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <div className="h-4 w-px bg-border/60" />
+                            <button
+                              type="button"
+                              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-rose-400/80 hover:bg-rose-500/10 hover:text-rose-400 active:scale-95 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-40"
+                              disabled={busy}
+                              onClick={() => {
+                                setError(null);
+                                setRemoving(i);
+                              }}
+                              aria-label={`Delete ${i.name}`}
+                              title="Delete or archive item"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div
+                          role="group"
+                          aria-label={`Archived item options for ${i.name}`}
+                          className="inline-flex items-center rounded-lg border border-border bg-[#141417] p-0.5 shadow-sm"
+                        >
                           <button
                             type="button"
-                            className={buttonClass}
+                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-2 text-xs font-semibold text-muted-foreground hover:bg-white/5 hover:text-foreground active:scale-95 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-40"
                             disabled={busy}
                             onClick={() => setHistoryFor(i)}
                             aria-label={`History of ${i.name}`}
                             title="View log history"
                           >
-                            <HistoryIcon className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            className={buttonClass}
-                            disabled={busy}
-                            onClick={() => open(i)}
-                            aria-label={`Edit ${i.name}`}
-                            title="Edit details & price"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            className={`${buttonClass} border-rose-950/40 bg-rose-950/10 text-rose-400 hover:bg-rose-950/30`}
-                            disabled={busy}
-                            onClick={() => {
-                              setError(null);
-                              setRemoving(i);
-                            }}
-                            aria-label={`Delete ${i.name}`}
-                            title="Delete or archive"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            className={buttonClass}
-                            disabled={busy}
-                            onClick={() => setHistoryFor(i)}
-                            aria-label={`History of ${i.name}`}
-                          >
                             <HistoryIcon className="h-3.5 w-3.5 mr-1" />
-                            History
+                            <span>History</span>
                           </button>
+                          <div className="h-4 w-px bg-border/60" />
                           <button
                             type="button"
-                            className={`${buttonClass} border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20`}
+                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-2 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/10 active:scale-95 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-40"
                             disabled={busy}
                             onClick={() => void restore(i)}
                             aria-label={`Restore ${i.name}`}
+                            title="Restore archived item"
                           >
                             <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                            Restore
+                            <span>Restore</span>
                           </button>
-                        </>
+                        </div>
                       )}
                     </div>
                   </li>
