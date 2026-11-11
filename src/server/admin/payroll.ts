@@ -205,34 +205,17 @@ export async function savePayrollAdjustment(
   const v = parse(PayrollAdjustSchema, input);
 
   return mutate(options, "payroll_adjustment", async (tx) => {
-    try {
-      await tx.$executeRaw(Prisma.sql`
-        SELECT admin_payroll_save_adjustment(
-          ${actor.staffId},
-          ${v.staffId},
-          ${v.weekStart}::date,
-          ${v.daysAbsent},
-          ${BigInt(v.cashAdvanceCentavos)},
-          ${v.advanceNotes ?? null}
-        )
-      `);
-      return { ok: true };
-    } catch {
-      // Direct upsert fallback
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO staff_payroll_adjustments (
-          "staffId", "weekStart", "daysAbsent", "cashAdvanceCentavos", "advanceNotes", "updatedAt"
-        ) VALUES (
-          ${v.staffId}, ${v.weekStart}::date, ${v.daysAbsent}, ${BigInt(v.cashAdvanceCentavos)}, ${v.advanceNotes ?? null}, now()
-        )
-        ON CONFLICT ("staffId", "weekStart") DO UPDATE SET
-          "daysAbsent" = ${v.daysAbsent},
-          "cashAdvanceCentavos" = ${BigInt(v.cashAdvanceCentavos)},
-          "advanceNotes" = ${v.advanceNotes ?? null},
-          "updatedAt" = now()
-      `);
-      return { ok: true };
-    }
+    await tx.$executeRaw(Prisma.sql`
+      SELECT admin_payroll_save_adjustment(
+        ${actor.staffId}::text,
+        ${v.staffId}::text,
+        ${v.weekStart}::date,
+        ${v.daysAbsent}::integer,
+        ${BigInt(v.cashAdvanceCentavos)}::bigint,
+        ${v.advanceNotes ?? null}::text
+      )
+    `);
+    return { ok: true };
   });
 }
 
@@ -245,31 +228,14 @@ export async function setPayrollPaid(
   const v = parse(PayrollPaidSchema, input);
 
   return mutate(options, "payroll_paid", async (tx) => {
-    try {
-      await tx.$executeRaw(Prisma.sql`
-        SELECT admin_payroll_set_paid(
-          ${actor.staffId},
-          ${v.staffId},
-          ${v.weekStart}::date,
-          ${v.isPaid}
-        )
-      `);
-      return { ok: true };
-    } catch {
-      // Direct upsert fallback
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO staff_payroll_adjustments (
-          "staffId", "weekStart", "isPaid", "paidAt", "paidByStaffId", "updatedAt"
-        ) VALUES (
-          ${v.staffId}, ${v.weekStart}::date, ${v.isPaid}, ${v.isPaid ? new Date() : null}, ${v.isPaid ? actor.staffId : null}, now()
-        )
-        ON CONFLICT ("staffId", "weekStart") DO UPDATE SET
-          "isPaid" = ${v.isPaid},
-          "paidAt" = ${v.isPaid ? new Date() : null},
-          "paidByStaffId" = ${v.isPaid ? actor.staffId : null},
-          "updatedAt" = now()
-      `);
-      return { ok: true };
-    }
+    await tx.$executeRaw(Prisma.sql`
+      SELECT admin_payroll_set_paid(
+        ${actor.staffId}::text,
+        ${v.staffId}::text,
+        ${v.weekStart}::date,
+        ${v.isPaid}::boolean
+      )
+    `);
+    return { ok: true };
   });
 }
