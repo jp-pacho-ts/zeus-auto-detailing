@@ -23,6 +23,8 @@ import {
   LogOut,
   Settings,
   Sparkles,
+  Sun,
+  Moon,
   Menu,
   X,
 } from "lucide-react";
@@ -120,6 +122,21 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
     [logoutError, setLogoutError] = React.useState<string | null>(null);
   const [userSettingsOpen, setUserSettingsOpen] = React.useState(false);
   const [userSettingsTab, setUserSettingsTab] = React.useState<"profile" | "appearance" | "security">("profile");
+
+  const [currentTheme, setCurrentTheme] = React.useState<AdminThemeMode>(() => {
+    if (typeof window === "undefined") return "dark";
+    try {
+      return (localStorage.getItem(THEME_STORAGE_KEY) as AdminThemeMode) || "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  const toggleTheme = () => {
+    const next: AdminThemeMode = currentTheme === "dark" ? "light" : "dark";
+    setCurrentTheme(next);
+    applyAdminTheme(next);
+  };
 
   React.useEffect(() => {
     try {
@@ -566,6 +583,21 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
 
               {/* Real-time Notifications & Alerts */}
               <NotificationPopover onNavigate={(target) => setTab(target as AdminTab)} />
+
+              {/* Quick Dark / Light Mode Toggle */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label={currentTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                title={currentTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-[#18181b] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                {currentTheme === "dark" ? (
+                  <Sun className="h-4 w-4 text-amber-400" aria-hidden="true" />
+                ) : (
+                  <Moon className="h-4 w-4 text-primary" aria-hidden="true" />
+                )}
+              </button>
 
               <div ref={profileRef} className="relative">
                 <button
