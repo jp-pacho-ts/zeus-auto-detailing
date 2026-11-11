@@ -33,6 +33,7 @@ export const brandConfig = {
   bayCapacity: 2,
   locale: "en-PH",
   logoUrl: "/images/logo.png",
+  logoLightUrl: "/images/logo-light.png",
   // P1-18 optional deposit: the shop's own accounts (LE-supplied). Customers pay outside the system
   // and may send a screenshot; nothing here computes or moves money.
   payment: {

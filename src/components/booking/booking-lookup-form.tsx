@@ -161,7 +161,7 @@ export function BookingLookupForm({ onFound }: { onFound: (data: ManagedLookupDa
           }
         >
           <div data-part="stub-mark">
-            <Logo />
+            <Logo mode="dark" />
           </div>
           <div className="min-w-0">
             {siteKey ? (
