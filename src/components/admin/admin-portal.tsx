@@ -535,8 +535,8 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             </div>
 
             <div className="flex items-center gap-2.5">
-              {/* Operational Status Pill */}
-              {isMaintenance ? (
+              {/* Only alert if the customer storefront is in maintenance */}
+              {isMaintenance && (
                 <span
                   role="status"
                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 text-xs font-semibold text-amber-400"
@@ -544,14 +544,6 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
                   Maintenance Mode
                 </span>
-              ) : (
-                <div
-                  title="All systems operational"
-                  className="hidden sm:inline-flex h-9 items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-medium text-emerald-400"
-                >
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                  <span>Shop Operational</span>
-                </div>
               )}
 
               {/* Public Storefront Preview Link */}
