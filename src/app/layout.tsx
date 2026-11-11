@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{if(window.location.pathname.startsWith('/admin')){var t=localStorage.getItem("zeus_admin_theme");if(t==="light"||(t==="system"&&!window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.remove("dark");document.documentElement.classList.add("light");return;}}document.documentElement.classList.remove("light");document.documentElement.classList.add("dark");}catch(e){}})()`,
+            __html: `(function(){try{if(window.location.pathname.startsWith('/admin')&&!window.location.pathname.startsWith('/admin/login')){var t=localStorage.getItem("zeus_admin_theme");if(t==="light"||(t==="system"&&!window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.remove("dark");document.documentElement.classList.add("light");return;}}document.documentElement.classList.remove("light");document.documentElement.classList.add("dark");}catch(e){}})()`,
           }}
         />
       </head>
