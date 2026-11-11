@@ -434,9 +434,9 @@ export const BookingDetailsUpdateSchema = z
     expectedRevision: Revision,
     customerName: PersonName,
     customerPhone: PersonPhone,
-    customerEmail: z.union([PersonEmail, z.literal("")]).transform((s) => s || null).nullable(),
+    customerEmail: z.union([PersonEmail, z.literal("")]).transform((s) => s || null).nullable().optional(),
     vehicleModel: z.string().trim().min(1, "Enter a vehicle model.").max(80, "Use 80 characters or fewer."),
-    vehiclePlate: z.string().trim().max(20, "Use 20 characters or fewer.").transform((s) => s ? s.toUpperCase() : null).nullable(),
+    vehiclePlate: z.string().trim().max(20, "Use 20 characters or fewer.").transform((s) => s ? s.toUpperCase() : null).nullable().optional(),
     notes: z.string().trim().max(1000, "Keep notes to 1000 characters or fewer.").transform((s) => s || null).nullable().optional(),
   })
   .strict();

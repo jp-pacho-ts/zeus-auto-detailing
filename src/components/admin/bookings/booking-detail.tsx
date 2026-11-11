@@ -262,7 +262,7 @@ export function BookingDetail({
                     required
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    maxLength={100}
+                    maxLength={80}
                     className={fieldClass}
                     disabled={disabled}
                   />
@@ -284,7 +284,7 @@ export function BookingDetail({
                     type="email"
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
-                    maxLength={100}
+                    maxLength={120}
                     className={fieldClass}
                     disabled={disabled}
                   />
@@ -295,7 +295,7 @@ export function BookingDetail({
                     required
                     value={editModel}
                     onChange={(e) => setEditModel(e.target.value)}
-                    maxLength={100}
+                    maxLength={80}
                     className={fieldClass}
                     disabled={disabled}
                   />
@@ -315,7 +315,7 @@ export function BookingDetail({
                   <textarea
                     value={editNotes}
                     onChange={(e) => setEditNotes(e.target.value)}
-                    maxLength={500}
+                    maxLength={1000}
                     rows={3}
                     className={fieldClass}
                     disabled={disabled}

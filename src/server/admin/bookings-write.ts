@@ -1002,7 +1002,7 @@ export async function updateBookingDetails(
   return mutate(options, "edit_details", async (tx) => {
     try {
       await tx.$executeRawUnsafe(
-        "SELECT admin_booking_update_details($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        "SELECT admin_booking_update_details($1, $2, $3, $4, $5, $6, $7, $8, $9::integer)",
         actor.staffId,
         id,
         input.customerName,

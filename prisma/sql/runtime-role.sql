@@ -110,6 +110,7 @@ BEGIN
     'admin_user_reset_password(text, text, text)', 'auth_user_change_password(text, text, text)',
     -- P1-41b: Edit booking details
     'admin_booking_update_details(text, text, text, text, text, text, text, text, integer)',
+    'admin_booking_update_details(text, text, text, text, text, text, text, text, bigint)',
     -- P1-41e: Service catalog management
     'admin_user_update(text, text, text, text, text, boolean, bigint)',
     'admin_service_list(text)', 'admin_service_update(text, text, text, text, text, jsonb)',
