@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { LazyMotion, domAnimation, m, useReducedMotion } from "motion/react";
 import {
-  ArrowRight,
   Banknote,
   BarChart3,
   Boxes,
@@ -501,47 +500,56 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         <header className="flex shrink-0 items-center border-b border-border bg-[#121214] px-4 py-3 sm:px-8 md:h-20 md:py-0 lg:px-10">
           <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-primary">
-                {new Intl.DateTimeFormat(brandConfig.locale, {
-                  timeZone: brandConfig.timezone,
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                }).format(new Date())}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-primary">
+                  {new Intl.DateTimeFormat(brandConfig.locale, {
+                    timeZone: brandConfig.timezone,
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  }).format(new Date())}
+                </p>
+                <span className="text-zinc-600">·</span>
+                <span className="font-mono text-[11px] text-zinc-400">
+                  {brandConfig.timezone.replace("_", " ")}
+                </span>
+              </div>
               <h1 className="mt-0.5 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                 {tab}
               </h1>
             </div>
 
             <div className="flex items-center gap-3">
-              <span
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${
-                  isMaintenance
-                    ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-                    : "border-emerald-500/25 bg-emerald-500/10 text-emerald-400"
-                }`}
-              >
+              {/* Operational Status Pill */}
+              {isMaintenance ? (
                 <span
-                  className={`h-2 w-2 rounded-full ${
-                    isMaintenance
-                      ? "bg-amber-400"
-                      : "bg-emerald-400 animate-pulse"
-                  }`}
-                />
-                {isMaintenance ? "Maintenance Mode" : "Shop Live"}
-              </span>
+                  role="status"
+                  className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400"
+                >
+                  <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                  Maintenance Mode
+                </span>
+              ) : (
+                <div
+                  title="All systems operational"
+                  className="hidden sm:inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                  <span>Shop Operational</span>
+                </div>
+              )}
 
+              {/* Public Storefront Preview Link */}
               <Link
-                href="/book"
-                className="group relative inline-flex items-center gap-2 overflow-hidden rounded-md bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-xs transition-all hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary"
+                href="/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Public Site"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-[#18181b] px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-primary"
               >
-                <span>New Booking</span>
-                <ArrowRight
-                  className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
-                  aria-hidden="true"
-                />
+                <span>Public Site</span>
+                <ExternalLink className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
               </Link>
 
               <div ref={profileRef} className="relative">

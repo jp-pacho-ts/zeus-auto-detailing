@@ -50,7 +50,7 @@ test('mobile drawer contains focus, makes background inert, restores focus and p
       }
       assert.equal(await page.locator('#admin-content').evaluate(el => Boolean(el.closest('[inert]'))), true, 'content must be inert');
       // The header is inert while the drawer is open, so a plain role lookup finds nothing; the next assertion is what proves it cannot take focus.
-      await page.locator('header').getByRole('link', { name: /New Booking/, includeHidden: true }).evaluate(el => el.focus());
+      await page.locator('header').getByRole('link', { name: /Public Site/, includeHidden: true }).evaluate(el => el.focus());
       assert.equal(await nav.evaluate(el => el.contains(document.activeElement)), true, 'covered header cannot take focus');
       await menu.evaluate(el => el.focus());
       assert.equal(await nav.evaluate(el => el.contains(document.activeElement)), true, 'covered mobile bar cannot take focus');
@@ -65,7 +65,7 @@ test('mobile drawer contains focus, makes background inert, restores focus and p
       await page.waitForFunction(() => !document.querySelector('#admin-content').closest('[inert]'));
       assert.equal(await nav.getAttribute('aria-modal'), null, 'desktop sidebar is not modal');
       await nav.getByRole('button', { name: 'Sign out', exact: true }).focus(); await page.keyboard.press('Tab');
-      assert.equal(await page.locator('header').getByRole('link', { name: /New Booking/ }).evaluate(el => el === document.activeElement), true, 'desktop Tab leaves sidebar normally');
+      assert.equal(await page.locator('header').getByRole('link', { name: /Public Site/ }).evaluate(el => el === document.activeElement), true, 'desktop Tab leaves sidebar normally');
       await page.keyboard.press('Shift+Tab');
       assert.equal(await nav.getByRole('button', { name: 'Sign out', exact: true }).evaluate(el => el === document.activeElement), true, 'desktop Shift+Tab returns normally');
       await nav.getByRole('button', { name: 'Team & Commissions', exact: true }).click();
