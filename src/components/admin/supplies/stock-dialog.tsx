@@ -58,9 +58,66 @@ export function StockDialog({ item, initialKind, onClose, onSaved }: { item: Adm
               className={`min-h-[44px] rounded border px-3 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${kind === k ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-white/5"}`}>{label}</button>
           ))}
         </div>
-        <label className="block text-xs font-semibold text-muted-foreground">How many ({item.unit})
-          <input className={fieldClass} value={quantity} onChange={(e) => { setQuantity(e.target.value); touch(); }} inputMode="numeric" required autoComplete="off" />
-        </label>
+        <div className="space-y-1.5">
+          <label className="block text-xs font-semibold text-muted-foreground">
+            Quantity ({item.unit}) to {kind === "RECEIVE" ? "add (+)" : "deduct (-)"}
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="h-10 w-10 shrink-0 rounded-lg border border-border bg-white/5 text-sm font-bold text-foreground hover:bg-white/10 active:scale-95 disabled:opacity-30"
+              disabled={busy || !qty || qty <= 1}
+              onClick={() => {
+                const next = Math.max(1, (qty || 1) - 1);
+                setQuantity(String(next));
+                touch();
+              }}
+            >
+              -1
+            </button>
+            <input
+              type="number"
+              min="1"
+              className={`${fieldClass} text-center font-mono text-base font-bold`}
+              value={quantity}
+              onChange={(e) => {
+                setQuantity(e.target.value);
+                touch();
+              }}
+              placeholder="e.g. 5"
+              inputMode="numeric"
+              required
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              className="h-10 w-10 shrink-0 rounded-lg border border-border bg-white/5 text-sm font-bold text-foreground hover:bg-white/10 active:scale-95 disabled:opacity-30"
+              disabled={busy}
+              onClick={() => {
+                const next = (qty || 0) + 1;
+                setQuantity(String(next));
+                touch();
+              }}
+            >
+              +1
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {[1, 5, 10, 20].map((num) => (
+              <button
+                key={num}
+                type="button"
+                className="rounded border border-border/60 bg-white/[0.04] px-2.5 py-1 text-xs font-mono text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                onClick={() => {
+                  setQuantity(String(num));
+                  touch();
+                }}
+              >
+                +{num}
+              </button>
+            ))}
+          </div>
+        </div>
         {kind === "RECEIVE" && (
           <label className="block text-xs font-semibold text-muted-foreground">Price of one {item.unit} this time, in pesos (optional)
             <input className={fieldClass} value={cost} onChange={(e) => { setCost(e.target.value); touch(); }} inputMode="decimal" placeholder="For example 125.50" autoComplete="off" />

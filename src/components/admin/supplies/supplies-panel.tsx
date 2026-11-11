@@ -48,8 +48,8 @@ const badgeClass = {
   OK: "border-emerald-400/50 bg-emerald-500/10 text-emerald-300",
 } as const;
 
-type Form = { name: string; category: string; unit: string; reorder: string; cost: string; start: string };
-const EMPTY: Form = { name: "", category: "", unit: "", reorder: "0", cost: "0", start: "" };
+type Form = { name: string; category: string; unit: string; reorder: string; cost: string; stock: string };
+const EMPTY: Form = { name: "", category: "", unit: "", reorder: "0", cost: "0", stock: "0" };
 const whole = (text: string) => (/^[0-9]+$/.test(text.trim()) ? Number(text.trim()) : null);
 
 export function SuppliesPanel({
@@ -123,7 +123,7 @@ export function SuppliesPanel({
             unit: target.unit,
             reorder: String(target.reorderLevel),
             cost: (target.costPerUnitCentavos / 100).toFixed(2),
-            start: "",
+            stock: String(target.currentStock),
           },
     );
     setEditing(target);
@@ -138,10 +138,10 @@ export function SuppliesPanel({
     e.preventDefault();
     const target = editing;
     if (!target) return;
-    const reorder = whole(form.reorder),
-      start = form.start.trim() === "" ? undefined : whole(form.start);
-    if (reorder === null || start === null) {
-      setError("Enter whole numbers for the reorder level and the starting stock.");
+    const reorder = whole(form.reorder);
+    const stockVal = form.stock.trim() === "" ? 0 : whole(form.stock);
+    if (reorder === null || stockVal === null || stockVal < 0) {
+      setError("Enter valid whole numbers (0 or higher) for the reorder level and stock count.");
       return;
     }
     const ok = await run(async () => {
@@ -155,12 +155,12 @@ export function SuppliesPanel({
             unit: form.unit,
             reorderLevel: reorder,
             costPesos: form.cost.trim(),
-            ...(start !== undefined ? { startingStock: start } : {}),
+            ...(stockVal > 0 ? { startingStock: stockVal } : {}),
           },
         });
-        return `${form.name.trim()} was added.`;
+        return `${form.name.trim()} was added with ${stockVal} ${form.unit} starting stock.`;
       }
-      await adminRequest(`/api/admin/supplies/${target.id}`, {
+      const updated = await adminRequest<AdminSupplyItem>(`/api/admin/supplies/${target.id}`, {
         method: "PATCH",
         body: {
           expectedRevision: target.revision,
@@ -171,7 +171,20 @@ export function SuppliesPanel({
           costPesos: form.cost.trim(),
         },
       });
-      return `${form.name.trim()} was updated.`;
+      const diff = stockVal - target.currentStock;
+      if (diff !== 0) {
+        await adminRequest(`/api/admin/supplies/${target.id}/stock`, {
+          method: "POST",
+          body: {
+            id: crypto.randomUUID(),
+            expectedRevision: updated.revision,
+            kind: diff > 0 ? "RECEIVE" : "USE",
+            quantity: Math.abs(diff),
+            note: "Adjusted in Edit dialog",
+          },
+        });
+      }
+      return `${form.name.trim()} was updated (${stockVal} ${form.unit} in stock).`;
     });
     if (ok) setEditing(null);
   }
@@ -761,18 +774,76 @@ export function SuppliesPanel({
               autoComplete="off"
             />
           </label>
-          {editing === "new" && (
-            <label className="block text-xs font-semibold text-muted-foreground">
-              Starting stock (optional)
+          {/* Stock input section: clearly displays numbers and lets user put/adjust stock count */}
+          <div className="rounded-xl border border-border bg-[#141417] p-3.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <span>{editing === "new" ? "Starting stock (units)" : "Current stock on hand (units)"}</span>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  ({form.unit.trim() || "units"})
+                </span>
+              </label>
+              {editing && editing !== "new" && (
+                <span className="text-xs font-mono text-zinc-400">
+                  In stock: <strong className="text-foreground">{editing.currentStock.toLocaleString()}</strong>
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="h-10 w-10 shrink-0 rounded-lg border border-border bg-white/5 text-sm font-bold text-foreground hover:bg-white/10 active:scale-95 disabled:opacity-30"
+                disabled={busy || whole(form.stock) === null || (whole(form.stock) ?? 0) <= 0}
+                onClick={() => {
+                  const cur = whole(form.stock) ?? (editing && editing !== "new" ? editing.currentStock : 0);
+                  change({ stock: String(Math.max(0, cur - 1)) });
+                }}
+              >
+                -1
+              </button>
               <input
-                className={fieldClass}
-                value={form.start}
-                onChange={(e) => change({ start: e.target.value })}
+                type="number"
+                min="0"
+                className={`${fieldClass} text-center font-mono text-base font-bold`}
+                value={form.stock}
+                onChange={(e) => change({ stock: e.target.value })}
                 inputMode="numeric"
+                required
                 autoComplete="off"
               />
-            </label>
-          )}
+              <button
+                type="button"
+                className="h-10 w-10 shrink-0 rounded-lg border border-border bg-white/5 text-sm font-bold text-foreground hover:bg-white/10 active:scale-95 disabled:opacity-30"
+                disabled={busy}
+                onClick={() => {
+                  const cur = whole(form.stock) ?? (editing && editing !== "new" ? editing.currentStock : 0);
+                  change({ stock: String(cur + 1) });
+                }}
+              >
+                +1
+              </button>
+            </div>
+            {editing && editing !== "new" && (
+              <div>
+                {(() => {
+                  const val = whole(form.stock);
+                  if (val === null || val < 0) return <p className="text-[11px] text-rose-400">Enter a whole number of 0 or more.</p>;
+                  const diff = val - editing.currentStock;
+                  if (diff === 0) return <p className="text-[11px] text-zinc-400">No stock change ({val} {editing.unit} currently in stock).</p>;
+                  if (diff > 0) return (
+                    <p className="text-[11px] font-semibold text-emerald-400">
+                      + {diff} {editing.unit} will be added via Stock In log.
+                    </p>
+                  );
+                  return (
+                    <p className="text-[11px] font-semibold text-amber-400">
+                      - {Math.abs(diff)} {editing.unit} will be deducted via Used log.
+                    </p>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
           {error && <p role="alert" className="text-sm text-rose-400">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button
