@@ -441,9 +441,6 @@ export function BayBoard({ role }: { role: UserRole }) {
             </div>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          One car per bay until done or returned to Waiting. Any car can go in any empty bay. Earlier open cars stay visible.
-        </p>
       </div>
       <div
         data-board-notice={refusal && message ? "refusal" : undefined}
@@ -500,7 +497,6 @@ export function BayBoard({ role }: { role: UserRole }) {
               </div>
               {board.waiting.map(cardView)}
               {!board.waiting.length && <p className={emptySlot}>No waiting cars</p>}
-              <p className="mt-auto border-t border-border/60 pt-2.5 text-[0.7rem] leading-relaxed text-muted-foreground">Every waiting car is here. The tag is its main service.{role === "ADMIN" && " Drop a car here to return it to Waiting."}</p>
             </section>
 
             <div data-board-zone="BAYS" className={(zone === "BAYS" ? "grid " : "hidden ") + "min-w-0 gap-4 lg:grid"}>

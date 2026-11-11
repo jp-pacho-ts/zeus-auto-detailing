@@ -514,21 +514,15 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         <header className="flex shrink-0 items-center border-b border-border bg-[#121214] px-4 py-3 sm:px-8 md:h-20 md:py-0 lg:px-10">
           <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
-                <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-primary">
-                  {new Intl.DateTimeFormat(brandConfig.locale, {
-                    timeZone: brandConfig.timezone,
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  }).format(new Date())}
-                </p>
-                <span className="text-zinc-600">·</span>
-                <span className="font-mono text-[11px] text-zinc-400">
-                  {brandConfig.timezone.replace("_", " ")}
-                </span>
-              </div>
+              <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-primary">
+                {new Intl.DateTimeFormat(brandConfig.locale, {
+                  timeZone: brandConfig.timezone,
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                }).format(new Date())}
+              </p>
               <h1 className="mt-0.5 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                 {tab}
               </h1>

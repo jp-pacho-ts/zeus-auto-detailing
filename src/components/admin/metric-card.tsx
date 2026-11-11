@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export interface MetricCardProps {
   title: string;
   value: string;
-  meta: string;
+  meta?: string;
 }
 
 export function MetricCard({ title, value, meta }: MetricCardProps) {
@@ -25,9 +25,11 @@ export function MetricCard({ title, value, meta }: MetricCardProps) {
           {value}
         </b>
       )}
-      <small className="mt-1.5 block text-xs font-medium text-emerald-400">
-        {meta}
-      </small>
+      {meta ? (
+        <small className="mt-1.5 block text-xs font-medium text-emerald-400">
+          {meta}
+        </small>
+      ) : null}
     </div>
   );
 }

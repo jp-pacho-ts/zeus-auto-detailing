@@ -393,11 +393,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-            Service Catalog & Pricing
+            Service Catalog &amp; Pricing
           </h2>
-          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-            Manage packages, vehicle size prices, and promotional discounts reflected on the customer booking page.
-          </p>
         </div>
         <button
           type="button"
@@ -427,7 +424,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
         </div>
         <div className="rounded border border-border bg-[#141416] p-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Categories</p>
-          <p className="mt-1 text-xl font-bold text-foreground">{Object.keys(CATEGORY_LABELS).length} Service Categories</p>
+          <p className="mt-1 text-xl font-bold text-foreground">{Object.keys(CATEGORY_LABELS).length}</p>
         </div>
       </div>
 

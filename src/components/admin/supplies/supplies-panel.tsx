@@ -34,7 +34,6 @@ import {
   removeResult,
   removeWarning,
   SUPPLIES_EMPTY,
-  SUPPLIES_INTRO,
   SUPPLIES_NO_MATCH,
   summaryLine,
 } from "./supplies-model";
@@ -266,7 +265,6 @@ export function SuppliesPanel({
           <h2 id="supplies-heading" className="text-xl font-bold tracking-tight text-foreground">
             Supplies &amp; Inventory
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">{SUPPLIES_INTRO}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -287,7 +285,6 @@ export function SuppliesPanel({
           <div>
             <p className="text-xs font-medium text-muted-foreground">Active Products</p>
             <p className="text-2xl font-bold text-foreground mt-1">{activeCount}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Catalog product lines</p>
           </div>
           <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-[#1c1c20] text-primary">
             <Boxes className="h-5 w-5" />
@@ -451,12 +448,10 @@ export function SuppliesPanel({
           <div className="p-12 text-center text-xs text-muted-foreground">
             <Boxes className="mx-auto h-8 w-8 text-muted-foreground/50 mb-2" />
             <p className="font-semibold text-foreground">{SUPPLIES_EMPTY}</p>
-            <p className="mt-1">Click &quot;Add item&quot; above to log your first product or chemical.</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center text-xs text-muted-foreground">
             <p className="font-semibold text-foreground">{SUPPLIES_NO_MATCH}</p>
-            <p className="mt-1">Try clearing your search query or selecting &quot;All Categories&quot;.</p>
           </div>
         ) : (
           <div className="divide-y divide-border">

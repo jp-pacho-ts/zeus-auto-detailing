@@ -183,9 +183,6 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-5">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground">System Settings</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Configure customer storefront availability, online booking controls, operating hours, and email health.
-          </p>
         </div>
         {current && (
           <div className="flex items-center gap-2">
@@ -390,7 +387,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="rounded-lg border border-border/80 bg-[#101012] p-4">
-                <p className="text-xs font-semibold text-foreground">Dispatch Engine</p>
+                <p className="text-xs font-semibold text-foreground">Email Dispatch (SMTP)</p>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{emailStatus(current)}</p>
               </div>
               <div className="rounded-lg border border-border/80 bg-[#101012] p-4">

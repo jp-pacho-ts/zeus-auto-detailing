@@ -68,27 +68,26 @@ export function DashboardTab({
         <MetricCard
           title="Today's Bookings"
           value={day.data ? String(activeBookings.length) : "—"}
-          meta={`${inProgressCount} in progress · ${doneTodayCount} finished today`}
+          meta={`${inProgressCount} in progress · ${doneTodayCount} finished`}
         />
         <MetricCard
           title="Today's Queue Value"
           value={day.data ? money(todayTotalCentavos) : "—"}
-          meta="Confirmed & active visits today"
         />
         <MetricCard
           title="Bay Floor Occupancy"
           value={
             board.data ? `${occupiedBays} / ${allBays.length}` : "—"
           }
-          meta={`${waitingCount} waiting for a bay`}
+          meta={`${waitingCount} waiting for bay`}
         />
         <MetricCard
           title="Needs Attention"
           value={day.data ? String(pendingCount) : "—"}
           meta={
             pendingCount > 0
-              ? "Bookings awaiting staff confirmation"
-              : "All bookings confirmed"
+              ? `${pendingCount} awaiting confirmation`
+              : "All confirmed"
           }
         />
       </div>
@@ -101,16 +100,13 @@ export function DashboardTab({
 
       {/* Two-Column Live Floor & Queue Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Live Bay Floor Snapshot */}
+        {/* Live Bay Floor */}
         <section className="rounded-lg border border-border bg-[#121214] lg:col-span-7">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5">
             <div>
               <h2 className="text-base font-bold text-foreground">
-                Live Bay Floor
+                Bay Floor
               </h2>
-              <p className="text-xs text-muted-foreground">
-                Real-time bay occupancy across all shop containers ({today})
-              </p>
             </div>
             <button
               type="button"
@@ -196,8 +192,8 @@ export function DashboardTab({
                               </p>
                             </div>
                           ) : (
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              Ready for next vehicle
+                            <p className="mt-2 text-xs font-medium text-zinc-500">
+                              Open
                             </p>
                           )}
                         </div>
@@ -220,11 +216,8 @@ export function DashboardTab({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5">
             <div>
               <h2 className="text-base font-bold text-foreground">
-                Today&apos;s Queue Snapshot
+                Today&apos;s Queue
               </h2>
-              <p className="text-xs text-muted-foreground">
-                Pending confirmations and active visits
-              </p>
             </div>
             <button
               type="button"
@@ -309,9 +302,6 @@ export function DashboardTab({
               <h2 className="text-base font-bold text-foreground">
                 This Month&apos;s Performance
               </h2>
-              <p className="text-xs text-muted-foreground">
-                Month-to-date finished revenue, commissions, and stock alerts
-              </p>
             </div>
             <button
               type="button"

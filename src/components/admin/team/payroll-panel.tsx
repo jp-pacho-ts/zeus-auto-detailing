@@ -277,18 +277,14 @@ export function PayrollPanel({
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-4">
               <div>
                 <h2 className="text-base font-bold text-foreground">
-                  Weekly Payroll &amp; Payout Summary
+                  Weekly Payroll Summary
                 </h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Base allowance (₱200/day · 6-day week) + earned commissions −
-                  cash advances (bale)
-                </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-muted-foreground">
                   {team
-                    ? `${team.people.filter((p) => p.isActive).length} active team members`
-                    : `${data.totals.totalStaff} staff members`}
+                    ? `${team.people.filter((p) => p.isActive).length} staff`
+                    : `${data.totals.totalStaff} staff`}
                 </span>
                 <span className="rounded bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-xs font-semibold text-emerald-400">
                   {data.totals.paidCount} Paid
@@ -309,9 +305,6 @@ export function PayrollPanel({
                 <p className="mt-1 font-mono text-xl font-bold text-foreground">
                   {formatPesos(data.totals.totalBaseSalaryCentavos)}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Standard ₱200/day per attendance
-                </p>
               </div>
 
               <div className="rounded-lg border border-border/70 bg-[#161618] p-3.5">
@@ -320,9 +313,6 @@ export function PayrollPanel({
                 </p>
                 <p className="mt-1 font-mono text-xl font-bold text-amber-400">
                   +{formatPesos(data.totals.totalCommissionsCentavos)}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Earned across completed jobs
                 </p>
               </div>
 
@@ -333,20 +323,14 @@ export function PayrollPanel({
                 <p className="mt-1 font-mono text-xl font-bold text-rose-400">
                   −{formatPesos(data.totals.totalCashAdvanceCentavos)}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Mid-week cash advance / bale
-                </p>
               </div>
 
               <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3.5">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
-                  Net Payout to Disburse
+                  Net Payout
                 </p>
                 <p className="mt-1 font-mono text-2xl font-bold tracking-tight text-emerald-400">
                   {formatPesos(data.totals.totalNetPayoutCentavos)}
-                </p>
-                <p className="mt-1 text-xs text-emerald-300/80">
-                  Handed over Sunday night
                 </p>
               </div>
             </div>
