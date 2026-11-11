@@ -11,8 +11,10 @@ import {
   Droplets,
   MessageSquare,
   Phone,
+  QrCode,
   ShieldCheck,
   Sparkles,
+  Store,
   Wind,
   X,
 } from "lucide-react";
@@ -1356,7 +1358,15 @@ export function BookingWizard({
                                       : "border-border bg-card/60 hover:border-border/90 hover:bg-card"
                                   }`}
                                 >
-                                  <span className="text-xl shrink-0" aria-hidden="true">🏪</span>
+                                  <div
+                                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                                      form.paymentPreference === "WALK_IN"
+                                        ? "border-primary/40 bg-primary/20 text-primary"
+                                        : "border-border/60 bg-muted/40 text-muted-foreground"
+                                    }`}
+                                  >
+                                    <Store className="h-4 w-4" aria-hidden="true" />
+                                  </div>
                                   <div>
                                     <span className="block text-sm font-bold text-foreground">Pay at shop</span>
                                     <span className="block text-xs text-muted-foreground mt-0.5">Pay in Cash or Card upon vehicle drop-off / completion</span>
@@ -1373,7 +1383,15 @@ export function BookingWizard({
                                       : "border-border bg-card/60 hover:border-border/90 hover:bg-card"
                                   }`}
                                 >
-                                  <span className="text-xl shrink-0" aria-hidden="true">📱</span>
+                                  <div
+                                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                                      form.paymentPreference === "ONLINE_QR"
+                                        ? "border-primary/40 bg-primary/20 text-primary"
+                                        : "border-border/60 bg-muted/40 text-muted-foreground"
+                                    }`}
+                                  >
+                                    <QrCode className="h-4 w-4" aria-hidden="true" />
+                                  </div>
                                   <div>
                                     <span className="block text-sm font-bold text-foreground">Online / QR payment</span>
                                     <span className="block text-xs text-muted-foreground mt-0.5">Pay via GCash or GoTyme Bank QR</span>

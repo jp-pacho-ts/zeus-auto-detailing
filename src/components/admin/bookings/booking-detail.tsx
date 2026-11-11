@@ -38,6 +38,9 @@ import {
   Edit3,
   Send,
   CreditCard,
+  Banknote,
+  QrCode,
+  Store,
   Calendar,
   AlertCircle,
   Check,
@@ -398,10 +401,10 @@ export function BookingDetail({
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {(
                         [
-                          { value: "CASH", label: "Cash", icon: "💵" },
-                          { value: "CARD", label: "Card (POS)", icon: "💳" },
-                          { value: "ONLINE_QR", label: "Online / QR", icon: "📱" },
-                          { value: "PENDING", label: "Pending", icon: "⏳" },
+                          { value: "CASH", label: "Cash", Icon: Banknote },
+                          { value: "CARD", label: "Card (POS)", Icon: CreditCard },
+                          { value: "ONLINE_QR", label: "Online / QR", Icon: QrCode },
+                          { value: "PENDING", label: "Pending", Icon: Clock },
                         ] as const
                       ).map((opt) => (
                         <button
@@ -415,7 +418,7 @@ export function BookingDetail({
                               : "border-border bg-stone-50/50 dark:bg-zinc-800/80 text-muted-foreground hover:border-zinc-500 hover:text-foreground"
                           }`}
                         >
-                          <span>{opt.icon}</span>
+                          <opt.Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                           <span>{opt.label}</span>
                         </button>
                       ))}
@@ -590,17 +593,17 @@ export function BookingDetail({
                                   : "border-zinc-700 bg-zinc-800 text-zinc-400"
                         }`}
                       >
-                        <span>
-                          {parsedPayment.mode === "CASH"
-                            ? "💵"
-                            : parsedPayment.mode === "CARD"
-                              ? "💳"
-                              : parsedPayment.mode === "ONLINE_QR"
-                                ? "📱"
-                                : parsedPayment.mode === "WALK_IN"
-                                  ? "🏪"
-                                  : "⏳"}
-                        </span>
+                        {parsedPayment.mode === "CASH" ? (
+                          <Banknote className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        ) : parsedPayment.mode === "CARD" ? (
+                          <CreditCard className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        ) : parsedPayment.mode === "ONLINE_QR" ? (
+                          <QrCode className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        ) : parsedPayment.mode === "WALK_IN" ? (
+                          <Store className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        ) : (
+                          <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        )}
                         <span>{paymentModeLabel(parsedPayment.mode)}</span>
                       </span>
                     </div>
