@@ -83,6 +83,23 @@
     color-scheme: dark;
   }
 
+  html.light {
+    color-scheme: light;
+    --background: 245 245 247;
+    --foreground: 18 18 20;
+    --card: 255 255 255;
+    --card-foreground: 18 18 20;
+    --popover: 255 255 255;
+    --popover-foreground: 18 18 20;
+    --muted: 238 238 240;
+    --muted-foreground: 110 110 118;
+    --secondary: 240 240 242;
+    --secondary-foreground: 20 20 22;
+    --border: 226 226 230;
+    --input: 226 226 230;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  }
+
   * {
     @apply border-border;
     box-sizing: border-box;
@@ -107,6 +124,14 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.25);
+  }
+
+  html.light ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  html.light ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.35);
   }
 
   ::-webkit-scrollbar-corner {

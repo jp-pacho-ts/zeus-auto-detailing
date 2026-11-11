@@ -17,6 +17,7 @@ import {
   Columns3,
   LayoutDashboard,
   Users,
+  User,
   UserCog,
   KeyRound,
   LogOut,
@@ -38,7 +39,8 @@ import { ExpensesTab } from "./expenses-tab";
 import { AnalyticsTab } from "./analytics-tab";
 import { SettingsTab } from "./settings-tab";
 import { UsersTab } from "./users-tab";
-import { ChangePasswordDialog } from "./change-password-dialog";
+import { UserSettingsModal, applyAdminTheme } from "./user-settings-modal";
+import { THEME_STORAGE_KEY, type AdminThemeMode } from "./user-settings/user-settings-model";
 import { NotificationPopover } from "./notifications/notification-popover";
 import { MAINTENANCE_BANNER } from "./settings/settings-model";
 import { useKeptResource } from "./team/use-kept-resource";
@@ -116,7 +118,17 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const shopSettings = useKeptResource<AdminShopSettings>(session.data?.role === "ADMIN" ? "/api/admin/settings" : null);
   const [signingOut, setSigningOut] = React.useState(false),
     [logoutError, setLogoutError] = React.useState<string | null>(null);
-  const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
+  const [userSettingsOpen, setUserSettingsOpen] = React.useState(false);
+  const [userSettingsTab, setUserSettingsTab] = React.useState<"profile" | "appearance" | "security">("profile");
+
+  React.useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as AdminThemeMode | null;
+      if (savedTheme) {
+        applyAdminTheme(savedTheme);
+      }
+    } catch {}
+  }, []);
   const leaving = React.useRef(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
@@ -610,7 +622,21 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                         role="menuitem"
                         onClick={() => {
                           setProfileOpen(false);
-                          setChangePasswordOpen(true);
+                          setUserSettingsTab("profile");
+                          setUserSettingsOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground"
+                      >
+                        <User className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                        <span>Account & Preferences</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setProfileOpen(false);
+                          setUserSettingsTab("security");
+                          setUserSettingsOpen(true);
                         }}
                         className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground"
                       >
@@ -692,9 +718,11 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         </main>
       </div>
 
-      <ChangePasswordDialog
-        isOpen={changePasswordOpen}
-        onClose={() => setChangePasswordOpen(false)}
+      <UserSettingsModal
+        isOpen={userSettingsOpen}
+        onClose={() => setUserSettingsOpen(false)}
+        staff={staff}
+        initialTab={userSettingsTab}
       />
     </div>
     </LazyMotion>
