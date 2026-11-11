@@ -80,8 +80,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
   const [editCategory, setEditCategory] = React.useState<CatalogServiceKind>("WASH");
   const [editOffers, setEditOffers] = React.useState<Record<string, {
     offered: boolean;
-    pricePhp: string;
-    comparePhp: string;
+    regularPricePhp: string;
+    hasPromo: boolean;
+    promoPricePhp: string;
   }>>({});
   const [editCommissionMode, setEditCommissionMode] = React.useState<"DEFAULT" | "NONE" | "CUSTOM">("DEFAULT");
   const [editCommissionRate, setEditCommissionRate] = React.useState<string>("");
@@ -99,8 +100,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
   const [createUnit, setCreateUnit] = React.useState<PriceUnit>("VEHICLE");
   const [createOffers, setCreateOffers] = React.useState<Record<string, {
     offered: boolean;
-    pricePhp: string;
-    comparePhp: string;
+    regularPricePhp: string;
+    hasPromo: boolean;
+    promoPricePhp: string;
   }>>({});
   const [createSaving, setCreateSaving] = React.useState(false);
   const [createError, setCreateError] = React.useState<string | null>(null);
@@ -125,13 +127,33 @@ export function ServicesTab({ role }: ServicesTabProps) {
     }
     setEditCommissionMode(mode);
     setEditCommissionRate(customVal);
-    const offerMap: Record<string, { offered: boolean; pricePhp: string; comparePhp: string }> = {};
+    const offerMap: Record<string, {
+      offered: boolean;
+      regularPricePhp: string;
+      hasPromo: boolean;
+      promoPricePhp: string;
+    }> = {};
     for (const size of SIZE_ORDER) {
       const off = svc.offers.find((o) => o.sizeCode === size);
+      const isOffered = off?.state !== "NOT_OFFERED";
+      const unitPhp = off?.unitPriceCentavos ? (off.unitPriceCentavos / 100).toString() : "";
+      const comparePhp = off?.compareAtCentavos ? (off.compareAtCentavos / 100).toString() : "";
+
+      // If compareAtCentavos exists and is strictly greater than unitPriceCentavos,
+      // there is an active discount/promo. CompareAt is the original Regular price,
+      // and unitPrice is the discounted Promo price.
+      // If there is NO discount, unitPrice is the standard Regular price.
+      const hasActivePromo = Boolean(
+        off?.compareAtCentavos &&
+        off?.unitPriceCentavos &&
+        off.compareAtCentavos > off.unitPriceCentavos
+      );
+
       offerMap[size] = {
-        offered: off?.state !== "NOT_OFFERED",
-        pricePhp: off?.unitPriceCentavos ? (off.unitPriceCentavos / 100).toString() : "",
-        comparePhp: off?.compareAtCentavos ? (off.compareAtCentavos / 100).toString() : "",
+        offered: isOffered,
+        regularPricePhp: hasActivePromo ? comparePhp : unitPhp,
+        hasPromo: hasActivePromo,
+        promoPricePhp: hasActivePromo ? unitPhp : "",
       };
     }
     setEditOffers(offerMap);
@@ -146,9 +168,19 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setCreateCommissionRate("");
     setCreateType("BASE");
     setCreateUnit("VEHICLE");
-    const offerMap: Record<string, { offered: boolean; pricePhp: string; comparePhp: string }> = {};
+    const offerMap: Record<string, {
+      offered: boolean;
+      regularPricePhp: string;
+      hasPromo: boolean;
+      promoPricePhp: string;
+    }> = {};
     for (const size of SIZE_ORDER) {
-      offerMap[size] = { offered: true, pricePhp: "", comparePhp: "" };
+      offerMap[size] = {
+        offered: true,
+        regularPricePhp: "",
+        hasPromo: false,
+        promoPricePhp: "",
+      };
     }
     setCreateOffers(offerMap);
     setCreateError(null);
@@ -162,13 +194,35 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setEditError(null);
 
     const offersPayload: AdminServiceOfferInput[] = SIZE_ORDER.map((size) => {
-      const priceNum = parseFloat(editOffers[size]?.pricePhp || "0");
-      const compareNum = parseFloat(editOffers[size]?.comparePhp || "0");
+      const row = editOffers[size] ?? {
+        offered: true,
+        regularPricePhp: "",
+        hasPromo: false,
+        promoPricePhp: "",
+      };
+      const regularNum = parseFloat(row.regularPricePhp || "0");
+      const promoNum = parseFloat(row.promoPricePhp || "0");
+
+      let unitPriceCentavos: number | null = null;
+      let compareAtCentavos: number | null = null;
+
+      if (row.offered && regularNum > 0) {
+        if (row.hasPromo && promoNum > 0 && promoNum < regularNum) {
+          // With active promo: selling price is promo price, compare-at is regular price
+          unitPriceCentavos = Math.round(promoNum * 100);
+          compareAtCentavos = Math.round(regularNum * 100);
+        } else {
+          // Standard regular pricing: selling price is regular price, no promo
+          unitPriceCentavos = Math.round(regularNum * 100);
+          compareAtCentavos = null;
+        }
+      }
+
       return {
         sizeCode: size,
-        state: editOffers[size]?.offered ? (priceNum > 0 ? "OFFERED" : "UNCONFIRMED") : "NOT_OFFERED",
-        unitPriceCentavos: editOffers[size]?.offered && priceNum > 0 ? Math.round(priceNum * 100) : null,
-        compareAtCentavos: editOffers[size]?.offered && compareNum > 0 ? Math.round(compareNum * 100) : null,
+        state: row.offered ? (regularNum > 0 ? "OFFERED" : "UNCONFIRMED") : "NOT_OFFERED",
+        unitPriceCentavos,
+        compareAtCentavos,
       };
     });
 
@@ -211,13 +265,33 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setCreateError(null);
 
     const offersPayload: AdminServiceOfferInput[] = SIZE_ORDER.map((size) => {
-      const priceNum = parseFloat(createOffers[size]?.pricePhp || "0");
-      const compareNum = parseFloat(createOffers[size]?.comparePhp || "0");
+      const row = createOffers[size] ?? {
+        offered: true,
+        regularPricePhp: "",
+        hasPromo: false,
+        promoPricePhp: "",
+      };
+      const regularNum = parseFloat(row.regularPricePhp || "0");
+      const promoNum = parseFloat(row.promoPricePhp || "0");
+
+      let unitPriceCentavos: number | null = null;
+      let compareAtCentavos: number | null = null;
+
+      if (row.offered && regularNum > 0) {
+        if (row.hasPromo && promoNum > 0 && promoNum < regularNum) {
+          unitPriceCentavos = Math.round(promoNum * 100);
+          compareAtCentavos = Math.round(regularNum * 100);
+        } else {
+          unitPriceCentavos = Math.round(regularNum * 100);
+          compareAtCentavos = null;
+        }
+      }
+
       return {
         sizeCode: size,
-        state: createOffers[size]?.offered ? (priceNum > 0 ? "OFFERED" : "UNCONFIRMED") : "NOT_OFFERED",
-        unitPriceCentavos: createOffers[size]?.offered && priceNum > 0 ? Math.round(priceNum * 100) : null,
-        compareAtCentavos: createOffers[size]?.offered && compareNum > 0 ? Math.round(compareNum * 100) : null,
+        state: row.offered ? (regularNum > 0 ? "OFFERED" : "UNCONFIRMED") : "NOT_OFFERED",
+        unitPriceCentavos,
+        compareAtCentavos,
       };
     });
 
@@ -680,35 +754,47 @@ export function ServicesTab({ role }: ServicesTabProps) {
               </div>
 
               {/* Pricing & Discounts per size */}
-              <div className="space-y-2 border-t border-border pt-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
-                    Pricing & Promo Discounts per Vehicle Size
-                  </h4>
-                  <span className="text-[11px] text-muted-foreground">Amounts in PHP (₱)</span>
+              <div className="space-y-3 border-t border-border pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
+                      Pricing & Promo Discounts per Vehicle Size
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Enter regular price. Optionally enable promo/discount per vehicle size.
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-semibold text-muted-foreground">Amounts in PHP (₱)</span>
                 </div>
 
                 <div className="space-y-2.5">
                   {SIZE_ORDER.map((size) => {
-                    const cur = editOffers[size] ?? { offered: true, pricePhp: "", comparePhp: "" };
-                    const price = parseFloat(cur.pricePhp || "0");
-                    const compare = parseFloat(cur.comparePhp || "0");
-                    const hasDiscount = cur.offered && compare > price && price > 0;
-                    const discountPct = hasDiscount ? Math.round(((compare - price) / compare) * 100) : 0;
+                    const cur = editOffers[size] ?? {
+                      offered: true,
+                      regularPricePhp: "",
+                      hasPromo: false,
+                      promoPricePhp: "",
+                    };
+                    const regular = parseFloat(cur.regularPricePhp || "0");
+                    const promo = parseFloat(cur.promoPricePhp || "0");
+                    const hasValidPromo = cur.hasPromo && promo > 0 && regular > 0 && promo < regular;
+                    const discountPct = hasValidPromo ? Math.round(((regular - promo) / regular) * 100) : 0;
+                    const savings = hasValidPromo ? regular - promo : 0;
+                    const isPromoError = cur.hasPromo && promo > 0 && regular > 0 && promo >= regular;
 
                     return (
                       <div
                         key={size}
-                        className={`rounded border p-3 transition-colors ${
+                        className={`rounded-lg border p-3.5 transition-colors ${
                           !cur.offered
                             ? "border-border/40 bg-[#101012] opacity-60"
-                            : hasDiscount
-                            ? "border-emerald-500/30 bg-emerald-500/5"
+                            : cur.hasPromo && hasValidPromo
+                            ? "border-emerald-500/40 bg-emerald-500/5 shadow-xs"
                             : "border-border bg-[#18181b]"
                         }`}
                       >
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <label className="flex items-center gap-2 cursor-pointer min-w-[130px]">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer min-w-[130px] select-none">
                             <input
                               type="checkbox"
                               checked={cur.offered}
@@ -718,56 +804,84 @@ export function ServicesTab({ role }: ServicesTabProps) {
                                   [size]: { ...cur, offered: e.target.checked },
                                 }))
                               }
-                              className="h-4 w-4 rounded border-border accent-primary"
+                              className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
                             />
                             <span className="text-xs font-bold text-foreground">{SIZE_NAMES[size]}</span>
                           </label>
 
                           {cur.offered ? (
-                            <div className="flex flex-1 flex-wrap items-center gap-3 justify-end">
+                            <div className="flex flex-1 flex-wrap items-center gap-3.5 justify-end">
                               <div>
-                                <label className="block text-[10px] font-semibold text-muted-foreground">
-                                  Original / Regular Price (₱)
+                                <label className="block text-[10px] font-bold text-foreground">
+                                  Original / Regular Price (₱) *
                                 </label>
                                 <input
                                   type="number"
                                   step="any"
+                                  min="0"
                                   placeholder="e.g. 500"
-                                  value={cur.comparePhp}
+                                  value={cur.regularPricePhp}
                                   onChange={(e) =>
                                     setEditOffers((prev) => ({
                                       ...prev,
-                                      [size]: { ...cur, comparePhp: e.target.value },
+                                      [size]: { ...cur, regularPricePhp: e.target.value },
                                     }))
                                   }
-                                  className="w-28 rounded border border-border bg-[#121214] px-2.5 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+                                  className="w-28 rounded border border-border bg-[#121214] px-2.5 py-1.5 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
                                 />
                               </div>
 
-                              <div>
-                                <label className="block text-[10px] font-semibold text-primary">
-                                  Selling / Promo Price (₱) *
+                              <div className="flex flex-col justify-end">
+                                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer select-none py-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={cur.hasPromo}
+                                    onChange={(e) =>
+                                      setEditOffers((prev) => ({
+                                        ...prev,
+                                        [size]: {
+                                          ...cur,
+                                          hasPromo: e.target.checked,
+                                          promoPricePhp: e.target.checked ? cur.promoPricePhp : "",
+                                        },
+                                      }))
+                                    }
+                                    className="h-3.5 w-3.5 rounded border-border accent-emerald-500 cursor-pointer"
+                                  />
+                                  <Tag className="h-3 w-3 text-emerald-400" />
+                                  <span>Promo / Discount</span>
                                 </label>
-                                <input
-                                  type="number"
-                                  step="any"
-                                  placeholder="e.g. 450"
-                                  value={cur.pricePhp}
-                                  onChange={(e) =>
-                                    setEditOffers((prev) => ({
-                                      ...prev,
-                                      [size]: { ...cur, pricePhp: e.target.value },
-                                    }))
-                                  }
-                                  className="w-28 rounded border border-primary/50 bg-[#121214] px-2.5 py-1 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
-                                />
                               </div>
 
-                              {hasDiscount && (
-                                <div className="self-end pb-1">
-                                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 text-[11px] font-black text-emerald-400">
-                                    {discountPct}% OFF
-                                  </span>
+                              {cur.hasPromo && (
+                                <div className="flex items-center gap-2">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-emerald-400">
+                                      Selling / Promo Price (₱) *
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      min="0"
+                                      placeholder="e.g. 400"
+                                      value={cur.promoPricePhp}
+                                      onChange={(e) =>
+                                        setEditOffers((prev) => ({
+                                          ...prev,
+                                          [size]: { ...cur, promoPricePhp: e.target.value },
+                                        }))
+                                      }
+                                      className="w-28 rounded border border-emerald-500/50 bg-[#121214] px-2.5 py-1.5 text-xs font-bold text-emerald-400 focus:border-emerald-400 focus:outline-none"
+                                    />
+                                  </div>
+
+                                  {hasValidPromo && (
+                                    <div className="self-end pb-1">
+                                      <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 text-[11px] font-black text-emerald-400">
+                                        {discountPct}% OFF (Save ₱{savings})
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -775,6 +889,12 @@ export function ServicesTab({ role }: ServicesTabProps) {
                             <span className="text-xs italic text-muted-foreground">Service not offered for this size</span>
                           )}
                         </div>
+
+                        {cur.offered && isPromoError && (
+                          <p className="mt-1.5 text-right text-[11px] font-semibold text-amber-400">
+                            ⚠️ Promo price (₱{promo}) must be lower than regular price (₱{regular}) to apply a discount.
+                          </p>
+                        )}
                       </div>
                     );
                   })}
@@ -952,35 +1072,47 @@ export function ServicesTab({ role }: ServicesTabProps) {
               </div>
 
               {/* Pricing & Discounts per size */}
-              <div className="space-y-2 border-t border-border pt-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
-                    Initial Pricing & Discounts per Vehicle Size
-                  </h4>
-                  <span className="text-[11px] text-muted-foreground">Amounts in PHP (₱)</span>
+              <div className="space-y-3 border-t border-border pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
+                      Initial Pricing & Promo Discounts per Vehicle Size
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Enter regular price. Optionally enable promo/discount per vehicle size.
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-semibold text-muted-foreground">Amounts in PHP (₱)</span>
                 </div>
 
                 <div className="space-y-2.5">
                   {SIZE_ORDER.map((size) => {
-                    const cur = createOffers[size] ?? { offered: true, pricePhp: "", comparePhp: "" };
-                    const price = parseFloat(cur.pricePhp || "0");
-                    const compare = parseFloat(cur.comparePhp || "0");
-                    const hasDiscount = cur.offered && compare > price && price > 0;
-                    const discountPct = hasDiscount ? Math.round(((compare - price) / compare) * 100) : 0;
+                    const cur = createOffers[size] ?? {
+                      offered: true,
+                      regularPricePhp: "",
+                      hasPromo: false,
+                      promoPricePhp: "",
+                    };
+                    const regular = parseFloat(cur.regularPricePhp || "0");
+                    const promo = parseFloat(cur.promoPricePhp || "0");
+                    const hasValidPromo = cur.hasPromo && promo > 0 && regular > 0 && promo < regular;
+                    const discountPct = hasValidPromo ? Math.round(((regular - promo) / regular) * 100) : 0;
+                    const savings = hasValidPromo ? regular - promo : 0;
+                    const isPromoError = cur.hasPromo && promo > 0 && regular > 0 && promo >= regular;
 
                     return (
                       <div
                         key={size}
-                        className={`rounded border p-3 transition-colors ${
+                        className={`rounded-lg border p-3.5 transition-colors ${
                           !cur.offered
                             ? "border-border/40 bg-[#101012] opacity-60"
-                            : hasDiscount
-                            ? "border-emerald-500/30 bg-emerald-500/5"
+                            : cur.hasPromo && hasValidPromo
+                            ? "border-emerald-500/40 bg-emerald-500/5 shadow-xs"
                             : "border-border bg-[#18181b]"
                         }`}
                       >
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <label className="flex items-center gap-2 cursor-pointer min-w-[130px]">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer min-w-[130px] select-none">
                             <input
                               type="checkbox"
                               checked={cur.offered}
@@ -990,56 +1122,84 @@ export function ServicesTab({ role }: ServicesTabProps) {
                                   [size]: { ...cur, offered: e.target.checked },
                                 }))
                               }
-                              className="h-4 w-4 rounded border-border accent-primary"
+                              className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
                             />
                             <span className="text-xs font-bold text-foreground">{SIZE_NAMES[size]}</span>
                           </label>
 
                           {cur.offered ? (
-                            <div className="flex flex-1 flex-wrap items-center gap-3 justify-end">
+                            <div className="flex flex-1 flex-wrap items-center gap-3.5 justify-end">
                               <div>
-                                <label className="block text-[10px] font-semibold text-muted-foreground">
-                                  Original Price (₱)
+                                <label className="block text-[10px] font-bold text-foreground">
+                                  Original / Regular Price (₱) *
                                 </label>
                                 <input
                                   type="number"
                                   step="any"
+                                  min="0"
                                   placeholder="e.g. 500"
-                                  value={cur.comparePhp}
+                                  value={cur.regularPricePhp}
                                   onChange={(e) =>
                                     setCreateOffers((prev) => ({
                                       ...prev,
-                                      [size]: { ...cur, comparePhp: e.target.value },
+                                      [size]: { ...cur, regularPricePhp: e.target.value },
                                     }))
                                   }
-                                  className="w-28 rounded border border-border bg-[#121214] px-2.5 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+                                  className="w-28 rounded border border-border bg-[#121214] px-2.5 py-1.5 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
                                 />
                               </div>
 
-                              <div>
-                                <label className="block text-[10px] font-semibold text-primary">
-                                  Selling Price (₱)
+                              <div className="flex flex-col justify-end">
+                                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer select-none py-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={cur.hasPromo}
+                                    onChange={(e) =>
+                                      setCreateOffers((prev) => ({
+                                        ...prev,
+                                        [size]: {
+                                          ...cur,
+                                          hasPromo: e.target.checked,
+                                          promoPricePhp: e.target.checked ? cur.promoPricePhp : "",
+                                        },
+                                      }))
+                                    }
+                                    className="h-3.5 w-3.5 rounded border-border accent-emerald-500 cursor-pointer"
+                                  />
+                                  <Tag className="h-3 w-3 text-emerald-400" />
+                                  <span>Promo / Discount</span>
                                 </label>
-                                <input
-                                  type="number"
-                                  step="any"
-                                  placeholder="e.g. 450"
-                                  value={cur.pricePhp}
-                                  onChange={(e) =>
-                                    setCreateOffers((prev) => ({
-                                      ...prev,
-                                      [size]: { ...cur, pricePhp: e.target.value },
-                                    }))
-                                  }
-                                  className="w-28 rounded border border-primary/50 bg-[#121214] px-2.5 py-1 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
-                                />
                               </div>
 
-                              {hasDiscount && (
-                                <div className="self-end pb-1">
-                                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 text-[11px] font-black text-emerald-400">
-                                    {discountPct}% OFF
-                                  </span>
+                              {cur.hasPromo && (
+                                <div className="flex items-center gap-2">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-emerald-400">
+                                      Selling / Promo Price (₱) *
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      min="0"
+                                      placeholder="e.g. 400"
+                                      value={cur.promoPricePhp}
+                                      onChange={(e) =>
+                                        setCreateOffers((prev) => ({
+                                          ...prev,
+                                          [size]: { ...cur, promoPricePhp: e.target.value },
+                                        }))
+                                      }
+                                      className="w-28 rounded border border-emerald-500/50 bg-[#121214] px-2.5 py-1.5 text-xs font-bold text-emerald-400 focus:border-emerald-400 focus:outline-none"
+                                    />
+                                  </div>
+
+                                  {hasValidPromo && (
+                                    <div className="self-end pb-1">
+                                      <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 text-[11px] font-black text-emerald-400">
+                                        {discountPct}% OFF (Save ₱{savings})
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1047,6 +1207,12 @@ export function ServicesTab({ role }: ServicesTabProps) {
                             <span className="text-xs italic text-muted-foreground">Not offered for this size</span>
                           )}
                         </div>
+
+                        {cur.offered && isPromoError && (
+                          <p className="mt-1.5 text-right text-[11px] font-semibold text-amber-400">
+                            ⚠️ Promo price (₱{promo}) must be lower than regular price (₱{regular}) to apply a discount.
+                          </p>
+                        )}
                       </div>
                     );
                   })}
