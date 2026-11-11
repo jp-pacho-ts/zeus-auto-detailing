@@ -193,6 +193,7 @@ export interface DetailsForm {
   vehicleModel: string;
   vehiclePlate: string;
   specialRequests: string;
+  paymentPreference?: "WALK_IN" | "ONLINE_QR";
 }
 
 const normalizePhone = (raw: string) => {
@@ -210,6 +211,14 @@ export function createDayRequest(input: {
   idempotencyKey: string;
 }): { ok: true; data: CreateDayBookingRequest } | { ok: false; fieldErrors: Record<string, string[]> } {
   const { form, quote } = input;
+  const rawRequests = form.specialRequests ? form.specialRequests.trim() : "";
+  const paymentTag = form.paymentPreference === "ONLINE_QR"
+    ? "[Payment Mode: ONLINE_QR]"
+    : form.paymentPreference === "WALK_IN"
+      ? "[Payment Mode: WALK_IN]"
+      : "";
+  const combinedRequests = [paymentTag, rawRequests].filter(Boolean).join("\n\n");
+
   const parsed = CreateDayBookingSchema.safeParse({
     contractVersion: 4,
     idempotencyKey: input.idempotencyKey,
@@ -224,7 +233,7 @@ export function createDayRequest(input: {
     customerEmail: blankToUndefined(form.customerEmail),
     vehicleModel: form.vehicleModel,
     vehiclePlate: blankToUndefined(form.vehiclePlate),
-    specialRequests: blankToUndefined(form.specialRequests),
+    specialRequests: blankToUndefined(combinedRequests),
   });
   if (parsed.success) return { ok: true, data: parsed.data };
   const fieldErrors: Record<string, string[]> = {};

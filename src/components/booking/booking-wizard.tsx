@@ -150,6 +150,7 @@ export function BookingWizard({
     vehicleModel: "",
     vehiclePlate: "",
     specialRequests: "",
+    paymentPreference: "WALK_IN",
   });
   const [challenge, setChallenge] = React.useState({ version: 0, token: "" });
   const [challengeStatus, setChallengeStatus] = React.useState<ChallengeStatus>("pending");
@@ -1337,6 +1338,48 @@ export function BookingWizard({
                                   {errorFor("vehiclePlate")}
                                 </p>
                               )}
+                            </div>
+
+                            <div>
+                              <label className="text-sm font-semibold text-foreground block mb-2">
+                                Preferred mode of payment
+                              </label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Preferred mode of payment">
+                                <button
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={form.paymentPreference === "WALK_IN"}
+                                  onClick={() => setForm((prev) => ({ ...prev, paymentPreference: "WALK_IN" }))}
+                                  className={`flex min-h-[56px] items-start gap-3 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                                    form.paymentPreference === "WALK_IN"
+                                      ? "border-primary bg-primary/10 shadow-xs"
+                                      : "border-border bg-card/60 hover:border-border/90 hover:bg-card"
+                                  }`}
+                                >
+                                  <span className="text-xl shrink-0" aria-hidden="true">🏪</span>
+                                  <div>
+                                    <span className="block text-sm font-bold text-foreground">Pay at shop</span>
+                                    <span className="block text-xs text-muted-foreground mt-0.5">Pay in Cash or Card upon vehicle drop-off / completion</span>
+                                  </div>
+                                </button>
+                                <button
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={form.paymentPreference === "ONLINE_QR"}
+                                  onClick={() => setForm((prev) => ({ ...prev, paymentPreference: "ONLINE_QR" }))}
+                                  className={`flex min-h-[56px] items-start gap-3 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                                    form.paymentPreference === "ONLINE_QR"
+                                      ? "border-primary bg-primary/10 shadow-xs"
+                                      : "border-border bg-card/60 hover:border-border/90 hover:bg-card"
+                                  }`}
+                                >
+                                  <span className="text-xl shrink-0" aria-hidden="true">📱</span>
+                                  <div>
+                                    <span className="block text-sm font-bold text-foreground">Online / QR payment</span>
+                                    <span className="block text-xs text-muted-foreground mt-0.5">Pay via GCash or GoTyme Bank QR</span>
+                                  </div>
+                                </button>
+                              </div>
                             </div>
 
                             <div>

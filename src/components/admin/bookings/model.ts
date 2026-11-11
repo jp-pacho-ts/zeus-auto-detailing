@@ -103,3 +103,55 @@ export const notifyNotice = (notice: "SENT" | "NOT_SENT" | "NO_EMAIL"): string =
       "Email could not be sent. The shop email is not set up or was refused, so nothing went out. Try again, or phone the customer.",
     NO_EMAIL: "No customer email address is on file.",
   })[notice];
+
+export type PaymentMode = "CASH" | "CARD" | "ONLINE_QR" | "WALK_IN" | "PENDING";
+
+export interface ParsedPaymentDetails {
+  mode: PaymentMode;
+  notes: string;
+}
+
+const PAYMENT_REGEX = /^\[Payment Mode:\s*(CASH|CARD|ONLINE_QR|WALK_IN|PENDING)\]\s*\n*/i;
+
+export function parsePaymentDetails(rawNotes: string | null | undefined): ParsedPaymentDetails {
+  if (!rawNotes) return { mode: "PENDING", notes: "" };
+  const match = rawNotes.match(PAYMENT_REGEX);
+  if (match) {
+    const rawMode = match[1].toUpperCase() as PaymentMode;
+    const notes = rawNotes.replace(PAYMENT_REGEX, "").trim();
+    return { mode: rawMode, notes };
+  }
+  if (/^Payment(?: Method)?:\s*Cash/i.test(rawNotes)) {
+    return { mode: "CASH", notes: rawNotes.replace(/^Payment(?: Method)?:\s*Cash\s*\n*/i, "").trim() };
+  }
+  if (/^Payment(?: Method)?:\s*Card/i.test(rawNotes)) {
+    return { mode: "CARD", notes: rawNotes.replace(/^Payment(?: Method)?:\s*Card\s*\n*/i, "").trim() };
+  }
+  if (/^Payment(?: Method)?:\s*(?:Online|GCash|QR|Bank)/i.test(rawNotes)) {
+    return { mode: "ONLINE_QR", notes: rawNotes.replace(/^Payment(?: Method)?:\s*(?:Online|GCash|QR|Bank)[^\n]*\s*\n*/i, "").trim() };
+  }
+  return { mode: "PENDING", notes: rawNotes };
+}
+
+export function formatNotesWithPayment(mode: PaymentMode, cleanNotes: string): string | null {
+  const trimmed = cleanNotes.trim();
+  if (mode === "PENDING" && !trimmed) return null;
+  if (mode === "PENDING") return trimmed;
+  return `[Payment Mode: ${mode}]${trimmed ? "\n\n" + trimmed : ""}`;
+}
+
+export const paymentModeLabel = (mode: PaymentMode): string => {
+  switch (mode) {
+    case "CASH":
+      return "Cash";
+    case "CARD":
+      return "Card (POS)";
+    case "ONLINE_QR":
+      return "Online / QR (GCash)";
+    case "WALK_IN":
+      return "Pay at Shop";
+    case "PENDING":
+    default:
+      return "Pending / Unpaid";
+  }
+};

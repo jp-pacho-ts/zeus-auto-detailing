@@ -19,13 +19,16 @@ import {
   statusActions,
   statusLabel,
   totalLabel,
+  parsePaymentDetails,
+  formatNotesWithPayment,
+  paymentModeLabel,
+  type PaymentMode,
 } from "./model";
 import { boardProgress, plateLabel, writeFeedback } from "./board-model";
 import { shopDate } from "./model";
 import { fieldClass, LoadState, useAdminResource } from "./use-admin-resource";
 import { DepositBadge } from "./deposit-badge";
 import {
-  Car,
   Phone,
   Mail,
   FileText,
@@ -97,6 +100,7 @@ export function BookingDetail({
   const [editEmail, setEditEmail] = React.useState("");
   const [editModel, setEditModel] = React.useState("");
   const [editPlate, setEditPlate] = React.useState("");
+  const [editPaymentMode, setEditPaymentMode] = React.useState<PaymentMode>("PENDING");
   const [editNotes, setEditNotes] = React.useState("");
 
   const startEditDetails = () => {
@@ -106,7 +110,9 @@ export function BookingDetail({
     setEditEmail(b.customerEmail ?? "");
     setEditModel(b.vehicleModel);
     setEditPlate(b.vehiclePlate ?? "");
-    setEditNotes(b.notes ?? "");
+    const parsed = parsePaymentDetails(b.notes);
+    setEditPaymentMode(parsed.mode);
+    setEditNotes(parsed.notes);
     setEditingDetails(true);
   };
   const mounted = React.useRef(true),
@@ -199,6 +205,7 @@ export function BookingDetail({
 
   const progress = b ? boardProgress(b.lines) : { done: 0, total: 0 };
   const progressPercent = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+  const parsedPayment = parsePaymentDetails(b?.notes);
 
   return (
     <dialog
@@ -213,9 +220,6 @@ export function BookingDetail({
       {/* Sticky Header */}
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-stone-50/95 dark:bg-[#131316]/95 px-5 py-3.5 backdrop-blur-md sm:px-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400">
-            <Car className="h-5 w-5" />
-          </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h2 id="booking-detail-title" className="text-lg font-bold tracking-tight text-foreground">
@@ -308,6 +312,7 @@ export function BookingDetail({
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
+                  const formattedNotes = formatNotesWithPayment(editPaymentMode, editNotes);
                   const ok = await write(
                     "",
                     {
@@ -316,7 +321,7 @@ export function BookingDetail({
                       customerEmail: editEmail.trim() ? editEmail.trim() : null,
                       vehicleModel: editModel.trim(),
                       vehiclePlate: editPlate.trim() ? editPlate.trim() : null,
-                      notes: editNotes.trim() ? editNotes.trim() : null,
+                      notes: formattedNotes,
                     },
                     "PATCH",
                   );
@@ -386,6 +391,36 @@ export function BookingDetail({
                       disabled={disabled}
                     />
                   </label>
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <span className="block text-xs font-semibold text-zinc-300">
+                      Mode of payment
+                    </span>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {(
+                        [
+                          { value: "CASH", label: "Cash", icon: "💵" },
+                          { value: "CARD", label: "Card (POS)", icon: "💳" },
+                          { value: "ONLINE_QR", label: "Online / QR", icon: "📱" },
+                          { value: "PENDING", label: "Pending", icon: "⏳" },
+                        ] as const
+                      ).map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => setEditPaymentMode(opt.value)}
+                          className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                            editPaymentMode === opt.value
+                              ? "border-amber-500 bg-amber-500/20 text-amber-300 font-bold shadow-xs"
+                              : "border-border bg-stone-50/50 dark:bg-zinc-800/80 text-muted-foreground hover:border-zinc-500 hover:text-foreground"
+                          }`}
+                        >
+                          <span>{opt.icon}</span>
+                          <span>{opt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <label className="text-xs text-zinc-300 sm:col-span-2">
                     Notes
                     <textarea
@@ -461,13 +496,13 @@ export function BookingDetail({
                       )}
                     </div>
                   </div>
-                  {b.notes && (
+                  {parsedPayment.notes && (
                     <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5 text-xs text-zinc-300">
                       <div className="flex items-center gap-1 font-medium text-zinc-400 mb-1">
                         <FileText className="h-3 w-3" />
                         <span>Notes</span>
                       </div>
-                      <p className="whitespace-pre-wrap break-words">{b.notes}</p>
+                      <p className="whitespace-pre-wrap break-words">{parsedPayment.notes}</p>
                     </div>
                   )}
                 </div>
@@ -539,9 +574,40 @@ export function BookingDetail({
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-zinc-800/60 flex items-center justify-between text-xs text-zinc-400">
-                    <span>Reference code</span>
-                    <span className="font-mono text-xs font-semibold text-amber-400">{b.referenceCode}</span>
+                  <div className="mt-4 pt-3 border-t border-zinc-800/60 space-y-2 text-xs text-zinc-400">
+                    <div className="flex items-center justify-between">
+                      <span>Payment mode</span>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                          parsedPayment.mode === "CASH"
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                            : parsedPayment.mode === "CARD"
+                              ? "border-sky-500/30 bg-sky-500/10 text-sky-400"
+                              : parsedPayment.mode === "ONLINE_QR"
+                                ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                                : parsedPayment.mode === "WALK_IN"
+                                  ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                                  : "border-zinc-700 bg-zinc-800 text-zinc-400"
+                        }`}
+                      >
+                        <span>
+                          {parsedPayment.mode === "CASH"
+                            ? "💵"
+                            : parsedPayment.mode === "CARD"
+                              ? "💳"
+                              : parsedPayment.mode === "ONLINE_QR"
+                                ? "📱"
+                                : parsedPayment.mode === "WALK_IN"
+                                  ? "🏪"
+                                  : "⏳"}
+                        </span>
+                        <span>{paymentModeLabel(parsedPayment.mode)}</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Reference code</span>
+                      <span className="font-mono text-xs font-semibold text-amber-400">{b.referenceCode}</span>
+                    </div>
                   </div>
                 </div>
               </div>
