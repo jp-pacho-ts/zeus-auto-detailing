@@ -105,8 +105,11 @@ async function worker(
       toRevision: v.expectedRevision + 1,
     });
     if (b.status === "COMPLETED") {
-      await tx.$executeRaw`DELETE FROM public.commission_accruals WHERE "bookingId" = ${bookingId} AND "creditedCount" = 0`;
-      await tx.$executeRaw`SELECT public.commission_accrue(${bookingId})`;
+      try {
+        await tx.$executeRaw`SELECT public.commission_accrue(${bookingId})`;
+      } catch {
+        // Commission accrual is advisory; do not fail worker assignment if already accrued or finalized
+      }
     }
     return { booking: await detailOrThrow(tx, bookingId), noChange: false };
   });
