@@ -357,6 +357,7 @@ export function SuppliesPanel({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
               type="search"
+              aria-label="Search"
               value={query}
               onChange={handleQueryChange}
               placeholder="Search by name or category..."
@@ -466,8 +467,19 @@ export function SuppliesPanel({
                   >
                     {/* Column 1: Item & Category */}
                     <div className="col-span-4 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate text-sm font-bold text-foreground">{i.name}</p>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-bold font-mono ${
+                            i.currentStock === 0
+                              ? "border-rose-500/40 bg-rose-500/15 text-rose-300"
+                              : i.currentStock <= i.reorderLevel && i.reorderLevel > 0
+                                ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
+                                : "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                          }`}
+                        >
+                          {i.currentStock === 0 ? "Out of stock" : `${i.currentStock.toLocaleString()} ${i.unit}${i.currentStock === 1 ? "" : "s"} left`}
+                        </span>
                         {badge && (
                           <span
                             className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${
@@ -483,7 +495,7 @@ export function SuppliesPanel({
                           </span>
                         )}
                       </div>
-                      <p className="truncate text-xs text-muted-foreground mt-0.5">
+                      <p className="truncate text-xs text-muted-foreground mt-1">
                         {i.category ? (
                           <span className="text-foreground font-medium">{i.category} · </span>
                         ) : null}
@@ -493,7 +505,10 @@ export function SuppliesPanel({
 
                     {/* Column 2: Stock Level */}
                     <div className="col-span-3 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden">
+                        Remaining in stock:
+                      </span>
+                      <div className="flex items-baseline gap-2">
                         <div
                           className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 ${
                             i.currentStock === 0
@@ -503,16 +518,16 @@ export function SuppliesPanel({
                                 : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
                           }`}
                         >
-                          <span className="font-mono text-sm font-bold">
+                          <span className="font-mono text-base font-bold">
                             {i.currentStock.toLocaleString()}
                           </span>
-                          <span className="text-xs font-medium">{i.unit}</span>
+                          <span className="text-xs font-medium">{i.unit}{i.currentStock === 1 ? "" : "s"}</span>
                         </div>
-                        <span className="text-xs text-zinc-400">in stock</span>
+                        <span className="text-xs font-semibold text-zinc-300">left</span>
                       </div>
                       <p className="text-[11px] mt-1 text-zinc-400">
                         {i.reorderLevel > 0 ? (
-                          <span>Alert at &le; {i.reorderLevel} {i.unit}</span>
+                          <span>Reorder alert at &le; {i.reorderLevel} {i.unit}{i.reorderLevel === 1 ? "" : "s"}</span>
                         ) : (
                           <span className="text-zinc-600">No reorder alert</span>
                         )}
@@ -681,8 +696,13 @@ export function SuppliesPanel({
         }}
       >
         <DialogHeader>
-          <DialogTitle>{editing === "new" ? "Add item" : "Edit item"}</DialogTitle>
+          <DialogTitle>{editing === "new" ? "Add item" : editing ? `Edit ${editing.name}` : "Edit item"}</DialogTitle>
           <DialogDescription>
+            {editing && editing !== "new" && (
+              <span className="block font-semibold text-emerald-400 mb-1 text-xs">
+                Current stock: {editing.currentStock.toLocaleString()} {editing.unit} left
+              </span>
+            )}
             Stock is changed with Stock in and Used, so every number has a history.
           </DialogDescription>
         </DialogHeader>
