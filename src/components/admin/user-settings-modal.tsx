@@ -406,25 +406,46 @@ export function UserSettingsModal({
 
               {/* Live Preview Card */}
               <div className="mt-6 rounded-xl border border-border bg-[#18181b] p-4">
-                <p className="text-xs font-bold text-foreground">Theme Details</p>
-                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                  <div className="rounded-lg bg-[#09090b] p-2.5 border border-zinc-800 text-center">
-                    <span className="block text-zinc-400 font-mono">#09090b</span>
-                    <span className="text-[10px] text-zinc-500">Obsidian Base</span>
+                <p className="text-xs font-bold text-foreground">Theme Palette Preview</p>
+                {themeMode === "light" ? (
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="rounded-lg bg-[#f8f9fa] p-2.5 border border-zinc-200 text-center shadow-xs">
+                      <span className="block text-zinc-800 font-mono font-bold">#f8f9fa</span>
+                      <span className="text-[10px] text-zinc-500">Daylight Canvas</span>
+                    </div>
+                    <div className="rounded-lg bg-[#ffffff] p-2.5 border border-zinc-200 text-center shadow-xs">
+                      <span className="block text-zinc-900 font-mono font-bold">#ffffff</span>
+                      <span className="text-[10px] text-zinc-500">Elevated Card</span>
+                    </div>
+                    <div className="rounded-lg bg-[#c08818] p-2.5 text-center text-black font-bold">
+                      <span className="block font-mono">#c08818</span>
+                      <span className="text-[10px] opacity-90">Zeus Gold</span>
+                    </div>
+                    <div className="rounded-lg bg-[#0f172a] p-2.5 text-center text-white font-bold">
+                      <span className="block font-mono">#0f172a</span>
+                      <span className="text-[10px] opacity-90">Deep Ink Text</span>
+                    </div>
                   </div>
-                  <div className="rounded-lg bg-[#18181b] p-2.5 border border-zinc-800 text-center">
-                    <span className="block text-zinc-300 font-mono">#18181b</span>
-                    <span className="text-[10px] text-zinc-500">Surface Card</span>
+                ) : (
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="rounded-lg bg-[#09090b] p-2.5 border border-zinc-800 text-center">
+                      <span className="block text-zinc-400 font-mono">#09090b</span>
+                      <span className="text-[10px] text-zinc-500">Obsidian Canvas</span>
+                    </div>
+                    <div className="rounded-lg bg-[#18181b] p-2.5 border border-zinc-800 text-center">
+                      <span className="block text-zinc-300 font-mono">#18181b</span>
+                      <span className="text-[10px] text-zinc-500">Surface Card</span>
+                    </div>
+                    <div className="rounded-lg bg-[#c08818] p-2.5 text-center text-black font-bold">
+                      <span className="block font-mono">#c08818</span>
+                      <span className="text-[10px] opacity-80">Zeus Gold</span>
+                    </div>
+                    <div className="rounded-lg bg-[#10b981] p-2.5 text-center text-black font-bold">
+                      <span className="block font-mono">#10b981</span>
+                      <span className="text-[10px] opacity-80">Emerald Status</span>
+                    </div>
                   </div>
-                  <div className="rounded-lg bg-[#c08818] p-2.5 text-center text-black font-bold">
-                    <span className="block font-mono">#c08818</span>
-                    <span className="text-[10px] opacity-80">Zeus Gold</span>
-                  </div>
-                  <div className="rounded-lg bg-[#10b981] p-2.5 text-center text-black font-bold">
-                    <span className="block font-mono">#10b981</span>
-                    <span className="text-[10px] opacity-80">Emerald Live</span>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           )}

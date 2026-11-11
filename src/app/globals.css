@@ -85,19 +85,86 @@
 
   html.light {
     color-scheme: light;
-    --background: 245 245 247;
-    --foreground: 18 18 20;
+    --background: 248 249 250;
+    --foreground: 9 9 11;
     --card: 255 255 255;
-    --card-foreground: 18 18 20;
+    --card-foreground: 9 9 11;
     --popover: 255 255 255;
-    --popover-foreground: 18 18 20;
-    --muted: 238 238 240;
-    --muted-foreground: 110 110 118;
-    --secondary: 240 240 242;
-    --secondary-foreground: 20 20 22;
-    --border: 226 226 230;
-    --input: 226 226 230;
-    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    --popover-foreground: 9 9 11;
+    --muted: 241 245 249;
+    --muted-foreground: 100 116 139;
+    --secondary: 241 245 249;
+    --secondary-foreground: 15 23 42;
+    --border: 226 232 240;
+    --input: 226 232 240;
+    scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+  }
+
+  /* Comprehensive light theme mappings for admin dashboard surfaces */
+  html.light .bg-\[\#09090b\] {
+    background-color: #f8f9fa !important;
+  }
+
+  html.light .bg-\[\#121214\] {
+    background-color: #ffffff !important;
+  }
+
+  html.light .bg-\[\#18181b\] {
+    background-color: #ffffff !important;
+  }
+
+  html.light .bg-\[\#0e0e10\],
+  html.light .bg-\[\#0d0d0e\] {
+    background-color: #f1f5f9 !important;
+  }
+
+  html.light .bg-\[\#1a1a1e\] {
+    background-color: #f1f5f9 !important;
+  }
+
+  html.light .border-border,
+  html.light .border-zinc-800,
+  html.light .border-zinc-800\/80,
+  html.light .border-zinc-800\/60,
+  html.light .border-white\/10,
+  html.light .border-white\/5 {
+    border-color: #e2e8f0 !important;
+  }
+
+  html.light .text-foreground {
+    color: #09090b !important;
+  }
+
+  html.light .text-muted-foreground,
+  html.light .text-zinc-500 {
+    color: #64748b !important;
+  }
+
+  html.light .text-zinc-400 {
+    color: #475569 !important;
+  }
+
+  html.light .text-zinc-300 {
+    color: #334155 !important;
+  }
+
+  html.light .text-zinc-200,
+  html.light .text-zinc-100 {
+    color: #0f172a !important;
+  }
+
+  html.light .hover\:bg-\[\#18181b\]:hover,
+  html.light .hover\:bg-\[\#1a1a1e\]:hover,
+  html.light .hover\:bg-\[\#27272a\]:hover {
+    background-color: #f1f5f9 !important;
+  }
+
+  html.light input:not([type="checkbox"]):not([type="radio"]),
+  html.light select,
+  html.light textarea {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #09090b !important;
   }
 
   * {

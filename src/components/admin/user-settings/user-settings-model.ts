@@ -14,19 +14,19 @@ export interface ThemeOption {
 export const THEME_OPTIONS: readonly ThemeOption[] = [
   {
     id: "dark",
-    title: "Obsidian Dark",
-    description: "Low-glare dark palette with gold accents, optimized for shop bays.",
-    badge: "Recommended",
+    title: "Dark Mode",
+    description: "Deep obsidian & gold aesthetic with low glare, designed for shop bays.",
+    badge: "Default",
   },
   {
     id: "light",
-    title: "Daylight Crisp",
-    description: "Bright high-contrast palette for direct sunlight and outdoor workstations.",
+    title: "Light Mode",
+    description: "Clean crisp light palette with high contrast for daytime and outdoor workstations.",
   },
   {
     id: "system",
-    title: "System Synchronized",
-    description: "Automatically match your operating system theme.",
+    title: "System Preference",
+    description: "Automatically synchronizes with your device or operating system appearance.",
   },
 ];
 
