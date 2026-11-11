@@ -348,7 +348,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
     <div className="admin-shell fixed inset-0 flex flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row">
       <div inert={menuOpen} className="flex shrink-0 items-center justify-between border-b border-border bg-[#121214] px-4 py-2 md:hidden">
         <Link href="/" aria-label="Return to public shop site">
-          <Logo small />
+          <Logo small mode="auto" />
         </Link>
         <button
           ref={menuButton}
@@ -389,7 +389,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               sidebarCollapsed && !menuOpen ? "md:sr-only" : ""
             }`}
           >
-            <Logo small />
+            <Logo small mode="auto" />
           </Link>
 
           {sidebarCollapsed && !menuOpen && (

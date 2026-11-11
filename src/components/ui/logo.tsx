@@ -6,7 +6,7 @@ export function Logo({
   small = false,
   className = "",
   priority = false,
-  mode = "auto",
+  mode = "dark",
 }: {
   small?: boolean;
   className?: string;
