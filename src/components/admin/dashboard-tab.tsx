@@ -157,8 +157,8 @@ export function DashboardTab({
                           key={bay.id}
                           className={`rounded-md border p-3 ${
                             car
-                              ? "border-primary/30 bg-[#161619]"
-                              : "border-border/70 bg-[#0d0d0f]"
+                              ? "border-primary/30 bg-[#161619] light:bg-amber-500/5 light:border-amber-500/30"
+                              : "border-border/70 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200"
                           }`}
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -317,7 +317,7 @@ export function DashboardTab({
             const mtdPos = mtdNet >= 0;
             return (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
+                <div className="rounded-md border border-border/80 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200 p-3.5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     Month Revenue
                   </p>
@@ -328,7 +328,7 @@ export function DashboardTab({
                     {analytics.data.finishedJobs} finished jobs
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
+                <div className="rounded-md border border-border/80 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200 p-3.5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     Est. Net Income
                   </p>
@@ -339,7 +339,7 @@ export function DashboardTab({
                     After comms &amp; expenses
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
+                <div className="rounded-md border border-border/80 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200 p-3.5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     Average Ticket
                   </p>
@@ -352,7 +352,7 @@ export function DashboardTab({
                     {analytics.data.fullyPricedJobs} fully priced
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
+                <div className="rounded-md border border-border/80 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200 p-3.5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     Unpaid Commissions
                   </p>
@@ -363,7 +363,7 @@ export function DashboardTab({
                     Earned: {formatPesos(analytics.data.commissions.earnedCentavos)}
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-[#0d0d0f] p-3.5">
+                <div className="rounded-md border border-border/80 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200 p-3.5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     Inventory Alerts
                   </p>

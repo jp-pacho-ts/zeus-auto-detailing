@@ -101,36 +101,85 @@
   }
 
   /* Comprehensive light theme mappings for admin dashboard surfaces */
+  html.light [class*="bg-[#09090b]"],
   html.light .bg-\[\#09090b\] {
     background-color: #f8f9fa !important;
   }
 
+  /* Main section containers and headers */
+  html.light [class*="bg-[#121214]"],
   html.light .bg-\[\#121214\] {
     background-color: #ffffff !important;
-  }
-
-  html.light .bg-\[\#18181b\] {
-    background-color: #ffffff !important;
-  }
-
-  html.light .bg-\[\#0e0e10\],
-  html.light .bg-\[\#0d0d0e\] {
-    background-color: #f1f5f9 !important;
-  }
-
-  html.light .bg-\[\#1a1a1e\] {
-    background-color: #f1f5f9 !important;
-  }
-
-  html.light .border-border,
-  html.light .border-zinc-800,
-  html.light .border-zinc-800\/80,
-  html.light .border-zinc-800\/60,
-  html.light .border-white\/10,
-  html.light .border-white\/5 {
     border-color: #e2e8f0 !important;
   }
 
+  /* Metric cards, primary cards and modal dialogs */
+  html.light [class*="bg-[#161619]"],
+  html.light .bg-\[\#161619\],
+  html.light [class*="bg-[#18181b]"],
+  html.light .bg-\[\#18181b\],
+  html.light [class*="bg-[#18181c]"],
+  html.light .bg-\[\#18181c\],
+  html.light [class*="bg-[#161618]"],
+  html.light .bg-\[\#161618\],
+  html.light [class*="bg-[#16161a]"],
+  html.light .bg-\[\#16161a\],
+  html.light [class*="bg-[#17171b]"],
+  html.light .bg-\[\#17171b\],
+  html.light [class*="bg-[#101012]"],
+  html.light .bg-\[\#101012\],
+  html.light [class*="bg-[#131316]"],
+  html.light .bg-\[\#131316\],
+  html.light [class*="bg-[#141416]"],
+  html.light .bg-\[\#141416\],
+  html.light [class*="bg-[#141417]"],
+  html.light .bg-\[\#141417\] {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Nested inner cards, empty bay cards, and secondary metrics */
+  html.light [class*="bg-[#0d0d0f]"],
+  html.light .bg-\[\#0d0d0f\],
+  html.light [class*="bg-[#0e0e11]"],
+  html.light .bg-\[\#0e0e11\],
+  html.light [class*="bg-[#0e0e10]"],
+  html.light .bg-\[\#0e0e10\],
+  html.light [class*="bg-[#0d0d0e]"],
+  html.light .bg-\[\#0d0d0e\],
+  html.light [class*="bg-[#0f0f12]"],
+  html.light .bg-\[\#0f0f12\],
+  html.light [class*="bg-[#1a1a1e]"],
+  html.light .bg-\[\#1a1a1e\],
+  html.light [class*="bg-[#1c1c20]"],
+  html.light .bg-\[\#1c1c20\],
+  html.light [class*="bg-[#1e1e22]"],
+  html.light .bg-\[\#1e1e22\],
+  html.light [class*="bg-[#1f1f23]"],
+  html.light .bg-\[\#1f1f23\],
+  html.light [class*="bg-[#222228]"],
+  html.light .bg-\[\#222228\],
+  html.light [class*="bg-[#27272a]"],
+  html.light .bg-\[\#27272a\] {
+    background-color: #f8f9fa !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Borders & Dividers */
+  html.light [class*="border-border"],
+  html.light .border-border,
+  html.light [class*="border-zinc-800"],
+  html.light .border-zinc-800,
+  html.light [class*="border-white/"] {
+    border-color: #e2e8f0 !important;
+  }
+
+  html.light .divide-border > :not([hidden]) ~ :not([hidden]) {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Typography */
   html.light .text-foreground {
     color: #09090b !important;
   }
@@ -153,12 +202,29 @@
     color: #0f172a !important;
   }
 
-  html.light .hover\:bg-\[\#18181b\]:hover,
-  html.light .hover\:bg-\[\#1a1a1e\]:hover,
-  html.light .hover\:bg-\[\#27272a\]:hover {
+  /* Badges & Status contrast */
+  html.light .text-amber-400 {
+    color: #b45309 !important;
+  }
+
+  html.light .text-emerald-400 {
+    color: #047857 !important;
+  }
+
+  html.light .text-rose-400 {
+    color: #be123c !important;
+  }
+
+  /* Hover states */
+  html.light [class*="hover:bg-[#18181b]"]:hover,
+  html.light [class*="hover:bg-[#18181c]"]:hover,
+  html.light [class*="hover:bg-[#1a1a1e]"]:hover,
+  html.light [class*="hover:bg-[#27272a]"]:hover,
+  html.light [class*="hover:bg-white/"]:hover {
     background-color: #f1f5f9 !important;
   }
 
+  /* Form inputs */
   html.light input:not([type="checkbox"]):not([type="radio"]),
   html.light select,
   html.light textarea {
