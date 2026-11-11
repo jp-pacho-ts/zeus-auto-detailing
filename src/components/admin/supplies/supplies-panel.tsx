@@ -13,13 +13,14 @@ import {
   ArrowUpFromLine,
   AlertTriangle,
   CheckCircle2,
-  PackageX,
   ChevronLeft,
   ChevronRight,
   X,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { formatPesos } from "@/lib/commission";
 import type { AdminSupplyItem, AdminSupplyList } from "@/types/admin-contracts";
 import { adminRequest, AdminRequestError } from "../bookings/client";
 import { fieldClass } from "../bookings/use-admin-resource";
@@ -214,6 +215,18 @@ export function SuppliesPanel({
   const activeCount = list.items.filter((i) => i.isActive).length;
   const outOfStockCount = list.items.filter((i) => i.isActive && i.status === "OUT").length;
 
+  const totalUnitsInStock = React.useMemo(() => {
+    return list.items
+      .filter((i) => i.isActive)
+      .reduce((sum, i) => sum + i.currentStock, 0);
+  }, [list.items]);
+
+  const totalInventoryValueCentavos = React.useMemo(() => {
+    return list.items
+      .filter((i) => i.isActive)
+      .reduce((sum, i) => sum + BigInt(i.currentStock) * BigInt(i.costPerUnitCentavos), BigInt(0));
+  }, [list.items]);
+
   // Pagination calculations
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPageSafe = Math.min(currentPage, totalPages);
@@ -258,13 +271,13 @@ export function SuppliesPanel({
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* KPI Cards: 4 Tiles with Active Items, Total Units, Inventory Value, and Low/Out alerts */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-medium text-muted-foreground">Active Catalog Items</p>
+            <p className="text-xs font-medium text-muted-foreground">Active Products</p>
             <p className="text-2xl font-bold text-foreground mt-1">{activeCount}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Tracked detailing chemicals &amp; tools</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Catalog product lines</p>
           </div>
           <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-[#1c1c20] text-primary">
             <Boxes className="h-5 w-5" />
@@ -273,23 +286,40 @@ export function SuppliesPanel({
 
         <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-medium text-muted-foreground">Low or Critical Stock</p>
-            <p className="text-2xl font-bold text-amber-400 mt-1">{list.lowOrOutCount}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">At or below reorder threshold</p>
+            <p className="text-xs font-medium text-muted-foreground">Total Units on Hand</p>
+            <p className="text-2xl font-bold text-emerald-400 mt-1 font-mono">
+              {totalUnitsInStock.toLocaleString()}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Physical items in shop</p>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-[#1c1c20] text-amber-400">
-            <AlertTriangle className="h-5 w-5" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
+            <CheckCircle2 className="h-5 w-5" />
           </div>
         </div>
 
         <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-medium text-muted-foreground">Completely Out</p>
-            <p className="text-2xl font-bold text-rose-400 mt-1">{outOfStockCount}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Immediate restocking required</p>
+            <p className="text-xs font-medium text-muted-foreground">Total Inventory Value</p>
+            <p className="text-2xl font-bold text-amber-400 mt-1 font-mono">
+              {formatPesos(Number(totalInventoryValueCentavos))}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">At unit replacement cost</p>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-[#1c1c20] text-rose-400">
-            <PackageX className="h-5 w-5" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400">
+            <Wallet className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Low or Out of Stock</p>
+            <p className="text-2xl font-bold text-rose-400 mt-1">{list.lowOrOutCount}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {outOfStockCount > 0 ? `${outOfStockCount} completely out` : "Needs restocking"}
+            </p>
+          </div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-400">
+            <AlertTriangle className="h-5 w-5" />
           </div>
         </div>
       </div>
@@ -396,9 +426,13 @@ export function SuppliesPanel({
         {/* Status Line */}
         <div
           data-testid="supplies-summary"
-          className="border-b border-border bg-[#101012] px-6 py-2.5 text-xs text-muted-foreground"
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-[#101012] px-6 py-2.5 text-xs text-muted-foreground"
         >
-          {summaryLine(activeCount, list.lowOrOutCount)}
+          <span>{summaryLine(activeCount, list.lowOrOutCount)}</span>
+          <span className="font-mono text-zinc-400">
+            Total on hand: <strong className="text-foreground">{totalUnitsInStock.toLocaleString()}</strong> units
+            {" · "}Inventory value: <strong className="text-amber-400">{formatPesos(Number(totalInventoryValueCentavos))}</strong>
+          </span>
         </div>
 
         {/* Item Rows */}
@@ -459,13 +493,24 @@ export function SuppliesPanel({
 
                     {/* Column 2: Stock Level */}
                     <div className="col-span-3 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-foreground text-sm">
-                          {i.currentStock} {i.unit}
-                        </span>
-                        <span>in stock</span>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 ${
+                            i.currentStock === 0
+                              ? "border-rose-500/30 bg-rose-500/10 text-rose-400"
+                              : i.currentStock <= i.reorderLevel && i.reorderLevel > 0
+                                ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                          }`}
+                        >
+                          <span className="font-mono text-sm font-bold">
+                            {i.currentStock.toLocaleString()}
+                          </span>
+                          <span className="text-xs font-medium">{i.unit}</span>
+                        </div>
+                        <span className="text-xs text-zinc-400">in stock</span>
                       </div>
-                      <p className="text-[11px] mt-0.5">
+                      <p className="text-[11px] mt-1 text-zinc-400">
                         {i.reorderLevel > 0 ? (
                           <span>Alert at &le; {i.reorderLevel} {i.unit}</span>
                         ) : (
