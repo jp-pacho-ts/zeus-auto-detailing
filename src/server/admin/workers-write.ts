@@ -70,17 +70,33 @@ async function worker(
         "Choose an active staff member from the Team list.",
       );
     if (remove) {
+      if (b.status === "COMPLETED") {
+        return conflict(
+          tx,
+          "BOOKING_NOT_MANAGEABLE",
+          bookingId,
+          "Completed history stays assigned.",
+        );
+      }
       await takeOff(tx, actor, bookingId, targetStaffId, v.expectedRevision);
       return { booking: await detailOrThrow(tx, bookingId), noChange: false };
     }
     await bump(tx, bookingId, v.expectedRevision);
-    await tx.bookingWorkerAssignment.create({
-      data: {
-        bookingId,
-        staffId: targetStaffId,
-        assignedByStaffId: actor.staffId,
-      },
-    });
+    try {
+      await tx.bookingWorkerAssignment.create({
+        data: {
+          bookingId,
+          staffId: targetStaffId,
+          assignedByStaffId: actor.staffId,
+        },
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "";
+      if (msg.includes("Assign only open or completed")) {
+        return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
+      }
+      throw error;
+    }
     await audit(tx, actor, {
       action: "WORKER_ASSIGNED",
       bookingId,

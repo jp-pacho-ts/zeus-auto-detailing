@@ -13,6 +13,7 @@ import {
   User,
   Percent,
   Pencil,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -139,8 +140,19 @@ export function CommissionsPanel({
   const tick = (id: string, on: boolean) =>
     setSelected((prev) => {
       const next = new Set(prev);
-      if (on) next.add(id);
-      else next.delete(id);
+      if (on) {
+        next.add(id);
+        const entry = allEntries.find((e) => e.id === id);
+        if (entry) {
+          entry.adjustments.forEach((a) => next.add(a.id));
+        }
+      } else {
+        next.delete(id);
+        const entry = allEntries.find((e) => e.id === id);
+        if (entry) {
+          entry.adjustments.forEach((a) => next.delete(a.id));
+        }
+      }
       return next;
     });
 
@@ -178,17 +190,40 @@ export function CommissionsPanel({
 
   async function saveAdjustment(e: React.FormEvent) {
     e.preventDefault();
-    const typed = signedPesosToCentavos(adjAmount);
-    if (typed === null || typed < 0) {
-      setAdjProblem(
-        "Enter an amount in pesos, like 300 or 150.50, with no minus sign. It can't be zero. Choose Add or Take off.",
+    let amountCentavos: number;
+    let finalReason: string;
+
+    if (adjMethod === "RATE") {
+      const rateNum = parseFloat(targetRate);
+      if (isNaN(rateNum) || rateNum <= 0 || rateNum > 100) {
+        setAdjProblem("Enter a valid percentage between 1 and 100.");
+        return;
+      }
+      const targetBp = Math.round(rateNum * 100);
+      const currentNet = adjustingCurrentNet;
+      const targetCentavos = Math.round(
+        ((adjustingEntry?.shareCentavos ?? 0) * targetBp) / 10000,
       );
-      return;
-    }
-    const amountCentavos = adjMode === "TAKE" ? -typed : typed;
-    if (!adjReason.trim()) {
-      setAdjProblem("Give a reason.");
-      return;
+      amountCentavos = targetCentavos - currentNet;
+      if (amountCentavos === 0) {
+        setAdjProblem(`The commission is already at ${targetRate}%.`);
+        return;
+      }
+      finalReason = `Rate adjusted from ${basisPointsToPercent(adjustingEntry?.rateBp ?? 2000)}% to ${targetRate}%`;
+    } else {
+      const typed = signedPesosToCentavos(adjAmount);
+      if (typed === null || typed < 0) {
+        setAdjProblem(
+          "Enter an amount in pesos, like 300 or 150.50, with no minus sign. It can't be zero. Choose Add or Take off.",
+        );
+        return;
+      }
+      amountCentavos = adjMode === "TAKE" ? -typed : typed;
+      if (!adjReason.trim()) {
+        setAdjProblem("Give a reason.");
+        return;
+      }
+      finalReason = adjReason.trim();
     }
     setAdjProblem(null);
     const ok = await run(async () => {
@@ -209,7 +244,7 @@ export function CommissionsPanel({
                 id: crypto.randomUUID(),
                 entryId: peer.id,
                 amountCentavos: delta,
-                reason: adjReason.trim(),
+                reason: `Rate adjusted from ${basisPointsToPercent(peer.rateBp)}% to ${targetRate}%`,
               },
             });
             count++;
@@ -225,7 +260,7 @@ export function CommissionsPanel({
             id: adjId,
             entryId: adjusting,
             amountCentavos,
-            reason: adjReason.trim(),
+            reason: finalReason,
           },
         });
         return "The adjustment was recorded.";
@@ -336,37 +371,49 @@ export function CommissionsPanel({
     return { targetCentavos, deltaCentavos };
   })();
 
-  const openAdjustment = (entry: (typeof allEntries)[number]) => {
+  const openAdjustment = (
+    entry: (typeof allEntries)[number],
+    method: "RATE" | "MANUAL" = "RATE",
+  ) => {
     setAdjusting(entry.id);
     setAdjProblem(null);
     setError(null);
     freshAdjId();
-    setAdjMethod("RATE");
+    setAdjMethod(method);
     setApplyToAllOnBooking(true);
 
-    const currentPct = basisPointsToPercent(entry.rateBp);
-    const suggested = entry.rateBp === 2000 ? "30" : currentPct;
-    setTargetRate(suggested);
-
-    const targetBp = Math.round(parseFloat(suggested) * 100);
-    const targetCentavos = Math.round((entry.shareCentavos * targetBp) / 10000);
     const currentNet =
       entry.amountCentavos +
       entry.adjustments.reduce((s, a) => s + a.amountCentavos, 0);
-    const delta = targetCentavos - currentNet;
+    const effectiveBp =
+      entry.shareCentavos > 0
+        ? Math.round((currentNet / entry.shareCentavos) * 10000)
+        : entry.rateBp;
+    const currentPct = basisPointsToPercent(effectiveBp);
+    const suggested = effectiveBp === 2000 ? "30" : currentPct;
+    setTargetRate(suggested);
 
-    if (delta >= 0) {
+    if (method === "MANUAL") {
       setAdjMode("ADD");
-      setAdjAmount(delta === 0 ? "0" : (delta / 100).toFixed(2));
+      setAdjAmount("");
+      setAdjReason("");
     } else {
-      setAdjMode("TAKE");
-      setAdjAmount((Math.abs(delta) / 100).toFixed(2));
+      const targetBp = Math.round(parseFloat(suggested) * 100);
+      const targetCentavos = Math.round((entry.shareCentavos * targetBp) / 10000);
+      const delta = targetCentavos - currentNet;
+      if (delta >= 0) {
+        setAdjMode("ADD");
+        setAdjAmount(delta === 0 ? "0" : (delta / 100).toFixed(2));
+      } else {
+        setAdjMode("TAKE");
+        setAdjAmount((Math.abs(delta) / 100).toFixed(2));
+      }
+      setAdjReason(
+        delta !== 0
+          ? `Rate adjusted from ${currentPct}% to ${suggested}%`
+          : `Manual adjustment for ${entry.staffName}`,
+      );
     }
-    setAdjReason(
-      delta !== 0
-        ? `Rate adjusted from ${currentPct}% to ${suggested}%`
-        : `Manual adjustment for ${entry.staffName}`,
-    );
   };
 
   const handleRateChange = (val: string) => {
@@ -861,7 +908,7 @@ export function CommissionsPanel({
                 <>
                   {/* Clean Desktop Table */}
                   <div className="overflow-hidden rounded-xl border border-border bg-[#121214]">
-                    <div className="overflow-x-auto">
+                    <div className="w-full">
                       <table className="w-full text-left text-xs">
                         <thead className="border-b border-border bg-[#161618] text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                           <tr>
@@ -910,6 +957,22 @@ export function CommissionsPanel({
                           {paginatedEntries.map((en) => {
                             const isTicked = selected.has(en.id);
                             const summaryText = lineSummary(en.lines);
+                            const adjTotal = en.adjustments.reduce((sum, a) => sum + a.amountCentavos, 0);
+                            const netTotal = en.amountCentavos + adjTotal;
+                            const effectiveBp =
+                              en.shareCentavos > 0
+                                ? Math.round((netTotal / en.shareCentavos) * 10000)
+                                : en.rateBp;
+                            const rateAdjustments = en.adjustments.filter((a) =>
+                              a.reason.startsWith("Rate adjusted"),
+                            );
+                            const manualAdjustments = en.adjustments.filter(
+                              (a) => !a.reason.startsWith("Rate adjusted"),
+                            );
+                            const hasRateAdj = rateAdjustments.length > 0;
+                            const allPaid =
+                              en.paidAt !== null &&
+                              en.adjustments.every((a) => a.paidAt !== null);
 
                             return (
                               <React.Fragment key={en.id}>
@@ -964,17 +1027,22 @@ export function CommissionsPanel({
                                     <div className="space-y-1 text-xs text-muted-foreground">
                                       <p className="flex items-center gap-1.5 flex-wrap text-foreground">
                                         <span className="font-semibold text-primary">
-                                          {basisPointsToPercent(en.rateBp)}%
+                                          {basisPointsToPercent(effectiveBp)}%
                                         </span>{" "}
                                         <span>of {formatPesos(en.shareCentavos)}</span>
                                         <button
                                           type="button"
-                                          title="Adjust rate"
-                                          onClick={() => openAdjustment(en)}
+                                          title="Edit commission rate"
+                                          onClick={() => openAdjustment(en, "RATE")}
                                           className="inline-flex items-center rounded p-0.5 text-muted-foreground hover:text-primary transition"
                                         >
                                           <Pencil className="h-3 w-3" />
                                         </button>
+                                        {hasRateAdj && (
+                                          <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                            Rate updated from {basisPointsToPercent(en.rateBp)}%
+                                          </span>
+                                        )}
                                         {en.creditedCount > 1
                                           ? ` (shared by ${en.creditedCount} of ${formatPesos(
                                               en.serviceTotalCentavos,
@@ -1002,40 +1070,61 @@ export function CommissionsPanel({
                                   </td>
 
                                   <td className="px-4 py-3 text-right align-top">
-                                    <span className="font-mono text-sm font-bold tabular-nums text-foreground">
-                                      {formatPesos(en.amountCentavos)}
-                                    </span>
+                                    <div className="space-y-0.5">
+                                      <span className="font-mono text-sm font-bold tabular-nums text-foreground">
+                                        {formatPesos(netTotal)}
+                                      </span>
+                                      {adjTotal !== 0 && (
+                                        <p className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                                          Base {formatPesos(en.amountCentavos)}{" "}
+                                          {adjTotal >= 0 ? "+" : "-"}{" "}
+                                          {formatPesos(Math.abs(adjTotal))}
+                                        </p>
+                                      )}
+                                    </div>
                                   </td>
 
                                   <td className="px-4 py-3 text-center align-top">
                                     <span
                                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                                        en.paidAt
+                                        allPaid
                                           ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
                                           : "border border-amber-500/30 bg-amber-500/10 text-amber-400"
                                       }`}
                                     >
-                                      {en.paidAt ? "Paid" : "Unpaid"}
+                                      {allPaid ? "Paid" : "Unpaid"}
                                     </span>
                                   </td>
 
                                   <td className="px-4 py-3 text-right align-top">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      disabled={busy}
-                                      aria-label="Add adjustment"
-                                      onClick={() => openAdjustment(en)}
-                                      className="h-7 text-xs text-muted-foreground hover:text-primary hover:bg-primary/5"
-                                    >
-                                      <Pencil className="mr-1 h-3 w-3 text-primary" />
-                                      Adjust / Edit
-                                    </Button>
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={busy}
+                                        onClick={() => openAdjustment(en, "RATE")}
+                                        className="h-7 text-xs border-primary/30 text-primary hover:bg-primary/10"
+                                      >
+                                        <Pencil className="mr-1 h-3 w-3" />
+                                        Edit Rate
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={busy}
+                                        aria-label="Add adjustment"
+                                        onClick={() => openAdjustment(en, "MANUAL")}
+                                        className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                      >
+                                        <Plus className="mr-1 h-3 w-3" />
+                                        Add adjustment
+                                      </Button>
+                                    </div>
                                   </td>
                                 </tr>
 
-                                {/* Nested Adjustments */}
-                                {en.adjustments.map((adj) => {
+                                {/* Nested Adjustments (manual adjustments only, rate adjustments are integrated into parent) */}
+                                {manualAdjustments.map((adj) => {
                                   const isAdjTicked = selected.has(adj.id);
                                   return (
                                     <tr
@@ -1065,7 +1154,7 @@ export function CommissionsPanel({
                                       >
                                         <div className="flex items-center gap-2">
                                           <span className="font-semibold text-primary">
-                                            Adjustment
+                                            Adjustment {formatPesos(adj.amountCentavos)}
                                           </span>
                                           <span>·</span>
                                           <span className="text-foreground">
@@ -1087,7 +1176,7 @@ export function CommissionsPanel({
                                           {adj.paidAt ? "Paid" : "Unpaid"}
                                         </span>
                                       </td>
-                                      <td className="px-4 py-2.5"></td>
+                                      <td></td>
                                     </tr>
                                   );
                                 })}
@@ -1355,54 +1444,56 @@ export function CommissionsPanel({
             )}
 
             {/* Standard fields that tests and manual adjustments rely on */}
-            <div className={adjMethod === "RATE" ? "space-y-3 border-t border-border/50 pt-3" : "space-y-3"}>
-              <label className="block text-xs font-semibold text-muted-foreground">
-                Change
-                <select
-                  className={fieldClass}
-                  value={adjMode}
-                  onChange={(e) => {
-                    setAdjMode(e.target.value as "ADD" | "TAKE");
-                    freshAdjId();
-                  }}
-                >
-                  <option value="ADD">Add to the commission</option>
-                  <option value="TAKE">Take off the commission</option>
-                </select>
-              </label>
+            {adjMethod === "MANUAL" && (
+              <div className="space-y-3">
+                <label className="block text-xs font-semibold text-muted-foreground">
+                  Change
+                  <select
+                    className={fieldClass}
+                    value={adjMode}
+                    onChange={(e) => {
+                      setAdjMode(e.target.value as "ADD" | "TAKE");
+                      freshAdjId();
+                    }}
+                  >
+                    <option value="ADD">Add to the commission</option>
+                    <option value="TAKE">Take off the commission</option>
+                  </select>
+                </label>
 
-              <label className="block text-xs font-semibold text-muted-foreground">
-                Amount (pesos)
-                <input
-                  className={fieldClass}
-                  value={adjAmount}
-                  onChange={(e) => {
-                    setAdjAmount(e.target.value);
-                    freshAdjId();
-                  }}
-                  inputMode="decimal"
-                  placeholder="e.g. 200"
-                  required
-                  autoComplete="off"
-                />
-              </label>
+                <label className="block text-xs font-semibold text-muted-foreground">
+                  Amount (pesos)
+                  <input
+                    className={fieldClass}
+                    value={adjAmount}
+                    onChange={(e) => {
+                      setAdjAmount(e.target.value);
+                      freshAdjId();
+                    }}
+                    inputMode="decimal"
+                    placeholder="e.g. 200"
+                    required
+                    autoComplete="off"
+                  />
+                </label>
 
-              <label className="block text-xs font-semibold text-muted-foreground">
-                Reason
-                <input
-                  className={fieldClass}
-                  value={adjReason}
-                  onChange={(e) => {
-                    setAdjReason(e.target.value);
-                    freshAdjId();
-                  }}
-                  placeholder="e.g. Rate adjusted to 30% for Interior Detailing"
-                  maxLength={200}
-                  required
-                  autoComplete="off"
-                />
-              </label>
-            </div>
+                <label className="block text-xs font-semibold text-muted-foreground">
+                  Reason
+                  <input
+                    className={fieldClass}
+                    value={adjReason}
+                    onChange={(e) => {
+                      setAdjReason(e.target.value);
+                      freshAdjId();
+                    }}
+                    placeholder="e.g. Manual adjustment description"
+                    maxLength={200}
+                    required
+                    autoComplete="off"
+                  />
+                </label>
+              </div>
+            )}
 
             {/* Multi-worker option on this booking */}
             {peerEntries.length > 1 && (
@@ -1443,7 +1534,11 @@ export function CommissionsPanel({
                 Cancel
               </Button>
               <Button type="submit" variant="gold" disabled={busy}>
-                {busy ? "Saving..." : "Save adjustment"}
+                {busy
+                  ? "Saving..."
+                  : adjMethod === "RATE"
+                    ? `Update Rate to ${targetRate}%`
+                    : "Save adjustment"}
               </Button>
             </div>
           </form>
