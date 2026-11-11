@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertCircle, Calendar, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { brandConfig } from "@/config/brand";
 import type { AdminCalendar, AdminCalendarDay } from "@/lib/admin-schedule";
@@ -21,11 +21,11 @@ const DOT: Record<BookingStatus, string> = {
   CANCELLED: "bg-rose-400",
 };
 export const STATUS_PILL: Record<BookingStatus, string> = {
-  PENDING: "border-amber-500/30 bg-amber-500/15 text-amber-400",
-  CONFIRMED: "border-emerald-500/30 bg-emerald-500/15 text-emerald-400",
-  IN_PROGRESS: "border-blue-500/30 bg-blue-500/15 text-blue-400",
-  COMPLETED: "border-emerald-500/30 bg-emerald-500/15 text-emerald-400",
-  CANCELLED: "border-rose-500/30 bg-rose-500/15 text-rose-400",
+  PENDING: "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  CONFIRMED: "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  IN_PROGRESS: "border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-400",
+  COMPLETED: "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  CANCELLED: "border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-400",
 };
 // The date string is already the Manila day, so it is formatted as UTC.
 const format = (day: string, options: Intl.DateTimeFormatOptions) =>
@@ -160,7 +160,7 @@ export function BookingCalendar({ role }: { role: UserRole }) {
                     setDay(date);
                     setBooking(null);
                   }}
-                  className={`flex min-h-[56px] w-full flex-wrap items-center justify-between gap-2 p-3 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${day === date ? "bg-primary/10" : "hover:bg-[#18181b]"} ${date < today ? "opacity-60" : ""}`}
+                  className={`flex min-h-[56px] w-full flex-wrap items-center justify-between gap-2 p-3 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${day === date ? "bg-amber-500/10 dark:bg-primary/10 font-bold" : "hover:bg-stone-50 dark:hover:bg-[#18181b]"} ${date < today ? "opacity-60" : ""}`}
                 >
                   <span className="font-semibold">
                     {format(date, { weekday: "long", day: "numeric", month: "short" })}
@@ -186,39 +186,13 @@ export function BookingCalendar({ role }: { role: UserRole }) {
       </p>
 
       {day && (
-        <section aria-label={"Bookings on " + longDay(day)} className="space-y-3 rounded border border-border bg-white dark:bg-[#121214] p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-bold">{longDay(day)}</h3>
-            <Button variant="outline" disabled={dayView.loading} onClick={() => void dayView.reload()}>
-              Refresh day
-            </Button>
-          </div>
-          <LoadState loading={dayView.loading} error={dayView.error} retry={dayView.reload} />
-          {dayView.data?.closed && <p className="text-sm text-amber-600 dark:text-amber-400">Shop closed · {dayView.data.closed.reason}</p>}
-          {dayView.data && dayBookings.length === 0 && <p className="text-sm text-muted-foreground">No bookings on this day.</p>}
-          <ul className="space-y-2">
-            {dayBookings.map((b) => (
-              <li key={b.id}>
-                <button
-                  type="button"
-                  onClick={() => setBooking(b.id)}
-                  className="flex min-h-[44px] w-full flex-wrap items-start justify-between gap-2 rounded border border-border p-3 text-left text-sm hover:bg-stone-50 dark:hover:bg-[#18181b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  <span className="min-w-0">
-                    <span className="block break-all font-mono font-bold text-primary">{b.referenceCode}</span>
-                    <span className="block break-words font-medium">{b.customerName}</span>
-                    <span className="block break-words text-xs text-muted-foreground">
-                      {b.lines.filter((l) => !l.removed).map((l) => l.name).join(", ") || b.serviceName}
-                    </span>
-                  </span>
-                  <span className={`inline-block rounded border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[b.status]}`}>
-                    {statusLabel(b.status)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <CalendarDayModal
+          day={day}
+          dayView={dayView}
+          dayBookings={dayBookings}
+          onClose={() => setDay(null)}
+          onSelectBooking={(id) => setBooking(id)}
+        />
       )}
       {booking && (
         <BookingDetail
@@ -230,6 +204,156 @@ export function BookingCalendar({ role }: { role: UserRole }) {
           onClose={() => setBooking(null)}
         />
       )}
+    </div>
+  );
+}
+
+interface CalendarDayModalProps {
+  day: string;
+  dayView: ReturnType<typeof useAdminResource<AdminDayQueues>>;
+  dayBookings: Array<{
+    id: string;
+    referenceCode: string;
+    customerName: string;
+    status: BookingStatus;
+    serviceName: string;
+    lines: Array<{ name: string; removed?: boolean }>;
+  }>;
+  onClose: () => void;
+  onSelectBooking: (id: string) => void;
+}
+
+function CalendarDayModal({
+  day,
+  dayView,
+  dayBookings,
+  onClose,
+  onSelectBooking,
+}: CalendarDayModalProps) {
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.querySelector("dialog[open]")) {
+        return;
+      }
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    const area = document.getElementById("admin-content");
+    const prevAreaOverflow = area?.style.overflow;
+    if (area) area.style.overflow = "hidden";
+    const prevBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      if (area && prevAreaOverflow !== undefined) area.style.overflow = prevAreaOverflow;
+      document.body.style.overflow = prevBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="calendar-day-modal-title"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+    >
+      <div
+        className="fixed inset-0 transition-opacity"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="relative z-10 my-auto flex w-full max-w-xl max-h-[calc(100vh-3rem)] flex-col rounded-2xl border border-border/90 bg-white dark:bg-[#121214] p-5 sm:p-6 text-foreground shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30 space-y-4">
+        <div className="flex items-start justify-between gap-3 border-b border-border/70 pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <Calendar className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 id="calendar-day-modal-title" className="text-base sm:text-lg font-bold text-foreground">
+                {longDay(day)}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {dayView.loading
+                  ? "Loading appointments..."
+                  : dayBookings.length === 0
+                  ? "No bookings scheduled"
+                  : `${dayBookings.length} booking${dayBookings.length === 1 ? "" : "s"} scheduled`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={dayView.loading}
+              onClick={() => void dayView.reload()}
+              className="h-8 gap-1.5 text-xs"
+              title="Refresh day bookings"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${dayView.loading ? "animate-spin" : ""}`} aria-hidden="true" />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close day view"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-stone-100 dark:hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        <LoadState loading={dayView.loading} error={dayView.error} retry={dayView.reload} />
+
+        {dayView.data?.closed && (
+          <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>Shop closed · {dayView.data.closed.reason}</span>
+          </div>
+        )}
+
+        {dayView.data && !dayView.loading && dayBookings.length === 0 && (
+          <div className="rounded-xl border border-border/70 bg-stone-50/60 dark:bg-zinc-900/40 p-6 text-center">
+            <p className="text-sm font-medium text-foreground">No bookings on this day</p>
+            <p className="text-xs text-muted-foreground mt-1">There are no customer bookings or work queue entries for this date.</p>
+          </div>
+        )}
+
+        {dayBookings.length > 0 && (
+          <ul className="space-y-2.5">
+            {dayBookings.map((b) => (
+              <li key={b.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectBooking(b.id)}
+                  className="group flex min-h-[48px] w-full items-start justify-between gap-3 rounded-xl border border-border bg-stone-50/50 dark:bg-zinc-900/40 p-3.5 text-left text-sm transition-all hover:border-primary/50 hover:bg-stone-100 dark:hover:bg-zinc-900/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <span className="min-w-0 space-y-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="block break-all font-mono text-xs font-bold text-primary group-hover:underline">
+                        {b.referenceCode}
+                      </span>
+                      <span className="block break-words font-semibold text-foreground">
+                        {b.customerName}
+                      </span>
+                    </span>
+                    <span className="block break-words text-xs text-muted-foreground line-clamp-2">
+                      {b.lines.filter((l) => !l.removed).map((l) => l.name).join(", ") || b.serviceName}
+                    </span>
+                  </span>
+                  <span className={`inline-flex shrink-0 items-center rounded border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[b.status]}`}>
+                    {statusLabel(b.status)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
