@@ -62,6 +62,7 @@ export type AdminTab =
   | "Expenses"
   | "Sales Analytics"
   | "Users"
+  | "System Settings"
   | "Settings";
 
 interface NavItem {
@@ -86,6 +87,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: "Expenses", group: "Management", icon: Wallet },
   { name: "Sales Analytics", group: "Management", icon: BarChart3 },
   { name: "Users", group: "Administration", icon: UserCog, adminOnly: true },
+  { name: "System Settings", group: "Administration", icon: Settings, adminOnly: true },
 ];
 
 const NAV_GROUPS: Array<{ key: NavItem["group"]; label: string }> = [
@@ -103,9 +105,11 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
       ? "Bookings"
       : initialTab === "Team & Commissions"
         ? "Staff"
-        : NAV_ITEMS.some((n) => n.name === initialTab) || initialTab === "Settings"
-          ? initialTab!
-          : "Dashboard",
+        : initialTab === "Settings" || initialTab === "System Settings"
+          ? "System Settings"
+          : NAV_ITEMS.some((n) => n.name === initialTab)
+            ? initialTab!
+            : "Dashboard",
   );
   const session = useAdminResource<StaffSessionView>("/api/admin/auth/session");
   // The banner: a site left in maintenance must be impossible to miss on any admin screen.
@@ -164,6 +168,10 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
       document.body.style.zoom = "";
       document.documentElement.style.zoom = "";
       document.documentElement.style.fontSize = "92.5%";
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+      document.body.style.height = "100%";
+      document.documentElement.style.height = "100%";
       try {
         localStorage.removeItem("zeus_admin_zoom");
       } catch {
@@ -175,6 +183,10 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         document.body.style.zoom = "";
         document.documentElement.style.zoom = "";
         document.documentElement.style.fontSize = "";
+        document.documentElement.style.overflow = "";
+        document.body.style.overflow = "";
+        document.body.style.height = "";
+        document.documentElement.style.height = "";
       }
     };
   }, []);
@@ -292,7 +304,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   // only #admin-content scrolls; nothing in the dashboard scrolls sideways.
   return (
     <LazyMotion features={domAnimation}>
-    <div className="flex h-dvh flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row">
       <div inert={menuOpen} className="flex shrink-0 items-center justify-between border-b border-border bg-[#121214] px-4 py-2 md:hidden">
         <Link href="/" aria-label="Return to public shop site">
           <Logo small />
@@ -407,6 +419,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                           type="button"
                           key={name}
                           ref={isFirst ? firstNavItem : undefined}
+                          aria-label={name === "System Settings" ? "Settings" : undefined}
                           onClick={() => {
                             if (name === "Bookings") setBookingsView("BOOKINGS");
                             setTab(name);
@@ -599,12 +612,12 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                         role="menuitem"
                         onClick={() => {
                           setProfileOpen(false);
-                          setTab("Settings");
+                          setTab("System Settings");
                         }}
                         className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground"
                       >
                         <Settings className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                        <span>Shop settings</span>
+                        <span>System settings</span>
                       </button>
                       <button
                         type="button"
@@ -688,7 +701,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             {tab === "Expenses" && <ExpensesTab role={staff.role} />}
             {tab === "Sales Analytics" && <AnalyticsTab role={staff.role} />}
             {tab === "Users" && <UsersTab role={staff.role} currentUserId={staff.staffId} />}
-            {tab === "Settings" && <SettingsTab role={staff.role} onChanged={shopSettings.reload} />}
+            {(tab === "System Settings" || tab === "Settings") && <SettingsTab role={staff.role} onChanged={shopSettings.reload} />}
           </div>
         </main>
       </div>

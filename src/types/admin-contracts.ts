@@ -705,6 +705,7 @@ export type AdminNotificationTab =
   | "Expenses"
   | "Sales Analytics"
   | "Users"
+  | "System Settings"
   | "Settings";
 
 export interface AdminNotificationItem {
