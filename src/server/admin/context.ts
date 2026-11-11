@@ -23,7 +23,15 @@ export function authorize(actor: StaffActor, op: AdminOp): void {
 }
 
 export function parse<T>(schema: { safeParse(x: unknown): { success: true; data: T } | { success: false; error: { issues: { path: PropertyKey[]; message: string }[] } } }, input: unknown): T {
-  const r = schema.safeParse(input);
+  let target = input;
+  if (typeof target === "string" && (target.startsWith("{") || target.startsWith("["))) {
+    try {
+      target = JSON.parse(target);
+    } catch {
+      // Keep original target if not valid JSON
+    }
+  }
+  const r = schema.safeParse(target);
   if (!r.success) throw zodError(r.error.issues);
   return r.data;
 }

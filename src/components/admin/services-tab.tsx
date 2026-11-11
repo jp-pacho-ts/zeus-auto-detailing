@@ -21,7 +21,7 @@ import type {
 } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import type { CatalogServiceKind, PriceUnit } from "@/types/catalog-contracts";
-import { adminRequest } from "./bookings/client";
+import { adminRequest, AdminRequestError } from "./bookings/client";
 import { useAdminResource } from "./bookings/use-admin-resource";
 
 interface ServicesTabProps {
@@ -238,18 +238,25 @@ export function ServicesTab({ role }: ServicesTabProps) {
     try {
       await adminRequest(`/api/admin/services/${editService.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
+        body: {
           name: editName,
           description: editDesc || null,
           category: editCategory,
           commissionRatePercent: commissionPayload,
           offers: offersPayload,
-        }),
+        },
       });
       setEditService(null);
       resource.reload();
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : "Failed to update service");
+      if (err instanceof AdminRequestError && err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
+        const detail = Object.entries(err.fieldErrors)
+          .map(([f, msgs]) => `${f}: ${msgs.join(", ")}`)
+          .join("; ");
+        setEditError(detail ? `${err.message} (${detail})` : err.message);
+      } else {
+        setEditError(err instanceof Error ? err.message : "Failed to update service");
+      }
     } finally {
       setEditSaving(false);
     }
@@ -307,7 +314,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     try {
       await adminRequest("/api/admin/services", {
         method: "POST",
-        body: JSON.stringify({
+        body: {
           name: createName,
           description: createDesc || null,
           category: createCategory,
@@ -315,12 +322,19 @@ export function ServicesTab({ role }: ServicesTabProps) {
           unit: createUnit,
           commissionRatePercent: commissionPayload,
           offers: offersPayload,
-        }),
+        },
       });
       setCreateOpen(false);
       resource.reload();
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create service");
+      if (err instanceof AdminRequestError && err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
+        const detail = Object.entries(err.fieldErrors)
+          .map(([f, msgs]) => `${f}: ${msgs.join(", ")}`)
+          .join("; ");
+        setCreateError(detail ? `${err.message} (${detail})` : err.message);
+      } else {
+        setCreateError(err instanceof Error ? err.message : "Failed to create service");
+      }
     } finally {
       setCreateSaving(false);
     }

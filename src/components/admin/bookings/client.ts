@@ -37,7 +37,12 @@ export async function adminRequest<T>(
         : { "Content-Type": "application/json" },
     ...(options.body === undefined
       ? {}
-      : { body: JSON.stringify(options.body) }),
+      : {
+          body:
+            typeof options.body === "string"
+              ? options.body
+              : JSON.stringify(options.body),
+        }),
   });
   if (response.status === 204 && response.ok) return null as T;
   const result = await response.json().catch(() => null);
