@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "prisma migrate deploy && next start",
+    "start": "next start",
     "lint": "eslint src tailwind.config.ts next.config.mjs postcss.config.mjs --config src/lib/eslint.config.mjs --max-warnings 0",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --require ./src/server/__tests__/register.cjs --test \"src/**/*.test.ts\"",
