@@ -1,34 +1,85 @@
 "use client";
+
 import * as React from "react";
+import {
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  X,
+  Plus,
+  RefreshCw,
+  User,
+  Percent,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { basisPointsToPercent, formatPesos, signedPesosToCentavos } from "@/lib/commission";
-import type { AdminCommissionPaidResult, AdminCommissionSummary, AdminTeam } from "@/types/admin-contracts";
+import type {
+  AdminCommissionPaidResult,
+  AdminCommissionSummary,
+  AdminTeam,
+} from "@/types/admin-contracts";
 import { adminRequest } from "../bookings/client";
 import { fieldClass, LoadState } from "../bookings/use-admin-resource";
 import { useKeptResource } from "./use-kept-resource";
 import { describeError } from "./team-panel";
-import { COMMISSION_RULE_LINE, defaultRateLine, lineSummary, manilaToday, monthStart, rangeProblem, selectableIds, unpaidText, warningLines } from "./team-model";
+import {
+  COMMISSION_RULE_LINE,
+  defaultRateLine,
+  lineSummary,
+  manilaToday,
+  monthStart,
+  rangeProblem,
+  selectableIds,
+  unpaidText,
+  warningLines,
+} from "./team-model";
 
-const buttonClass = "inline-flex min-h-[44px] items-center justify-center rounded border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50";
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (!parts[0]) return "??";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
-export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reloadTeam: () => unknown }) {
+export function CommissionsPanel({
+  team,
+  reloadTeam,
+}: {
+  team: AdminTeam;
+  reloadTeam: () => unknown;
+}) {
   const today = React.useMemo(() => manilaToday(), []);
   const [from, setFrom] = React.useState(monthStart(today));
   const [to, setTo] = React.useState(today);
   const [status, setStatus] = React.useState<"ALL" | "UNPAID" | "PAID">("ALL");
   const [staffId, setStaffId] = React.useState("");
+  const [searchQuery, setSearchQuery] = React.useState("");
   const problem = rangeProblem(from, to);
-  const url = problem ? null : `/api/admin/commissions?from=${from}&to=${to}&status=${status}${staffId ? `&staffId=${staffId}` : ""}`;
+
+  const url = problem
+    ? null
+    : `/api/admin/commissions?from=${from}&to=${to}&status=${status}${
+        staffId ? `&staffId=${staffId}` : ""
+      }`;
   const summary = useKeptResource<AdminCommissionSummary>(url);
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [adjusting, setAdjusting] = React.useState<string | null>(null);
   const [adjAmount, setAdjAmount] = React.useState("");
   const [adjMode, setAdjMode] = React.useState<"ADD" | "TAKE">("ADD");
-  // One id per form content: a retry after a lost response sends the same id, so the server records it once.
   const [adjId, setAdjId] = React.useState("");
   const [adjReason, setAdjReason] = React.useState("");
   const [adjProblem, setAdjProblem] = React.useState<string | null>(null);
+
   const [editingRate, setEditingRate] = React.useState(false);
   const [rate, setRate] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -36,7 +87,9 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
   const [notice, setNotice] = React.useState<string | null>(null);
   const writing = React.useRef(false);
 
-  // Bulk actions use `chosen` below: only rows that are on screen AND ticked, so a changed filter can't leak old ticks in.
+  // Pagination state
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(10);
 
   async function run(work: () => Promise<string>) {
     if (writing.current) return false;
@@ -45,7 +98,6 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
     setError(null);
     try {
       const message = await work();
-      // The message appears with the fresh totals, never above stale ones.
       await Promise.all([summary.reload(), reloadTeam()]);
       setNotice(message);
       return true;
@@ -61,50 +113,106 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
   async function saveRate(e: React.FormEvent) {
     e.preventDefault();
     const ok = await run(async () => {
-      await adminRequest("/api/admin/commissions/settings", { method: "PUT", body: { expectedRevision: team.settingsRevision, ratePercent: rate.trim() } });
+      await adminRequest("/api/admin/commissions/settings", {
+        method: "PUT",
+        body: {
+          expectedRevision: team.settingsRevision,
+          ratePercent: rate.trim(),
+        },
+      });
       return "The default rate was changed. It applies to bookings completed from now on; earlier commissions are not changed.";
     });
     if (ok) setEditingRate(false);
   }
 
+  const data = summary.data;
+
+  // Ticked rows: jobs and their adjustments
+  const allEntries = React.useMemo(() => data?.entries ?? [], [data?.entries]);
+  const chosen = allEntries
+    .flatMap((en) => [en, ...en.adjustments])
+    .filter((x) => selected.has(x.id));
+
+  const tick = (id: string, on: boolean) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
   const setPaid = (paid: boolean) =>
     run(async () => {
       const ids = selectableIds(chosen, paid);
-      const result = await adminRequest<AdminCommissionPaidResult>("/api/admin/commissions/paid", { method: "POST", body: { ids, paid } });
+      const result = await adminRequest<AdminCommissionPaidResult>(
+        "/api/admin/commissions/paid",
+        { method: "POST", body: { ids, paid } },
+      );
       setSelected(new Set());
-      return result.changed === 0 ? "Nothing changed. Those commissions were already marked that way." : `${result.changed} ${result.changed === 1 ? "commission" : "commissions"} marked as ${paid ? "paid" : "unpaid"}.`;
+      return result.changed === 0
+        ? "Nothing changed. Those commissions were already marked that way."
+        : `${result.changed} ${
+            result.changed === 1 ? "commission" : "commissions"
+          } marked as ${paid ? "paid" : "unpaid"}.`;
     });
 
   const repair = () =>
     run(async () => {
-      const result = await adminRequest<{ repaired: number; failed: number }>("/api/admin/commissions/repair", { method: "POST", body: {} });
-      const done = result.repaired === 0 ? "No missing commissions were found." : `${result.repaired} missing ${result.repaired === 1 ? "commission was" : "commissions were"} recorded.`;
-      return result.failed === 0 ? done : `${done} ${result.failed} could not be recorded and need attention.`;
+      const result = await adminRequest<{ repaired: number; failed: number }>(
+        "/api/admin/commissions/repair",
+        { method: "POST", body: {} },
+      );
+      const done =
+        result.repaired === 0
+          ? "No missing commissions were found."
+          : `${result.repaired} missing ${
+              result.repaired === 1 ? "commission was" : "commissions were"
+            } recorded.`;
+      return result.failed === 0
+        ? done
+        : `${done} ${result.failed} could not be recorded and need attention.`;
     });
-
-  const data = summary.data;
-  // Ticked rows: jobs and their adjustments, each with its own paid state.
-  const chosen = (data?.entries ?? []).flatMap((en) => [en, ...en.adjustments]).filter((x) => selected.has(x.id));
-  const tick = (id: string, on: boolean) => setSelected((prev) => { const next = new Set(prev); if (on) next.add(id); else next.delete(id); return next; });
 
   async function saveAdjustment(e: React.FormEvent) {
     e.preventDefault();
     const typed = signedPesosToCentavos(adjAmount);
-    if (typed === null || typed < 0) { setAdjProblem("Enter an amount in pesos, like 300 or 150.50, with no minus sign. It can't be zero. Choose Add or Take off."); return; }
+    if (typed === null || typed < 0) {
+      setAdjProblem(
+        "Enter an amount in pesos, like 300 or 150.50, with no minus sign. It can't be zero. Choose Add or Take off.",
+      );
+      return;
+    }
     const amountCentavos = adjMode === "TAKE" ? -typed : typed;
-    if (!adjReason.trim()) { setAdjProblem("Give a reason."); return; }
+    if (!adjReason.trim()) {
+      setAdjProblem("Give a reason.");
+      return;
+    }
     setAdjProblem(null);
     const ok = await run(async () => {
-      await adminRequest("/api/admin/commissions/adjust", { method: "POST", body: { id: adjId, entryId: adjusting, amountCentavos, reason: adjReason.trim() } });
+      await adminRequest("/api/admin/commissions/adjust", {
+        method: "POST",
+        body: {
+          id: adjId,
+          entryId: adjusting,
+          amountCentavos,
+          reason: adjReason.trim(),
+        },
+      });
       return "The adjustment was recorded.";
     });
-    if (ok) { setAdjusting(null); setAdjAmount(""); setAdjReason(""); setAdjMode("ADD"); }
+    if (ok) {
+      setAdjusting(null);
+      setAdjAmount("");
+      setAdjReason("");
+      setAdjMode("ADD");
+    }
   }
+
   const freshAdjId = () => setAdjId(crypto.randomUUID());
   const canMarkPaid = selectableIds(chosen, true).length > 0;
   const canMarkUnpaid = selectableIds(chosen, false).length > 0;
 
-  // P1-64: include removed people who have commissions in this period so they can still be filtered
+  // People options for dropdown
   const peopleOptions = React.useMemo(() => {
     const list: { id: string; name: string }[] = team.people
       .filter((p) => p.role === "DETAILER")
@@ -129,167 +237,957 @@ export function CommissionsPanel({ team, reloadTeam }: { team: AdminTeam; reload
     return list;
   }, [team.people, data]);
 
+  // Client-side text filter
+  const filteredEntries = React.useMemo(() => {
+    if (!searchQuery.trim()) return allEntries;
+    const q = searchQuery.toLowerCase().trim();
+    return allEntries.filter(
+      (en) =>
+        en.staffName.toLowerCase().includes(q) ||
+        en.bookingReference.toLowerCase().includes(q) ||
+        en.serviceName.toLowerCase().includes(q),
+    );
+  }, [allEntries, searchQuery]);
+
+  // Pagination slice
+  const totalEntries = filteredEntries.length;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedEntries = filteredEntries.slice(
+    startIndex,
+    startIndex + pageSize,
+  );
+
+  // Quick preset dates
+  const setRangeMonth = () => {
+    setFrom(monthStart(today));
+    setTo(today);
+    setPage(1);
+  };
+  const setRangeToday = () => {
+    setFrom(today);
+    setTo(today);
+    setPage(1);
+  };
+  const setRange30Days = () => {
+    const d = new Date(Date.now() + 8 * 3600000);
+    d.setDate(d.getDate() - 30);
+    setFrom(d.toISOString().slice(0, 10));
+    setTo(today);
+    setPage(1);
+  };
+
+  const adjustingEntry = React.useMemo(
+    () => allEntries.find((e) => e.id === adjusting),
+    [allEntries, adjusting],
+  );
+
   return (
-    <section aria-labelledby="commissions-heading" className="rounded border border-border bg-[#121214]">
-      <div className="border-b border-border p-4 sm:p-6">
-        <h2 id="commissions-heading" className="text-base font-bold text-foreground">Commissions</h2>
-        <p data-testid="default-rate-line" className="mt-1 text-sm text-muted-foreground">{defaultRateLine(team.defaultRateBp)}</p>
-        <p data-testid="commission-rule-line" className="mt-1 text-sm text-muted-foreground">{COMMISSION_RULE_LINE}</p>
-        {!editingRate ? (
-          <button type="button" className={`${buttonClass} mt-2`} disabled={busy} onClick={() => { setRate(basisPointsToPercent(team.defaultRateBp)); setError(null); setEditingRate(true); }}>Change default rate</button>
-        ) : (
-          <form onSubmit={(e) => void saveRate(e)} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-            <label className="block text-xs font-semibold text-muted-foreground">Default commission percent
-              <input className={fieldClass} value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" required autoComplete="off" />
-            </label>
-            <Button type="submit" variant="gold" className="min-h-[44px]" disabled={busy}>{busy ? "Saving..." : "Save default"}</Button>
-            <Button type="button" variant="outline" className="min-h-[44px]" disabled={busy} onClick={() => setEditingRate(false)}>Cancel</Button>
-          </form>
-        )}
-      </div>
-
-      <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-4 sm:p-6">
-        <label className="block text-xs font-semibold text-muted-foreground">From
-          <input className={fieldClass} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label className="block text-xs font-semibold text-muted-foreground">To
-          <input className={fieldClass} type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </label>
-        <label className="block text-xs font-semibold text-muted-foreground">Person
-          <select className={fieldClass} value={staffId} onChange={(e) => setStaffId(e.target.value)}>
-            <option value="">Everyone</option>
-            {peopleOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </label>
-        <label className="block text-xs font-semibold text-muted-foreground">Show
-          <select className={fieldClass} value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
-            <option value="ALL">All commissions</option>
-            <option value="UNPAID">Unpaid only</option>
-            <option value="PAID">Paid only</option>
-          </select>
-        </label>
-        {problem && <p role="alert" className="text-sm text-rose-400 sm:col-span-4">{problem}</p>}
-      </div>
-
-      {notice && <p role="status" className="border-b border-border px-4 py-3 text-sm text-emerald-400 sm:px-6">{notice}</p>}
-      {error && <p role="alert" className="border-b border-border px-4 py-3 text-sm text-rose-400 sm:px-6">{error}</p>}
-      <LoadState loading={summary.loading} error={summary.error} retry={summary.reload} />
-
+    <div className="space-y-5">
+      {/* 1. EXECUTIVE KPI METRICS (Clean Dashboard Cards) */}
       {data && (
-        <>
-          {warningLines(data.warnings).map((line) => (
-            <p key={line} role="status" className="border-b border-border bg-amber-500/10 px-4 py-3 text-sm text-amber-300 sm:px-6">{line}</p>
-          ))}
-          {data.warnings.missingRecords > 0 && (
-            <div className="border-b border-border px-4 py-3 sm:px-6">
-              <button type="button" className={buttonClass} disabled={busy} onClick={() => void repair()}>Record missing commissions</button>
+        <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
+          <div className="group relative overflow-hidden rounded-xl border border-border bg-[#161619] p-4 transition-colors hover:border-primary/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">
+                Earned Commissions
+              </span>
+              <span className="h-1.5 w-1.5 rounded-full bg-primary/70" />
             </div>
-          )}
+            <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              {formatPesos(data.grandTotal.earnedCentavos)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Total credited this period
+            </p>
+          </div>
 
-          <dl className="grid grid-cols-3 gap-px border-b border-border bg-border text-center">
-            {([["Earned", data.grandTotal.earnedCentavos], ["Paid", data.grandTotal.paidCentavos], [data.grandTotal.unpaidCentavos < 0 ? "Owed back" : "Unpaid", Math.abs(data.grandTotal.unpaidCentavos)]] as const).map(([label, value]) => (
-              <div key={label} className="bg-[#121214] p-3 sm:p-4">
-                <dt className="text-xs text-muted-foreground">{label}</dt>
-                <dd className="text-sm font-bold tabular-nums text-foreground sm:text-base">{formatPesos(value)}</dd>
+          <div className="group relative overflow-hidden rounded-xl border border-border bg-[#161619] p-4 transition-colors hover:border-emerald-500/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">
+                Paid Out
+              </span>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            </div>
+            <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-emerald-400 sm:text-3xl">
+              {formatPesos(data.grandTotal.paidCentavos)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Settled commissions
+            </p>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-xl border border-border bg-[#161619] p-4 transition-colors hover:border-amber-500/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">
+                {data.grandTotal.unpaidCentavos < 0 ? "Owed Back" : "Unpaid Balance"}
+              </span>
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            </div>
+            <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-amber-400 sm:text-3xl">
+              {formatPesos(Math.abs(data.grandTotal.unpaidCentavos))}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {data.grandTotal.unpaidCentavos < 0 ? "Owed back to shop" : "Ready for payout"}
+            </p>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-xl border border-border bg-[#161619] p-4 transition-colors hover:border-primary/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">
+                Credited Jobs
+              </span>
+              <span className="h-1.5 w-1.5 rounded-full bg-primary/70" />
+            </div>
+            <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              {data.grandTotal.entryCount}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Across {data.totals.length} detailers
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 2. HEADER CARD: Commission Rate Settings & Rules (De-cluttered) */}
+      <section
+        aria-labelledby="commissions-heading"
+        className="overflow-hidden rounded-xl border border-border bg-[#121214] shadow-sm"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/80 p-4 sm:p-5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5">
+              <h2
+                id="commissions-heading"
+                className="text-lg font-bold tracking-tight text-foreground"
+              >
+                Commissions
+              </h2>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                <Percent className="h-3 w-3" />
+                {basisPointsToPercent(team.defaultRateBp)}% Default
+              </span>
+            </div>
+            <p
+              data-testid="default-rate-line"
+              className="text-xs text-muted-foreground"
+            >
+              {defaultRateLine(team.defaultRateBp)}
+            </p>
+            <p
+              data-testid="commission-rule-line"
+              className="text-xs text-muted-foreground/80"
+            >
+              {COMMISSION_RULE_LINE}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!editingRate ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  setRate(basisPointsToPercent(team.defaultRateBp));
+                  setError(null);
+                  setEditingRate(true);
+                }}
+              >
+                Change default rate
+              </Button>
+            ) : (
+              <form
+                onSubmit={(e) => void saveRate(e)}
+                className="flex items-center gap-2 rounded-lg border border-primary/30 bg-[#161619] p-1.5"
+              >
+                <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  Default commission percent
+                  <input
+                    className="h-8 w-16 rounded border border-border bg-black/40 px-2 text-center text-xs font-mono font-bold text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                    value={rate}
+                    onChange={(e) => setRate(e.target.value)}
+                    inputMode="decimal"
+                    required
+                    autoComplete="off"
+                  />
+                  %
+                </label>
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="gold"
+                  disabled={busy}
+                  className="h-8 px-2.5 text-xs font-bold"
+                >
+                  {busy ? "Saving..." : "Save default"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => setEditingRate(false)}
+                  className="h-8 px-2 text-xs"
+                >
+                  Cancel
+                </Button>
+              </form>
+            )}
+          </div>
+        </div>
+
+        {/* NOTICES & WARNINGS */}
+        {notice && (
+          <p
+            role="status"
+            className="border-b border-border bg-emerald-500/10 px-4 py-2.5 text-xs font-medium text-emerald-400 sm:px-6"
+          >
+            {notice}
+          </p>
+        )}
+        {error && (
+          <p
+            role="alert"
+            className="border-b border-border bg-rose-500/10 px-4 py-2.5 text-xs font-medium text-rose-400 sm:px-6"
+          >
+            {error}
+          </p>
+        )}
+        {data && warningLines(data.warnings).length > 0 && (
+          <div className="border-b border-border bg-amber-500/5 px-4 py-3 sm:px-6 space-y-1.5">
+            {warningLines(data.warnings).map((line) => (
+              <div
+                key={line}
+                role="status"
+                className="flex items-start gap-2 text-xs text-amber-300"
+              >
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                <span>{line}</span>
               </div>
             ))}
-          </dl>
-
-          {data.totals.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">No commissions in this range. They appear here when a booking is completed with a detailer assigned.</p>
-          ) : (
-            <>
-              <h3 className="px-4 pt-4 text-sm font-bold text-foreground sm:px-6">By person</h3>
-              <ul className="divide-y divide-border">
-                {data.totals.map((t) => (
-                  <li key={t.staffId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
-                    <span className="min-w-0 break-words text-sm font-semibold text-foreground">{t.staffName}<span className="ml-2 text-xs font-normal text-muted-foreground">{t.entryCount} {t.entryCount === 1 ? "job" : "jobs"}</span></span>
-                    <span className="text-xs tabular-nums text-muted-foreground">Earned {formatPesos(t.earnedCentavos)} · {unpaidText(t.unpaidCentavos)}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="flex flex-wrap items-center gap-2 border-y border-border px-4 py-3 sm:px-6">
-                <h3 className="mr-auto text-sm font-bold text-foreground">Jobs</h3>
-                <span className="text-xs text-muted-foreground" aria-live="polite">{chosen.length} selected</span>
-                <button type="button" className={buttonClass} disabled={busy || !canMarkPaid} onClick={() => void setPaid(true)}>Mark paid</button>
-                <button type="button" className={buttonClass} disabled={busy || !canMarkUnpaid} onClick={() => void setPaid(false)}>Mark unpaid</button>
+            {data.warnings.missingRecords > 0 && (
+              <div className="pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void repair()}
+                  className="h-7 text-xs"
+                >
+                  <RefreshCw className="mr-1.5 h-3 w-3" />
+                  Record missing commissions
+                </Button>
               </div>
-              <ul className="divide-y divide-border">
-                {data.entries.map((en) => (
-                  <li key={en.id}>
-                    <label className="flex min-h-[44px] cursor-pointer items-start gap-3 px-4 py-3 sm:px-6">
-                      <input
-                        type="checkbox"
-                        className="mt-1 h-5 w-5 shrink-0"
-                        checked={selected.has(en.id)}
-                        onChange={(e) => tick(en.id, e.target.checked)}
-                        aria-label={`Select ${en.staffName}, ${en.serviceName}, ${en.completedOn}`}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                          <span className="break-words text-sm font-semibold text-foreground">{en.staffName}</span>
-                          <span className="text-sm font-bold tabular-nums text-foreground">{formatPesos(en.amountCentavos)}</span>
-                        </span>
-                        <span className="block break-words text-xs text-muted-foreground">{en.lines.filter((l) => l.counted).map((l) => l.name).join(", ") || en.serviceName} · {en.completedOn} · {en.bookingReference}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {basisPointsToPercent(en.rateBp)}% of {formatPesos(en.shareCentavos)}
-                          {en.creditedCount > 1 ? ` (shared by ${en.creditedCount} of ${formatPesos(en.serviceTotalCentavos)})` : ""}
-                          {" · "}{en.paidAt ? "Paid" : "Unpaid"}
-                        </span>
-                        {(() => {
-                          const summary = lineSummary(en.lines);
-                          return (
-                            <>
-                              <span className="block break-words text-xs text-muted-foreground">Commission base {formatPesos(en.serviceTotalCentavos)}{summary.counted ? ` · Counted: ${summary.counted}` : ""}</span>
-                              {summary.notCounted && <span className="block break-words text-xs text-muted-foreground">Not counted: {summary.notCounted}</span>}
-                            </>
-                          );
-                        })()}
-                        {en.unpricedLineCount > 0 && <span className="block text-xs text-amber-300">Includes a service without a final price.</span>}
-                      </span>
-                    </label>
-                    {en.adjustments.map((adj) => (
-                      <label key={adj.id} className="flex min-h-[44px] cursor-pointer items-start gap-3 py-2 pl-12 pr-4 sm:pl-14 sm:pr-6">
-                        <input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={selected.has(adj.id)} onChange={(e) => tick(adj.id, e.target.checked)}
-                          aria-label={`Select the adjustment of ${formatPesos(adj.amountCentavos)} for ${en.staffName}, ${en.serviceName}`} />
-                        <span className="min-w-0 flex-1 text-xs text-muted-foreground">
-                          <span className="font-semibold tabular-nums text-foreground">Adjustment {formatPesos(adj.amountCentavos)}</span>
-                          {" · "}{adj.paidAt ? "Paid" : "Unpaid"}<span className="block break-words">{adj.reason}</span>
-                        </span>
-                      </label>
-                    ))}
-                    <div className="px-4 pb-3 pl-12 sm:pl-14 sm:pr-6">
-                      {adjusting === en.id ? (
-                        <form onSubmit={(e) => void saveAdjustment(e)} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                          <label className="block text-xs font-semibold text-muted-foreground">Change
-                            <select className={fieldClass} value={adjMode} onChange={(e) => { setAdjMode(e.target.value as "ADD" | "TAKE"); freshAdjId(); }}>
-                              <option value="ADD">Add to the commission</option>
-                              <option value="TAKE">Take off the commission</option>
-                            </select>
-                          </label>
-                          <label className="block text-xs font-semibold text-muted-foreground">Amount (pesos)
-                            <input className={fieldClass} value={adjAmount} onChange={(e) => { setAdjAmount(e.target.value); freshAdjId(); }} inputMode="decimal" required autoComplete="off" />
-                          </label>
-                          <label className="block min-w-0 flex-1 text-xs font-semibold text-muted-foreground">Reason
-                            <input className={fieldClass} value={adjReason} onChange={(e) => { setAdjReason(e.target.value); freshAdjId(); }} maxLength={200} required autoComplete="off" />
-                          </label>
-                          <Button type="submit" variant="gold" className="min-h-[44px]" disabled={busy}>{busy ? "Saving..." : "Save adjustment"}</Button>
-                          <Button type="button" variant="outline" className="min-h-[44px]" disabled={busy} onClick={() => { setAdjusting(null); setAdjProblem(null); }}>Cancel</Button>
-                        </form>
-                      ) : (
-                        <button type="button" className={buttonClass} disabled={busy} onClick={() => { setAdjusting(en.id); setAdjAmount(""); setAdjReason(""); setAdjMode("ADD"); freshAdjId(); setAdjProblem(null); setError(null); }}>Add adjustment</button>
-                      )}
-                      {adjusting === en.id && adjProblem && <p role="alert" className="mt-1 text-xs text-rose-400">{adjProblem}</p>}
-                    </div>
-                  </li>
+            )}
+          </div>
+        )}
+
+        {/* 3. UNIFIED FILTER TOOLBAR */}
+        <div className="border-b border-border/80 bg-[#141416] p-4 sm:p-5 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="block text-xs font-semibold text-muted-foreground">
+              From
+              <input
+                className={fieldClass}
+                type="date"
+                value={from}
+                onChange={(e) => {
+                  setFrom(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </label>
+            <label className="block text-xs font-semibold text-muted-foreground">
+              To
+              <input
+                className={fieldClass}
+                type="date"
+                value={to}
+                onChange={(e) => {
+                  setTo(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </label>
+            <label className="block text-xs font-semibold text-muted-foreground">
+              Person
+              <select
+                className={fieldClass}
+                value={staffId}
+                onChange={(e) => {
+                  setStaffId(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">Everyone</option>
+                {peopleOptions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
                 ))}
-              </ul>
-              {data.truncated && <p className="px-4 py-3 text-xs text-muted-foreground sm:px-6">Showing the most recent {data.entries.length} jobs. The totals above include every job in the range.</p>}
-            </>
+              </select>
+            </label>
+            <label className="block text-xs font-semibold text-muted-foreground">
+              Show
+              <select
+                className={fieldClass}
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value as typeof status);
+                  setPage(1);
+                }}
+              >
+                <option value="ALL">All commissions</option>
+                <option value="UNPAID">Unpaid only</option>
+                <option value="PAID">Paid only</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-muted-foreground mr-1">Quick presets:</span>
+              <button
+                type="button"
+                onClick={setRangeToday}
+                className="rounded border border-border/70 bg-[#18181b] px-2.5 py-1 text-xs text-foreground transition hover:border-primary/50"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={setRangeMonth}
+                className="rounded border border-border/70 bg-[#18181b] px-2.5 py-1 text-xs text-foreground transition hover:border-primary/50"
+              >
+                This Month
+              </button>
+              <button
+                type="button"
+                onClick={setRange30Days}
+                className="rounded border border-border/70 bg-[#18181b] px-2.5 py-1 text-xs text-foreground transition hover:border-primary/50"
+              >
+                Last 30 Days
+              </button>
+            </div>
+
+            <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search reference, service..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
+                className="h-8 w-full rounded-md border border-border bg-[#18181b] pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {problem && (
+            <p role="alert" className="text-xs text-rose-400 font-medium">
+              {problem}
+            </p>
           )}
-        </>
-      )}
-    </section>
+        </div>
+
+        <LoadState
+          loading={summary.loading}
+          error={summary.error}
+          retry={summary.reload}
+        />
+
+        {data && (
+          <>
+            {/* 4. DETAIL ROSTER BREAKDOWN ("By person") */}
+            <div className="border-b border-border/80 bg-[#101012] p-4 sm:p-5">
+              <div className="flex items-center justify-between pb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  By person
+                </h3>
+                {staffId && (
+                  <button
+                    type="button"
+                    onClick={() => setStaffId("")}
+                    className="text-xs text-primary underline hover:text-primary/80"
+                  >
+                    Clear person filter
+                  </button>
+                )}
+              </div>
+
+              {data.totals.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No commissions in this range. They appear here when a booking is completed with a detailer assigned.
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {data.totals.map((t) => {
+                    const isSelected = staffId === t.staffId;
+                    return (
+                      <button
+                        key={t.staffId}
+                        type="button"
+                        onClick={() => {
+                          setStaffId(isSelected ? "" : t.staffId);
+                          setPage(1);
+                        }}
+                        className={`flex items-center justify-between gap-3 rounded-lg border p-3 text-left transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/10 shadow-xs"
+                            : "border-border/70 bg-[#161619] hover:border-border hover:bg-[#19191d]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+                            {getInitials(t.staffName)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold text-foreground">
+                              {t.staffName}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {t.entryCount} {t.entryCount === 1 ? "job" : "jobs"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <p className="font-mono text-xs font-bold text-foreground">
+                            Earned {formatPesos(t.earnedCentavos)}
+                          </p>
+                          <p
+                            className={`text-[11px] font-medium ${
+                              t.unpaidCentavos > 0
+                                ? "text-amber-400"
+                                : "text-emerald-400"
+                            }`}
+                          >
+                            {unpaidText(t.unpaidCentavos)}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 5. JOBS LEDGER TABLE & CONTROLS */}
+            <div className="p-4 sm:p-5 space-y-4">
+              {/* Table Toolbar / Bulk Action Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/80 bg-[#161618] px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-sm font-bold text-foreground">
+                    Jobs
+                  </h3>
+                  <span
+                    className="rounded-full bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground"
+                    aria-live="polite"
+                  >
+                    {chosen.length} selected
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy || !canMarkPaid}
+                    onClick={() => void setPaid(true)}
+                    className="h-8 text-xs font-bold"
+                  >
+                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />
+                    Mark paid
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy || !canMarkUnpaid}
+                    onClick={() => void setPaid(false)}
+                    className="h-8 text-xs font-bold"
+                  >
+                    <Clock className="mr-1.5 h-3.5 w-3.5 text-amber-400" />
+                    Mark unpaid
+                  </Button>
+                  {selected.size > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelected(new Set())}
+                      className="h-8 text-xs text-muted-foreground"
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {filteredEntries.length === 0 ? (
+                <div className="rounded-xl border border-border bg-[#141416] p-8 text-center">
+                  <User className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                  <p className="mt-2 text-sm font-semibold text-foreground">
+                    No commission jobs match your filters.
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Try adjusting the dates, selecting everyone, or clearing your search.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Clean Desktop Table */}
+                  <div className="overflow-hidden rounded-xl border border-border bg-[#121214]">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="border-b border-border bg-[#161618] text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                          <tr>
+                            <th className="w-10 px-4 py-3.5 text-center">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-border bg-black/40 text-primary focus:ring-primary"
+                                aria-label="Select all on this page"
+                                checked={
+                                  paginatedEntries.length > 0 &&
+                                  paginatedEntries.every((e) =>
+                                    selected.has(e.id),
+                                  )
+                                }
+                                onChange={(e) => {
+                                  const on = e.target.checked;
+                                  setSelected((prev) => {
+                                    const next = new Set(prev);
+                                    for (const item of paginatedEntries) {
+                                      if (on) {
+                                        next.add(item.id);
+                                        item.adjustments.forEach((adj) =>
+                                          next.add(adj.id),
+                                        );
+                                      } else {
+                                        next.delete(item.id);
+                                        item.adjustments.forEach((adj) =>
+                                          next.delete(adj.id),
+                                        );
+                                      }
+                                    }
+                                    return next;
+                                  });
+                                }}
+                              />
+                            </th>
+                            <th className="px-4 py-3.5">Detailer</th>
+                            <th className="px-4 py-3.5">Booking & Service</th>
+                            <th className="px-4 py-3.5">Rate & Calculation</th>
+                            <th className="px-4 py-3.5 text-right">Commission</th>
+                            <th className="px-4 py-3.5 text-center">Status</th>
+                            <th className="px-4 py-3.5 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                          {paginatedEntries.map((en) => {
+                            const isTicked = selected.has(en.id);
+                            const summaryText = lineSummary(en.lines);
+
+                            return (
+                              <React.Fragment key={en.id}>
+                                <tr
+                                  className={`transition-colors hover:bg-[#18181c] ${
+                                    isTicked ? "bg-primary/5" : ""
+                                  }`}
+                                >
+                                  <td className="px-4 py-3 text-center align-top">
+                                    <input
+                                      type="checkbox"
+                                      className="mt-1 h-4 w-4 rounded border-border bg-black/40 text-primary focus:ring-primary"
+                                      checked={isTicked}
+                                      onChange={(e) =>
+                                        tick(en.id, e.target.checked)
+                                      }
+                                      aria-label={`Select ${en.staffName}, ${en.serviceName}, ${en.completedOn}`}
+                                    />
+                                  </td>
+
+                                  <td className="px-4 py-3 align-top">
+                                    <div className="flex items-center gap-2">
+                                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">
+                                        {getInitials(en.staffName)}
+                                      </span>
+                                      <span className="font-semibold text-foreground">
+                                        {en.staffName}
+                                      </span>
+                                    </div>
+                                  </td>
+
+                                  <td className="px-4 py-3 align-top min-w-[200px]">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="rounded bg-muted/40 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
+                                          {en.bookingReference}
+                                        </span>
+                                        <span className="text-[11px] text-muted-foreground">
+                                          {en.completedOn}
+                                        </span>
+                                      </div>
+                                      <p className="font-medium text-foreground">
+                                        {en.lines
+                                          .filter((l) => l.counted)
+                                          .map((l) => l.name)
+                                          .join(", ") || en.serviceName}
+                                      </p>
+                                    </div>
+                                  </td>
+
+                                  <td className="px-4 py-3 align-top min-w-[220px]">
+                                    <div className="space-y-1 text-xs text-muted-foreground">
+                                      <p className="text-foreground">
+                                        <span className="font-semibold text-primary">
+                                          {basisPointsToPercent(en.rateBp)}%
+                                        </span>{" "}
+                                        of {formatPesos(en.shareCentavos)}
+                                        {en.creditedCount > 1
+                                          ? ` (shared by ${en.creditedCount} of ${formatPesos(
+                                              en.serviceTotalCentavos,
+                                            )})`
+                                          : ""}
+                                      </p>
+                                      <p className="text-[11px]">
+                                        Commission base{" "}
+                                        {formatPesos(en.serviceTotalCentavos)}
+                                        {summaryText.counted
+                                          ? ` · Counted: ${summaryText.counted}`
+                                          : ""}
+                                      </p>
+                                      {summaryText.notCounted && (
+                                        <p className="text-[11px] text-muted-foreground/75">
+                                          Not counted: {summaryText.notCounted}
+                                        </p>
+                                      )}
+                                      {en.unpricedLineCount > 0 && (
+                                        <p className="text-[11px] text-amber-300">
+                                          Includes a service without a final price.
+                                        </p>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td className="px-4 py-3 text-right align-top">
+                                    <span className="font-mono text-sm font-bold tabular-nums text-foreground">
+                                      {formatPesos(en.amountCentavos)}
+                                    </span>
+                                  </td>
+
+                                  <td className="px-4 py-3 text-center align-top">
+                                    <span
+                                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                        en.paidAt
+                                          ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                                          : "border border-amber-500/30 bg-amber-500/10 text-amber-400"
+                                      }`}
+                                    >
+                                      {en.paidAt ? "Paid" : "Unpaid"}
+                                    </span>
+                                  </td>
+
+                                  <td className="px-4 py-3 text-right align-top">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={busy}
+                                      onClick={() => {
+                                        setAdjusting(en.id);
+                                        setAdjAmount("");
+                                        setAdjReason("");
+                                        setAdjMode("ADD");
+                                        freshAdjId();
+                                        setAdjProblem(null);
+                                        setError(null);
+                                      }}
+                                      className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                    >
+                                      <Plus className="mr-1 h-3 w-3" />
+                                      Add adjustment
+                                    </Button>
+                                  </td>
+                                </tr>
+
+                                {/* Nested Adjustments */}
+                                {en.adjustments.map((adj) => {
+                                  const isAdjTicked = selected.has(adj.id);
+                                  return (
+                                    <tr
+                                      key={adj.id}
+                                      className={`bg-[#141416]/50 transition-colors hover:bg-[#18181c] ${
+                                        isAdjTicked ? "bg-primary/5" : ""
+                                      }`}
+                                    >
+                                      <td className="px-4 py-2.5 text-center">
+                                        <input
+                                          type="checkbox"
+                                          className="h-3.5 w-3.5 rounded border-border bg-black/40 text-primary focus:ring-primary"
+                                          checked={isAdjTicked}
+                                          onChange={(e) =>
+                                            tick(adj.id, e.target.checked)
+                                          }
+                                          aria-label={`Select the adjustment of ${formatPesos(
+                                            adj.amountCentavos,
+                                          )} for ${en.staffName}, ${
+                                            en.serviceName
+                                          }`}
+                                        />
+                                      </td>
+                                      <td
+                                        colSpan={3}
+                                        className="py-2.5 pl-6 text-xs text-muted-foreground"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-semibold text-primary">
+                                            Adjustment
+                                          </span>
+                                          <span>·</span>
+                                          <span className="text-foreground">
+                                            {adj.reason}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums text-foreground">
+                                        {formatPesos(adj.amountCentavos)}
+                                      </td>
+                                      <td className="px-4 py-2.5 text-center">
+                                        <span
+                                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                                            adj.paidAt
+                                              ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                                              : "border border-amber-500/20 bg-amber-500/10 text-amber-400"
+                                          }`}
+                                        >
+                                          {adj.paidAt ? "Paid" : "Unpaid"}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-2.5"></td>
+                                    </tr>
+                                  );
+                                })}
+                              </React.Fragment>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 6. PAGINATION CONTROLS */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/80 pt-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>
+                        Showing{" "}
+                        <strong className="text-foreground font-mono">
+                          {totalEntries === 0 ? 0 : startIndex + 1}
+                        </strong>{" "}
+                        to{" "}
+                        <strong className="text-foreground font-mono">
+                          {Math.min(startIndex + pageSize, totalEntries)}
+                        </strong>{" "}
+                        of{" "}
+                        <strong className="text-foreground font-mono">
+                          {totalEntries}
+                        </strong>{" "}
+                        jobs
+                      </span>
+                      <span>·</span>
+                      <label className="flex items-center gap-1.5">
+                        Rows:
+                        <select
+                          value={pageSize}
+                          onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                          }}
+                          className="h-7 rounded border border-border bg-[#18181b] px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                        >
+                          <option value={10}>10</option>
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage <= 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        className="h-8 px-2.5 text-xs"
+                      >
+                        <ChevronLeft className="mr-1 h-3.5 w-3.5" />
+                        Previous
+                      </Button>
+
+                      <div className="flex items-center gap-1 px-1">
+                        {Array.from(
+                          { length: totalPages },
+                          (_, i) => i + 1,
+                        )
+                          .filter(
+                            (p) =>
+                              p === 1 ||
+                              p === totalPages ||
+                              Math.abs(p - currentPage) <= 1,
+                          )
+                          .map((p, idx, arr) => (
+                            <React.Fragment key={p}>
+                              {idx > 0 && arr[idx - 1] !== p - 1 && (
+                                <span className="px-1 text-xs text-muted-foreground">
+                                  ...
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setPage(p)}
+                                className={`h-8 w-8 rounded text-xs font-mono font-bold transition-colors ${
+                                  currentPage === p
+                                    ? "bg-primary text-primary-foreground"
+                                    : "border border-border/70 bg-[#161619] text-foreground hover:border-primary/50"
+                                }`}
+                              >
+                                {p}
+                              </button>
+                            </React.Fragment>
+                          ))}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage >= totalPages}
+                        onClick={() =>
+                          setPage((p) => Math.min(totalPages, p + 1))
+                        }
+                        className="h-8 px-2.5 text-xs"
+                      >
+                        Next
+                        <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {data.truncated && (
+                    <p className="text-center text-xs text-muted-foreground">
+                      Showing the most recent {data.entries.length} jobs. The totals above include every job in the range.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* 7. ADD ADJUSTMENT MODAL / DIALOG */}
+      <Dialog
+        open={adjusting !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAdjusting(null);
+            setAdjProblem(null);
+          }
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle>Add Commission Adjustment</DialogTitle>
+          <DialogDescription>
+            {adjustingEntry
+              ? `Adjustment for ${adjustingEntry.staffName} on ${adjustingEntry.bookingReference} (${adjustingEntry.serviceName})`
+              : "Adjust the commission amount for this job."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={(e) => void saveAdjustment(e)} className="space-y-4 pt-2">
+          <label className="block text-xs font-semibold text-muted-foreground">
+            Change
+            <select
+              className={fieldClass}
+              value={adjMode}
+              onChange={(e) => {
+                setAdjMode(e.target.value as "ADD" | "TAKE");
+                freshAdjId();
+              }}
+            >
+              <option value="ADD">Add to the commission</option>
+              <option value="TAKE">Take off the commission</option>
+            </select>
+          </label>
+
+          <label className="block text-xs font-semibold text-muted-foreground">
+            Amount (pesos)
+            <input
+              className={fieldClass}
+              value={adjAmount}
+              onChange={(e) => {
+                setAdjAmount(e.target.value);
+                freshAdjId();
+              }}
+              inputMode="decimal"
+              placeholder="e.g. 200"
+              required
+              autoComplete="off"
+            />
+          </label>
+
+          <label className="block text-xs font-semibold text-muted-foreground">
+            Reason
+            <input
+              className={fieldClass}
+              value={adjReason}
+              onChange={(e) => {
+                setAdjReason(e.target.value);
+                freshAdjId();
+              }}
+              placeholder="e.g. Chemical allowance adjustment"
+              maxLength={200}
+              required
+              autoComplete="off"
+            />
+          </label>
+
+          {adjProblem && (
+            <p role="alert" className="text-xs text-rose-400 font-medium">
+              {adjProblem}
+            </p>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                setAdjusting(null);
+                setAdjProblem(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="gold" disabled={busy}>
+              {busy ? "Saving..." : "Save adjustment"}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+    </div>
   );
 }

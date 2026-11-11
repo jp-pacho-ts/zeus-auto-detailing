@@ -9,6 +9,8 @@ export class AdminRequestError extends Error {
     public readonly detail: Partial<AdminError>,
   ) {
     super(detail.message ?? "The shop server is unavailable. Please retry.");
+    Object.setPrototypeOf(this, AdminRequestError.prototype);
+    this.name = "AdminRequestError";
     this.currentBooking = detail.currentBooking ?? null;
     this.fieldErrors = detail.fieldErrors ?? {};
     this.commitState = detail.commitState ?? "UNKNOWN";

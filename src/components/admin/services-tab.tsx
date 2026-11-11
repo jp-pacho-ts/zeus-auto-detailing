@@ -249,11 +249,12 @@ export function ServicesTab({ role }: ServicesTabProps) {
       setEditService(null);
       resource.reload();
     } catch (err) {
-      if (err instanceof AdminRequestError && err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
-        const detail = Object.entries(err.fieldErrors)
+      const fieldErrors = (err && typeof err === "object" && "fieldErrors" in err) ? (err as AdminRequestError).fieldErrors : {};
+      if (fieldErrors && Object.keys(fieldErrors).length > 0) {
+        const detail = Object.entries(fieldErrors)
           .map(([f, msgs]) => `${f}: ${msgs.join(", ")}`)
           .join("; ");
-        setEditError(detail ? `${err.message} (${detail})` : err.message);
+        setEditError(detail ? `${err instanceof Error ? err.message : "Validation error"} (${detail})` : (err instanceof Error ? err.message : "Validation error"));
       } else {
         setEditError(err instanceof Error ? err.message : "Failed to update service");
       }
@@ -327,11 +328,12 @@ export function ServicesTab({ role }: ServicesTabProps) {
       setCreateOpen(false);
       resource.reload();
     } catch (err) {
-      if (err instanceof AdminRequestError && err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
-        const detail = Object.entries(err.fieldErrors)
+      const fieldErrors = (err && typeof err === "object" && "fieldErrors" in err) ? (err as AdminRequestError).fieldErrors : {};
+      if (fieldErrors && Object.keys(fieldErrors).length > 0) {
+        const detail = Object.entries(fieldErrors)
           .map(([f, msgs]) => `${f}: ${msgs.join(", ")}`)
           .join("; ");
-        setCreateError(detail ? `${err.message} (${detail})` : err.message);
+        setCreateError(detail ? `${err instanceof Error ? err.message : "Validation error"} (${detail})` : (err instanceof Error ? err.message : "Validation error"));
       } else {
         setCreateError(err instanceof Error ? err.message : "Failed to create service");
       }
