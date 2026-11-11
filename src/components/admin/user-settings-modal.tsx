@@ -16,7 +16,6 @@ import {
   AlertCircle,
   Loader2,
   Clock,
-  Check,
 } from "lucide-react";
 import type { StaffSessionView } from "@/server/auth/types";
 import { adminRequest, AdminRequestError } from "./bookings/client";
@@ -24,7 +23,6 @@ import {
   type AdminThemeMode,
   THEME_STORAGE_KEY,
   AUDIO_NOTIFICATION_KEY,
-  THEME_OPTIONS,
   validatePasswordInput,
   formatTimeRemaining,
   resolveEffectiveTheme,
@@ -34,7 +32,9 @@ interface UserSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   staff: StaffSessionView;
-  initialTab?: "profile" | "appearance" | "security";
+  initialTab?: "profile" | "security";
+  currentTheme?: AdminThemeMode;
+  onThemeChange?: (mode: AdminThemeMode) => void;
 }
 
 /**
@@ -90,8 +90,10 @@ export function UserSettingsModal({
   onClose,
   staff,
   initialTab = "profile",
+  currentTheme,
+  onThemeChange,
 }: UserSettingsModalProps) {
-  const [selectedTab, setSelectedTab] = React.useState<"profile" | "appearance" | "security" | null>(null);
+  const [selectedTab, setSelectedTab] = React.useState<"profile" | "security" | null>(null);
   const activeTab = selectedTab ?? initialTab;
 
   const handleClose = () => {
@@ -100,7 +102,7 @@ export function UserSettingsModal({
   };
 
   // Theme state
-  const [themeMode, setThemeMode] = React.useState<AdminThemeMode>(() => {
+  const [internalThemeMode, setInternalThemeMode] = React.useState<AdminThemeMode>(() => {
     if (typeof window === "undefined") return "dark";
     try {
       return (localStorage.getItem(THEME_STORAGE_KEY) as AdminThemeMode) || "dark";
@@ -108,6 +110,8 @@ export function UserSettingsModal({
       return "dark";
     }
   });
+
+  const themeMode = currentTheme ?? internalThemeMode;
 
   // Sound notification preference
   const [soundEnabled, setSoundEnabled] = React.useState<boolean>(() => {
@@ -129,8 +133,12 @@ export function UserSettingsModal({
   const [passwordSuccess, setPasswordSuccess] = React.useState(false);
 
   const handleThemeChange = (mode: AdminThemeMode) => {
-    setThemeMode(mode);
-    applyAdminTheme(mode);
+    setInternalThemeMode(mode);
+    if (onThemeChange) {
+      onThemeChange(mode);
+    } else {
+      applyAdminTheme(mode);
+    }
   };
 
   const handleSoundToggle = (enabled: boolean) => {
@@ -186,9 +194,9 @@ export function UserSettingsModal({
       aria-labelledby="user-settings-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
     >
-      <div className="relative flex w-full max-w-2xl flex-col rounded-2xl border border-border bg-[#121214] shadow-2xl overflow-hidden">
+      <div className="relative flex w-full max-w-xl flex-col rounded-2xl border border-border bg-white dark:bg-[#121214] shadow-2xl overflow-hidden">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-[#18181b]/50">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-stone-50 dark:bg-[#18181b]/50">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary">
               <User className="h-5 w-5" />
@@ -205,7 +213,7 @@ export function UserSettingsModal({
           <button
             type="button"
             onClick={handleClose}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-stone-100 dark:hover:bg-white/5 hover:text-foreground transition-colors"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -213,7 +221,7 @@ export function UserSettingsModal({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-border bg-[#0e0e10] px-6">
+        <div className="flex border-b border-border bg-stone-100/60 dark:bg-[#0e0e10] px-6">
           <button
             type="button"
             onClick={() => setSelectedTab("profile")}
@@ -224,19 +232,7 @@ export function UserSettingsModal({
             }`}
           >
             <User className="h-3.5 w-3.5" />
-            <span>Profile & Session</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedTab("appearance")}
-            className={`flex min-h-[44px] items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors ${
-              activeTab === "appearance"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Palette className="h-3.5 w-3.5" />
-            <span>Appearance & Theme</span>
+            <span>Profile & Preferences</span>
           </button>
           <button
             type="button"
@@ -254,11 +250,11 @@ export function UserSettingsModal({
 
         {/* Modal Body */}
         <div className="p-6 max-h-[70vh] overflow-y-auto">
-          {/* TAB 1: Profile & Session */}
+          {/* TAB 1: Profile & Preferences */}
           {activeTab === "profile" && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* User Identity Card */}
-              <div className="flex items-center gap-4 rounded-xl border border-border bg-[#18181b] p-4">
+              <div className="flex items-center gap-4 rounded-xl border border-border bg-stone-50 dark:bg-[#18181b] p-4">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary font-bold text-lg border border-primary/30">
                   {staff.displayName
                     .split(" ")
@@ -282,34 +278,72 @@ export function UserSettingsModal({
                 </div>
               </div>
 
-              {/* Session Information */}
-              <div className="rounded-xl border border-border bg-[#18181b] p-4 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider">
-                  <Clock className="h-3.5 w-3.5 text-primary" />
-                  <span>Session Lifetime</span>
+              {/* Theme & Display Preference */}
+              <div className="rounded-xl border border-border bg-stone-50 dark:bg-[#18181b] p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-4 w-4 text-primary" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground">Theme & Display</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Select interface contrast. Synchronized across this browser and header toggle.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div className="rounded-lg bg-[#121214] p-3 border border-border/60">
-                    <p className="text-[11px] text-muted-foreground">Idle Expiration</p>
-                    <p className="mt-1 font-semibold text-foreground">
-                      {formatTimeRemaining(staff.idleExpiresAt)} of inactivity
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-[#121214] p-3 border border-border/60">
-                    <p className="text-[11px] text-muted-foreground">Absolute Session Expiration</p>
-                    <p className="mt-1 font-semibold text-foreground">
-                      {formatTimeRemaining(staff.expiresAt)} remaining
-                    </p>
-                  </div>
+
+                <div role="radiogroup" aria-label="Theme mode" className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-stone-100 dark:bg-[#121214] p-1">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={themeMode === "dark"}
+                    onClick={() => handleThemeChange("dark")}
+                    className={`flex min-h-[38px] items-center justify-center gap-2 rounded-lg text-xs font-semibold transition-all ${
+                      themeMode === "dark"
+                        ? "bg-white text-stone-900 shadow-xs dark:bg-zinc-800 dark:text-foreground"
+                        : "text-stone-600 dark:text-muted-foreground hover:text-stone-900 dark:hover:text-foreground"
+                    }`}
+                  >
+                    <Moon className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Dark</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={themeMode === "light"}
+                    onClick={() => handleThemeChange("light")}
+                    className={`flex min-h-[38px] items-center justify-center gap-2 rounded-lg text-xs font-semibold transition-all ${
+                      themeMode === "light"
+                        ? "bg-white text-stone-900 shadow-xs dark:bg-zinc-800 dark:text-foreground"
+                        : "text-stone-600 dark:text-muted-foreground hover:text-stone-900 dark:hover:text-foreground"
+                    }`}
+                  >
+                    <Sun className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Light</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={themeMode === "system"}
+                    onClick={() => handleThemeChange("system")}
+                    className={`flex min-h-[38px] items-center justify-center gap-2 rounded-lg text-xs font-semibold transition-all ${
+                      themeMode === "system"
+                        ? "bg-white text-stone-900 shadow-xs dark:bg-zinc-800 dark:text-foreground"
+                        : "text-stone-600 dark:text-muted-foreground hover:text-stone-900 dark:hover:text-foreground"
+                    }`}
+                  >
+                    <Monitor className="h-3.5 w-3.5 text-primary" />
+                    <span>System</span>
+                  </button>
                 </div>
               </div>
 
               {/* Sound & Notifications Preference */}
-              <div className="rounded-xl border border-border bg-[#18181b] p-4 space-y-3">
+              <div className="rounded-xl border border-border bg-stone-50 dark:bg-[#18181b] p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {soundEnabled ? (
-                      <Volume2 className="h-4 w-4 text-emerald-400" />
+                      <Volume2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     ) : (
                       <VolumeX className="h-4 w-4 text-muted-foreground" />
                     )}
@@ -325,7 +359,7 @@ export function UserSettingsModal({
                       type="button"
                       onClick={() => handleSoundToggle(!soundEnabled)}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                        soundEnabled ? "bg-primary" : "bg-zinc-700"
+                        soundEnabled ? "bg-primary" : "bg-stone-300 dark:bg-zinc-700"
                       }`}
                       aria-label="Toggle audio alerts"
                     >
@@ -347,110 +381,32 @@ export function UserSettingsModal({
                   </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* TAB 2: Appearance & Theme */}
-          {activeTab === "appearance" && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Dashboard Appearance</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Select your preferred interface contrast. Preference is remembered on this device.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                {THEME_OPTIONS.map((opt) => {
-                  const isSelected = themeMode === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => handleThemeChange(opt.id)}
-                      className={`flex flex-col justify-between rounded-xl border p-4 text-left transition-all ${
-                        isSelected
-                          ? "border-primary bg-primary/10 ring-1 ring-primary"
-                          : "border-border bg-[#18181b] hover:border-border/80 hover:bg-[#1a1a1e]"
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#121214] border border-border">
-                            {opt.id === "dark" && <Moon className="h-4 w-4 text-amber-400" />}
-                            {opt.id === "light" && <Sun className="h-4 w-4 text-amber-500" />}
-                            {opt.id === "system" && <Monitor className="h-4 w-4 text-primary" />}
-                          </div>
-                          {isSelected && (
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-black">
-                              <Check className="h-3 w-3 stroke-[3]" />
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-3 text-xs font-bold text-foreground">{opt.title}</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                          {opt.description}
-                        </p>
-                      </div>
-                      {opt.badge && (
-                        <div className="mt-3">
-                          <span className="inline-block rounded bg-primary/20 px-1.5 py-0.5 text-[9px] font-bold text-primary">
-                            {opt.badge}
-                          </span>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Live Preview Card */}
-              <div className="mt-6 rounded-xl border border-border bg-[#18181b] p-4">
-                <p className="text-xs font-bold text-foreground">Theme Palette Preview</p>
-                {themeMode === "light" ? (
-                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                    <div className="rounded-lg bg-[#f8f9fa] p-2.5 border border-zinc-200 text-center shadow-xs">
-                      <span className="block text-zinc-800 font-mono font-bold">#f8f9fa</span>
-                      <span className="text-[10px] text-zinc-500">Daylight Canvas</span>
-                    </div>
-                    <div className="rounded-lg bg-[#ffffff] p-2.5 border border-zinc-200 text-center shadow-xs">
-                      <span className="block text-zinc-900 font-mono font-bold">#ffffff</span>
-                      <span className="text-[10px] text-zinc-500">Elevated Card</span>
-                    </div>
-                    <div className="rounded-lg bg-[#c08818] p-2.5 text-center text-black font-bold">
-                      <span className="block font-mono">#c08818</span>
-                      <span className="text-[10px] opacity-90">Zeus Gold</span>
-                    </div>
-                    <div className="rounded-lg bg-[#0f172a] p-2.5 text-center text-white font-bold">
-                      <span className="block font-mono">#0f172a</span>
-                      <span className="text-[10px] opacity-90">Deep Ink Text</span>
-                    </div>
+              {/* Session Information */}
+              <div className="rounded-xl border border-border bg-stone-50 dark:bg-[#18181b] p-4 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider">
+                  <Clock className="h-3.5 w-3.5 text-primary" />
+                  <span>Session Lifetime</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-lg bg-white dark:bg-[#121214] p-3 border border-border/60">
+                    <p className="text-[11px] text-muted-foreground">Idle Expiration</p>
+                    <p className="mt-1 font-semibold text-foreground">
+                      {formatTimeRemaining(staff.idleExpiresAt)} of inactivity
+                    </p>
                   </div>
-                ) : (
-                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                    <div className="rounded-lg bg-[#09090b] p-2.5 border border-zinc-800 text-center">
-                      <span className="block text-zinc-400 font-mono">#09090b</span>
-                      <span className="text-[10px] text-zinc-500">Obsidian Canvas</span>
-                    </div>
-                    <div className="rounded-lg bg-[#18181b] p-2.5 border border-zinc-800 text-center">
-                      <span className="block text-zinc-300 font-mono">#18181b</span>
-                      <span className="text-[10px] text-zinc-500">Surface Card</span>
-                    </div>
-                    <div className="rounded-lg bg-[#c08818] p-2.5 text-center text-black font-bold">
-                      <span className="block font-mono">#c08818</span>
-                      <span className="text-[10px] opacity-80">Zeus Gold</span>
-                    </div>
-                    <div className="rounded-lg bg-[#10b981] p-2.5 text-center text-black font-bold">
-                      <span className="block font-mono">#10b981</span>
-                      <span className="text-[10px] opacity-80">Emerald Status</span>
-                    </div>
+                  <div className="rounded-lg bg-white dark:bg-[#121214] p-3 border border-border/60">
+                    <p className="text-[11px] text-muted-foreground">Absolute Session Expiration</p>
+                    <p className="mt-1 font-semibold text-foreground">
+                      {formatTimeRemaining(staff.expiresAt)} remaining
+                    </p>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           )}
 
-          {/* TAB 3: Security & Credentials */}
+          {/* TAB 2: Security & Credentials */}
           {activeTab === "security" && (
             <div className="space-y-4">
               <div>
@@ -490,7 +446,7 @@ export function UserSettingsModal({
                       autoComplete="current-password"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="mt-1.5 w-full rounded-lg border border-border bg-[#18181b] px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-white dark:bg-[#18181b] px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
                       placeholder="Enter current password"
                       required
                     />
@@ -509,7 +465,7 @@ export function UserSettingsModal({
                       autoComplete="new-password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="mt-1.5 w-full rounded-lg border border-border bg-[#18181b] px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-white dark:bg-[#18181b] px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
                       placeholder="Minimum 15 characters"
                       required
                     />
@@ -531,7 +487,7 @@ export function UserSettingsModal({
                       autoComplete="new-password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="mt-1.5 w-full rounded-lg border border-border bg-[#18181b] px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-white dark:bg-[#18181b] px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
                       placeholder="Re-enter new password"
                       required
                     />
@@ -563,11 +519,11 @@ export function UserSettingsModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-end border-t border-border px-6 py-3.5 bg-[#18181b]/50">
+        <div className="flex items-center justify-end border-t border-border px-6 py-3.5 bg-stone-50 dark:bg-[#18181b]/50">
           <button
             type="button"
             onClick={handleClose}
-            className="min-h-[44px] rounded-lg border border-border bg-[#121214] px-4 py-2 text-xs font-semibold text-foreground hover:bg-[#18181b] transition-colors"
+            className="min-h-[44px] rounded-lg border border-border bg-white dark:bg-[#121214] px-4 py-2 text-xs font-semibold text-foreground hover:bg-stone-50 dark:hover:bg-[#18181b] transition-colors"
           >
             Close
           </button>

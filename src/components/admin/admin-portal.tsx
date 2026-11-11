@@ -42,7 +42,7 @@ import { AnalyticsTab } from "./analytics-tab";
 import { SettingsTab } from "./settings-tab";
 import { UsersTab } from "./users-tab";
 import { UserSettingsModal, applyAdminTheme } from "./user-settings-modal";
-import { THEME_STORAGE_KEY, type AdminThemeMode } from "./user-settings/user-settings-model";
+import { THEME_STORAGE_KEY, type AdminThemeMode, resolveEffectiveTheme } from "./user-settings/user-settings-model";
 import { NotificationPopover } from "./notifications/notification-popover";
 import { MAINTENANCE_BANNER } from "./settings/settings-model";
 import { useKeptResource } from "./team/use-kept-resource";
@@ -121,7 +121,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const [signingOut, setSigningOut] = React.useState(false),
     [logoutError, setLogoutError] = React.useState<string | null>(null);
   const [userSettingsOpen, setUserSettingsOpen] = React.useState(false);
-  const [userSettingsTab, setUserSettingsTab] = React.useState<"profile" | "appearance" | "security">("profile");
+  const [userSettingsTab, setUserSettingsTab] = React.useState<"profile" | "security">("profile");
 
   const [currentTheme, setCurrentTheme] = React.useState<AdminThemeMode>(() => {
     if (typeof window === "undefined") return "dark";
@@ -132,10 +132,16 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
     }
   });
 
-  const toggleTheme = () => {
-    const next: AdminThemeMode = currentTheme === "dark" ? "light" : "dark";
+  const handleThemeChange = (next: AdminThemeMode) => {
     setCurrentTheme(next);
     applyAdminTheme(next);
+  };
+
+  const toggleTheme = () => {
+    const systemPrefersDark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const effective = resolveEffectiveTheme(currentTheme, systemPrefersDark);
+    const next: AdminThemeMode = effective === "dark" ? "light" : "dark";
+    handleThemeChange(next);
   };
 
   React.useEffect(() => {
@@ -594,12 +600,12 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               <button
                 type="button"
                 onClick={toggleTheme}
-                aria-label={currentTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-                title={currentTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-[#18181b] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label={currentTheme === "dark" ? "Switch to light theme" : currentTheme === "light" ? "Switch to dark theme" : "Toggle theme (System active)"}
+                title={currentTheme === "dark" ? "Switch to light theme" : currentTheme === "light" ? "Switch to dark theme" : "Theme: System (Click to toggle)"}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white dark:bg-[#18181b] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-stone-50 dark:hover:bg-zinc-800 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
               >
-                {currentTheme === "dark" ? (
-                  <Sun className="h-4 w-4 text-amber-400" aria-hidden="true" />
+                {resolveEffectiveTheme(currentTheme, typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches) === "dark" ? (
+                  <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" aria-hidden="true" />
                 ) : (
                   <Moon className="h-4 w-4 text-primary" aria-hidden="true" />
                 )}
@@ -761,6 +767,8 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         onClose={() => setUserSettingsOpen(false)}
         staff={staff}
         initialTab={userSettingsTab}
+        currentTheme={currentTheme}
+        onThemeChange={handleThemeChange}
       />
     </div>
     </LazyMotion>
