@@ -70,15 +70,10 @@ async function worker(
         "Choose an active staff member from the Team list.",
       );
     if (remove) {
-      if (b.status === "COMPLETED") {
-        return conflict(
-          tx,
-          "BOOKING_NOT_MANAGEABLE",
-          bookingId,
-          "Completed history stays assigned.",
-        );
-      }
       await takeOff(tx, actor, bookingId, targetStaffId, v.expectedRevision);
+      if (b.status === "COMPLETED") {
+        await tx.$executeRaw`SELECT public.commission_accrue(${bookingId})`;
+      }
       return { booking: await detailOrThrow(tx, bookingId), noChange: false };
     }
     await bump(tx, bookingId, v.expectedRevision);
@@ -105,11 +100,7 @@ async function worker(
       toRevision: v.expectedRevision + 1,
     });
     if (b.status === "COMPLETED") {
-      try {
-        await tx.$executeRaw`SELECT public.commission_accrue(${bookingId})`;
-      } catch {
-        // Commission accrual is advisory; do not fail worker assignment if already accrued or finalized
-      }
+      await tx.$executeRaw`SELECT public.commission_accrue(${bookingId})`;
     }
     return { booking: await detailOrThrow(tx, bookingId), noChange: false };
   });
