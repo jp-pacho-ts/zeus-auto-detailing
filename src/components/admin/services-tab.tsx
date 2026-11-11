@@ -13,6 +13,9 @@ import {
   Power,
   Percent,
   Ban,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
 } from "lucide-react";
 import type {
   AdminServiceList,
@@ -71,7 +74,12 @@ export function ServicesTab({ role }: ServicesTabProps) {
   const services = data?.services ?? [];
 
   const [selectedCategory, setSelectedCategory] = React.useState<string>("ALL");
+  const [selectedStatus, setSelectedStatus] = React.useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(10);
 
   // Edit modal state
   const [editService, setEditService] = React.useState<AdminServiceItem | null>(null);
@@ -360,12 +368,20 @@ export function ServicesTab({ role }: ServicesTabProps) {
 
   const filteredServices = services.filter((s) => {
     if (selectedCategory !== "ALL" && s.category !== selectedCategory) return false;
+    if (selectedStatus === "ACTIVE" && !s.isActive) return false;
+    if (selectedStatus === "INACTIVE" && s.isActive) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return s.name.toLowerCase().includes(q) || (s.description ?? "").toLowerCase().includes(q);
     }
     return true;
   });
+
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(filteredServices.length / pageSize));
+  const currentPageSafe = Math.min(currentPage, totalPages);
+  const startIndex = (currentPageSafe - 1) * pageSize;
+  const paginatedServices = filteredServices.slice(startIndex, startIndex + pageSize);
 
   const discountedCount = services.filter((s) =>
     s.offers.some((o) => o.compareAtCentavos && o.unitPriceCentavos && o.compareAtCentavos > o.unitPriceCentavos)
@@ -416,15 +432,18 @@ export function ServicesTab({ role }: ServicesTabProps) {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col gap-3 rounded border border-border bg-[#141416] p-4 lg:flex-row lg:items-center lg:justify-between">
-        {/* Category Pills */}
-        <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-[#141416] p-4 lg:flex-row lg:items-center lg:justify-between shadow-sm">
+        {/* Category Pills & Status Filter */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setSelectedCategory("ALL")}
-            className={`min-h-[36px] rounded px-3 py-1.5 text-xs font-semibold transition-colors ${
+            onClick={() => {
+              setSelectedCategory("ALL");
+              setCurrentPage(1);
+            }}
+            className={`min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
               selectedCategory === "ALL"
-                ? "bg-primary text-primary-foreground"
+                ? "bg-primary text-primary-foreground shadow-sm"
                 : "border border-border text-muted-foreground hover:bg-[#1a1a1e] hover:text-foreground"
             }`}
           >
@@ -437,10 +456,13 @@ export function ServicesTab({ role }: ServicesTabProps) {
               <button
                 type="button"
                 key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`min-h-[36px] rounded px-3 py-1.5 text-xs font-semibold transition-colors ${
+                onClick={() => {
+                  setSelectedCategory(cat);
+                  setCurrentPage(1);
+                }}
+                className={`min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                   active
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary text-primary-foreground shadow-sm"
                     : "border border-border text-muted-foreground hover:bg-[#1a1a1e] hover:text-foreground"
                 }`}
               >
@@ -448,18 +470,50 @@ export function ServicesTab({ role }: ServicesTabProps) {
               </button>
             );
           })}
+
+          <div className="flex items-center gap-1.5 rounded-lg border border-border bg-[#1a1a1e] px-2.5 py-1.5 text-xs text-muted-foreground ml-1">
+            <Filter className="h-3 w-3" />
+            <span>Status:</span>
+            <select
+              value={selectedStatus}
+              onChange={(e) => {
+                setSelectedStatus(e.target.value as "ALL" | "ACTIVE" | "INACTIVE");
+                setCurrentPage(1);
+              }}
+              className="bg-transparent text-xs text-foreground focus:outline-none"
+            >
+              <option value="ALL">All Status</option>
+              <option value="ACTIVE">Active Online Only</option>
+              <option value="INACTIVE">Hidden Only</option>
+            </select>
+          </div>
         </div>
 
         {/* Search Input */}
-        <div className="relative min-w-[240px]">
+        <div className="relative min-w-[260px]">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Search service name or desc..."
-            className="w-full rounded border border-border bg-[#18181b] py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-lg border border-border bg-[#18181b] py-2 pl-9 pr-8 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                setCurrentPage(1);
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -482,7 +536,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
       )}
 
       <div className="space-y-4">
-        {filteredServices.map((svc) => {
+        {paginatedServices.map((svc) => {
           const hasDiscount = svc.offers.some(
             (o) => o.compareAtCentavos && o.unitPriceCentavos && o.compareAtCentavos > o.unitPriceCentavos
           );
@@ -652,6 +706,62 @@ export function ServicesTab({ role }: ServicesTabProps) {
           );
         })}
       </div>
+
+      {/* Pagination Bar */}
+      {filteredServices.length > 0 && (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-[#141416] p-4 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground shadow-sm">
+          <div className="flex items-center gap-2">
+            <span>
+              Showing <strong className="text-foreground">{startIndex + 1}</strong> to{" "}
+              <strong className="text-foreground">
+                {Math.min(startIndex + pageSize, filteredServices.length)}
+              </strong>{" "}
+              of <strong className="text-foreground">{filteredServices.length}</strong> services
+            </span>
+            <span className="text-zinc-600">·</span>
+            <div className="flex items-center gap-1">
+              <span>Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="rounded border border-border bg-[#1a1a1e] px-1.5 py-0.5 text-xs text-foreground focus:outline-none"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPageSafe <= 1}
+              className="inline-flex h-8 items-center gap-1 rounded border border-border bg-[#1a1a1e] px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span>Prev</span>
+            </button>
+            <div className="px-2 text-xs font-medium text-foreground">
+              Page {currentPageSafe} of {totalPages}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPageSafe >= totalPages}
+              className="inline-flex h-8 items-center gap-1 rounded border border-border bg-[#1a1a1e] px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Edit Service & Pricing Modal */}
       {editService && (
