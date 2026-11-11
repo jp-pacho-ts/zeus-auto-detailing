@@ -281,16 +281,16 @@ export function PayrollPanel({
                 </h2>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                <span className="rounded bg-stone-100 dark:bg-zinc-800 border border-stone-200 dark:border-border/80 text-stone-700 dark:text-muted-foreground px-2.5 py-1 text-xs font-semibold">
                   {team
                     ? `${team.people.filter((p) => p.isActive).length} staff`
                     : `${data.totals.totalStaff} staff`}
                 </span>
-                <span className="rounded bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-xs font-semibold text-emerald-400">
+                <span className="rounded bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                   {data.totals.paidCount} Paid
                 </span>
                 {data.totals.unpaidCount > 0 && (
-                  <span className="rounded bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 text-xs font-semibold text-amber-400">
+                  <span className="rounded bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
                     {data.totals.unpaidCount} Unpaid
                   </span>
                 )}
@@ -351,12 +351,12 @@ export function PayrollPanel({
                 return (
                   <div
                     key={item.staffId}
-                    className="rounded-xl border border-border/80 bg-[#121214] p-4 transition-all hover:border-border sm:p-5"
+                    className="rounded-xl border border-border/80 bg-white dark:bg-[#121214] p-4 transition-all hover:border-border sm:p-5"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       {/* Staff Identity */}
                       <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/80 bg-zinc-800 text-sm font-bold text-foreground">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:border-border/80 dark:bg-zinc-800 dark:text-foreground text-sm font-bold">
                           {getInitials(item.staffName)}
                         </div>
                         <div>
@@ -385,7 +385,7 @@ export function PayrollPanel({
                       {/* Financial Metrics Strip */}
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:flex lg:items-center lg:gap-6">
                         {/* Attendance & Base Pay */}
-                        <div className="rounded-lg border border-border/60 bg-[#161618] p-3 text-left">
+                        <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-[#161618] p-3 text-left">
                           <p className="text-[11px] font-medium text-muted-foreground">
                             Base ({item.daysWorked}/6 days)
                           </p>
@@ -399,7 +399,7 @@ export function PayrollPanel({
                               onClick={() =>
                                 handleAdjustAbsence(item.staffId, item.daysAbsent, 1)
                               }
-                              className={`flex h-6 items-center gap-0.5 rounded border border-border/80 bg-zinc-800 px-1.5 text-[10px] font-medium text-rose-300 hover:bg-rose-500/20 disabled:opacity-40 ${FOCUS}`}
+                              className={`flex h-6 items-center gap-0.5 rounded border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-border/80 dark:bg-zinc-800 dark:text-rose-300 dark:hover:bg-rose-500/20 px-1.5 text-[10px] font-medium disabled:opacity-40 ${FOCUS}`}
                               title="Mark 1 day absent (−₱200)"
                             >
                               <Minus className="h-2.5 w-2.5" />
@@ -411,7 +411,7 @@ export function PayrollPanel({
                               onClick={() =>
                                 handleAdjustAbsence(item.staffId, item.daysAbsent, -1)
                               }
-                              className={`flex h-6 items-center gap-0.5 rounded border border-border/80 bg-zinc-800 px-1.5 text-[10px] font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 ${FOCUS}`}
+                              className={`flex h-6 items-center gap-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-border/80 dark:bg-zinc-800 dark:text-emerald-300 dark:hover:bg-emerald-500/20 disabled:opacity-40 ${FOCUS}`}
                               title="Mark present (+₱200)"
                             >
                               <Plus className="h-2.5 w-2.5" />
@@ -421,11 +421,11 @@ export function PayrollPanel({
                         </div>
 
                         {/* Commissions */}
-                        <div className="rounded-lg border border-border/60 bg-[#161618] p-3 text-left">
+                        <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-[#161618] p-3 text-left">
                           <p className="text-[11px] font-medium text-muted-foreground">
                             Commissions
                           </p>
-                          <p className="mt-0.5 font-mono text-base font-bold text-amber-400">
+                          <p className="mt-0.5 font-mono text-base font-bold text-amber-600 dark:text-amber-400">
                             +{formatPesos(item.commissionEarnedCentavos)}
                           </p>
                           <p className="mt-1 text-[11px] text-muted-foreground">
@@ -434,7 +434,7 @@ export function PayrollPanel({
                         </div>
 
                         {/* Cash Advance */}
-                        <div className="rounded-lg border border-border/60 bg-[#161618] p-3 text-left">
+                        <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-[#161618] p-3 text-left">
                           <p className="text-[11px] font-medium text-muted-foreground">
                             Cash Advance (Bale)
                           </p>

@@ -111,8 +111,8 @@ export function BookingCalendar({ role }: { role: UserRole }) {
       <LoadState loading={calendar.loading} error={calendar.error} retry={calendar.reload} />
 
       {view === "MONTH" ? (
-        <div className="rounded border border-border bg-[#121214] p-2 sm:p-3">
-          <div className="grid grid-cols-7 gap-1 pb-1 text-center text-[11px] font-semibold text-muted-foreground" aria-hidden="true">
+        <div className="rounded-xl border border-border bg-white dark:bg-[#121214] p-2 sm:p-3 shadow-xs">
+          <div className="grid grid-cols-7 gap-1 pb-1 text-center text-[11px] font-bold text-stone-700 dark:text-muted-foreground" aria-hidden="true">
             {WEEKDAYS.map((w) => (
               <span key={w}>{w}</span>
             ))}
@@ -130,23 +130,25 @@ export function BookingCalendar({ role }: { role: UserRole }) {
                     setDay(date);
                     setBooking(null);
                   }}
-                  className={`flex min-h-[56px] min-w-0 flex-col items-start gap-1 rounded border p-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:min-h-[84px] sm:p-2 ${
-                    day === date ? "border-primary bg-primary/10" : "border-border bg-[#18181b] hover:border-zinc-600"
-                  } ${inMonth && !past ? "" : "opacity-50"}`}
+                  className={`flex min-h-[56px] min-w-0 flex-col items-start gap-1 rounded-lg border p-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:min-h-[84px] sm:p-2 transition-colors ${
+                    day === date
+                      ? "border-primary bg-amber-500/10 dark:bg-primary/10"
+                      : "border-border bg-white dark:bg-[#18181b] hover:border-zinc-400 dark:hover:border-zinc-600 hover:bg-stone-50 dark:hover:bg-[#202024]"
+                  } ${inMonth && !past ? "" : "opacity-60 bg-stone-50 dark:bg-[#121214]"}`}
                 >
-                  <span className={`text-xs ${date === today ? "rounded bg-primary px-1 font-bold text-primary-foreground" : "font-semibold"}`}>
+                  <span className={`text-xs ${date === today ? "rounded bg-primary px-1 font-bold text-black" : "font-bold text-stone-900 dark:text-foreground"}`}>
                     {Number(date.slice(8))}
                   </span>
-                  {info && info.total > 0 && <span className="text-sm font-bold tabular-nums sm:text-base">{info.total}</span>}
+                  {info && info.total > 0 && <span className="text-sm font-bold tabular-nums sm:text-base text-stone-900 dark:text-foreground">{info.total}</span>}
                   {info && <Dots info={info} />}
-                  {info?.closed && <span className="hidden text-[10px] text-muted-foreground sm:block">Closed</span>}
+                  {info?.closed && <span className="hidden text-[10px] text-stone-500 dark:text-muted-foreground font-medium sm:block">Closed</span>}
                 </button>
               );
             })}
           </div>
         </div>
       ) : (
-        <ul className="divide-y divide-border rounded border border-border bg-[#121214]">
+        <ul className="divide-y divide-border rounded border border-border bg-white dark:bg-[#121214]">
           {weeks[0].map((date) => {
             const info = byDate.get(date);
             return (
@@ -184,7 +186,7 @@ export function BookingCalendar({ role }: { role: UserRole }) {
       </p>
 
       {day && (
-        <section aria-label={"Bookings on " + longDay(day)} className="space-y-3 rounded border border-border bg-[#121214] p-4">
+        <section aria-label={"Bookings on " + longDay(day)} className="space-y-3 rounded border border-border bg-white dark:bg-[#121214] p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-bold">{longDay(day)}</h3>
             <Button variant="outline" disabled={dayView.loading} onClick={() => void dayView.reload()}>
@@ -192,7 +194,7 @@ export function BookingCalendar({ role }: { role: UserRole }) {
             </Button>
           </div>
           <LoadState loading={dayView.loading} error={dayView.error} retry={dayView.reload} />
-          {dayView.data?.closed && <p className="text-sm text-amber-400">Shop closed · {dayView.data.closed.reason}</p>}
+          {dayView.data?.closed && <p className="text-sm text-amber-600 dark:text-amber-400">Shop closed · {dayView.data.closed.reason}</p>}
           {dayView.data && dayBookings.length === 0 && <p className="text-sm text-muted-foreground">No bookings on this day.</p>}
           <ul className="space-y-2">
             {dayBookings.map((b) => (
@@ -200,7 +202,7 @@ export function BookingCalendar({ role }: { role: UserRole }) {
                 <button
                   type="button"
                   onClick={() => setBooking(b.id)}
-                  className="flex min-h-[44px] w-full flex-wrap items-start justify-between gap-2 rounded border border-border p-3 text-left text-sm hover:bg-[#18181b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  className="flex min-h-[44px] w-full flex-wrap items-start justify-between gap-2 rounded border border-border p-3 text-left text-sm hover:bg-stone-50 dark:hover:bg-[#18181b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <span className="min-w-0">
                     <span className="block break-all font-mono font-bold text-primary">{b.referenceCode}</span>

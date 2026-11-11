@@ -546,7 +546,7 @@ function BookingsList({
                         setSearchMode("SEARCH");
                         applySearchPreset(p);
                       }}
-                      className="rounded border border-border bg-[#18181b] px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-[#202024] hover:text-foreground transition-colors"
+                      className="rounded border border-border bg-white dark:bg-[#18181b] px-2.5 py-1 text-xs font-semibold text-stone-700 dark:text-muted-foreground hover:bg-stone-50 dark:hover:bg-[#202024] hover:text-stone-900 dark:hover:text-foreground transition-colors"
                     >
                       {label}
                     </button>
@@ -555,14 +555,14 @@ function BookingsList({
 
                 {/* Mode Toggle for Admins */}
                 {role === "ADMIN" && (
-                  <div className="flex items-center rounded-lg border border-border bg-[#18181b] p-0.5 ml-1">
+                  <div className="flex items-center rounded-lg border border-border bg-stone-100 dark:bg-[#18181b] p-0.5 ml-1">
                     <button
                       type="button"
                       onClick={() => setSearchMode("SEARCH")}
                       className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
                         searchMode === "SEARCH"
-                          ? "bg-zinc-800 text-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground"
+                          ? "bg-white text-stone-900 shadow-xs dark:bg-zinc-800 dark:text-foreground"
+                          : "text-stone-600 dark:text-muted-foreground hover:text-stone-900 dark:hover:text-foreground"
                       }`}
                     >
                       Search bookings
@@ -572,8 +572,8 @@ function BookingsList({
                       onClick={() => setSearchMode("HISTORY")}
                       className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
                         searchMode === "HISTORY"
-                          ? "bg-zinc-800 text-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground"
+                          ? "bg-white text-stone-900 shadow-xs dark:bg-zinc-800 dark:text-foreground"
+                          : "text-stone-600 dark:text-muted-foreground hover:text-stone-900 dark:hover:text-foreground"
                       }`}
                     >
                       History

@@ -576,18 +576,18 @@ export function ServicesTab({ role }: ServicesTabProps) {
                       {svc.isActive ? "Active Online" : "Hidden"}
                     </span>
                     {svc.commissionRateBp === 0 ? (
-                      <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-800/80 px-2 py-0.5 text-[10px] font-bold text-zinc-400">
-                        <Ban className="h-2.5 w-2.5 text-zinc-400" />
+                      <span className="inline-flex items-center gap-1 rounded border border-stone-300 bg-stone-100 text-stone-700 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-400 px-2 py-0.5 text-[10px] font-bold">
+                        <Ban className="h-2.5 w-2.5 text-stone-600 dark:text-zinc-400" />
                         No Comm.
                       </span>
                     ) : svc.commissionRateBp !== null && svc.commissionRateBp !== undefined ? (
-                      <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                      <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 text-[10px] font-bold">
                         <Percent className="h-2.5 w-2.5" />
                         {svc.commissionRateBp / 100}% Comm.
                       </span>
                     ) : svc.category === "WASH" ? (
-                      <span className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900/60 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
-                        <Ban className="h-2.5 w-2.5 text-zinc-600" />
+                      <span className="inline-flex items-center gap-1 rounded border border-stone-200 bg-stone-100 text-stone-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-500 px-2 py-0.5 text-[10px] font-medium">
+                        <Ban className="h-2.5 w-2.5 text-stone-500 dark:text-zinc-600" />
                         No Comm. (Default)
                       </span>
                     ) : (

@@ -101,7 +101,7 @@ export function DashboardTab({
       {/* Two-Column Live Floor & Queue Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Live Bay Floor */}
-        <section className="rounded-lg border border-border bg-[#121214] lg:col-span-7">
+        <section className="rounded-lg border border-border bg-white dark:bg-[#121214] lg:col-span-7">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5">
             <div>
               <h2 className="text-base font-bold text-foreground">
@@ -157,19 +157,19 @@ export function DashboardTab({
                           key={bay.id}
                           className={`rounded-md border p-3 ${
                             car
-                              ? "border-primary/30 bg-[#161619] light:bg-amber-500/5 light:border-amber-500/30"
-                              : "border-border/70 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200"
+                              ? "border-amber-500/30 bg-amber-500/5 dark:bg-[#161619] dark:border-primary/30"
+                              : "border-border/70 bg-stone-50 dark:bg-[#0d0d0f]"
                           }`}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-xs font-bold text-foreground">
+                            <span className="truncate text-xs font-bold text-stone-900 dark:text-foreground">
                               {bay.name}
                             </span>
                             <span
                               className={`inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider ${
                                 car
-                                  ? "border border-amber-500/30 bg-amber-500/15 text-amber-400"
-                                  : "border border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+                                  ? "border border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                                  : "border border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                               }`}
                             >
                               {car ? "Occupied" : "Open"}
@@ -177,13 +177,13 @@ export function DashboardTab({
                           </div>
                           {car ? (
                             <div className="mt-2 space-y-1 text-xs">
-                              <p className="font-semibold text-foreground">
-                                <span className="font-mono text-primary">
+                              <p className="font-semibold text-stone-900 dark:text-foreground">
+                                <span className="font-mono text-amber-600 dark:text-primary">
                                   {car.referenceCode}
                                 </span>{" "}
                                 · {car.vehicleModel}
                               </p>
-                              <p className="truncate text-muted-foreground">
+                              <p className="truncate text-stone-600 dark:text-muted-foreground">
                                 {car.lines[0]?.name ?? "Service"}
                                 {car.lines.length > 1
                                   ? ` +${car.lines.length - 1} more`
@@ -192,7 +192,7 @@ export function DashboardTab({
                               </p>
                             </div>
                           ) : (
-                            <p className="mt-2 text-xs font-medium text-zinc-500">
+                            <p className="mt-2 text-xs font-medium text-stone-500 dark:text-zinc-500">
                               Open
                             </p>
                           )}
@@ -212,7 +212,7 @@ export function DashboardTab({
         </section>
 
         {/* Today's Priority Queue */}
-        <section className="rounded-lg border border-border bg-[#121214] lg:col-span-5">
+        <section className="rounded-lg border border-border bg-white dark:bg-[#121214] lg:col-span-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5">
             <div>
               <h2 className="text-base font-bold text-foreground">
@@ -296,7 +296,7 @@ export function DashboardTab({
 
       {/* Month-to-Date Executive Strip (Admin Only) */}
       {isAdmin && analytics.data && (
-        <section className="rounded-lg border border-border bg-[#121214] p-4">
+        <section className="rounded-lg border border-border bg-white dark:bg-[#121214] p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-base font-bold text-foreground">
@@ -317,7 +317,7 @@ export function DashboardTab({
             const mtdPos = mtdNet >= 0;
             return (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                <div className="rounded-md border border-border/80 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200 p-3.5">
+                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-[#0d0d0f] p-3.5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     Month Revenue
                   </p>
@@ -328,18 +328,18 @@ export function DashboardTab({
                     {analytics.data.finishedJobs} finished jobs
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200 p-3.5">
+                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-[#0d0d0f] p-3.5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     Est. Net Income
                   </p>
-                  <p className={`mt-1 font-mono text-lg font-bold tabular-nums ${mtdPos ? "text-emerald-400" : "text-rose-400"}`}>
+                  <p className={`mt-1 font-mono text-lg font-bold tabular-nums ${mtdPos ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                     {formatPesos(mtdNet)}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     After comms &amp; expenses
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200 p-3.5">
+                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-[#0d0d0f] p-3.5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     Average Ticket
                   </p>
@@ -352,7 +352,7 @@ export function DashboardTab({
                     {analytics.data.fullyPricedJobs} fully priced
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200 p-3.5">
+                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-[#0d0d0f] p-3.5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     Unpaid Commissions
                   </p>
@@ -363,7 +363,7 @@ export function DashboardTab({
                     Earned: {formatPesos(analytics.data.commissions.earnedCentavos)}
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-[#0d0d0f] light:bg-slate-50 light:border-slate-200 p-3.5">
+                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-[#0d0d0f] p-3.5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     Inventory Alerts
                   </p>
