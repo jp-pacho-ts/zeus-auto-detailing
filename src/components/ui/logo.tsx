@@ -25,6 +25,7 @@ export function Logo({
           width={width}
           height={height}
           priority={priority}
+          unoptimized
           className="h-auto w-auto object-contain"
           style={{ maxHeight: small ? "28px" : "36px" }}
         />
@@ -41,6 +42,7 @@ export function Logo({
           width={width}
           height={height}
           priority={priority}
+          unoptimized
           className="h-auto w-auto object-contain"
           style={{ maxHeight: small ? "28px" : "36px" }}
         />
@@ -57,6 +59,7 @@ export function Logo({
         width={width}
         height={height}
         priority={priority}
+        unoptimized
         className="h-auto w-auto object-contain block dark:hidden"
         style={{ maxHeight: small ? "28px" : "36px" }}
       />
@@ -67,6 +70,7 @@ export function Logo({
         width={width}
         height={height}
         priority={priority}
+        unoptimized
         className="h-auto w-auto object-contain hidden dark:block"
         style={{ maxHeight: small ? "28px" : "36px" }}
       />

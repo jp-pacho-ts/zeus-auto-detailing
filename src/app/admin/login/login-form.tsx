@@ -32,6 +32,9 @@ export function LoginForm({ next }: { next: string }) {
   const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
+  const [isLight] = React.useState(
+    () => typeof document !== "undefined" && document.documentElement.classList.contains("light"),
+  );
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +98,7 @@ export function LoginForm({ next }: { next: string }) {
             aria-label="Return to public site"
             className="group inline-flex min-h-[44px] items-center transition-transform hover:scale-[1.02]"
           >
-            <Logo priority mode="auto" />
+            <Logo priority mode={isLight ? "light" : "dark"} />
           </Link>
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
             <ShieldCheck className="h-3.5 w-3.5" />

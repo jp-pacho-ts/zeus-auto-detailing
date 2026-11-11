@@ -342,13 +342,15 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   const isMaintenance = Boolean(shopSettings.data?.maintenance);
 
   // P1-20: one screen tall. The sidebar (a drawer below md) and the header stay in place and
+  const isLight = resolveEffectiveTheme(currentTheme, typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches) === "light";
+
   // only #admin-content scrolls; nothing in the dashboard scrolls sideways.
   return (
     <LazyMotion features={domAnimation}>
     <div className="admin-shell fixed inset-0 flex flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row">
       <div inert={menuOpen} className="flex shrink-0 items-center justify-between border-b border-border bg-[#121214] px-4 py-2 md:hidden">
         <Link href="/" aria-label="Return to public shop site">
-          <Logo small mode="auto" />
+          <Logo small mode={isLight ? "light" : "dark"} />
         </Link>
         <button
           ref={menuButton}
@@ -389,7 +391,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               sidebarCollapsed && !menuOpen ? "md:sr-only" : ""
             }`}
           >
-            <Logo small mode="auto" />
+            <Logo small mode={isLight ? "light" : "dark"} />
           </Link>
 
           {sidebarCollapsed && !menuOpen && (
