@@ -64,6 +64,35 @@ test("detail shows 'No plate' for a blank plate", () => {
   assert.equal(carLine("Honda City", "  "), "Honda City · No plate · S");
 });
 
+// P1-68: while services are open, Mark done stays in view, disabled, with the reason; when all are done it is live.
+test("Mark done: disabled with the open-service count, then enabled once every service is done", () => {
+  const resources = require("./use-admin-resource");
+  const line = (id: string, workStatus: string, removed = false) => ({
+    id, order: 1, serviceId: "s-" + id, name: "Service " + id, kind: "BASE", unit: "VEHICLE", quantity: 1, priceStatus: "PRICED",
+    unitPriceCentavos: 100, subtotalCentavos: 100, referenceSubtotalCentavos: 100, staffPriceCentavos: null, effectivePriceCentavos: 100, workStatus, removed,
+  });
+  const render = (lines: unknown[]) => {
+    mock.method(resources, "useAdminResource", (url: string | null) => ({
+      data: url === "/api/admin/bookings/booking" ? { ...detail("Toyota Vios", "QA 101"), status: "IN_PROGRESS", lines } : null,
+      loading: false, error: null, reload: () => {}, setData: () => {},
+    }));
+    try {
+      return renderToStaticMarkup(
+        createElement(require("./booking-detail").BookingDetail, { id: "booking", role: "ADMIN", queues: [], onChanged: () => {}, onClose: () => {} }),
+      );
+    } finally {
+      mock.restoreAll();
+    }
+  };
+  const open = render([line("a", "DONE"), line("b", "WAITING"), line("c", "IN_PROGRESS"), line("d", "WAITING", true)]);
+  assert.match(open, /2 services still open/, "removed services do not count");
+  assert.match(open, /<button[^>]*disabled=""[^>]*>Mark done/);
+  const ready = render([line("a", "DONE"), line("b", "DONE")]);
+  assert.doesNotMatch(ready, /still open/);
+  assert.match(ready, />Mark done</);
+  assert.doesNotMatch(ready, /<button[^>]*disabled=""[^>]*>Mark done/);
+});
+
 // P1-18: staff see the proofs through the staff route; only ADMIN gets the decision buttons.
 function depositHtml(role: "ADMIN" | "STAFF", depositStatus: string, proofs: number) {
   const resources = require("./use-admin-resource");
@@ -135,14 +164,17 @@ test("history: customer entries read 'Customer' with no trailing separator", () 
     const html = renderToStaticMarkup(
       createElement(require("./booking-detail").BookingDetail, { id: "booking", role: "ADMIN", queues: [], onChanged: () => {}, onClose: () => {} }),
     );
-    const items = [...html.matchAll(/<li>([^<]*(?:<!-- -->[^<]*)*)<\/li>/g)].map((m) => m[1].replace(/<!-- -->/g, ""));
+    // P1-68: history is a timeline (section "History"); each entry reads action, then who and when, then the reason.
+    const section = html.match(/<section aria-label="History"[\s\S]*?<\/section>/)?.[0] ?? "";
+    const items = [...section.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) =>
+      m[1].replace(/<!-- -->/g, "").split(/<[^>]+>/).map((s) => s.trim()).filter(Boolean),
+    );
     // Readable time (Manila) and plain-word actions, no raw codes.
     const when = new Date("2026-10-21T01:00:00.000Z").toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" });
-    const lines = items.filter((s) => s.startsWith(when));
-    assert.deepEqual(lines, [
-      `${when} · Customer cancelled · Customer`,
-      `${when} · Status changed · Synthetic Admin · called ahead`,
-      `${when} · Status changed · Synthetic Admin`,
+    assert.deepEqual(items, [
+      ["Customer cancelled", `Customer · ${when}`],
+      ["Status changed", `Synthetic Admin · ${when}`, "called ahead"],
+      ["Status changed", `Synthetic Admin · ${when}`],
     ]);
     assert.doesNotMatch(html, /STATUS_CHANGED|CUSTOMER_CANCELLED|Revision \d/);
   } finally {

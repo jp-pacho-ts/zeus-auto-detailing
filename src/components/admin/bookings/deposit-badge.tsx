@@ -10,7 +10,8 @@ const LABELS: Record<DepositStatus, string> = {
 };
 const TONES: Record<DepositStatus, string> = {
   NONE: "border-border text-muted-foreground",
-  PROOF_SENT: "border-amber-500/30 bg-amber-500/15 text-amber-400",
+  // P1-68: the light theme's amber-700 override measured 4.38:1 on this fill; amber-800 passes (about 6:1).
+  PROOF_SENT: "border-amber-500/30 bg-amber-500/15 text-amber-800 dark:text-amber-400",
   RECEIVED: "border-emerald-500/30 bg-emerald-500/15 text-emerald-400",
   REJECTED: "border-rose-500/30 bg-rose-500/15 text-rose-400",
 };
