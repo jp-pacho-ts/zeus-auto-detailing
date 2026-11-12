@@ -181,7 +181,7 @@ export function NotificationPopover({
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border/60 bg-card px-4 py-2 scrollbar-none">
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-border/60 bg-card px-4 py-2">
             {(
               [
                 ["ALL", "All"],
