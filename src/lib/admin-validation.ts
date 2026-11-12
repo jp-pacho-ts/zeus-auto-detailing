@@ -464,12 +464,24 @@ export const ServiceOfferInputSchema = z
     message: "Only L and XL have a pick-up price.", path: ["pickupPriceCentavos"],
   });
 
+// Commission per car size (LE 2026-11-12): a whole percentage or a peso amount (centavos) for each size.
+const SizeCommissionSchema = z.object({
+  sizeCode: z.enum(["MOTOR", "S", "M", "L", "XL"]),
+  rateBp: z.number().int().min(0).max(10_000).nullable().optional(),
+  fixedCentavos: z.number().int().min(0).max(100_000_000).nullable().optional(),
+}).strict();
+const SizeCommissionFields = {
+  commissionMode: z.enum(["SIZE_PERCENT", "SIZE_FIXED"]).nullable().optional(),
+  sizeCommissions: z.array(SizeCommissionSchema).max(5).optional(),
+};
+
 export const ServiceUpdateSchema = z
   .object({
     name: z.string().trim().min(1, "Enter a service name.").max(120),
     description: z.string().trim().max(1000).nullable().optional().default(null),
     category: CatalogServiceKindSchema,
     commissionRatePercent: Percent.nullable().optional(),
+    ...SizeCommissionFields,
     offers: z.array(ServiceOfferInputSchema),
   })
   .strict();
@@ -482,6 +494,7 @@ export const ServiceCreateSchema = z
     type: ServiceTypeSchema.default("BASE"),
     unit: PriceUnitSchema.default("VEHICLE"),
     commissionRatePercent: Percent.nullable().optional(),
+    ...SizeCommissionFields,
     offers: z.array(ServiceOfferInputSchema),
   })
   .strict();

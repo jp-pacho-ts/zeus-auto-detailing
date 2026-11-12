@@ -116,7 +116,11 @@ BEGIN
     'admin_service_list(text)', 'admin_service_update(text, text, text, text, text, jsonb)',
     'admin_service_create(text, text, text, text, text, text, jsonb)', 'admin_service_toggle_active(text, text, boolean)',
     -- Pick-up prices (20261114000000) and the per-booking commission recalculation (20261115000000).
-    'admin_service_set_pickup_prices(text, text, jsonb)', 'admin_commission_recalculate(text, text)'
+    'admin_service_set_pickup_prices(text, text, jsonb)', 'admin_commission_recalculate(text, text)',
+    -- The service writers with the commission argument (20261112090000), which replaced the forms above.
+    'admin_service_update(text, text, text, text, text, jsonb, integer)', 'admin_service_create(text, text, text, text, text, text, jsonb, integer)',
+    -- Commission per car size (20261118000000).
+    'admin_service_set_size_commissions(text, text, text, jsonb)', 'commission_line_eligible(text, text)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);

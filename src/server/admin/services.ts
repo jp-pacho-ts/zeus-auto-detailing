@@ -17,6 +17,14 @@ const setPickupPrices = (tx: StaffTx, actor: StaffActor, serviceId: string, offe
   tx.$executeRawUnsafe("SELECT admin_service_set_pickup_prices($1, $2, $3::jsonb)", actor.staffId, serviceId,
     JSON.stringify(offers.map((o) => ({ sizeCode: o.sizeCode, pickupPriceCentavos: o.pickupPriceCentavos }))));
 
+// Same transaction: the per-size commission. Left alone when the request does not mention it.
+const setSizeCommissions = async (tx: StaffTx, actor: StaffActor, serviceId: string,
+  input: { commissionMode?: "SIZE_PERCENT" | "SIZE_FIXED" | null; sizeCommissions?: { sizeCode: string; rateBp?: number | null; fixedCentavos?: number | null }[] }) => {
+  if (input.commissionMode === undefined) return;
+  await tx.$executeRawUnsafe("SELECT admin_service_set_size_commissions($1, $2, $3, $4::jsonb)", actor.staffId, serviceId, input.commissionMode,
+    JSON.stringify(input.sizeCommissions ?? []));
+};
+
 export async function listAdminServices(
   actor: StaffActor,
   options: AdminOptions = {},
@@ -63,6 +71,7 @@ export async function updateAdminService(
           commissionBp,
         );
         await setPickupPrices(tx, actor, serviceId, input.offers);
+        await setSizeCommissions(tx, actor, serviceId, input);
         return { ok: true, serviceId };
       } catch (error) {
         const text = error instanceof Error ? error.message : "";
@@ -105,6 +114,7 @@ export async function createAdminService(
         const serviceId = rows[0]?.admin_service_create;
         if (!serviceId) throw new AdminServiceError("INTERNAL_ERROR", "Failed to create service");
         await setPickupPrices(tx, actor, serviceId, input.offers);
+        await setSizeCommissions(tx, actor, serviceId, input);
         return { ok: true, serviceId };
       } catch (error) {
         const text = error instanceof Error ? error.message : "";

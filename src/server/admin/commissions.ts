@@ -118,10 +118,10 @@ export async function listCommissions(actor: StaffActor, input: unknown, options
     const adjustmentRows = page.length === 0 ? [] : await tx.$queryRaw<AdjustmentRow[]>`
       SELECT id, "entryId", "amountCentavos", reason, "createdAt", "paidAt" FROM commission_adjustments
       WHERE "entryId" = ANY(${page.map((r) => r.id)}::text[]) ORDER BY "createdAt", id`;
-    // Which of each booking's services counted. The same function the accrual uses (commission_earns_on), so the words cannot drift
+    // Which of each booking's services counted. The same function the accrual uses (commission_line_eligible), so the words cannot drift
     // from the money. A completed booking's lines are final, so this matches what was counted at completion.
     const lineRows = page.length === 0 ? [] : await tx.$queryRaw<LineRow[]>`
-      SELECT bk."referenceCode" AS "bookingReference", l."nameSnapshot" AS name, commission_earns_on(sv.category) AS counted, sv.category::text AS category,
+      SELECT bk."referenceCode" AS "bookingReference", l."nameSnapshot" AS name, commission_line_eligible(sv.id, bk."vehicleSizeCodeSnapshot") AS counted, sv.category::text AS category,
         COALESCE(l."staffPriceCentavos", l."subtotalCentavos") AS amount
       FROM booking_line_items l JOIN services sv ON sv.id = l."serviceId" JOIN bookings bk ON bk.id = l."bookingId"
       WHERE bk."referenceCode" = ANY(${[...new Set(page.map((r) => r.bookingReference))]}::text[]) AND l."removedAt" IS NULL ORDER BY l."order", l.id`;

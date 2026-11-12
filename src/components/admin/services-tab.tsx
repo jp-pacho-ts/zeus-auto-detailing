@@ -73,6 +73,48 @@ function pickupCentavos(size: string, row: { offered: boolean; pickupPricePhp?: 
   return (size === "L" || size === "XL") && row.offered && php > 0 ? Math.round(php * 100) : null;
 }
 
+type CommissionMode = "DEFAULT" | "NONE" | "CUSTOM" | "SIZE_PERCENT" | "SIZE_FIXED";
+type SizeValues = Record<string, string>;
+const PER_SIZE: CommissionMode[] = ["SIZE_PERCENT", "SIZE_FIXED"];
+const SIZE_LABEL: Record<string, string> = { MOTOR: "Motorcycle", S: "S", M: "M", L: "L", XL: "XL" };
+// What the form sends for each commission choice (LE 2026-11-12: whole numbers; per size as % or pesos; new services start at none).
+function commissionBody(mode: CommissionMode, rate: string, sizes: SizeValues) {
+  const whole = (v: string) => Math.min(Number(v.replace(/\D/g, "") || "0"), mode === "SIZE_PERCENT" ? 100 : 1_000_000);
+  if (mode === "SIZE_PERCENT" || mode === "SIZE_FIXED")
+    return {
+      commissionRatePercent: null,
+      commissionMode: mode,
+      sizeCommissions: SIZE_ORDER.map((sizeCode) =>
+        mode === "SIZE_PERCENT" ? { sizeCode, rateBp: whole(sizes[sizeCode] ?? "") * 100 } : { sizeCode, fixedCentavos: whole(sizes[sizeCode] ?? "") * 100 }),
+    };
+  return { commissionRatePercent: mode === "NONE" ? "0" : mode === "CUSTOM" ? rate.trim() || null : null, commissionMode: null };
+}
+function SizeCommissionBoxes({ mode, values, onChange }: { mode: CommissionMode; values: SizeValues; onChange: (v: SizeValues) => void }) {
+  if (!PER_SIZE.includes(mode)) return null;
+  const percent = mode === "SIZE_PERCENT";
+  return (
+    <div className="mt-1.5 grid grid-cols-5 gap-1.5">
+      {SIZE_ORDER.map((size) => (
+        <label key={size} className="text-xs text-muted-foreground">
+          {SIZE_LABEL[size]}
+          <span className="relative mt-0.5 block">
+            {!percent && <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₱</span>}
+            <input
+              type="text"
+              inputMode="numeric"
+              value={values[size] ?? "0"}
+              onChange={(e) => onChange({ ...values, [size]: e.target.value.replace(/\D/g, "").slice(0, percent ? 3 : 7) })}
+              aria-label={`${SIZE_LABEL[size]} commission ${percent ? "percent" : "pesos"}`}
+              className={`w-full rounded border border-border bg-card py-1.5 text-xs text-foreground focus:border-primary focus:outline-none ${percent ? "px-2 pr-5" : "pl-5 pr-2"}`}
+            />
+            {percent && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>}
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export function ServicesTab({ role }: ServicesTabProps) {
   void role;
   const resource = useAdminResource<AdminServiceList>("/api/admin/services");
@@ -99,8 +141,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
     promoPricePhp: string;
     pickupPricePhp?: string; // L and XL only
   }>>({});
-  const [editCommissionMode, setEditCommissionMode] = React.useState<"DEFAULT" | "NONE" | "CUSTOM">("DEFAULT");
+  const [editCommissionMode, setEditCommissionMode] = React.useState<CommissionMode>("DEFAULT");
   const [editCommissionRate, setEditCommissionRate] = React.useState<string>("");
+  const [editSizes, setEditSizes] = React.useState<SizeValues>({});
   const [editSaving, setEditSaving] = React.useState(false);
   const [editError, setEditError] = React.useState<string | null>(null);
 
@@ -109,8 +152,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
   const [createName, setCreateName] = React.useState("");
   const [createDesc, setCreateDesc] = React.useState("");
   const [createCategory, setCreateCategory] = React.useState<CatalogServiceKind>("WASH");
-  const [createCommissionMode, setCreateCommissionMode] = React.useState<"DEFAULT" | "NONE" | "CUSTOM">("DEFAULT");
+  const [createCommissionMode, setCreateCommissionMode] = React.useState<CommissionMode>("NONE");
   const [createCommissionRate, setCreateCommissionRate] = React.useState<string>("");
+  const [createSizes, setCreateSizes] = React.useState<SizeValues>({});
   const [createType, setCreateType] = React.useState<"BASE" | "ADD_ON">("BASE");
   const [createUnit, setCreateUnit] = React.useState<PriceUnit>("VEHICLE");
   const [createOffers, setCreateOffers] = React.useState<Record<string, {
@@ -132,7 +176,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setEditDesc(svc.description ?? "");
     setEditCategory(svc.category);
     const commBp = svc.commissionRateBp;
-    let mode: "DEFAULT" | "NONE" | "CUSTOM" = "DEFAULT";
+    let mode: CommissionMode = "DEFAULT";
     let customVal = "";
     if (commBp === 0) {
       mode = "NONE";
@@ -141,8 +185,11 @@ export function ServicesTab({ role }: ServicesTabProps) {
       mode = "CUSTOM";
       customVal = String(Math.round(commBp / 100)); // whole percent only: an old 29.98 opens as 30
     }
+    if (svc.commissionMode) mode = svc.commissionMode;
     setEditCommissionMode(mode);
     setEditCommissionRate(customVal);
+    setEditSizes(Object.fromEntries((svc.sizeCommissions ?? []).map((c) => [c.sizeCode,
+      String(svc.commissionMode === "SIZE_FIXED" ? Math.round((c.fixedCentavos ?? 0) / 100) : Math.round((c.rateBp ?? 0) / 100))])));
     const offerMap: Record<string, {
       offered: boolean;
       regularPricePhp: string;
@@ -182,8 +229,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setCreateName("");
     setCreateDesc("");
     setCreateCategory("WASH");
-    setCreateCommissionMode("DEFAULT");
-    setCreateCommissionRate("");
+    setCreateCommissionMode("NONE"); // new services start with no commission (LE 2026-11-12)
+    setCreateCommissionRate("0");
+    setCreateSizes({});
     setCreateType("BASE");
     setCreateUnit("VEHICLE");
     const offerMap: Record<string, {
@@ -246,14 +294,6 @@ export function ServicesTab({ role }: ServicesTabProps) {
       };
     });
 
-    let commissionPayload: string | null = null;
-    if (editCommissionMode === "NONE") {
-      commissionPayload = "0";
-    } else if (editCommissionMode === "CUSTOM") {
-      commissionPayload = editCommissionRate.trim() || null;
-    } else {
-      commissionPayload = null;
-    }
 
     try {
       await adminRequest(`/api/admin/services/${editService.id}`, {
@@ -262,7 +302,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           name: editName,
           description: editDesc || null,
           category: editCategory,
-          commissionRatePercent: commissionPayload,
+          ...commissionBody(editCommissionMode, editCommissionRate, editSizes),
           offers: offersPayload,
         },
       });
@@ -324,14 +364,6 @@ export function ServicesTab({ role }: ServicesTabProps) {
       };
     });
 
-    let commissionPayload: string | null = null;
-    if (createCommissionMode === "NONE") {
-      commissionPayload = "0";
-    } else if (createCommissionMode === "CUSTOM") {
-      commissionPayload = createCommissionRate.trim() || null;
-    } else {
-      commissionPayload = null;
-    }
 
     try {
       await adminRequest("/api/admin/services", {
@@ -342,7 +374,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           category: createCategory,
           type: createType,
           unit: createUnit,
-          commissionRatePercent: commissionPayload,
+          ...commissionBody(createCommissionMode, createCommissionRate, createSizes),
           offers: offersPayload,
         },
       });
@@ -588,7 +620,12 @@ export function ServicesTab({ role }: ServicesTabProps) {
                       <span className={`h-1.5 w-1.5 rounded-full ${svc.isActive ? "bg-emerald-400" : "bg-zinc-400"}`} />
                       {svc.isActive ? "Active Online" : "Hidden"}
                     </span>
-                    {svc.commissionRateBp === 0 ? (
+                    {svc.commissionMode ? (
+                      <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 text-xs font-bold">
+                        <Percent className="h-2.5 w-2.5" />
+                        {svc.commissionMode === "SIZE_FIXED" ? "₱ per size Comm." : "% per size Comm."}
+                      </span>
+                    ) : svc.commissionRateBp === 0 ? (
                       <span className="inline-flex items-center gap-1 rounded border border-stone-300 bg-stone-100 text-stone-700 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-400 px-2 py-0.5 text-xs font-bold">
                         <Ban className="h-2.5 w-2.5 text-stone-600 dark:text-zinc-400" />
                         No Comm.
@@ -833,9 +870,10 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   <select
                     value={editCommissionMode}
                     onChange={(e) => {
-                      const m = e.target.value as "DEFAULT" | "NONE" | "CUSTOM";
+                      const m = e.target.value as CommissionMode;
                       setEditCommissionMode(m);
                       if (m === "NONE") setEditCommissionRate("0");
+                      else if (PER_SIZE.includes(m)) setEditCommissionRate("");
                       else if (m === "DEFAULT") setEditCommissionRate("");
                       else if (editCommissionRate === "0" || !editCommissionRate) setEditCommissionRate("10");
                     }}
@@ -844,6 +882,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     <option value="DEFAULT">Default (Shop / Staff Rate)</option>
                     <option value="NONE">No Commission (0%)</option>
                     <option value="CUSTOM">Custom Percentage (%)</option>
+                    <option value="SIZE_PERCENT">Different % per car size</option>
+                    <option value="SIZE_FIXED">Fixed peso per car size</option>
                   </select>
                   {editCommissionMode === "CUSTOM" && (
                     <div className="relative mt-1.5">
@@ -863,6 +903,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
                     </div>
                   )}
+                  <SizeCommissionBoxes mode={editCommissionMode} values={editSizes} onChange={setEditSizes} />
                   {editCommissionMode === "NONE" && (
                     <p className="mt-1 text-xs text-zinc-400">
                       No commission earned for this service (0%).
@@ -1152,9 +1193,10 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   <select
                     value={createCommissionMode}
                     onChange={(e) => {
-                      const m = e.target.value as "DEFAULT" | "NONE" | "CUSTOM";
+                      const m = e.target.value as CommissionMode;
                       setCreateCommissionMode(m);
                       if (m === "NONE") setCreateCommissionRate("0");
+                      else if (PER_SIZE.includes(m)) setCreateCommissionRate("");
                       else if (m === "DEFAULT") setCreateCommissionRate("");
                       else if (createCommissionRate === "0" || !createCommissionRate) setCreateCommissionRate("10");
                     }}
@@ -1163,6 +1205,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     <option value="DEFAULT">Default (Shop / Staff Rate)</option>
                     <option value="NONE">No Commission (0%)</option>
                     <option value="CUSTOM">Custom Percentage (%)</option>
+                    <option value="SIZE_PERCENT">Different % per car size</option>
+                    <option value="SIZE_FIXED">Fixed peso per car size</option>
                   </select>
                   {createCommissionMode === "CUSTOM" && (
                     <div className="relative mt-1.5">
@@ -1182,6 +1226,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
                     </div>
                   )}
+                  <SizeCommissionBoxes mode={createCommissionMode} values={createSizes} onChange={setCreateSizes} />
                   {createCommissionMode === "NONE" && (
                     <p className="mt-1 text-xs text-zinc-400">
                       No commission earned for this service (0%).

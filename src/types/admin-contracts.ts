@@ -663,6 +663,8 @@ export interface AdminServiceItem {
   sortOrder: number;
   isActive: boolean;
   commissionRateBp: number | null;
+  commissionMode?: "SIZE_PERCENT" | "SIZE_FIXED" | null; // per car size; null: commissionRateBp as before
+  sizeCommissions?: { sizeCode: string; rateBp: number | null; fixedCentavos: number | null }[];
   offers: AdminServiceOffer[];
 }
 

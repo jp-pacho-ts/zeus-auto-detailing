@@ -989,3 +989,32 @@ test("C37 each service at its own rate; Recalculate uses today's rates, shows be
     await db.$executeRaw`UPDATE services SET "commissionRateBp" = NULL WHERE id IN (${tint}, ${interior})`;
   }
 });
+
+// LE 2026-11-12: commission per car size, as a percentage or a fixed peso amount; a service without it is unchanged.
+test("C38 per-size commission: % per size and fixed pesos per size; other sizes and services are unchanged", { skip }, async () => {
+  const tint = bySlug(r0(), "regular-tint").id, wash = bySlug(r0(), "basic-wash").id;
+  const setMode = (id: string, name: string, category: string, commissionMode: "SIZE_PERCENT" | "SIZE_FIXED" | null, sizeCommissions: { sizeCode: string; rateBp?: number; fixedCentavos?: number }[] = []) =>
+    s.updateAdminService(ADMIN, id, { name, category, commissionRatePercent: null, commissionMode, sizeCommissions, offers: [] }, opts());
+  try {
+    // Tint at 10% for S (this job's size) and 40% for XL: the S job earns 10% of the tint.
+    await setMode(tint, "Regular Tint", "TINT", "SIZE_PERCENT", [{ sizeCode: "S", rateBp: 1000 }, { sizeCode: "XL", rateBp: 4000 }]);
+    const w = await person("Size Worker");
+    const pct = await shopCompleted([w.id], [{ slug: "regular-tint", price: 100_000 }], { keepWash: false });
+    assert.deepEqual((await entries(pct.id)).map((e) => [e.rateBp, e.amountCentavos]), [[1000, 10_000]]);
+    // Fixed pesos: tint ₱300 on S, and the wash (which earns nothing by default) ₱50 on S. Recalculate picks both up.
+    await setMode(tint, "Regular Tint", "TINT", "SIZE_FIXED", [{ sizeCode: "S", fixedCentavos: 30_000 }]);
+    await setMode(wash, "Basic Wash", "WASH", "SIZE_FIXED", [{ sizeCode: "S", fixedCentavos: 5_000 }]);
+    const fixed = await shopCompleted([w.id], [{ slug: "regular-tint", price: 100_000 }], { washPrice: 40_000 });
+    assert.deepEqual((await entries(fixed.id)).map((e) => e.amountCentavos), [35_000], "₱300 + ₱50");
+    const listed = (await s.listAdminServices(ADMIN, opts())).services.find((x) => x.id === tint)!;
+    assert.equal(listed.commissionMode, "SIZE_FIXED");
+    assert.deepEqual(listed.sizeCommissions!.map((c) => [c.sizeCode, c.fixedCentavos]), [["S", 30_000]]);
+    // A size with no amount (or 0) earns nothing on that service.
+    await setMode(wash, "Basic Wash", "WASH", "SIZE_FIXED", [{ sizeCode: "S", fixedCentavos: 0 }]);
+    const none = await shopCompleted([w.id], [], { washPrice: 40_000 });
+    assert.equal((await entries(none.id)).length, 0);
+  } finally {
+    await setMode(tint, "Regular Tint", "TINT", null);
+    await setMode(wash, "Basic Wash", "WASH", null);
+  }
+});

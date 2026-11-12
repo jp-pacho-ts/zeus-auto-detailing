@@ -69,6 +69,8 @@ model Service {
   bayCapacityRequired Int                     @default(1)
   isActive            Boolean                 @default(true)
   commissionRateBp    Int?
+  commissionMode      String? // NULL: commissionRateBp as before; SIZE_PERCENT or SIZE_FIXED: service_size_commissions
+  sizeCommissions     ServiceSizeCommission[]
   bookings            Booking[]
   catalogVersions     CatalogServiceVersion[]
   recipes             ServiceRecipe[]
@@ -1354,4 +1356,16 @@ model UserAuditEvent {
   @@index([createdAt])
   @@index([targetStaffId])
   @@map("user_audit_events")
+}
+
+// Commission per car size for a service whose commissionMode is SIZE_PERCENT (rateBp) or SIZE_FIXED (fixedCentavos).
+model ServiceSizeCommission {
+  serviceId     String
+  service       Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  sizeCode      String
+  rateBp        Int?
+  fixedCentavos BigInt?
+
+  @@id([serviceId, sizeCode])
+  @@map("service_size_commissions")
 }
