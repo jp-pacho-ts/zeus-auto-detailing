@@ -82,6 +82,7 @@ export function toQueueBooking(
     vehicleModel: b.vehicleModel,
     vehiclePlate: b.vehiclePlate,
     sizeCode: b.vehicleSizeCodeSnapshot,
+    bodyType: b.vehicleBodyType,
     serviceName: b.serviceNameSnapshot,
     depositStatus: b.depositStatus,
     bay: bay && { id: bay.id, name: bay.name },

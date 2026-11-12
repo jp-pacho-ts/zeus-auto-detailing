@@ -71,7 +71,7 @@ const orderedLine = (l: QuotedLine) => ({ serviceId: l.serviceId, offerId: l.off
 // The schema's field order, and only its fields: anything else is dropped and so fails comparison.
 const orderedQuote = (q: QuoteFields): QuoteFields => ({
   version: q.version, catalogReleaseId: q.catalogReleaseId, catalogFingerprint: q.catalogFingerprint, pricingAlgorithm: q.pricingAlgorithm,
-  vehicleCategoryId: q.vehicleCategoryId, primaryServiceId: q.primaryServiceId, queueId: q.queueId,
+  vehicleCategoryId: q.vehicleCategoryId, ...(q.bodyType !== undefined ? { bodyType: q.bodyType } : {}), primaryServiceId: q.primaryServiceId, queueId: q.queueId,
   lines: Array.isArray(q.lines) ? q.lines.map((l) => (l && typeof l === "object" ? orderedLine(l) : l)) : q.lines,
   totalPriceCentavos: q.totalPriceCentavos, estimatedTotalCentavos: q.estimatedTotalCentavos, currency: q.currency,
   issuedAt: q.issuedAt, expiresAt: q.expiresAt,

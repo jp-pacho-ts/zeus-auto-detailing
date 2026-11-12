@@ -67,6 +67,12 @@ function formatCentavos(centavos: number | null): string {
   }).format(centavos / 100);
 }
 
+// A pick-up price only for L and XL, and only when it is filled in; empty means pick-ups pay the normal price.
+function pickupCentavos(size: string, row: { offered: boolean; pickupPricePhp?: string }): number | null {
+  const php = parseFloat(row.pickupPricePhp ?? "");
+  return (size === "L" || size === "XL") && row.offered && php > 0 ? Math.round(php * 100) : null;
+}
+
 export function ServicesTab({ role }: ServicesTabProps) {
   void role;
   const resource = useAdminResource<AdminServiceList>("/api/admin/services");
@@ -91,6 +97,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     regularPricePhp: string;
     hasPromo: boolean;
     promoPricePhp: string;
+    pickupPricePhp?: string; // L and XL only
   }>>({});
   const [editCommissionMode, setEditCommissionMode] = React.useState<"DEFAULT" | "NONE" | "CUSTOM">("DEFAULT");
   const [editCommissionRate, setEditCommissionRate] = React.useState<string>("");
@@ -111,6 +118,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     regularPricePhp: string;
     hasPromo: boolean;
     promoPricePhp: string;
+    pickupPricePhp?: string; // L and XL only
   }>>({});
   const [createSaving, setCreateSaving] = React.useState(false);
   const [createError, setCreateError] = React.useState<string | null>(null);
@@ -140,6 +148,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
       regularPricePhp: string;
       hasPromo: boolean;
       promoPricePhp: string;
+      pickupPricePhp?: string;
     }> = {};
     for (const size of SIZE_ORDER) {
       const off = svc.offers.find((o) => o.sizeCode === size);
@@ -162,6 +171,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
         regularPricePhp: hasActivePromo ? comparePhp : unitPhp,
         hasPromo: hasActivePromo,
         promoPricePhp: hasActivePromo ? unitPhp : "",
+        pickupPricePhp: off?.pickupPriceCentavos ? (off.pickupPriceCentavos / 100).toString() : "",
       };
     }
     setEditOffers(offerMap);
@@ -181,6 +191,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
       regularPricePhp: string;
       hasPromo: boolean;
       promoPricePhp: string;
+      pickupPricePhp?: string;
     }> = {};
     for (const size of SIZE_ORDER) {
       offerMap[size] = {
@@ -231,6 +242,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
         state: row.offered ? (regularNum > 0 ? "OFFERED" : "UNCONFIRMED") : "NOT_OFFERED",
         unitPriceCentavos,
         compareAtCentavos,
+        pickupPriceCentavos: pickupCentavos(size, row),
       };
     });
 
@@ -308,6 +320,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
         state: row.offered ? (regularNum > 0 ? "OFFERED" : "UNCONFIRMED") : "NOT_OFFERED",
         unitPriceCentavos,
         compareAtCentavos,
+        pickupPriceCentavos: pickupCentavos(size, row),
       };
     });
 
@@ -954,6 +967,29 @@ export function ServicesTab({ role }: ServicesTabProps) {
                                 />
                               </div>
 
+                              {(size === "L" || size === "XL") && (
+                                <div>
+                                  <label className="block text-xs font-bold text-foreground">
+                                    Pick-up price (₱)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    placeholder="Same as above"
+                                    aria-describedby="pickup-price-help"
+                                    value={cur.pickupPricePhp ?? ""}
+                                    onChange={(e) =>
+                                      setEditOffers((prev) => ({
+                                        ...prev,
+                                        [size]: { ...cur, pickupPricePhp: e.target.value },
+                                      }))
+                                    }
+                                    className="w-28 rounded border border-border bg-panel px-2.5 py-1.5 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
+                                  />
+                                </div>
+                              )}
+
                               <div className="flex flex-col justify-end">
                                 <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer select-none py-1">
                                   <input
@@ -1271,6 +1307,29 @@ export function ServicesTab({ role }: ServicesTabProps) {
                                   className="w-28 rounded border border-border bg-panel px-2.5 py-1.5 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
                                 />
                               </div>
+
+                              {(size === "L" || size === "XL") && (
+                                <div>
+                                  <label className="block text-xs font-bold text-foreground">
+                                    Pick-up price (₱)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    placeholder="Same as above"
+                                    aria-describedby="pickup-price-help"
+                                    value={cur.pickupPricePhp ?? ""}
+                                    onChange={(e) =>
+                                      setCreateOffers((prev) => ({
+                                        ...prev,
+                                        [size]: { ...cur, pickupPricePhp: e.target.value },
+                                      }))
+                                    }
+                                    className="w-28 rounded border border-border bg-panel px-2.5 py-1.5 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
+                                  />
+                                </div>
+                              )}
 
                               <div className="flex flex-col justify-end">
                                 <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer select-none py-1">

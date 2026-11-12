@@ -44,6 +44,7 @@ import {
   splitSizeName,
   selectionLines,
   serviceDetail,
+  catalogForBody,
   type DetailsForm,
   type ServicePick,
 } from "@/components/booking/day-booking";
@@ -54,7 +55,9 @@ import type {
   BookingQuoteResponse,
   CatalogServiceKind,
   ServicePackage,
+  VehicleBodyType,
 } from "@/types/catalog-contracts";
+import { BODY_TYPES_BY_SIZE, BODY_TYPE_LABEL } from "@/types/catalog-contracts";
 import type {
   CreateDayBookingRequest,
   DayAvailabilityData,
@@ -129,10 +132,13 @@ export function BookingWizard({
 }) {
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
   const [step, setStep] = React.useState(1);
-  const [catalog, setCatalog] = React.useState<BookingCatalog | null>(null);
+  const [rawCatalog, setCatalog] = React.useState<BookingCatalog | null>(null);
   const [catalogError, setCatalogError] = React.useState("");
   const [catalogVersion, setCatalogVersion] = React.useState(0);
   const [vehicleId, setVehicleId] = React.useState("");
+  const [bodyType, setBodyType] = React.useState<VehicleBodyType | "">("");
+  // L and XL ask which kind of vehicle; a pick-up may have its own price (LE 2026-11-12).
+  const catalog = React.useMemo(() => (rawCatalog && catalogForBody(rawCatalog, vehicleId, bodyType)), [rawCatalog, vehicleId, bodyType]);
   const [picks, setPicks] = React.useState<ServicePick[]>([]);
   const [openCategory, setOpenCategory] = React.useState<CatalogServiceKind | null>(null);
   const [panelDrafts, setPanelDrafts] = React.useState<Record<string, string>>({});
@@ -186,11 +192,13 @@ export function BookingWizard({
   };
 
   const vehicle = catalog?.vehicleCategories.find((v) => v.id === vehicleId);
+  const bodyChoices = (vehicle && BODY_TYPES_BY_SIZE[vehicle.code]) ?? [];
+  const needsBody = bodyChoices.length > 0 && !bodyType;
   const lines = React.useMemo(
     () => (catalog && vehicleId ? selectionLines(catalog, vehicleId, picks) : []),
     [catalog, vehicleId, picks],
   );
-  const selectionKey = vehicleId + "|" + linesQuery(lines);
+  const selectionKey = vehicleId + "|" + bodyType + "|" + linesQuery(lines);
   const daysKey = selectionKey + "|" + fromDate;
   const liveDays = days?.key === daysKey ? days : null;
   // The newest signed quote for this selection: the day list carries a fresh one too.
@@ -325,7 +333,7 @@ export function BookingWizard({
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       try {
-        const query = new URLSearchParams({ vehicleCategoryId: vehicleId, lines: linesQuery(lines) });
+        const query = new URLSearchParams({ vehicleCategoryId: vehicleId, ...(bodyType ? { bodyType } : {}), lines: linesQuery(lines) });
         const response = await fetch("/api/bookings/quote?" + query, { cache: "no-store", signal: controller.signal });
         const result: BookingQuoteResponse = await response.json();
         if (controller.signal.aborted) return;
@@ -343,7 +351,7 @@ export function BookingWizard({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [vehicleId, lines, selectionKey, step, quoteVersion, uncertain]);
+  }, [vehicleId, bodyType, lines, selectionKey, step, quoteVersion, uncertain]);
 
   // Day states for the selection's queue; refreshed while choosing and reviewing.
   React.useEffect(() => {
@@ -355,7 +363,7 @@ export function BookingWizard({
       const request = new AbortController();
       controller = request;
       try {
-        const query = new URLSearchParams({ vehicleCategoryId: vehicleId, lines: linesQuery(lines), fromDate, days: String(DAYS_PER_PAGE) });
+        const query = new URLSearchParams({ vehicleCategoryId: vehicleId, ...(bodyType ? { bodyType } : {}), lines: linesQuery(lines), fromDate, days: String(DAYS_PER_PAGE) });
         const response = await fetch("/api/availability?" + query, { cache: "no-store", signal: request.signal });
         const result: DayAvailabilityResponse = await response.json();
         if (!active || request.signal.aborted) return;
@@ -379,7 +387,7 @@ export function BookingWizard({
       window.clearInterval(interval);
       window.removeEventListener("focus", focus);
     };
-  }, [vehicleId, lines, fromDate, daysKey, step, daysVersion, uncertain]);
+  }, [vehicleId, bodyType, lines, fromDate, daysKey, step, daysVersion, uncertain]);
 
   React.useEffect(() => {
     if (message) errorSummary.current?.focus();
@@ -405,6 +413,10 @@ export function BookingWizard({
     setMessage("");
     setFieldErrors({});
     if (step === 1 && vehicle) {
+      if (needsBody) {
+        setMessage("Choose what kind of vehicle it is.");
+        return;
+      }
       goTo(2);
       return;
     }
@@ -517,7 +529,7 @@ export function BookingWizard({
     pending ||
     !catalog ||
     Boolean(catalogError) ||
-    (step === 1 && !vehicleId) ||
+    (step === 1 && (!vehicleId || needsBody)) ||
     (step === 2 && !lines.length) ||
     (step === 3 && (!day || dayState !== "AVAILABLE")) ||
     (step === 4 && (!challenge.token || (!uncertain && !quote)));
@@ -1096,6 +1108,7 @@ export function BookingWizard({
                               checked={picked}
                               onChange={() => {
                                 setVehicleId(v.id);
+                                setBodyType("");
                                 setLinkWarning("");
                               }}
                               className="absolute right-[22px] top-[22px] h-5 w-5 accent-primary"
@@ -1105,6 +1118,35 @@ export function BookingWizard({
                       })}
                     </div>
                   </fieldset>
+                  {bodyChoices.length > 0 && (
+                    <fieldset className="mt-5">
+                      <legend className="text-base font-bold text-foreground">What kind of vehicle?</legend>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {bodyChoices.map((type) => (
+                          <label
+                            key={type}
+                            className={
+                              "inline-flex min-h-[44px] cursor-pointer items-center rounded-full border px-5 text-sm font-semibold transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring " +
+                              (bodyType === type ? "border-primary bg-primary/10 text-foreground" : "border-input bg-card text-muted-foreground hover:border-primary")
+                            }
+                          >
+                            <input
+                              type="radio"
+                              name="vehicle-body-type"
+                              value={type}
+                              checked={bodyType === type}
+                              onChange={() => {
+                                setBodyType(type);
+                                setMessage("");
+                              }}
+                              className="sr-only"
+                            />
+                            {vehicle?.code === "XL" && type === "SUV" ? "Full-size SUV" : BODY_TYPE_LABEL[type]}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  )}
                 </div>
               )}
 

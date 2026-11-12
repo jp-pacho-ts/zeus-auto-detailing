@@ -1352,3 +1352,19 @@ test("the 1-day reminder goes out once, even when the shop's only admin is a SUP
     for (const r of roles) await db.staff.update({ where: { id: r.id }, data: { role: r.role } });
   }
 });
+
+test("Services page: L and XL save a pick-up price, other sizes cannot, and the other prices stay as they were", { skip }, async () => {
+  const tint = bySlug(r0(), "regular-tint").id;
+  const before = (await s.listAdminServices(ADMIN, opts())).services.find((x) => x.id === tint)!;
+  const keep = (size: string) => { const o = before.offers.find((x) => x.sizeCode === size)!; return { sizeCode: size, state: o.state, unitPriceCentavos: o.unitPriceCentavos, compareAtCentavos: o.compareAtCentavos }; };
+  await s.updateAdminService(ADMIN, tint, { name: before.name, category: "TINT", commissionRatePercent: null,
+    offers: [{ ...keep("L"), pickupPriceCentavos: 250_000 }, { ...keep("XL"), pickupPriceCentavos: 250_000 }] }, opts());
+  const afterList = (await s.listAdminServices(ADMIN, opts())).services.find((x) => x.id === tint)!;
+  assert.deepEqual(afterList.offers.map((o) => [o.sizeCode, o.unitPriceCentavos, o.pickupPriceCentavos ?? null]),
+    before.offers.map((o) => [o.sizeCode, o.unitPriceCentavos, ["L", "XL"].includes(o.sizeCode) ? 250_000 : null]));
+  await assert.rejects(s.updateAdminService(ADMIN, tint, { name: before.name, category: "TINT", offers: [{ ...keep("S"), pickupPriceCentavos: 1 }] }, opts()),
+    (e: { code?: string }) => e.code === "VALIDATION_ERROR");
+  // Saving without a pick-up price clears it: empty means pick-ups pay the normal price.
+  await s.updateAdminService(ADMIN, tint, { name: before.name, category: "TINT", commissionRatePercent: null, offers: [keep("L"), keep("XL")] }, opts());
+  assert.ok((await s.listAdminServices(ADMIN, opts())).services.find((x) => x.id === tint)!.offers.every((o) => (o.pickupPriceCentavos ?? null) === null));
+});

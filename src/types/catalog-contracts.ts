@@ -17,6 +17,11 @@ import type { ErrorCode, UUID } from "./contracts";
 
 export const VehicleCategoryCodeSchema = z.enum(["MOTOR", "S", "M", "L", "XL"]);
 export type VehicleCategoryCode = z.infer<typeof VehicleCategoryCodeSchema>;
+// L and XL hold more than one kind of vehicle; the customer says which (LE 2026-11-12). A pick-up may have its own price.
+export const VehicleBodyTypeSchema = z.enum(["SUV", "PICKUP", "VAN"]);
+export type VehicleBodyType = z.infer<typeof VehicleBodyTypeSchema>;
+export const BODY_TYPES_BY_SIZE: Partial<Record<VehicleCategoryCode, readonly VehicleBodyType[]>> = { L: ["SUV", "PICKUP"], XL: ["SUV", "PICKUP", "VAN"] };
+export const BODY_TYPE_LABEL: Record<VehicleBodyType, string> = { SUV: "SUV", PICKUP: "Pick-up", VAN: "Van" };
 export interface VehicleCategory {
   id: UUID;
   code: VehicleCategoryCode;
@@ -40,7 +45,7 @@ export type ServiceSizeOffer = {
   onlineBooking: OnlineBooking;
 } & (
   | { state: "OFFERED"; bookingMode: BookingMode; unitPriceCentavos: number;
-      compareAtCentavos: number | null }
+      compareAtCentavos: number | null; pickupPriceCentavos?: number }
   | { state: "NOT_OFFERED"; bookingMode: "QUOTE_REQUIRED";
       unitPriceCentavos: null; compareAtCentavos: null }
   | { state: "UNCONFIRMED"; bookingMode: "QUOTE_REQUIRED";
@@ -86,7 +91,7 @@ const OfferFields = { id: Id, vehicleCategoryId: Id, duration: PublicDurationSch
 export const ServiceSizeOfferSchema = z.discriminatedUnion("state", [
   z.object({ ...OfferFields, state: z.literal("OFFERED"),
     bookingMode: z.enum(["FIXED_ONLINE", "QUOTE_REQUIRED"]),
-    unitPriceCentavos: Money, compareAtCentavos: Money.nullable() }).strict(),
+    unitPriceCentavos: Money, compareAtCentavos: Money.nullable(), pickupPriceCentavos: Money.optional() }).strict(),
   z.object({ ...OfferFields, state: z.literal("NOT_OFFERED"),
     bookingMode: z.literal("QUOTE_REQUIRED"), unitPriceCentavos: z.null(),
     compareAtCentavos: z.null() }).strict(),
@@ -110,6 +115,7 @@ export const SelectionLineSchema = z.object({
 }).strict();
 export const CatalogSelectionSchema = z.object({
   vehicleCategoryId: Id,
+  bodyType: VehicleBodyTypeSchema.optional(),
   lines: z.array(SelectionLineSchema).min(1).max(MAX_SELECTION_LINES).refine(
     (lines) => new Set(lines.map((l) => l.serviceId)).size === lines.length, "Each service can be selected once"),
 }).strict();
@@ -151,6 +157,7 @@ export const BookingQuoteSchema = z.object({
   catalogFingerprint: Hex,
   pricingAlgorithm: z.literal("php-service-size-v3"),
   vehicleCategoryId: Id,
+  bodyType: VehicleBodyTypeSchema.optional(),
   primaryServiceId: Id,
   queueId: QueueCodeSchema,
   lines: z.array(QuotedLineSchema).min(1).max(MAX_SELECTION_LINES),
@@ -178,8 +185,8 @@ export const BookingQuoteSchema = z.object({
     ctx.addIssue({ code: "custom", path: ["expiresAt"], message: "Quote TTL must be fifteen minutes" });
 });
 export type BookingQuote = z.infer<typeof BookingQuoteSchema>;
-export const selectionOfQuote = (q: Pick<BookingQuote, "vehicleCategoryId" | "lines">): CatalogSelection =>
-  ({ vehicleCategoryId: q.vehicleCategoryId, lines: q.lines.map((l) => ({ serviceId: l.serviceId, quantity: l.quantity })) });
+export const selectionOfQuote = (q: Pick<BookingQuote, "vehicleCategoryId" | "bodyType" | "lines">): CatalogSelection =>
+  ({ vehicleCategoryId: q.vehicleCategoryId, ...(q.bodyType ? { bodyType: q.bodyType } : {}), lines: q.lines.map((l) => ({ serviceId: l.serviceId, quantity: l.quantity })) });
 
 // Lifecycle envelope: managed conflicts carry only an authorized, PII-free day view.
 // Public/create errors leave currentBooking null.

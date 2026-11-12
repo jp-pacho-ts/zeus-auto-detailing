@@ -210,3 +210,15 @@ test("the BOOKING_QUOTE key ring is validated, and no message carries a secret",
     assert.throws(() => parseQuoteKeyRing(env), (e: unknown) => e instanceof QuoteKeyRingError && !String((e as Error).message).includes(secret(1)), label);
   }
 });
+
+test("a pick-up quote signs its body type; changing or dropping it breaks the signature", () => {
+  const priced = priceSelection(release, { vehicleCategoryId: sizeId(release, "L"), bodyType: "PICKUP", lines: [{ serviceId: bySlug(release, "basic-wash").id, quantity: 1 }] });
+  assert.equal(priced.kind, "QUOTED");
+  const q = signQuote(priced.kind === "QUOTED" ? priced.quote : (null as never), ring, NOW);
+  assert.equal(decode(q.quoteToken).quote.bodyType, "PICKUP");
+  assert.equal(ok(q), true);
+  assert.equal(ok({ ...q, bodyType: "SUV" }), false);
+  const { bodyType: _dropped, ...without } = q;
+  void _dropped;
+  assert.equal(ok(without), false);
+});

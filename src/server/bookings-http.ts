@@ -79,9 +79,10 @@ export async function bookingQuoteGet(request: Request): Promise<Response> {
 }
 export async function availabilityGet(request: Request): Promise<Response> {
     const params = new URL(request.url).searchParams, keys = [...params.keys()], required = ["vehicleCategoryId", "lines", "fromDate", "days"];
-    if (keys.length !== 4 || required.some(k => keys.filter(v => v === k).length !== 1) || !/^([1-9]|[12][0-9]|3[01])$/.test(params.get("days") ?? ""))
+    const body = params.get("bodyType"); // L and XL: which kind of vehicle (may change the price)
+    if (keys.length !== (keys.includes("bodyType") ? 5 : 4) || keys.filter(k => k === "bodyType").length > 1 || required.some(k => keys.filter(v => v === k).length !== 1) || !/^([1-9]|[12][0-9]|3[01])$/.test(params.get("days") ?? ""))
         return bookingJson({ ok: false, error: bookingError("CLIENT_UPGRADE_REQUIRED", "Refresh the booking page and check the selected services and days.", { commitState: "NOT_APPLICABLE" }) }, 400);
-    const selection = parseBookingQuoteQuery(new URLSearchParams({ vehicleCategoryId: params.get("vehicleCategoryId")!, lines: params.get("lines")! }));
+    const selection = parseBookingQuoteQuery(new URLSearchParams({ vehicleCategoryId: params.get("vehicleCategoryId")!, lines: params.get("lines")!, ...(body !== null ? { bodyType: body } : {}) }));
     if (!selection.ok)
         return bookingJson(selection, 400);
     const result = await getDayAvailability({

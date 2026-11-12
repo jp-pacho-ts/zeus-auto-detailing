@@ -742,3 +742,32 @@ test("P1-42 the database pause: no new booking, customers told, an earlier booki
     assert.ok(open.ok && open.data.onlineBookingStatus === "OPEN", JSON.stringify(open));
     assert.equal(code(await f.create(later)), "OK");
 });
+// LE 2026-11-12: a pick-up on L or XL pays the offer's pick-up price. The database line check must accept that price for a
+// PICKUP booking (it rejected anything but the size price before), and an SUV on the same size still pays the size price.
+test("pick-up price: a PICKUP booking is charged the pick-up price and passes the line check; an SUV pays the size price", { skip }, async () => {
+    const f = await fixture("pickup"), wash = bySlug(release, "basic-wash"), L = sizeId(release, "L");
+    await f.db.$transaction(async (tx) => {
+        await tx.$executeRaw `SELECT set_config('zeus.allow_catalog_edit', 'on', true)`;
+        await tx.$executeRaw `UPDATE service_size_offers SET "pickupPriceCentavos"=12345 WHERE "serviceId"=${wash.id} AND "sizeCode"='L'`;
+    });
+    const book = async (bodyType: "PICKUP" | "SUV") => {
+        const selection = { vehicleCategoryId: L, bodyType, lines: [{ serviceId: wash.id, quantity: 1 }] };
+        const quoted = await getBookingQuote(selection, { db: f.options.db, ring: config.quote });
+        assert.ok(quoted.ok, JSON.stringify(quoted));
+        if (!quoted.ok) throw Error("quote");
+        const result = await f.create({ contractVersion: 4 as const, idempotencyKey: randomUUID(), vehicleCategoryId: L, lines: [{ serviceId: wash.id, quantity: 1 }], bookingDate: day(),
+            acceptedQuote: quoted.data.quote, turnstileToken: randomUUID(), customerName: "Synthetic " + bodyType, customerPhone: bodyType === "PICKUP" ? "+639170000101" : "+639170000102",
+            vehicleModel: "Synthetic Truck" });
+        assert.equal(code(result), "OK", JSON.stringify(result));
+        return f.db.booking.findFirstOrThrow({ where: { customerName: "Synthetic " + bodyType }, include: { lineItems: true } });
+    };
+    const pickup = await book("PICKUP");
+    assert.equal(pickup.vehicleBodyType, "PICKUP");
+    assert.equal(pickup.lineItems[0].unitPriceCentavos, 12345);
+    assert.equal(pickup.receiptTotalCentavos, 12345);
+    const suv = await book("SUV");
+    assert.equal(suv.vehicleBodyType, "SUV");
+    assert.equal(suv.lineItems[0].unitPriceCentavos, release.services.find(s => s.id === wash.id)!.offers.find(o => o.sizeCode === "L")!.unitPriceCentavos);
+    // The database refuses a body type that does not fit the size.
+    await assert.rejects(f.db.$executeRaw `UPDATE bookings SET "vehicleBodyType"='VAN' WHERE id=${suv.id}`, /booking_body_type_size|check constraint|guard|immutable/i);
+});

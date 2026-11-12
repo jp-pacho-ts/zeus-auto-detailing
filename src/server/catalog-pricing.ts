@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type {
   BookingQuote, CatalogSelection, CatalogServiceKind, OnlineBooking, PriceUnit, QuotedLine, VehicleCategoryCode,
 } from "@/types/catalog-contracts";
+import { BODY_TYPES_BY_SIZE } from "@/types/catalog-contracts";
 import { CatalogIntegrityError } from "./catalog-errors";
 import { bookingQueue, primaryServiceLine } from "./catalog-queues";
 
@@ -18,6 +19,7 @@ export interface ReleaseOffer {
   state: "OFFERED" | "NOT_OFFERED" | "UNCONFIRMED"; bookingMode: "FIXED_ONLINE" | "QUOTE_REQUIRED";
   unitPriceCentavos: number | null;
   compareAtCentavos?: number | null;
+  pickupPriceCentavos?: number | null; // L and XL only; NULL means a pick-up pays unitPriceCentavos
   durationKind: "UNKNOWN" | "TIMED" | "MULTI_DAY"; durationMinutes: number | null; elapsedDays: number | null;
 }
 export interface ReleaseService {
@@ -64,6 +66,9 @@ export function offerBooking(service: ReleaseService, offer: ReleaseOffer): Onli
   if (offer.state === "UNCONFIRMED" && service.unit === "PANEL" && service.referenceUnitPriceCentavos !== null) return "FOR_QUOTE";
   return "UNAVAILABLE";
 }
+// The offer as a pick-up sees it: its pick-up price, when it has one, in place of the size price.
+export const offerForBody = (offer: ReleaseOffer, bodyType: string | null | undefined): ReleaseOffer =>
+  bodyType === "PICKUP" && offer.pickupPriceCentavos != null ? { ...offer, unitPriceCentavos: offer.pickupPriceCentavos } : offer;
 const referenceUnit = (service: ReleaseService, offer: ReleaseOffer) =>
   offer.state === "OFFERED" ? offer.unitPriceCentavos : service.referenceUnitPriceCentavos;
 
@@ -75,13 +80,17 @@ const referenceUnit = (service: ReleaseService, offer: ReleaseOffer) =>
 export function priceSelection(release: ReleaseSnapshot, selection: CatalogSelection): PricingResult {
   const size = release.sizes.find((s) => s.id === selection.vehicleCategoryId);
   if (!size) return reject("NOT_FOUND", "vehicleCategoryId", "Choose one of the listed vehicle sizes.");
+  const bodyTypes = BODY_TYPES_BY_SIZE[size.code] ?? [];
+  if (selection.bodyType !== undefined && !bodyTypes.includes(selection.bodyType))
+    return reject("VALIDATION_ERROR", "bodyType", "Choose a vehicle type that matches the size.");
 
   const resolved: { service: ReleaseService; offer: ReleaseOffer; quantity: number; booking: OnlineBooking }[] = [];
   for (const [i, line] of selection.lines.entries()) {
     const service = release.services.find((s) => s.id === line.serviceId);
     if (!service) return reject("NOT_FOUND", `lines.${i}.serviceId`, "Choose one of the listed services.");
-    const offer = service.offers.find((o) => o.vehicleCategoryId === size.id);
-    if (!offer) throw new CatalogIntegrityError("missing size offer"); // the release has five per service
+    const sizeOffer = service.offers.find((o) => o.vehicleCategoryId === size.id);
+    if (!sizeOffer) throw new CatalogIntegrityError("missing size offer"); // the release has five per service
+    const offer = offerForBody(sizeOffer, selection.bodyType);
     const booking = offerBooking(service, offer);
     if (booking === "UNAVAILABLE") {
       return reject("SERVICE_NOT_OFFERED", `lines.${i}.serviceId`, offer.state === "NOT_OFFERED"
@@ -128,7 +137,7 @@ export function priceSelection(release: ReleaseSnapshot, selection: CatalogSelec
   if (amounts.some((a) => a !== null && !(Number.isSafeInteger(a) && a <= MAX_CENTAVOS))) {
     return reject("VALIDATION_ERROR", "lines", "Contact the shop to price this selection.");
   }
-  const body = { vehicleCategoryId: selection.vehicleCategoryId, primaryServiceId: primary.serviceId, queueId, lines,
+  const body = { vehicleCategoryId: selection.vehicleCategoryId, ...(selection.bodyType ? { bodyType: selection.bodyType } : {}), primaryServiceId: primary.serviceId, queueId, lines,
     totalPriceCentavos: total, estimatedTotalCentavos: estimated };
   return {
     kind: "QUOTED",
@@ -142,11 +151,11 @@ export function priceSelection(release: ReleaseSnapshot, selection: CatalogSelec
 // Lowercase SHA-256 of the fixed-order array; the manifest hash is server-resolved.
 export function catalogFingerprint(
   release: Pick<ReleaseSnapshot, "releaseId" | "manifestSha256">,
-  q: Pick<UnsignedQuote, "vehicleCategoryId" | "primaryServiceId" | "queueId" | "lines" | "totalPriceCentavos" | "estimatedTotalCentavos">,
+  q: Pick<UnsignedQuote, "vehicleCategoryId" | "bodyType" | "primaryServiceId" | "queueId" | "lines" | "totalPriceCentavos" | "estimatedTotalCentavos">,
 ): string {
   const lineArrays = q.lines.map((l) => [l.serviceId, l.offerId, l.kind, l.name, l.unit, l.quantity, l.priceStatus,
     l.unitPriceCentavos, l.subtotalCentavos, l.referenceUnitPriceCentavos, l.referenceSubtotalCentavos]);
   const value = [PRICING_ALGORITHM, release.releaseId, release.manifestSha256, q.vehicleCategoryId, q.primaryServiceId, q.queueId,
-    lineArrays, q.totalPriceCentavos, q.estimatedTotalCentavos, "PHP"];
+    lineArrays, q.totalPriceCentavos, q.estimatedTotalCentavos, "PHP", ...(q.bodyType ? [q.bodyType] : [])]; // no body type: the old fingerprint
   return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 }

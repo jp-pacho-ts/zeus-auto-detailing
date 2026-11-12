@@ -28,7 +28,7 @@ import { STATUS_NO_OP_ROLES } from "@/server/auth/policy";
 import type { StaffTx } from "@/server/auth/db-admission";
 import { dropAssignment } from "./workers-write";
 import { loadCurrentRelease } from "@/server/catalog-read";
-import { offerBooking } from "@/server/catalog-pricing";
+import { offerBooking, offerForBody } from "@/server/catalog-pricing";
 import {
   addDays,
   authorize,
@@ -499,9 +499,11 @@ export async function addLine(
     const service = release.services.find((x) => x.id === v.serviceId);
     if (!service)
       throw fieldError("serviceId", "Choose a service from the current list.");
-    const offer = service.offers.find(
-      (o) => o.vehicleCategoryId === b.vehicleCategoryId,
-    )!;
+    // A pick-up gets the offer's pick-up price, the same rule the customer quote and the line check use.
+    const offer = offerForBody(
+      service.offers.find((o) => o.vehicleCategoryId === b.vehicleCategoryId)!,
+      b.vehicleBodyType,
+    );
     const booking = offerBooking(service, offer);
     if (booking === "UNAVAILABLE")
       throw fieldError(

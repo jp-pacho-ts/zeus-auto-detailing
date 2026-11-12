@@ -273,3 +273,20 @@ export function publicCreateError(error: LifecycleError) {
     uncertain,
   };
 }
+
+// A pick-up sees each service's pick-up price (when it has one) in place of the size price, so every price on the page and
+// in the summary matches the quote the server signs for that body type. Any other body type sees the catalog unchanged.
+export function catalogForBody(catalog: BookingCatalog, sizeId: string, bodyType: string): BookingCatalog {
+  if (bodyType !== "PICKUP") return catalog;
+  return {
+    ...catalog,
+    services: catalog.services.map((s) => ({
+      ...s,
+      offers: s.offers.map((o) =>
+        o.vehicleCategoryId === sizeId && o.state === "OFFERED" && o.pickupPriceCentavos !== undefined
+          ? { ...o, unitPriceCentavos: o.pickupPriceCentavos, compareAtCentavos: null }
+          : o,
+      ),
+    })),
+  };
+}

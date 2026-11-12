@@ -158,6 +158,7 @@ model Booking {
   catalogReleaseId            String?
   catalogRelease              CatalogRelease?            @relation(fields: [catalogReleaseId], references: [id], onDelete: Restrict)
   vehicleSizeCodeSnapshot     String?
+  vehicleBodyType             String?
   catalogFingerprint          String?
   pricingAlgorithm            String?
   // ADR-005 day queue (QUEUE_V3 only; NULL on legacy rows). startsAt/endsAt hold the Manila day window.
@@ -698,6 +699,7 @@ model ServiceSizeOffer {
   bookingMode             CatalogBookingMode
   unitPriceCentavos       Int?
   compareAtCentavos       Int?
+  pickupPriceCentavos     Int?
   sourceCompareAtCentavos Int?
   compareAtVerified       Boolean               @default(false)
   promoStartsAt           DateTime?             @db.Timestamptz(3)

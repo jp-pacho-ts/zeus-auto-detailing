@@ -457,8 +457,12 @@ export const ServiceOfferInputSchema = z
     state: OfferStateSchema,
     unitPriceCentavos: z.number().int().min(0).max(100_000_000).nullable(),
     compareAtCentavos: z.number().int().min(0).max(100_000_000).nullable().optional().default(null),
+    pickupPriceCentavos: z.number().int().min(0).max(100_000_000).nullable().optional().default(null),
   })
-  .strict();
+  .strict()
+  .refine((o) => o.pickupPriceCentavos === null || o.sizeCode === "L" || o.sizeCode === "XL", {
+    message: "Only L and XL have a pick-up price.", path: ["pickupPriceCentavos"],
+  });
 
 export const ServiceUpdateSchema = z
   .object({

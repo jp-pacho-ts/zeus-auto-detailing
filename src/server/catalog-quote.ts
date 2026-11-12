@@ -29,15 +29,17 @@ export async function getBookingQuote(input: unknown, options: QuoteOptions = {}
 // 1..20; the schema then validates the parsed numbers and IDs, never coercing strings.
 export function parseBookingQuoteQuery(params: URLSearchParams): { ok: true; data: unknown } | { ok: false; error: LifecycleError } {
   const keys = [...params.keys()];
-  if (keys.length !== 2 || keys.filter((k) => k === "vehicleCategoryId").length !== 1 || keys.filter((k) => k === "lines").length !== 1) {
-    return { ok: false, error: catalogError("VALIDATION_ERROR", "Send exactly vehicleCategoryId and lines.") };
+  const once = (k: string) => keys.filter((x) => x === k).length === 1;
+  const body = keys.includes("bodyType");
+  if (keys.length !== (body ? 3 : 2) || !once("vehicleCategoryId") || !once("lines") || (body && !once("bodyType"))) {
+    return { ok: false, error: catalogError("VALIDATION_ERROR", "Send exactly vehicleCategoryId and lines, and bodyType for L or XL.") };
   }
   const items = params.get("lines")!.split(",");
   if (items.length > MAX_SELECTION_LINES || items.some((item) => !/^[^:,]+:(?:[1-9]|1\d|20)$/.test(item))) {
     return { ok: false, error: catalogError("VALIDATION_ERROR", "Please check the selected services.", { fieldErrors: { lines: ["Use serviceId:quantity items, quantity 1 to 20."] } }) };
   }
   const lines = items.map((item) => { const [serviceId, quantity] = item.split(":"); return { serviceId, quantity: Number(quantity) }; });
-  return { ok: true, data: { vehicleCategoryId: params.get("vehicleCategoryId"), lines } };
+  return { ok: true, data: { vehicleCategoryId: params.get("vehicleCategoryId"), ...(body ? { bodyType: params.get("bodyType") } : {}), lines } };
 }
 
 // On success, priced is the server's own computation (equal to the accepted quote in every
@@ -47,7 +49,7 @@ export type AcceptedQuoteCheck =
   | { ok: true; quote: BookingQuote; priced: UnsignedQuote; release: ReleaseSnapshot }
   | { ok: false; error: LifecycleError };
 
-const pricedFields = (q: UnsignedQuote) => JSON.stringify([q.version, q.catalogReleaseId, q.catalogFingerprint, q.pricingAlgorithm, q.vehicleCategoryId,
+const pricedFields = (q: UnsignedQuote) => JSON.stringify([q.version, q.catalogReleaseId, q.catalogFingerprint, q.pricingAlgorithm, q.vehicleCategoryId, q.bodyType ?? null,
   q.primaryServiceId, q.queueId, q.lines.map((l) => [l.serviceId, l.offerId, l.kind, l.name, l.unit, l.quantity, l.priceStatus, l.unitPriceCentavos, l.subtotalCentavos,
     l.referenceUnitPriceCentavos, l.referenceSubtotalCentavos]), q.totalPriceCentavos, q.estimatedTotalCentavos, q.currency]);
 

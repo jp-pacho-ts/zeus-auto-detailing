@@ -70,6 +70,7 @@ export interface AdminQueueBooking {
   vehicleModel: string;
   vehiclePlate: string | null;
   sizeCode: string | null;
+  bodyType?: string | null; // L and XL: SUV, PICKUP or VAN as the customer chose
   serviceName: string; // primary service at create
   depositStatus: DepositStatus; // P1-18
   bay: { id: UUID; name: string } | null; // for bookingDate
@@ -642,6 +643,7 @@ export interface AdminServiceOffer {
   bookingMode: "FIXED_ONLINE" | "QUOTE_REQUIRED";
   unitPriceCentavos: number | null;
   compareAtCentavos: number | null;
+  pickupPriceCentavos?: number | null;
   durationMinutes: number | null;
 }
 
@@ -679,6 +681,7 @@ export interface AdminServiceOfferInput {
   state: "OFFERED" | "NOT_OFFERED" | "UNCONFIRMED";
   unitPriceCentavos: number | null;
   compareAtCentavos: number | null;
+  pickupPriceCentavos?: number | null;
 }
 
 export interface AdminServiceUpdateInput {

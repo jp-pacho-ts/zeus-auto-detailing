@@ -206,3 +206,37 @@ test("A1: an offered quote-first cell without a source price is a for-quote line
   const fixedNoPrice = clone((r) => { for (const o of bySlug(r, "basic-wash").offers) if (o.sizeCode === "S") o.unitPriceCentavos = null; });
   rejected(priceSelection(fixedNoPrice, select("S", "basic-wash")), "SERVICE_NOT_OFFERED", "lines.0.serviceId");
 });
+
+// LE 2026-11-12: L and XL ask which kind of vehicle; a pick-up pays the offer's pick-up price when it has one.
+test("pick-up price: only a PICKUP on an offer with a pick-up price changes; other body types and sizes keep the size price", () => {
+  const wash = bySlug(release, "basic-wash");
+  const priced = clone((r) => {
+    for (const o of r.services.find((s) => s.id === wash.id)!.offers) if (o.sizeCode === "L" || o.sizeCode === "XL") o.pickupPriceCentavos = 12345;
+  });
+  const sizePrice = (size: string) => quoted(priceSelection(release, select(size, "basic-wash"))).lines[0].unitPriceCentavos;
+  for (const size of ["L", "XL"]) {
+    const pickup = quoted(priceSelection(priced, { ...select(size, "basic-wash"), bodyType: "PICKUP" }));
+    assert.deepEqual(amounts({ kind: "QUOTED", quote: pickup }), [["PRICED", 12345, 12345, null, null]], size);
+    assert.equal(pickup.bodyType, "PICKUP");
+    assert.equal(pickup.totalPriceCentavos, 12345);
+    const suv = quoted(priceSelection(priced, { ...select(size, "basic-wash"), bodyType: "SUV" }));
+    assert.equal(suv.lines[0].unitPriceCentavos, sizePrice(size), size + " SUV keeps the size price");
+    assert.notEqual(suv.catalogFingerprint, pickup.catalogFingerprint, "the body type is bound into the fingerprint");
+    // No pick-up price on the offer: a pick-up pays the size price.
+    assert.equal(quoted(priceSelection(release, { ...select(size, "basic-wash"), bodyType: "PICKUP" })).lines[0].unitPriceCentavos, sizePrice(size));
+  }
+  assert.equal(quoted(priceSelection(priced, { ...select("XL", "basic-wash"), bodyType: "VAN" })).lines[0].unitPriceCentavos, sizePrice("XL"));
+  // A quote without a body type is byte-for-byte the old quote.
+  const plain = quoted(priceSelection(priced, select("L", "basic-wash")));
+  assert.equal("bodyType" in plain, false);
+  assert.equal(plain.catalogFingerprint, quoted(priceSelection(release, select("L", "basic-wash"))).catalogFingerprint);
+});
+
+test("body type must fit the size: L is SUV or Pick-up, XL adds Van, other sizes take none", () => {
+  rejected(priceSelection(release, { ...select("S", "basic-wash"), bodyType: "PICKUP" }), "VALIDATION_ERROR", "bodyType");
+  rejected(priceSelection(release, { ...select("L", "basic-wash"), bodyType: "VAN" }), "VALIDATION_ERROR", "bodyType");
+  quoted(priceSelection(release, { ...select("XL", "basic-wash"), bodyType: "VAN" }));
+  assert.equal(CatalogSelectionSchema.safeParse({ ...select("L", "basic-wash"), bodyType: "TRUCK" }).success, false);
+  const q = quoted(priceSelection(release, { ...select("L", "basic-wash"), bodyType: "PICKUP" }));
+  assert.equal(selectionOfQuote(q).bodyType, "PICKUP", "a re-price after create keeps the body type");
+});

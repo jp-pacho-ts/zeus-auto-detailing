@@ -12,6 +12,11 @@ import type {
   AdminServiceList,
 } from "@/types/admin-contracts";
 
+// Same transaction as the create or update: the L and XL pick-up prices (NULL means pick-ups pay the normal price).
+const setPickupPrices = (tx: StaffTx, actor: StaffActor, serviceId: string, offers: { sizeCode: string; pickupPriceCentavos: number | null }[]) =>
+  tx.$executeRawUnsafe("SELECT admin_service_set_pickup_prices($1, $2, $3::jsonb)", actor.staffId, serviceId,
+    JSON.stringify(offers.map((o) => ({ sizeCode: o.sizeCode, pickupPriceCentavos: o.pickupPriceCentavos }))));
+
 export async function listAdminServices(
   actor: StaffActor,
   options: AdminOptions = {},
@@ -57,6 +62,7 @@ export async function updateAdminService(
           JSON.stringify(input.offers),
           commissionBp,
         );
+        await setPickupPrices(tx, actor, serviceId, input.offers);
         return { ok: true, serviceId };
       } catch (error) {
         const text = error instanceof Error ? error.message : "";
@@ -98,6 +104,7 @@ export async function createAdminService(
         `;
         const serviceId = rows[0]?.admin_service_create;
         if (!serviceId) throw new AdminServiceError("INTERNAL_ERROR", "Failed to create service");
+        await setPickupPrices(tx, actor, serviceId, input.offers);
         return { ok: true, serviceId };
       } catch (error) {
         const text = error instanceof Error ? error.message : "";

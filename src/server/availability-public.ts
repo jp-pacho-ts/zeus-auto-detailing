@@ -31,7 +31,7 @@ export async function getDayAvailability(input: unknown, options: CreateDayBooki
             const release = await loadCurrentRelease(tx);
             if (!release)
                 throw new Error("No catalog");
-            const q = priceSelection(release, { vehicleCategoryId: r.vehicleCategoryId, lines: r.lines });
+            const q = priceSelection(release, { vehicleCategoryId: r.vehicleCategoryId, bodyType: r.bodyType, lines: r.lines });
             if (q.kind === "REJECTED")
                 return { ok: false as const, error: bookingError(q.error.code, q.error.message, { commitState: "NOT_APPLICABLE", fieldErrors: q.error.fieldErrors }) };
             const through = addDays(manilaToday(now), 90), days = await readDayStates(tx, q.quote.queueId, r.fromDate, through, now);
