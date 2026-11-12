@@ -89,29 +89,119 @@ function commissionBody(mode: CommissionMode, rate: string, sizes: SizeValues) {
     };
   return { commissionRatePercent: mode === "NONE" ? "0" : mode === "CUSTOM" ? rate.trim() || null : null, commissionMode: null };
 }
-function SizeCommissionBoxes({ mode, values, onChange }: { mode: CommissionMode; values: SizeValues; onChange: (v: SizeValues) => void }) {
-  if (!PER_SIZE.includes(mode)) return null;
-  const percent = mode === "SIZE_PERCENT";
+// The selling price of each size as typed in the form (the promo price when one applies), for the commission preview.
+function sizePrices(offers: Record<string, { offered: boolean; regularPricePhp: string; hasPromo: boolean; promoPricePhp: string }>) {
+  return Object.fromEntries(SIZE_ORDER.map((size) => {
+    const o = offers[size];
+    const regular = parseFloat(o?.regularPricePhp || "0"), promo = parseFloat(o?.promoPricePhp || "0");
+    const price = o?.hasPromo && promo > 0 && promo < regular ? promo : regular;
+    return [size, o?.offered && price > 0 ? price : null];
+  })) as Record<string, number | null>;
+}
+const COMMISSION_CHOICES: { mode: CommissionMode; label: string; hint: string }[] = [
+  { mode: "DEFAULT", label: "Shop default", hint: "Each worker's own rate, or the shop default." },
+  { mode: "NONE", label: "None", hint: "Workers earn nothing on this service." },
+  { mode: "CUSTOM", label: "One %", hint: "The same percentage of the price for every size." },
+  { mode: "SIZE_PERCENT", label: "% by size", hint: "A percentage of the price, set for each size." },
+  { mode: "SIZE_FIXED", label: "₱ by size", hint: "A fixed peso amount per car, set for each size." },
+];
+const peso = (n: number) => "₱" + n.toLocaleString("en-PH", { maximumFractionDigits: 2 });
+// How the service pays its workers: one choice, then only the inputs that choice needs, with what each size earns beside it.
+function CommissionField({ mode, onMode, rate, onRate, sizes, onSizes, prices }: {
+  mode: CommissionMode; onMode: (m: CommissionMode) => void; rate: string; onRate: (v: string) => void;
+  sizes: SizeValues; onSizes: (v: SizeValues) => void; prices: Record<string, number | null>;
+}) {
+  const perSize = PER_SIZE.includes(mode);
+  const choose = (m: CommissionMode) => {
+    onMode(m);
+    if (m === "NONE") onRate("0");
+    else if (m === "CUSTOM") onRate(rate && rate !== "0" ? rate : "10");
+    else onRate("");
+  };
+  const earns = (size: string) => {
+    const price = prices[size];
+    const n = Number((mode === "CUSTOM" ? rate : sizes[size]) || "0");
+    if (mode === "SIZE_FIXED") return price && n > 0 ? peso(n) : "—";
+    return price && n > 0 ? peso(Math.round(price * n) / 100) : "—";
+  };
+  const box = "h-9 w-full rounded-md border border-border bg-card text-right text-sm tabular-nums text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
   return (
-    <div className="mt-2 space-y-1.5 rounded border border-border bg-raised p-2.5">
-      {SIZE_ORDER.map((size) => (
-        <label key={size} className="flex items-center justify-between gap-3 text-sm text-foreground">
-          <span>{SIZE_LABEL[size]}</span>
-          <span className="relative block w-28 shrink-0">
-            {!percent && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₱</span>}
+    <fieldset className="space-y-3">
+      <legend className="text-xs font-semibold text-muted-foreground">Commission</legend>
+      <div role="radiogroup" aria-label="How this service pays commission" className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-raised p-1 sm:grid-cols-5">
+        {COMMISSION_CHOICES.map((c) => (
+          <button
+            key={c.mode}
+            type="button"
+            role="radio"
+            aria-checked={mode === c.mode}
+            onClick={() => choose(c.mode)}
+            className={`min-h-[36px] rounded-md px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              mode === c.mode ? "bg-card text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">{COMMISSION_CHOICES.find((c) => c.mode === mode)?.hint}</p>
+      {mode === "CUSTOM" && (
+        <label className="flex items-center justify-between gap-3 text-sm text-foreground">
+          <span>Percentage</span>
+          <span className="relative block w-24">
             <input
               type="text"
               inputMode="numeric"
-              value={values[size] ?? "0"}
-              onChange={(e) => onChange({ ...values, [size]: e.target.value.replace(/\D/g, "").slice(0, percent ? 3 : 7) })}
-              aria-label={`${SIZE_LABEL[size]} commission ${percent ? "percent" : "pesos"}`}
-              className={`h-9 w-full rounded border border-border bg-card text-right text-sm text-foreground focus:border-primary focus:outline-none ${percent ? "pl-2.5 pr-7" : "pl-6 pr-2.5"}`}
+              value={rate}
+              placeholder="10"
+              onChange={(e) => onRate(e.target.value.replace(/\D/g, "").slice(0, 3))}
+              className={`${box} pl-2.5 pr-7`}
             />
-            {percent && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>}
+            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
           </span>
         </label>
-      ))}
-    </div>
+      )}
+      {(mode === "CUSTOM" || perSize) && (
+        <>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted-foreground">
+                <th className="pb-1.5 font-medium">Size</th>
+                <th className="pb-1.5 text-right font-medium">Price</th>
+                {perSize && <th className="pb-1.5 pl-3 text-right font-medium">{mode === "SIZE_FIXED" ? "Pesos" : "Percent"}</th>}
+                <th className="pb-1.5 pl-3 text-right font-medium">Workers get</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SIZE_ORDER.map((size) => (
+                <tr key={size} className="border-t border-border">
+                  <td className="py-1.5 text-foreground">{SIZE_LABEL[size]}</td>
+                  <td className="py-1.5 text-right tabular-nums text-muted-foreground">{prices[size] ? peso(prices[size]!) : "Not offered"}</td>
+                  {perSize && (
+                    <td className="py-1.5 pl-3">
+                      <span className="relative ml-auto block w-24">
+                        {mode === "SIZE_FIXED" && <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₱</span>}
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={sizes[size] ?? "0"}
+                          aria-label={`${SIZE_LABEL[size]} commission ${mode === "SIZE_FIXED" ? "pesos" : "percent"}`}
+                          onChange={(e) => onSizes({ ...sizes, [size]: e.target.value.replace(/\D/g, "").slice(0, mode === "SIZE_FIXED" ? 7 : 3) })}
+                          className={`${box} ${mode === "SIZE_FIXED" ? "pl-6 pr-2.5" : "pl-2.5 pr-7"}`}
+                        />
+                        {mode === "SIZE_PERCENT" && <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>}
+                      </span>
+                    </td>
+                  )}
+                  <td className="py-1.5 pl-3 text-right font-semibold tabular-nums text-foreground">{earns(size)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-xs text-muted-foreground">Split equally between the workers on the booking.</p>
+        </>
+      )}
+    </fieldset>
   );
 }
 
@@ -865,55 +955,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground">Commission Setting</label>
-                  <select
-                    value={editCommissionMode}
-                    onChange={(e) => {
-                      const m = e.target.value as CommissionMode;
-                      setEditCommissionMode(m);
-                      if (m === "NONE") setEditCommissionRate("0");
-                      else if (PER_SIZE.includes(m)) setEditCommissionRate("");
-                      else if (m === "DEFAULT") setEditCommissionRate("");
-                      else if (editCommissionRate === "0" || !editCommissionRate) setEditCommissionRate("10");
-                    }}
-                    className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
-                  >
-                    <option value="DEFAULT">Default (Shop / Staff Rate)</option>
-                    <option value="NONE">No Commission (0%)</option>
-                    <option value="CUSTOM">Custom Percentage (%)</option>
-                    <option value="SIZE_PERCENT">Different % per car size</option>
-                    <option value="SIZE_FIXED">Fixed peso per car size</option>
-                  </select>
-                  {editCommissionMode === "CUSTOM" && (
-                    <div className="relative mt-1.5">
-                      <input
-                        type="number"
-                        step="1"
-                        inputMode="numeric"
-                        // Whole percentages only (LE 2026-11-12), and the mouse wheel never changes a typed rate (it stepped 30 to 29.95).
-                        onWheel={(e) => e.currentTarget.blur()}
-                        min="1"
-                        max="100"
-                        value={editCommissionRate}
-                        onChange={(e) => setEditCommissionRate(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                        placeholder="e.g. 10"
-                        className="w-full rounded border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none pr-8"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
-                    </div>
-                  )}
-                  <SizeCommissionBoxes mode={editCommissionMode} values={editSizes} onChange={setEditSizes} />
-                  {editCommissionMode === "NONE" && (
-                    <p className="mt-1 text-xs text-zinc-400">
-                      No commission earned for this service (0%).
-                    </p>
-                  )}
-                  {editCommissionMode === "DEFAULT" && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Follows technician profile rate or shop default.
-                    </p>
-                  )}
+                <div className="sm:col-span-full">
+                  <CommissionField mode={editCommissionMode} onMode={setEditCommissionMode} rate={editCommissionRate} onRate={setEditCommissionRate}
+                    sizes={editSizes} onSizes={setEditSizes} prices={sizePrices(editOffers)} />
                 </div>
               </div>
               {editCategory === "GRAPHENE" && (
@@ -1188,55 +1232,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground">Commission Setting</label>
-                  <select
-                    value={createCommissionMode}
-                    onChange={(e) => {
-                      const m = e.target.value as CommissionMode;
-                      setCreateCommissionMode(m);
-                      if (m === "NONE") setCreateCommissionRate("0");
-                      else if (PER_SIZE.includes(m)) setCreateCommissionRate("");
-                      else if (m === "DEFAULT") setCreateCommissionRate("");
-                      else if (createCommissionRate === "0" || !createCommissionRate) setCreateCommissionRate("10");
-                    }}
-                    className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
-                  >
-                    <option value="DEFAULT">Default (Shop / Staff Rate)</option>
-                    <option value="NONE">No Commission (0%)</option>
-                    <option value="CUSTOM">Custom Percentage (%)</option>
-                    <option value="SIZE_PERCENT">Different % per car size</option>
-                    <option value="SIZE_FIXED">Fixed peso per car size</option>
-                  </select>
-                  {createCommissionMode === "CUSTOM" && (
-                    <div className="relative mt-1.5">
-                      <input
-                        type="number"
-                        step="1"
-                        inputMode="numeric"
-                        // Whole percentages only (LE 2026-11-12), and the mouse wheel never changes a typed rate (it stepped 30 to 29.95).
-                        onWheel={(e) => e.currentTarget.blur()}
-                        min="1"
-                        max="100"
-                        value={createCommissionRate}
-                        onChange={(e) => setCreateCommissionRate(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                        placeholder="e.g. 10"
-                        className="w-full rounded border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none pr-8"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
-                    </div>
-                  )}
-                  <SizeCommissionBoxes mode={createCommissionMode} values={createSizes} onChange={setCreateSizes} />
-                  {createCommissionMode === "NONE" && (
-                    <p className="mt-1 text-xs text-zinc-400">
-                      No commission earned for this service (0%).
-                    </p>
-                  )}
-                  {createCommissionMode === "DEFAULT" && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Follows technician profile rate or shop default.
-                    </p>
-                  )}
+                <div className="sm:col-span-full">
+                  <CommissionField mode={createCommissionMode} onMode={setCreateCommissionMode} rate={createCommissionRate} onRate={setCreateCommissionRate}
+                    sizes={createSizes} onSizes={setCreateSizes} prices={sizePrices(createOffers)} />
                 </div>
               </div>
               {createCategory === "GRAPHENE" && (
