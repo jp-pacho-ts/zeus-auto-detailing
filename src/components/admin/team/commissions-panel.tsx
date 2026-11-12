@@ -72,6 +72,18 @@ export function CommissionsPanel({
         staffId ? `&staffId=${staffId}` : ""
       }`;
   const summary = useKeptResource<AdminCommissionSummary>(url);
+  // A Recalculate in Booking details (or this tab coming back into view) shows the new records without a manual refresh.
+  const reloadSummary = summary.reload;
+  React.useEffect(() => {
+    const refresh = () => void reloadSummary();
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    window.addEventListener("zeus:commissions-changed", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("zeus:commissions-changed", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [reloadSummary]);
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [adjusting, setAdjusting] = React.useState<string | null>(null);

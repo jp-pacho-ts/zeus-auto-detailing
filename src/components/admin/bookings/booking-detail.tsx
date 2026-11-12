@@ -109,6 +109,8 @@ export function BookingDetail({
     setNotice(null);
     try {
       setRecalc(await adminRequest<Recalc>(`/api/admin/bookings/${id}/commission`, { method: "POST", body: {} }));
+      // The Commissions screen may already be open: it reloads on this event so the new records show at once.
+      window.dispatchEvent(new Event("zeus:commissions-changed"));
     } catch (e) {
       if (e instanceof AdminRequestError && e.status === 401) return window.location.replace("/admin/login");
       setError(e instanceof AdminRequestError ? writeFeedback(e.detail).message : "Couldn't reach the shop server. Try again.");
