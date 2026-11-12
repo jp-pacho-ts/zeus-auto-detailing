@@ -17,10 +17,10 @@ function BayRow({ bay, busy, onPatch, moveTo, onMove }: {
 }) {
   const [confirming, setConfirming] = React.useState(false);
   return (
-    <li className="min-w-0 space-y-3 rounded border border-border bg-[#18181b] p-3">
+    <li className="min-w-0 space-y-3 rounded border border-border bg-card p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="break-words font-semibold">{bay.name}</span>
-        {!bay.isActive && <span className="rounded border border-border px-2 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">Removed</span>}
+        {!bay.isActive && <span className="rounded border border-border px-2 py-0.5 text-xs font-bold uppercase text-muted-foreground">Removed</span>}
       </div>
       <form
         className="flex flex-wrap items-end gap-2"
@@ -105,7 +105,7 @@ export function BayManager({ onChanged }: { onChanged?: () => unknown }) {
   }
   return (
     <div className="space-y-6">
-      <section aria-label="Add a bay" className="rounded border border-border bg-[#121214] p-4">
+      <section aria-label="Add a bay" className="rounded border border-border bg-panel p-4">
         <h2 className="font-bold">Add a bay</h2>
         <form
           className="mt-3 flex flex-wrap items-end gap-3"

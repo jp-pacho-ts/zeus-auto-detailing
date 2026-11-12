@@ -301,7 +301,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   }
   if (signingOut)
     return (
-      <main className="min-h-screen bg-[#09090b] p-6 text-foreground">
+      <main className="min-h-screen bg-background p-6 text-foreground">
         <p role="status">Signing out...</p>
         {logoutError && (
           <div role="alert">
@@ -325,7 +325,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         variant="shell"
       />
     ) : (
-      <main className="min-h-screen bg-[#09090b] p-6 text-foreground">
+      <main className="min-h-screen bg-background p-6 text-foreground">
         <LoadState
           loading={session.loading}
           error={session.error}
@@ -347,8 +347,8 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   // only #admin-content scrolls; nothing in the dashboard scrolls sideways.
   return (
     <LazyMotion features={domAnimation}>
-    <div className="admin-shell fixed inset-0 flex flex-col overflow-hidden bg-[#09090b] text-[#f5f5f4] md:flex-row">
-      <div inert={menuOpen} className="flex shrink-0 items-center justify-between border-b border-border bg-[#121214] px-4 py-2 md:hidden">
+    <div className="admin-shell fixed inset-0 flex flex-col overflow-hidden bg-background text-[#f5f5f4] md:flex-row">
+      <div inert={menuOpen} className="flex shrink-0 items-center justify-between border-b border-border bg-panel px-4 py-2 md:hidden">
         <Link href="/" aria-label="Return to public shop site">
           <Logo small mode={isLight ? "light" : "dark"} />
         </Link>
@@ -358,7 +358,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
           aria-controls="admin-nav"
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen(true)}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded px-3 text-sm font-medium text-foreground hover:bg-[#18181b] focus-visible:ring-2 focus-visible:ring-primary"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded px-3 text-sm font-medium text-foreground hover:bg-card focus-visible:ring-2 focus-visible:ring-primary"
         >
           <Menu className="h-5 w-5" aria-hidden="true" /> Menu
         </button>
@@ -378,7 +378,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         aria-modal={menuOpen ? true : undefined}
         id="admin-nav"
         aria-label="Shop Management Sidebar"
-        className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] flex-col border-r border-border bg-[#121214] transition-[width] duration-200 ease-out md:static md:z-auto md:flex md:max-w-none md:shrink-0 ${
+        className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] flex-col border-r border-border bg-panel transition-[width] duration-200 ease-out md:static md:z-auto md:flex md:max-w-none md:shrink-0 ${
           sidebarCollapsed ? "md:w-16" : "md:w-60"
         }`}
       >
@@ -400,7 +400,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
               onClick={toggleSidebarCollapsed}
               aria-label="Expand sidebar"
               title="Expand sidebar"
-              className="hidden h-9 w-9 items-center justify-center rounded-md border border-border bg-[#18181b] text-primary transition-colors hover:border-primary/40 hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary md:inline-flex"
+              className="hidden h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-primary transition-colors hover:border-primary/40 hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary md:inline-flex"
             >
               <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -410,7 +410,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             type="button"
             aria-label="Close menu"
             onClick={closeMenu}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground hover:bg-[#18181b] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:hidden"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground hover:bg-card hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary md:hidden"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -447,7 +447,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   }
                 >
                   <p
-                    className={`mb-2.5 px-3 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground ${
+                    className={`mb-2.5 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${
                       sidebarCollapsed && !menuOpen ? "md:sr-only" : ""
                     }`}
                   >
@@ -476,7 +476,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                           } ${
                             isActive
                               ? "font-bold text-primary"
-                              : "font-medium text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
+                              : "font-medium text-muted-foreground hover:bg-card hover:text-foreground"
                           }`}
                         >
                           {isActive && (
@@ -511,7 +511,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                           {sidebarCollapsed && !menuOpen && (
                             <span
                               aria-hidden="true"
-                              className="pointer-events-none absolute left-full top-1/2 z-50 ml-2.5 hidden -translate-y-1/2 whitespace-nowrap rounded border border-border bg-[#18181b] px-2.5 py-1 text-xs font-medium text-foreground opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:block"
+                              className="pointer-events-none absolute left-full top-1/2 z-50 ml-2.5 hidden -translate-y-1/2 whitespace-nowrap rounded border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:block"
                             >
                               {name}
                             </span>
@@ -533,7 +533,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             onClick={toggleSidebarCollapsed}
             aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary ${
+            className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-card hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary ${
               sidebarCollapsed ? "justify-center px-0" : ""
             }`}
           >
@@ -554,10 +554,10 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         {isMaintenance && (
           <p role="status" className="shrink-0 border-b border-primary bg-primary/10 px-4 py-2 text-xs font-bold text-foreground sm:px-8 lg:px-10">{MAINTENANCE_BANNER}</p>
         )}
-        <header className="flex shrink-0 items-center border-b border-border bg-[#121214] px-4 py-3 sm:px-8 md:h-20 md:py-0 lg:px-10">
+        <header className="flex shrink-0 items-center border-b border-border bg-panel px-4 py-3 sm:px-8 md:h-20 md:py-0 lg:px-10">
           <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-primary">
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
                 {new Intl.DateTimeFormat(brandConfig.locale, {
                   timeZone: brandConfig.timezone,
                   weekday: "long",
@@ -578,7 +578,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   role="status"
                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 text-xs font-semibold text-amber-400"
                 >
-                  <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="h-2 w-2 rounded-full bg-amber-400" />
                   Maintenance Mode
                 </span>
               )}
@@ -589,7 +589,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Public Site"
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-[#18181b] px-3 text-xs font-medium text-zinc-300 transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-primary"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-medium text-zinc-300 transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <span>Public Site</span>
                 <ExternalLink className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
@@ -604,7 +604,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                 onClick={toggleTheme}
                 aria-label={currentTheme === "dark" ? "Switch to light theme" : currentTheme === "light" ? "Switch to dark theme" : "Toggle theme (System active)"}
                 title={currentTheme === "dark" ? "Switch to light theme" : currentTheme === "light" ? "Switch to dark theme" : "Theme: System (Click to toggle)"}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white dark:bg-[#18181b] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-stone-50 dark:hover:bg-zinc-800 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:bg-stone-50 dark:hover:bg-zinc-800 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
               >
                 {resolveEffectiveTheme(currentTheme, typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches) === "dark" ? (
                   <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" aria-hidden="true" />
@@ -620,9 +620,9 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   aria-haspopup="menu"
                   aria-expanded={profileOpen}
                   onClick={() => setProfileOpen((v) => !v)}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-[#18181b] px-3 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-primary"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-primary"
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-[0.65rem] font-bold text-primary">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
                     {initials}
                   </span>
                   <span className="hidden max-w-[8rem] truncate sm:inline">
@@ -640,13 +640,13 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                   <div
                     role="menu"
                     aria-label="Account actions"
-                    className="absolute right-0 top-full z-50 mt-2 w-52 rounded-lg border border-border bg-[#121214] p-1.5 shadow-xl"
+                    className="absolute right-0 top-full z-50 mt-2 w-52 rounded-lg border border-border bg-panel p-1.5 shadow-xl"
                   >
                     <div className="border-b border-border/70 px-3 py-2">
                       <p className="truncate text-xs font-bold text-foreground">
                         {staff.displayName}
                       </p>
-                      <p className="text-[0.65rem] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {staff.role === "ADMIN" ? "Shop Manager" : "Shop Staff"}
                       </p>
                     </div>
@@ -658,7 +658,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                           setProfileOpen(false);
                           setTab("System Settings");
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground"
+                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
                       >
                         <Settings className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                         <span>System settings</span>
@@ -671,7 +671,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                           setUserSettingsTab("profile");
                           setUserSettingsOpen(true);
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground"
+                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
                       >
                         <User className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                         <span>Account & Preferences</span>
@@ -684,7 +684,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                           setUserSettingsTab("security");
                           setUserSettingsOpen(true);
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground"
+                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
                       >
                         <KeyRound className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                         <span>Change password</span>
@@ -693,7 +693,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                         href="/"
                         role="menuitem"
                         onClick={() => setProfileOpen(false)}
-                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[#18181b] hover:text-foreground"
+                        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
                       >
                         <ExternalLink className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                         <span>Public shop site</span>

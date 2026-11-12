@@ -281,47 +281,47 @@ export function SuppliesPanel({
 
       {/* KPI Cards: 4 Tiles with Active Items, Total Units, Inventory Value, and Low/Out alerts */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Active Products</p>
             <p className="text-2xl font-bold text-foreground mt-1">{activeCount}</p>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-[#1c1c20] text-primary">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-raised text-primary">
             <Boxes className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Total Units on Hand</p>
             <p className="text-2xl font-bold text-emerald-400 mt-1 font-mono">
               {totalUnitsInStock.toLocaleString()}
             </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Physical items in shop</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Physical items in shop</p>
           </div>
           <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
             <CheckCircle2 className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Total Inventory Value</p>
             <p className="text-2xl font-bold text-amber-400 mt-1 font-mono">
               {formatPesos(Number(totalInventoryValueCentavos))}
             </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">At unit replacement cost</p>
+            <p className="text-xs text-muted-foreground mt-0.5">At unit replacement cost</p>
           </div>
           <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400">
             <Wallet className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Low or Out of Stock</p>
             <p className="text-2xl font-bold text-rose-400 mt-1">{list.lowOrOutCount}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {outOfStockCount > 0 ? `${outOfStockCount} completely out` : "Needs restocking"}
             </p>
           </div>
@@ -357,7 +357,7 @@ export function SuppliesPanel({
       )}
 
       {/* Main Table Container */}
-      <div className="rounded-xl border border-border bg-[#141416] shadow-sm">
+      <div className="rounded-xl border border-border bg-panel shadow-sm">
         {/* Search & Filter Toolbar */}
         <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1 max-w-sm">
@@ -369,7 +369,7 @@ export function SuppliesPanel({
               onChange={handleQueryChange}
               placeholder="Search by name or category..."
               autoComplete="off"
-              className="w-full rounded-md border border-border bg-[#1a1a1e] pl-9 pr-8 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-border bg-raised pl-9 pr-8 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />
             {query && (
               <button
@@ -386,7 +386,7 @@ export function SuppliesPanel({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-md border border-border bg-[#1a1a1e] px-2.5 py-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 rounded-md border border-border bg-raised px-2.5 py-1 text-xs text-muted-foreground">
               <Filter className="h-3 w-3" />
               <span>Category:</span>
               <select
@@ -403,7 +403,7 @@ export function SuppliesPanel({
               </select>
             </div>
 
-            <div className="flex items-center gap-1.5 rounded-md border border-border bg-[#1a1a1e] px-2.5 py-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 rounded-md border border-border bg-raised px-2.5 py-1 text-xs text-muted-foreground">
               <span>Status:</span>
               <select
                 value={statusFilter}
@@ -416,7 +416,7 @@ export function SuppliesPanel({
               </select>
             </div>
 
-            <label className="flex items-center gap-2 rounded-md border border-border bg-[#1a1a1e] px-2.5 py-1 text-xs text-muted-foreground cursor-pointer select-none">
+            <label className="flex items-center gap-2 rounded-md border border-border bg-raised px-2.5 py-1 text-xs text-muted-foreground cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={showArchived}
@@ -434,7 +434,7 @@ export function SuppliesPanel({
         {/* Status Line */}
         <div
           data-testid="supplies-summary"
-          className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-[#101012] px-6 py-2.5 text-xs text-muted-foreground"
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-panel px-6 py-2.5 text-xs text-muted-foreground"
         >
           <span>{summaryLine(activeCount, list.lowOrOutCount)}</span>
           <span className="font-mono text-zinc-400">
@@ -455,7 +455,7 @@ export function SuppliesPanel({
           </div>
         ) : (
           <div className="divide-y divide-border">
-            <div className="hidden grid-cols-12 items-center gap-3 px-6 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider sm:grid bg-[#101012]">
+            <div className="hidden grid-cols-12 items-center gap-3 px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider sm:grid bg-panel">
               <div className="col-span-3">Item &amp; Category</div>
               <div className="col-span-2">Status</div>
               <div className="col-span-2">Stock Count</div>
@@ -490,7 +490,7 @@ export function SuppliesPanel({
 
                     {/* Column 2: Status Pill in its dedicated column */}
                     <div className="col-span-2 flex items-center">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden mr-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground sm:hidden mr-2">
                         Status:
                       </span>
                       {badge ? (
@@ -503,7 +503,7 @@ export function SuppliesPanel({
                           {badge}
                         </span>
                       ) : !i.isActive ? (
-                        <span className="inline-flex items-center rounded-full border border-border bg-[#1c1c20] px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                        <span className="inline-flex items-center rounded-full border border-border bg-raised px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                           Archived
                         </span>
                       ) : (
@@ -513,13 +513,13 @@ export function SuppliesPanel({
 
                     {/* Column 3: Stock Count in its dedicated column */}
                     <div className="col-span-2 text-xs">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden mr-1">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground sm:hidden mr-1">
                         Stock:
                       </span>
                       <span className="font-mono text-sm font-bold text-foreground">
                         In stock {i.currentStock.toLocaleString()}
                       </span>
-                      <p className="text-[11px] mt-0.5 text-zinc-400">
+                      <p className="text-xs mt-0.5 text-zinc-400">
                         {i.reorderLevel > 0 ? (
                           <span>Reorder at {i.reorderLevel}</span>
                         ) : (
@@ -530,13 +530,13 @@ export function SuppliesPanel({
 
                     {/* Column 4: Unit Cost */}
                     <div className="col-span-2 text-xs">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden mr-1">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground sm:hidden mr-1">
                         Cost:
                       </span>
                       <span className="font-semibold text-foreground font-mono">
                         {costLabel(i.costPerUnitCentavos)}
                       </span>
-                      <p className="text-[11px] text-zinc-500 mt-0.5">
+                      <p className="text-xs text-zinc-500 mt-0.5">
                         Val: {formatPesos(Number(BigInt(i.currentStock) * BigInt(i.costPerUnitCentavos)))}
                       </p>
                     </div>
@@ -549,7 +549,7 @@ export function SuppliesPanel({
                           <div
                             role="group"
                             aria-label={`Stock adjustments for ${i.name}`}
-                            className="inline-flex items-center rounded-lg border border-border bg-[#141417] p-0.5 shadow-sm"
+                            className="inline-flex items-center rounded-lg border border-border bg-panel p-0.5 shadow-sm"
                           >
                             <button
                               type="button"
@@ -580,7 +580,7 @@ export function SuppliesPanel({
                           <div
                             role="group"
                             aria-label={`Item options for ${i.name}`}
-                            className="inline-flex items-center rounded-lg border border-border bg-[#141417] p-0.5 shadow-sm"
+                            className="inline-flex items-center rounded-lg border border-border bg-panel p-0.5 shadow-sm"
                           >
                             <button
                               type="button"
@@ -623,7 +623,7 @@ export function SuppliesPanel({
                         <div
                           role="group"
                           aria-label={`Archived item options for ${i.name}`}
-                          className="inline-flex items-center rounded-lg border border-border bg-[#141417] p-0.5 shadow-sm"
+                          className="inline-flex items-center rounded-lg border border-border bg-panel p-0.5 shadow-sm"
                         >
                           <button
                             type="button"
@@ -678,7 +678,7 @@ export function SuppliesPanel({
                     setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="rounded border border-border bg-[#1a1a1e] px-1.5 py-0.5 text-xs text-foreground focus:outline-none"
+                  className="rounded border border-border bg-raised px-1.5 py-0.5 text-xs text-foreground focus:outline-none"
                 >
                   <option value={5}>5</option>
                   <option value={10}>10</option>
@@ -693,7 +693,7 @@ export function SuppliesPanel({
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPageSafe <= 1}
-                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-[#1a1a1e] px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
+                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-raised px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
                 <span>Prev</span>
@@ -705,7 +705,7 @@ export function SuppliesPanel({
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPageSafe >= totalPages}
-                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-[#1a1a1e] px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
+                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-raised px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
               >
                 <span>Next</span>
                 <ChevronRight className="h-3.5 w-3.5" />
@@ -789,11 +789,11 @@ export function SuppliesPanel({
             />
           </label>
           {/* Stock input section: clearly displays numbers and lets user put/adjust stock count */}
-          <div className="rounded-xl border border-border bg-[#141417] p-3.5 space-y-2">
+          <div className="rounded-xl border border-border bg-panel p-3.5 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <span>{editing === "new" ? "Starting stock (units)" : "Current stock on hand (units)"}</span>
-                <span className="text-[11px] text-muted-foreground font-normal">
+                <span className="text-xs text-muted-foreground font-normal">
                   ({form.unit.trim() || "units"})
                 </span>
               </label>
@@ -841,16 +841,16 @@ export function SuppliesPanel({
               <div>
                 {(() => {
                   const val = whole(form.stock);
-                  if (val === null || val < 0) return <p className="text-[11px] text-rose-400">Enter a whole number of 0 or more.</p>;
+                  if (val === null || val < 0) return <p className="text-xs text-rose-400">Enter a whole number of 0 or more.</p>;
                   const diff = val - editing.currentStock;
-                  if (diff === 0) return <p className="text-[11px] text-zinc-400">No stock change ({val} {editing.unit} currently in stock).</p>;
+                  if (diff === 0) return <p className="text-xs text-zinc-400">No stock change ({val} {editing.unit} currently in stock).</p>;
                   if (diff > 0) return (
-                    <p className="text-[11px] font-semibold text-emerald-400">
+                    <p className="text-xs font-semibold text-emerald-400">
                       + {diff} {editing.unit} will be added via Stock In log.
                     </p>
                   );
                   return (
-                    <p className="text-[11px] font-semibold text-amber-400">
+                    <p className="text-xs font-semibold text-amber-400">
                       - {Math.abs(diff)} {editing.unit} will be deducted via Used log.
                     </p>
                   );

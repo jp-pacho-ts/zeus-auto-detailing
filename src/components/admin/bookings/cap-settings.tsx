@@ -66,7 +66,7 @@ export function CapSettings({
   }
   return (
     <section
-      className="rounded border border-border bg-[#121214] p-4 sm:p-6"
+      className="rounded border border-border bg-panel p-4 sm:p-6"
       aria-labelledby="caps-title"
     >
       <h2 id="caps-title" className="font-bold">

@@ -101,7 +101,7 @@ export function DashboardTab({
       {/* Two-Column Live Floor & Queue Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Live Bay Floor */}
-        <section className="rounded-lg border border-border bg-white dark:bg-[#121214] lg:col-span-7">
+        <section className="rounded-lg border border-border bg-panel lg:col-span-7">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5">
             <div>
               <h2 className="text-base font-bold text-foreground">
@@ -157,8 +157,8 @@ export function DashboardTab({
                           key={bay.id}
                           className={`rounded-md border p-3 ${
                             car
-                              ? "border-amber-500/30 bg-amber-500/5 dark:bg-[#161619] dark:border-primary/30"
-                              : "border-border/70 bg-stone-50 dark:bg-[#0d0d0f]"
+                              ? "border-amber-500/30 bg-amber-500/5 dark:bg-card dark:border-primary/30"
+                              : "border-border/70 bg-stone-50 dark:bg-background"
                           }`}
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -166,7 +166,7 @@ export function DashboardTab({
                               {bay.name}
                             </span>
                             <span
-                              className={`inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider ${
+                              className={`inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs font-bold uppercase tracking-wider ${
                                 car
                                   ? "border border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400"
                                   : "border border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
@@ -212,7 +212,7 @@ export function DashboardTab({
         </section>
 
         {/* Today's Priority Queue */}
-        <section className="rounded-lg border border-border bg-white dark:bg-[#121214] lg:col-span-5">
+        <section className="rounded-lg border border-border bg-panel lg:col-span-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5">
             <div>
               <h2 className="text-base font-bold text-foreground">
@@ -246,7 +246,7 @@ export function DashboardTab({
             {activeBookings.slice(0, 8).map((b) => (
               <div
                 key={b.id}
-                className="flex items-center justify-between gap-3 p-3.5 transition-colors hover:bg-[#18181b]/60"
+                className="flex items-center justify-between gap-3 p-3.5 transition-colors hover:bg-card/60"
               >
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <div className="flex flex-wrap items-center gap-2">
@@ -258,7 +258,7 @@ export function DashboardTab({
                       {b.referenceCode}
                     </button>
                     <span
-                      className={`inline-block rounded border px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider ${
+                      className={`inline-block rounded border px-2 py-0.5 text-xs font-bold uppercase tracking-wider ${
                         b.status === "CONFIRMED" || b.status === "COMPLETED"
                           ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
                           : b.status === "PENDING"
@@ -296,7 +296,7 @@ export function DashboardTab({
 
       {/* Month-to-Date Executive Strip (Admin Only) */}
       {isAdmin && analytics.data && (
-        <section className="rounded-lg border border-border bg-white dark:bg-[#121214] p-4">
+        <section className="rounded-lg border border-border bg-panel p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-base font-bold text-foreground">
@@ -317,8 +317,8 @@ export function DashboardTab({
             const mtdPos = mtdNet >= 0;
             return (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-[#0d0d0f] p-3.5">
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-background p-3.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Month Revenue
                   </p>
                   <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
@@ -328,8 +328,8 @@ export function DashboardTab({
                     {analytics.data.finishedJobs} finished jobs
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-[#0d0d0f] p-3.5">
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-background p-3.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Est. Net Income
                   </p>
                   <p className={`mt-1 font-mono text-lg font-bold tabular-nums ${mtdPos ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
@@ -339,8 +339,8 @@ export function DashboardTab({
                     After comms &amp; expenses
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-[#0d0d0f] p-3.5">
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-background p-3.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Average Ticket
                   </p>
                   <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
@@ -352,8 +352,8 @@ export function DashboardTab({
                     {analytics.data.fullyPricedJobs} fully priced
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-[#0d0d0f] p-3.5">
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-background p-3.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Unpaid Commissions
                   </p>
                   <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
@@ -363,8 +363,8 @@ export function DashboardTab({
                     Earned: {formatPesos(analytics.data.commissions.earnedCentavos)}
                   </p>
                 </div>
-                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-[#0d0d0f] p-3.5">
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="rounded-md border border-border/80 bg-stone-50 dark:bg-background p-3.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Inventory Alerts
                   </p>
                   <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">

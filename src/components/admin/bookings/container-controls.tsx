@@ -61,7 +61,7 @@ function Modal({ id, title, onClose, children }: { id: string; title: string; on
           (e.shiftKey ? last : first)?.focus();
         }
       }}
-      className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border border-border bg-white dark:bg-[#121214] p-5 text-foreground shadow-2xl backdrop:bg-black/75 backdrop:backdrop-blur-sm before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30"
+      className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border border-border bg-panel p-5 text-foreground shadow-2xl backdrop:bg-black/75 backdrop:"
     >
       <div className="space-y-3">
         <h2 id={id + "-title"} className="font-bold">{title}</h2>
@@ -146,12 +146,12 @@ export function ContainerMenu({ container, containers, queues, onDone }: {
       <button ref={trigger} type="button" aria-label={`Options for ${container.name}`} aria-haspopup="menu" aria-expanded={mode === "MENU"}
         aria-controls={mode === "MENU" ? menuId : undefined}
         onClick={() => { setNotice(null); setMode(mode === "MENU" ? "CLOSED" : "MENU"); }}
-        className="inline-flex h-9 min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted-foreground hover:bg-[#18181b] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        className="inline-flex h-9 min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted-foreground hover:bg-card hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
       </button>
       {mode === "MENU" && (
         <div id={menuId} role="menu" aria-label={`${container.name} options`} onKeyDown={onMenuKey}
-          className="absolute right-0 z-20 mt-1 w-44 rounded border border-border bg-[#18181b] p-1 shadow-lg">
+          className="absolute right-0 z-20 mt-1 w-44 rounded border border-border bg-card p-1 shadow-lg">
           {labels.map((label, i) => (
             <button key={label} ref={(el) => { items.current[i] = el; }} type="button" role="menuitem" tabIndex={-1}
               onClick={() => {
@@ -161,7 +161,7 @@ export function ContainerMenu({ container, containers, queues, onDone }: {
                 if (blocked) { setNotice(blocked); return close(); }
                 setMode("REMOVE");
               }}
-              className="flex min-h-[44px] w-full items-center rounded px-3 text-left text-sm hover:bg-[#27272a] focus-visible:bg-[#27272a] focus-visible:outline-none">
+              className="flex min-h-[44px] w-full items-center rounded px-3 text-left text-sm hover:bg-raised focus-visible:bg-raised focus-visible:outline-none">
               {label}
             </button>
           ))}

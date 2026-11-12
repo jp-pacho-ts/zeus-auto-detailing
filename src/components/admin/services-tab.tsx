@@ -408,28 +408,28 @@ export function ServicesTab({ role }: ServicesTabProps) {
 
       {/* Metrics Banner */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded border border-border bg-[#141416] p-3.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Services</p>
+        <div className="rounded border border-border bg-panel p-3.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Services</p>
           <p className="mt-1 text-xl font-bold text-foreground">{services.length}</p>
         </div>
-        <div className="rounded border border-border bg-[#141416] p-3.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Active Online</p>
+        <div className="rounded border border-border bg-panel p-3.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active Online</p>
           <p className="mt-1 text-xl font-bold text-emerald-400">
             {services.filter((s) => s.isActive).length}
           </p>
         </div>
-        <div className="rounded border border-border bg-[#141416] p-3.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">On Promo / Discount</p>
+        <div className="rounded border border-border bg-panel p-3.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">On Promo / Discount</p>
           <p className="mt-1 text-xl font-bold text-amber-400">{discountedCount}</p>
         </div>
-        <div className="rounded border border-border bg-[#141416] p-3.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Categories</p>
+        <div className="rounded border border-border bg-panel p-3.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Categories</p>
           <p className="mt-1 text-xl font-bold text-foreground">{Object.keys(CATEGORY_LABELS).length}</p>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-[#141416] p-4 lg:flex-row lg:items-center lg:justify-between shadow-sm">
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-panel p-4 lg:flex-row lg:items-center lg:justify-between shadow-sm">
         {/* Category Pills & Status Filter */}
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -441,7 +441,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
             className={`min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
               selectedCategory === "ALL"
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "border border-border text-muted-foreground hover:bg-[#1a1a1e] hover:text-foreground"
+                : "border border-border text-muted-foreground hover:bg-raised hover:text-foreground"
             }`}
           >
             All ({services.length})
@@ -460,7 +460,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                 className={`min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                   active
                     ? "bg-primary text-primary-foreground shadow-sm"
-                    : "border border-border text-muted-foreground hover:bg-[#1a1a1e] hover:text-foreground"
+                    : "border border-border text-muted-foreground hover:bg-raised hover:text-foreground"
                 }`}
               >
                 {CATEGORY_LABELS[cat]} ({count})
@@ -468,7 +468,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
             );
           })}
 
-          <div className="flex items-center gap-1.5 rounded-lg border border-border bg-[#1a1a1e] px-2.5 py-1.5 text-xs text-muted-foreground ml-1">
+          <div className="flex items-center gap-1.5 rounded-lg border border-border bg-raised px-2.5 py-1.5 text-xs text-muted-foreground ml-1">
             <Filter className="h-3 w-3" />
             <span>Status:</span>
             <select
@@ -497,7 +497,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
               setCurrentPage(1);
             }}
             placeholder="Search service name or desc..."
-            className="w-full rounded-lg border border-border bg-[#18181b] py-2 pl-9 pr-8 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-8 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
           {searchQuery && (
             <button
@@ -516,14 +516,14 @@ export function ServicesTab({ role }: ServicesTabProps) {
 
       {/* Services List */}
       {resource.loading && (
-        <div className="flex h-48 items-center justify-center rounded border border-border bg-[#141416]">
+        <div className="flex h-48 items-center justify-center rounded border border-border bg-panel">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <span className="ml-2 text-xs text-muted-foreground">Loading service catalog...</span>
         </div>
       )}
 
       {!resource.loading && filteredServices.length === 0 && (
-        <div className="flex h-48 flex-col items-center justify-center rounded border border-dashed border-border bg-[#141416] p-8 text-center">
+        <div className="flex h-48 flex-col items-center justify-center rounded border border-dashed border-border bg-panel p-8 text-center">
           <Tag className="h-8 w-8 text-muted-foreground/50" />
           <p className="mt-2 text-sm font-semibold text-foreground">No services found</p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -540,7 +540,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           return (
             <div
               key={svc.id}
-              className={`rounded border border-border bg-[#141416] p-4 transition-all hover:border-[#38383e] ${
+              className={`rounded border border-border bg-panel p-4 transition-all hover:border-[#38383e] ${
                 !svc.isActive ? "opacity-60" : ""
               }`}
             >
@@ -550,23 +550,23 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-base font-bold text-foreground">{svc.name}</h3>
                     <span
-                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-bold ${
                         CATEGORY_COLORS[svc.category] ?? "border-border text-muted-foreground"
                       }`}
                     >
                       {CATEGORY_LABELS[svc.category] ?? svc.category}
                     </span>
-                    <span className="inline-flex items-center rounded border border-border/60 bg-[#18181b] px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                    <span className="inline-flex items-center rounded border border-border/60 bg-card px-1.5 py-0.5 text-xs font-semibold text-muted-foreground">
                       {svc.type === "BASE" ? "Main Package" : "Add-on"}
                     </span>
                     {hasDiscount && (
-                      <span className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                      <span className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-400">
                         <Percent className="h-3 w-3" />
                         Discount Active
                       </span>
                     )}
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${
                         svc.isActive
                           ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
                           : "border border-zinc-700 bg-zinc-800 text-zinc-400"
@@ -576,22 +576,22 @@ export function ServicesTab({ role }: ServicesTabProps) {
                       {svc.isActive ? "Active Online" : "Hidden"}
                     </span>
                     {svc.commissionRateBp === 0 ? (
-                      <span className="inline-flex items-center gap-1 rounded border border-stone-300 bg-stone-100 text-stone-700 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-400 px-2 py-0.5 text-[10px] font-bold">
+                      <span className="inline-flex items-center gap-1 rounded border border-stone-300 bg-stone-100 text-stone-700 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-400 px-2 py-0.5 text-xs font-bold">
                         <Ban className="h-2.5 w-2.5 text-stone-600 dark:text-zinc-400" />
                         No Comm.
                       </span>
                     ) : svc.commissionRateBp !== null && svc.commissionRateBp !== undefined ? (
-                      <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 text-[10px] font-bold">
+                      <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 text-xs font-bold">
                         <Percent className="h-2.5 w-2.5" />
                         {svc.commissionRateBp / 100}% Comm.
                       </span>
                     ) : svc.category === "WASH" ? (
-                      <span className="inline-flex items-center gap-1 rounded border border-stone-200 bg-stone-100 text-stone-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-500 px-2 py-0.5 text-[10px] font-medium">
+                      <span className="inline-flex items-center gap-1 rounded border border-stone-200 bg-stone-100 text-stone-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-500 px-2 py-0.5 text-xs font-medium">
                         <Ban className="h-2.5 w-2.5 text-stone-500 dark:text-zinc-600" />
                         No Comm. (Default)
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[10px] font-bold text-amber-300/80">
+                      <span className="inline-flex items-center gap-1 rounded border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-xs font-bold text-amber-300/80">
                         <Percent className="h-2.5 w-2.5" />
                         Default Comm.
                       </span>
@@ -609,7 +609,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   <button
                     type="button"
                     onClick={() => initEditModal(svc)}
-                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-border bg-[#18181b] px-3 py-1 text-xs font-semibold text-foreground hover:bg-[#202025] hover:border-primary transition-colors"
+                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-border bg-card px-3 py-1 text-xs font-semibold text-foreground hover:bg-raised hover:border-primary transition-colors"
                   >
                     <Edit2 className="h-3.5 w-3.5 text-primary" />
                     <span>Edit Pricing</span>
@@ -633,7 +633,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
 
               {/* Size Pricing Grid */}
               <div className="mt-4 border-t border-border pt-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                   Pricing by Vehicle Size
                 </p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -656,13 +656,13 @@ export function ServicesTab({ role }: ServicesTabProps) {
                         key={size}
                         className={`rounded border p-2 text-center transition-colors ${
                           !isOffered
-                            ? "border-border/40 bg-[#101012] opacity-50"
+                            ? "border-border/40 bg-panel opacity-50"
                             : isDiscounted
                             ? "border-emerald-500/30 bg-emerald-500/5"
-                            : "border-border bg-[#18181b]"
+                            : "border-border bg-card"
                         }`}
                       >
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                           {SIZE_NAMES[size]}
                         </p>
                         <div className="mt-1">
@@ -671,10 +671,10 @@ export function ServicesTab({ role }: ServicesTabProps) {
                               <div className="space-y-0.5">
                                 {isDiscounted && (
                                   <div className="flex items-center justify-center gap-1.5">
-                                    <span className="text-[11px] text-muted-foreground line-through">
+                                    <span className="text-xs text-muted-foreground line-through">
                                       {formatCentavos(off.compareAtCentavos)}
                                     </span>
-                                    <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-black text-emerald-400">
+                                    <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-xs font-black text-emerald-400">
                                       {discountPercent}% OFF
                                     </span>
                                   </div>
@@ -706,7 +706,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
 
       {/* Pagination Bar */}
       {filteredServices.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-xl border border-border bg-[#141416] p-4 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground shadow-sm">
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-panel p-4 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground shadow-sm">
           <div className="flex items-center gap-2">
             <span>
               Showing <strong className="text-foreground">{startIndex + 1}</strong> to{" "}
@@ -724,7 +724,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   setPageSize(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="rounded border border-border bg-[#1a1a1e] px-1.5 py-0.5 text-xs text-foreground focus:outline-none"
+                className="rounded border border-border bg-raised px-1.5 py-0.5 text-xs text-foreground focus:outline-none"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
@@ -739,7 +739,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPageSafe <= 1}
-              className="inline-flex h-8 items-center gap-1 rounded border border-border bg-[#1a1a1e] px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
+              className="inline-flex h-8 items-center gap-1 rounded border border-border bg-raised px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
               <span>Prev</span>
@@ -751,7 +751,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPageSafe >= totalPages}
-              className="inline-flex h-8 items-center gap-1 rounded border border-border bg-[#1a1a1e] px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
+              className="inline-flex h-8 items-center gap-1 rounded border border-border bg-raised px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
             >
               <span>Next</span>
               <ChevronRight className="h-3.5 w-3.5" />
@@ -765,9 +765,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 grid place-items-center"
         >
-          <div className="relative my-auto w-full max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col rounded-xl border border-border bg-white dark:bg-[#141416] p-6 shadow-2xl space-y-5 overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+          <div className="relative my-auto w-full max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col rounded-xl border border-border bg-panel p-6 shadow-2xl space-y-5 overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
@@ -798,7 +798,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     required
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                   />
                 </div>
                 <div>
@@ -806,7 +806,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   <select
                     value={editCategory}
                     onChange={(e) => setEditCategory(e.target.value as CatalogServiceKind)}
-                    className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                   >
                     {(Object.keys(CATEGORY_LABELS) as CatalogServiceKind[]).map((cat) => (
                       <option key={cat} value={cat}>
@@ -826,7 +826,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                       else if (m === "DEFAULT") setEditCommissionRate("");
                       else if (editCommissionRate === "0" || !editCommissionRate) setEditCommissionRate("10");
                     }}
-                    className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                   >
                     <option value="DEFAULT">Default (Shop / Staff Rate)</option>
                     <option value="NONE">No Commission (0%)</option>
@@ -842,18 +842,18 @@ export function ServicesTab({ role }: ServicesTabProps) {
                         value={editCommissionRate}
                         onChange={(e) => setEditCommissionRate(e.target.value)}
                         placeholder="e.g. 10"
-                        className="w-full rounded border border-border bg-[#18181b] px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none pr-8"
+                        className="w-full rounded border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none pr-8"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
                     </div>
                   )}
                   {editCommissionMode === "NONE" && (
-                    <p className="mt-1 text-[11px] text-zinc-400">
+                    <p className="mt-1 text-xs text-zinc-400">
                       No commission earned for this service (0%).
                     </p>
                   )}
                   {editCommissionMode === "DEFAULT" && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Follows technician profile rate or shop default.
                     </p>
                   )}
@@ -872,7 +872,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
                   placeholder="Included inclusions, warranty, description..."
-                  className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 />
               </div>
 
@@ -883,11 +883,11 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
                       Pricing & Promo Discounts per Vehicle Size
                     </h4>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       Enter regular price. Optionally enable promo/discount per vehicle size.
                     </p>
                   </div>
-                  <span className="text-[11px] font-semibold text-muted-foreground">Amounts in PHP (₱)</span>
+                  <span className="text-xs font-semibold text-muted-foreground">Amounts in PHP (₱)</span>
                 </div>
 
                 <div className="space-y-2.5">
@@ -910,10 +910,10 @@ export function ServicesTab({ role }: ServicesTabProps) {
                         key={size}
                         className={`rounded-lg border p-3.5 transition-colors ${
                           !cur.offered
-                            ? "border-border/40 bg-[#101012] opacity-60"
+                            ? "border-border/40 bg-panel opacity-60"
                             : cur.hasPromo && hasValidPromo
                             ? "border-emerald-500/40 bg-emerald-500/5 shadow-xs"
-                            : "border-border bg-[#18181b]"
+                            : "border-border bg-card"
                         }`}
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -935,7 +935,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                           {cur.offered ? (
                             <div className="flex flex-1 flex-wrap items-center gap-3.5 justify-end">
                               <div>
-                                <label className="block text-[10px] font-bold text-foreground">
+                                <label className="block text-xs font-bold text-foreground">
                                   Original / Regular Price (₱) *
                                 </label>
                                 <input
@@ -950,12 +950,12 @@ export function ServicesTab({ role }: ServicesTabProps) {
                                       [size]: { ...cur, regularPricePhp: e.target.value },
                                     }))
                                   }
-                                  className="w-28 rounded border border-border bg-[#121214] px-2.5 py-1.5 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
+                                  className="w-28 rounded border border-border bg-panel px-2.5 py-1.5 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
                                 />
                               </div>
 
                               <div className="flex flex-col justify-end">
-                                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer select-none py-1">
+                                <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer select-none py-1">
                                   <input
                                     type="checkbox"
                                     checked={cur.hasPromo}
@@ -979,7 +979,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                               {cur.hasPromo && (
                                 <div className="flex items-center gap-2">
                                   <div>
-                                    <label className="block text-[10px] font-bold text-emerald-400">
+                                    <label className="block text-xs font-bold text-emerald-400">
                                       Selling / Promo Price (₱) *
                                     </label>
                                     <input
@@ -994,13 +994,13 @@ export function ServicesTab({ role }: ServicesTabProps) {
                                           [size]: { ...cur, promoPricePhp: e.target.value },
                                         }))
                                       }
-                                      className="w-28 rounded border border-emerald-500/50 bg-[#121214] px-2.5 py-1.5 text-xs font-bold text-emerald-400 focus:border-emerald-400 focus:outline-none"
+                                      className="w-28 rounded border border-emerald-500/50 bg-panel px-2.5 py-1.5 text-xs font-bold text-emerald-400 focus:border-emerald-400 focus:outline-none"
                                     />
                                   </div>
 
                                   {hasValidPromo && (
                                     <div className="self-end pb-1">
-                                      <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 text-[11px] font-black text-emerald-400">
+                                      <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 text-xs font-black text-emerald-400">
                                         {discountPct}% OFF (Save ₱{savings})
                                       </span>
                                     </div>
@@ -1014,8 +1014,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
                         </div>
 
                         {cur.offered && isPromoError && (
-                          <p className="mt-1.5 text-right text-[11px] font-semibold text-amber-400">
-                            ⚠️ Promo price (₱{promo}) must be lower than regular price (₱{regular}) to apply a discount.
+                          <p className="mt-1.5 text-right text-xs font-semibold text-amber-400">
+                            Promo price (₱{promo}) must be lower than regular price (₱{regular}) to apply a discount.
                           </p>
                         )}
                       </div>
@@ -1028,7 +1028,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                 <button
                   type="button"
                   onClick={() => setEditService(null)}
-                  className="rounded border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
+                  className="rounded border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-card hover:text-foreground"
                 >
                   Cancel
                 </button>
@@ -1057,9 +1057,9 @@ export function ServicesTab({ role }: ServicesTabProps) {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 grid place-items-center"
         >
-          <div className="relative my-auto w-full max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col rounded-xl border border-border bg-white dark:bg-[#141416] p-6 shadow-2xl space-y-5 overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+          <div className="relative my-auto w-full max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col rounded-xl border border-border bg-panel p-6 shadow-2xl space-y-5 overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <Plus className="h-5 w-5 text-primary" />
@@ -1091,7 +1091,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     placeholder="e.g. Engine Bay Detail"
                     value={createName}
                     onChange={(e) => setCreateName(e.target.value)}
-                    className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                   />
                 </div>
                 <div>
@@ -1099,7 +1099,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   <select
                     value={createCategory}
                     onChange={(e) => setCreateCategory(e.target.value as CatalogServiceKind)}
-                    className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                   >
                     {(Object.keys(CATEGORY_LABELS) as CatalogServiceKind[]).map((cat) => (
                       <option key={cat} value={cat}>
@@ -1119,7 +1119,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                       else if (m === "DEFAULT") setCreateCommissionRate("");
                       else if (createCommissionRate === "0" || !createCommissionRate) setCreateCommissionRate("10");
                     }}
-                    className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                   >
                     <option value="DEFAULT">Default (Shop / Staff Rate)</option>
                     <option value="NONE">No Commission (0%)</option>
@@ -1135,18 +1135,18 @@ export function ServicesTab({ role }: ServicesTabProps) {
                         value={createCommissionRate}
                         onChange={(e) => setCreateCommissionRate(e.target.value)}
                         placeholder="e.g. 10"
-                        className="w-full rounded border border-border bg-[#18181b] px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none pr-8"
+                        className="w-full rounded border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none pr-8"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
                     </div>
                   )}
                   {createCommissionMode === "NONE" && (
-                    <p className="mt-1 text-[11px] text-zinc-400">
+                    <p className="mt-1 text-xs text-zinc-400">
                       No commission earned for this service (0%).
                     </p>
                   )}
                   {createCommissionMode === "DEFAULT" && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Follows technician profile rate or shop default.
                     </p>
                   )}
@@ -1164,7 +1164,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   <select
                     value={createType}
                     onChange={(e) => setCreateType(e.target.value as "BASE" | "ADD_ON")}
-                    className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                   >
                     <option value="BASE">Main Package (Standalone)</option>
                     <option value="ADD_ON">Add-on Service</option>
@@ -1175,7 +1175,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   <select
                     value={createUnit}
                     onChange={(e) => setCreateUnit(e.target.value as PriceUnit)}
-                    className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                   >
                     <option value="VEHICLE">Per Vehicle</option>
                     <option value="PANEL">Per Panel</option>
@@ -1190,7 +1190,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                   value={createDesc}
                   onChange={(e) => setCreateDesc(e.target.value)}
                   placeholder="Included inclusions, warranty, details..."
-                  className="mt-1 w-full rounded border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 />
               </div>
 
@@ -1201,11 +1201,11 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
                       Initial Pricing & Promo Discounts per Vehicle Size
                     </h4>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       Enter regular price. Optionally enable promo/discount per vehicle size.
                     </p>
                   </div>
-                  <span className="text-[11px] font-semibold text-muted-foreground">Amounts in PHP (₱)</span>
+                  <span className="text-xs font-semibold text-muted-foreground">Amounts in PHP (₱)</span>
                 </div>
 
                 <div className="space-y-2.5">
@@ -1228,10 +1228,10 @@ export function ServicesTab({ role }: ServicesTabProps) {
                         key={size}
                         className={`rounded-lg border p-3.5 transition-colors ${
                           !cur.offered
-                            ? "border-border/40 bg-[#101012] opacity-60"
+                            ? "border-border/40 bg-panel opacity-60"
                             : cur.hasPromo && hasValidPromo
                             ? "border-emerald-500/40 bg-emerald-500/5 shadow-xs"
-                            : "border-border bg-[#18181b]"
+                            : "border-border bg-card"
                         }`}
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1253,7 +1253,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                           {cur.offered ? (
                             <div className="flex flex-1 flex-wrap items-center gap-3.5 justify-end">
                               <div>
-                                <label className="block text-[10px] font-bold text-foreground">
+                                <label className="block text-xs font-bold text-foreground">
                                   Original / Regular Price (₱) *
                                 </label>
                                 <input
@@ -1268,12 +1268,12 @@ export function ServicesTab({ role }: ServicesTabProps) {
                                       [size]: { ...cur, regularPricePhp: e.target.value },
                                     }))
                                   }
-                                  className="w-28 rounded border border-border bg-[#121214] px-2.5 py-1.5 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
+                                  className="w-28 rounded border border-border bg-panel px-2.5 py-1.5 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
                                 />
                               </div>
 
                               <div className="flex flex-col justify-end">
-                                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer select-none py-1">
+                                <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer select-none py-1">
                                   <input
                                     type="checkbox"
                                     checked={cur.hasPromo}
@@ -1297,7 +1297,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                               {cur.hasPromo && (
                                 <div className="flex items-center gap-2">
                                   <div>
-                                    <label className="block text-[10px] font-bold text-emerald-400">
+                                    <label className="block text-xs font-bold text-emerald-400">
                                       Selling / Promo Price (₱) *
                                     </label>
                                     <input
@@ -1312,13 +1312,13 @@ export function ServicesTab({ role }: ServicesTabProps) {
                                           [size]: { ...cur, promoPricePhp: e.target.value },
                                         }))
                                       }
-                                      className="w-28 rounded border border-emerald-500/50 bg-[#121214] px-2.5 py-1.5 text-xs font-bold text-emerald-400 focus:border-emerald-400 focus:outline-none"
+                                      className="w-28 rounded border border-emerald-500/50 bg-panel px-2.5 py-1.5 text-xs font-bold text-emerald-400 focus:border-emerald-400 focus:outline-none"
                                     />
                                   </div>
 
                                   {hasValidPromo && (
                                     <div className="self-end pb-1">
-                                      <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 text-[11px] font-black text-emerald-400">
+                                      <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 text-xs font-black text-emerald-400">
                                         {discountPct}% OFF (Save ₱{savings})
                                       </span>
                                     </div>
@@ -1332,8 +1332,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
                         </div>
 
                         {cur.offered && isPromoError && (
-                          <p className="mt-1.5 text-right text-[11px] font-semibold text-amber-400">
-                            ⚠️ Promo price (₱{promo}) must be lower than regular price (₱{regular}) to apply a discount.
+                          <p className="mt-1.5 text-right text-xs font-semibold text-amber-400">
+                            Promo price (₱{promo}) must be lower than regular price (₱{regular}) to apply a discount.
                           </p>
                         )}
                       </div>
@@ -1346,7 +1346,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                 <button
                   type="button"
                   onClick={() => setCreateOpen(false)}
-                  className="rounded border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-[#18181b] hover:text-foreground"
+                  className="rounded border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-card hover:text-foreground"
                 >
                   Cancel
                 </button>

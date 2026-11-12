@@ -192,11 +192,11 @@ export function UserSettingsModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="user-settings-title"
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 grid place-items-center"
     >
-      <div className="relative my-auto flex w-full max-w-xl max-h-[calc(100vh-3rem)] flex-col rounded-2xl border border-border/90 bg-white dark:bg-[#121214] shadow-2xl overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+      <div className="relative my-auto flex w-full max-w-xl max-h-[calc(100vh-3rem)] flex-col rounded-2xl border border-border/90 bg-panel shadow-2xl overflow-hidden">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-stone-50 dark:bg-[#18181b]/50">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-stone-50 dark:bg-card/50">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary">
               <User className="h-5 w-5" />
@@ -221,7 +221,7 @@ export function UserSettingsModal({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-border bg-stone-100/60 dark:bg-[#0e0e10] px-6">
+        <div className="flex border-b border-border bg-stone-100/60 dark:bg-background px-6">
           <button
             type="button"
             onClick={() => setSelectedTab("profile")}
@@ -254,7 +254,7 @@ export function UserSettingsModal({
           {activeTab === "profile" && (
             <div className="space-y-4">
               {/* User Identity Card */}
-              <div className="flex items-center gap-4 rounded-xl border border-border bg-stone-50 dark:bg-[#18181b] p-4">
+              <div className="flex items-center gap-4 rounded-xl border border-border bg-stone-50 dark:bg-card p-4">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary font-bold text-lg border border-primary/30">
                   {staff.displayName
                     .split(" ")
@@ -268,7 +268,7 @@ export function UserSettingsModal({
                     <p className="truncate text-sm font-bold text-foreground">
                       {staff.displayName}
                     </p>
-                    <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
                       {staff.role === "ADMIN" ? "Shop Manager" : "Shop Staff"}
                     </span>
                   </div>
@@ -279,20 +279,20 @@ export function UserSettingsModal({
               </div>
 
               {/* Theme & Display Preference */}
-              <div className="rounded-xl border border-border bg-stone-50 dark:bg-[#18181b] p-4 space-y-3">
+              <div className="rounded-xl border border-border bg-stone-50 dark:bg-card p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Palette className="h-4 w-4 text-primary" />
                     <div>
                       <p className="text-xs font-bold text-foreground">Theme & Display</p>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         Select interface contrast. Synchronized across this browser and header toggle.
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div role="radiogroup" aria-label="Theme mode" className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-stone-100 dark:bg-[#121214] p-1">
+                <div role="radiogroup" aria-label="Theme mode" className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-stone-100 dark:bg-panel p-1">
                   <button
                     type="button"
                     role="radio"
@@ -339,7 +339,7 @@ export function UserSettingsModal({
               </div>
 
               {/* Sound & Notifications Preference */}
-              <div className="rounded-xl border border-border bg-stone-50 dark:bg-[#18181b] p-4 space-y-3">
+              <div className="rounded-xl border border-border bg-stone-50 dark:bg-card p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {soundEnabled ? (
@@ -349,7 +349,7 @@ export function UserSettingsModal({
                     )}
                     <div>
                       <p className="text-xs font-bold text-foreground">Audio Alerts for New Bookings</p>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         Play an audio chime when an online appointment is requested.
                       </p>
                     </div>
@@ -373,7 +373,7 @@ export function UserSettingsModal({
                       <button
                         type="button"
                         onClick={playNotificationChime}
-                        className="min-h-[44px] rounded-lg px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors"
+                        className="min-h-[44px] rounded-lg px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
                       >
                         Test chime
                       </button>
@@ -383,20 +383,20 @@ export function UserSettingsModal({
               </div>
 
               {/* Session Information */}
-              <div className="rounded-xl border border-border bg-stone-50 dark:bg-[#18181b] p-4 space-y-3">
+              <div className="rounded-xl border border-border bg-stone-50 dark:bg-card p-4 space-y-3">
                 <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider">
                   <Clock className="h-3.5 w-3.5 text-primary" />
                   <span>Session Lifetime</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div className="rounded-lg bg-white dark:bg-[#121214] p-3 border border-border/60">
-                    <p className="text-[11px] text-muted-foreground">Idle Expiration</p>
+                  <div className="rounded-lg bg-panel p-3 border border-border/60">
+                    <p className="text-xs text-muted-foreground">Idle Expiration</p>
                     <p className="mt-1 font-semibold text-foreground">
                       {formatTimeRemaining(staff.idleExpiresAt)} of inactivity
                     </p>
                   </div>
-                  <div className="rounded-lg bg-white dark:bg-[#121214] p-3 border border-border/60">
-                    <p className="text-[11px] text-muted-foreground">Absolute Session Expiration</p>
+                  <div className="rounded-lg bg-panel p-3 border border-border/60">
+                    <p className="text-xs text-muted-foreground">Absolute Session Expiration</p>
                     <p className="mt-1 font-semibold text-foreground">
                       {formatTimeRemaining(staff.expiresAt)} remaining
                     </p>
@@ -446,7 +446,7 @@ export function UserSettingsModal({
                       autoComplete="current-password"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="mt-1.5 w-full rounded-lg border border-border bg-white dark:bg-[#18181b] px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
                       placeholder="Enter current password"
                       required
                     />
@@ -465,11 +465,11 @@ export function UserSettingsModal({
                       autoComplete="new-password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="mt-1.5 w-full rounded-lg border border-border bg-white dark:bg-[#18181b] px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
                       placeholder="Minimum 15 characters"
                       required
                     />
-                    <p className="mt-1 text-[11px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Use a long passphrase (15+ chars) for strong protection.
                     </p>
                   </div>
@@ -487,7 +487,7 @@ export function UserSettingsModal({
                       autoComplete="new-password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="mt-1.5 w-full rounded-lg border border-border bg-white dark:bg-[#18181b] px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
                       placeholder="Re-enter new password"
                       required
                     />
@@ -519,11 +519,11 @@ export function UserSettingsModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-end border-t border-border px-6 py-3.5 bg-stone-50 dark:bg-[#18181b]/50">
+        <div className="flex items-center justify-end border-t border-border px-6 py-3.5 bg-stone-50 dark:bg-card/50">
           <button
             type="button"
             onClick={handleClose}
-            className="min-h-[44px] rounded-lg border border-border bg-white dark:bg-[#121214] px-4 py-2 text-xs font-semibold text-foreground hover:bg-stone-50 dark:hover:bg-[#18181b] transition-colors"
+            className="min-h-[44px] rounded-lg border border-border bg-panel px-4 py-2 text-xs font-semibold text-foreground hover:bg-stone-50 dark:hover:bg-card transition-colors"
           >
             Close
           </button>

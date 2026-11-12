@@ -41,7 +41,7 @@ import {
   manilaToday,
 } from "./payroll-model";
 
-const CARD = "rounded-xl border border-border/80 bg-[#121214] p-5 shadow-xs";
+const CARD = "rounded-xl border border-border/80 bg-panel p-5 shadow-xs";
 const FOCUS =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 
@@ -186,7 +186,7 @@ export function PayrollPanel({
     <div className="space-y-6">
       {/* Week Navigation Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-[#121214] p-1">
+        <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-panel p-1">
           <button
             type="button"
             onClick={() => setWeekStart(getPreviousMonday(weekStart))}
@@ -216,7 +216,7 @@ export function PayrollPanel({
             className={`min-h-[38px] rounded-lg border border-border/80 px-3 text-xs font-semibold ${FOCUS} ${
               weekStart === currentMonday
                 ? "bg-primary/15 text-primary border-primary/50"
-                : "bg-[#121214] text-muted-foreground hover:text-foreground"
+                : "bg-panel text-muted-foreground hover:text-foreground"
             }`}
           >
             This week
@@ -227,12 +227,12 @@ export function PayrollPanel({
             className={`min-h-[38px] rounded-lg border border-border/80 px-3 text-xs font-semibold ${FOCUS} ${
               weekStart === getPreviousMonday(currentMonday)
                 ? "bg-primary/15 text-primary border-primary/50"
-                : "bg-[#121214] text-muted-foreground hover:text-foreground"
+                : "bg-panel text-muted-foreground hover:text-foreground"
             }`}
           >
             Last week
           </button>
-          <span className="hidden rounded-full border border-border/70 bg-[#141416] px-3 py-1 text-[11px] font-medium text-muted-foreground sm:inline-block">
+          <span className="hidden rounded-full border border-border/70 bg-panel px-3 py-1 text-xs font-medium text-muted-foreground sm:inline-block">
             Cycle closes Sunday night
           </span>
         </div>
@@ -298,8 +298,8 @@ export function PayrollPanel({
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg border border-border/70 bg-[#161618] p-3.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="rounded-lg border border-border/70 bg-card p-3.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Total Base Salaries
                 </p>
                 <p className="mt-1 font-mono text-xl font-bold text-foreground">
@@ -307,8 +307,8 @@ export function PayrollPanel({
                 </p>
               </div>
 
-              <div className="rounded-lg border border-border/70 bg-[#161618] p-3.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="rounded-lg border border-border/70 bg-card p-3.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Total Commissions
                 </p>
                 <p className="mt-1 font-mono text-xl font-bold text-amber-400">
@@ -316,8 +316,8 @@ export function PayrollPanel({
                 </p>
               </div>
 
-              <div className="rounded-lg border border-border/70 bg-[#161618] p-3.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="rounded-lg border border-border/70 bg-card p-3.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Cash Advances Deducted
                 </p>
                 <p className="mt-1 font-mono text-xl font-bold text-rose-400">
@@ -326,7 +326,7 @@ export function PayrollPanel({
               </div>
 
               <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
                   Net Payout
                 </p>
                 <p className="mt-1 font-mono text-2xl font-bold tracking-tight text-emerald-400">
@@ -343,7 +343,7 @@ export function PayrollPanel({
             </h3>
 
             {data.items.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-[#121214] p-8 text-center text-sm text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border bg-panel p-8 text-center text-sm text-muted-foreground">
                 No active staff members found on the team.
               </div>
             ) : (
@@ -351,7 +351,7 @@ export function PayrollPanel({
                 return (
                   <div
                     key={item.staffId}
-                    className="rounded-xl border border-border/80 bg-white dark:bg-[#121214] p-4 transition-all hover:border-border sm:p-5"
+                    className="rounded-xl border border-border/80 bg-panel p-4 transition-all hover:border-border sm:p-5"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       {/* Staff Identity */}
@@ -365,12 +365,12 @@ export function PayrollPanel({
                               {item.staffName}
                             </b>
                             {item.isPaid ? (
-                              <span className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
+                              <span className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-400">
                                 <CheckCircle2 className="h-3 w-3" />
                                 <span>Paid</span>
                               </span>
                             ) : (
-                              <span className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-400">
+                              <span className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-400">
                                 <Clock className="h-3 w-3" />
                                 <span>Unpaid</span>
                               </span>
@@ -385,8 +385,8 @@ export function PayrollPanel({
                       {/* Financial Metrics Strip */}
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:flex lg:items-center lg:gap-6">
                         {/* Attendance & Base Pay */}
-                        <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-[#161618] p-3 text-left">
-                          <p className="text-[11px] font-medium text-muted-foreground">
+                        <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-card p-3 text-left">
+                          <p className="text-xs font-medium text-muted-foreground">
                             Base ({item.daysWorked}/6 days)
                           </p>
                           <p className="mt-0.5 font-mono text-base font-bold text-foreground">
@@ -399,7 +399,7 @@ export function PayrollPanel({
                               onClick={() =>
                                 handleAdjustAbsence(item.staffId, item.daysAbsent, 1)
                               }
-                              className={`flex h-6 items-center gap-0.5 rounded border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-border/80 dark:bg-zinc-800 dark:text-rose-300 dark:hover:bg-rose-500/20 px-1.5 text-[10px] font-medium disabled:opacity-40 ${FOCUS}`}
+                              className={`flex h-6 items-center gap-0.5 rounded border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-border/80 dark:bg-zinc-800 dark:text-rose-300 dark:hover:bg-rose-500/20 px-1.5 text-xs font-medium disabled:opacity-40 ${FOCUS}`}
                               title="Mark 1 day absent (−₱200)"
                             >
                               <Minus className="h-2.5 w-2.5" />
@@ -421,21 +421,21 @@ export function PayrollPanel({
                         </div>
 
                         {/* Commissions */}
-                        <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-[#161618] p-3 text-left">
-                          <p className="text-[11px] font-medium text-muted-foreground">
+                        <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-card p-3 text-left">
+                          <p className="text-xs font-medium text-muted-foreground">
                             Commissions
                           </p>
                           <p className="mt-0.5 font-mono text-base font-bold text-amber-600 dark:text-amber-400">
                             +{formatPesos(item.commissionEarnedCentavos)}
                           </p>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             Earned this week
                           </p>
                         </div>
 
                         {/* Cash Advance */}
-                        <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-[#161618] p-3 text-left">
-                          <p className="text-[11px] font-medium text-muted-foreground">
+                        <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-card p-3 text-left">
+                          <p className="text-xs font-medium text-muted-foreground">
                             Cash Advance (Bale)
                           </p>
                           <p className="mt-0.5 font-mono text-base font-bold text-rose-400">
@@ -444,7 +444,7 @@ export function PayrollPanel({
                           <button
                             type="button"
                             onClick={() => openAdvanceModal(item)}
-                            className="mt-1 flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                            className="mt-1 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                           >
                             <Banknote className="h-3 w-3" />
                             <span>
@@ -457,7 +457,7 @@ export function PayrollPanel({
 
                         {/* Net Take-Home Payout */}
                         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-left sm:min-w-[130px]">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
                             Net Payout
                           </p>
                           <p className="mt-0.5 font-mono text-xl font-bold tabular-nums text-emerald-400">
@@ -592,7 +592,7 @@ export function PayrollPanel({
                   value={advancePesos}
                   onChange={(e) => setAdvancePesos(e.target.value)}
                   placeholder="1000"
-                  className="w-full rounded-md border border-border bg-[#18181b] py-2 pl-8 pr-3 text-sm font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-md border border-border bg-card py-2 pl-8 pr-3 text-sm font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
             </div>
@@ -606,7 +606,7 @@ export function PayrollPanel({
                 value={advanceNotes}
                 onChange={(e) => setAdvanceNotes(e.target.value)}
                 placeholder="e.g. Mid-week allowance, emergency"
-                className="mt-1 w-full rounded-md border border-border bg-[#18181b] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -644,7 +644,7 @@ export function PayrollPanel({
 
           {slipModalStaff && (
             <div className="space-y-4 pt-2">
-              <div className="rounded-lg border border-border/80 bg-[#18181b] p-4 text-xs">
+              <div className="rounded-lg border border-border/80 bg-card p-4 text-xs">
                 <div className="flex items-center justify-between border-b border-border/70 pb-2">
                   <div>
                     <b className="text-sm text-foreground">
@@ -713,7 +713,7 @@ export function PayrollPanel({
                   </div>
                 </div>
 
-                <div className="mt-6 border-t border-dashed border-border/80 pt-4 text-[11px] text-muted-foreground">
+                <div className="mt-6 border-t border-dashed border-border/80 pt-4 text-xs text-muted-foreground">
                   <div className="flex justify-between">
                     <div>
                       <p>Prepared by: Admin</p>

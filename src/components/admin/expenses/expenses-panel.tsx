@@ -202,7 +202,7 @@ export function ExpensesPanel({
           <Button
             type="button"
             variant="outline"
-            className="min-h-[40px] text-xs font-semibold gap-1.5 border-border bg-[#141416]"
+            className="min-h-[40px] text-xs font-semibold gap-1.5 border-border bg-panel"
             onClick={() => setManaging(true)}
           >
             <Tag className="h-3.5 w-3.5 text-muted-foreground" />
@@ -224,12 +224,12 @@ export function ExpensesPanel({
       </div>
 
       {/* Monthly Total & Sparkline Chart Card */}
-      <div className="rounded-xl border border-border bg-[#141416] p-5 shadow-sm">
+      <div className="rounded-xl border border-border bg-panel p-5 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-5">
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-[#1a1a1e] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-raised text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
               aria-label="Previous month"
               onClick={() => go(-1)}
             >
@@ -239,11 +239,11 @@ export function ExpensesPanel({
               <p data-testid="expenses-month" className="text-sm font-bold text-foreground">
                 {monthLabel(data.month)}
               </p>
-              <p className="text-[11px] text-muted-foreground">Monthly accounting cycle</p>
+              <p className="text-xs text-muted-foreground">Monthly accounting cycle</p>
             </div>
             <button
               type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-[#1a1a1e] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-raised text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40"
               aria-label="Next month"
               disabled={data.month >= thisMonth}
               onClick={() => go(1)}
@@ -253,7 +253,7 @@ export function ExpensesPanel({
           </div>
 
           <div className="sm:text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Total Outflow ({monthLabel(data.month)})
             </p>
             <p data-testid="expenses-total" className="text-2xl font-black text-primary tracking-tight mt-0.5">
@@ -264,7 +264,7 @@ export function ExpensesPanel({
 
         {/* 12-Month Sparkline Bars */}
         <div className="pt-4">
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-2 font-medium">
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 font-medium">
             <span>12-Month Spending Trend</span>
             <span>Peak: {formatTotal(peak.toString())}</span>
           </div>
@@ -296,7 +296,7 @@ export function ExpensesPanel({
                     />
                   </span>
                   <span
-                    className={`text-[10px] font-medium transition-colors ${
+                    className={`text-xs font-medium transition-colors ${
                       isCurrent ? "text-primary font-bold" : "text-muted-foreground"
                     }`}
                   >
@@ -311,8 +311,8 @@ export function ExpensesPanel({
 
       {/* Auto-Aggregated Flow Tiles (Supplies & Commissions) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-[#1c1c20] text-emerald-400">
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-raised text-emerald-400">
             <Boxes className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -320,14 +320,14 @@ export function ExpensesPanel({
             <p data-testid="expenses-stock" className="text-base font-bold text-foreground mt-0.5">
               {stockLine(data)}
             </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Automatically totaled from recorded Inventory restocking for this month.
             </p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-[#1c1c20] text-amber-400">
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-raised text-amber-400">
             <Coins className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -335,7 +335,7 @@ export function ExpensesPanel({
             <p data-testid="expenses-commissions" className="text-base font-bold text-foreground mt-0.5">
               {commissionsLine(data)}
             </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">{COMMISSIONS_HINT}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{COMMISSIONS_HINT}</p>
           </div>
         </div>
       </div>
@@ -372,7 +372,7 @@ export function ExpensesPanel({
       )}
 
       {/* Main Expense Table Container */}
-      <div className="rounded-xl border border-border bg-[#141416] shadow-sm">
+      <div className="rounded-xl border border-border bg-panel shadow-sm">
         {/* Filters Toolbar */}
         <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1 max-w-sm">
@@ -383,7 +383,7 @@ export function ExpensesPanel({
               onChange={handleSearchChange}
               placeholder="Search payee, note, or amount..."
               autoComplete="off"
-              className="w-full rounded-md border border-border bg-[#1a1a1e] pl-9 pr-8 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-border bg-raised pl-9 pr-8 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />
             {search && (
               <button
@@ -400,7 +400,7 @@ export function ExpensesPanel({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-md border border-border bg-[#1a1a1e] px-2.5 py-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 rounded-md border border-border bg-raised px-2.5 py-1 text-xs text-muted-foreground">
               <Filter className="h-3 w-3" />
               <span>Category:</span>
               <select
@@ -418,7 +418,7 @@ export function ExpensesPanel({
               </select>
             </div>
 
-            <label className="flex items-center gap-2 rounded-md border border-border bg-[#1a1a1e] px-2.5 py-1 text-xs text-muted-foreground cursor-pointer select-none">
+            <label className="flex items-center gap-2 rounded-md border border-border bg-raised px-2.5 py-1 text-xs text-muted-foreground cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={includeRemoved}
@@ -444,7 +444,7 @@ export function ExpensesPanel({
           </div>
         ) : (
           <div className="divide-y divide-border">
-            <div className="hidden grid-cols-12 gap-3 px-6 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider sm:grid bg-[#101012]">
+            <div className="hidden grid-cols-12 gap-3 px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider sm:grid bg-panel">
               <div className="col-span-3">Date & Payee</div>
               <div className="col-span-3">Category</div>
               <div className="col-span-4">Amount & Notes</div>
@@ -475,11 +475,11 @@ export function ExpensesPanel({
                   {/* Column 2: Category */}
                   <div className="col-span-3 min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="inline-flex items-center rounded border border-border bg-[#1c1c20] px-2 py-0.5 text-xs font-semibold text-foreground">
+                      <span className="inline-flex items-center rounded border border-border bg-raised px-2 py-0.5 text-xs font-semibold text-foreground">
                         {e.categoryName}
                       </span>
                       {e.removed && (
-                        <span className="inline-flex items-center rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-bold text-rose-400">
+                        <span className="inline-flex items-center rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-xs font-bold text-rose-400">
                           Removed
                         </span>
                       )}
@@ -504,7 +504,7 @@ export function ExpensesPanel({
                       type="button"
                       disabled={busy}
                       onClick={() => setHistoryFor(e)}
-                      className="inline-flex min-h-[34px] items-center gap-1 rounded border border-border bg-[#18181b] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+                      className="inline-flex min-h-[34px] items-center gap-1 rounded border border-border bg-card px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
                       title="View audit history"
                     >
                       <History className="h-3.5 w-3.5" />
@@ -530,7 +530,7 @@ export function ExpensesPanel({
                             setError(null);
                             setEditing(e);
                           }}
-                          className="inline-flex min-h-[34px] items-center gap-1 rounded border border-border bg-[#18181b] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+                          className="inline-flex min-h-[34px] items-center gap-1 rounded border border-border bg-card px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
                           title="Edit expense"
                         >
                           <Edit2 className="h-3.5 w-3.5" />
@@ -559,12 +559,12 @@ export function ExpensesPanel({
 
         {/* Older Data Infinite Fetch Trigger */}
         {next && (
-          <div className="border-t border-border p-3 text-center bg-[#101012]">
+          <div className="border-t border-border p-3 text-center bg-panel">
             <button
               type="button"
               disabled={busy}
               onClick={() => void loadOlder()}
-              className="inline-flex min-h-[34px] items-center gap-1.5 rounded border border-border bg-[#18181b] px-4 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              className="inline-flex min-h-[34px] items-center gap-1.5 rounded border border-border bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
             >
               <span>Load older expenses from server...</span>
             </button>
@@ -589,7 +589,7 @@ export function ExpensesPanel({
                     setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="rounded border border-border bg-[#1a1a1e] px-1.5 py-0.5 text-xs text-foreground focus:outline-none"
+                  className="rounded border border-border bg-raised px-1.5 py-0.5 text-xs text-foreground focus:outline-none"
                 >
                   <option value={5}>5</option>
                   <option value={10}>10</option>
@@ -604,7 +604,7 @@ export function ExpensesPanel({
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPageSafe <= 1}
-                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-[#1a1a1e] px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
+                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-raised px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
                 <span>Prev</span>
@@ -616,7 +616,7 @@ export function ExpensesPanel({
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPageSafe >= totalPages}
-                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-[#1a1a1e] px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
+                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-raised px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
               >
                 <span>Next</span>
                 <ChevronRight className="h-3.5 w-3.5" />

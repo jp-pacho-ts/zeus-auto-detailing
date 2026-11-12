@@ -218,10 +218,10 @@ export function BookingDetail({
         if (!busy) onClose();
       }}
       aria-labelledby="booking-detail-title"
-      className="fixed inset-0 m-auto max-h-[88vh] w-[calc(100%-2rem)] max-w-4xl overflow-hidden rounded-2xl border border-border bg-white dark:bg-[#0e0e11] p-0 text-foreground shadow-2xl backdrop:bg-black/85 backdrop:backdrop-blur-sm flex flex-col before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30"
+      className="fixed inset-0 m-auto max-h-[88vh] w-[calc(100%-2rem)] max-w-4xl overflow-hidden rounded-2xl border border-border bg-background p-0 text-foreground shadow-2xl backdrop:bg-black/85 backdrop: flex flex-col"
     >
       {/* Sticky Header */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-stone-50/95 dark:bg-[#131316]/95 px-5 py-3.5 backdrop-blur-md sm:px-6">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-stone-50/95 dark:bg-panel/95 px-5 py-3.5 sm:px-6">
         <div className="flex items-center gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -455,10 +455,10 @@ export function BookingDetail({
               /* Executive Overview 3-Card Grid */
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {/* Customer Profile Card */}
-                <div className="flex flex-col justify-between rounded-xl border border-zinc-800/80 bg-[#131316] p-4 shadow-sm">
+                <div className="flex flex-col justify-between rounded-xl border border-zinc-800/80 bg-panel p-4 shadow-sm">
                   <div>
                     <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-800/60">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                      <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
                         Customer
                       </span>
                       {admin && (
@@ -474,7 +474,7 @@ export function BookingDetail({
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-2">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-amber-500/30 bg-gradient-to-br from-amber-500/20 to-amber-700/20 text-xs font-bold text-amber-400">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-raised text-xs font-bold text-foreground">
                         {b.customerName ? b.customerName.slice(0, 2).toUpperCase() : "??"}
                       </div>
                       <div className="min-w-0">
@@ -511,10 +511,10 @@ export function BookingDetail({
                 </div>
 
                 {/* Vehicle & Status Card */}
-                <div className="flex flex-col justify-between rounded-xl border border-zinc-800/80 bg-[#131316] p-4 shadow-sm">
+                <div className="flex flex-col justify-between rounded-xl border border-zinc-800/80 bg-panel p-4 shadow-sm">
                   <div>
                     <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-800/60">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                      <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
                         Vehicle & Status
                       </span>
                       <span className="inline-flex items-center rounded border border-zinc-700 bg-zinc-800/80 px-2 py-0.5 text-xs font-bold text-zinc-300">
@@ -548,7 +548,7 @@ export function BookingDetail({
                     >
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${
-                          b.status === "IN_PROGRESS" ? "animate-pulse bg-amber-400" : "bg-current"
+                          b.status === "IN_PROGRESS" ? " bg-amber-400" : "bg-current"
                         }`}
                       />
                       {statusLabel(b.status)}
@@ -557,10 +557,10 @@ export function BookingDetail({
                 </div>
 
                 {/* Financial Overview Card */}
-                <div className="flex flex-col justify-between rounded-xl border border-zinc-800/80 bg-[#131316] p-4 shadow-sm sm:col-span-2 lg:col-span-1">
+                <div className="flex flex-col justify-between rounded-xl border border-zinc-800/80 bg-panel p-4 shadow-sm sm:col-span-2 lg:col-span-1">
                   <div>
                     <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-800/60">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                      <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
                         Financial Summary
                       </span>
                       <DepositBadge status={b.depositStatus} showNone />
@@ -617,7 +617,7 @@ export function BookingDetail({
             )}
 
             {/* Quick Action Bar */}
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/80 bg-[#131316] p-3 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/80 bg-panel p-3 shadow-sm">
               {admin && !editingDetails && (
                 <Button
                   variant="outline"
@@ -719,7 +719,7 @@ export function BookingDetail({
             </div>
 
             {/* Services & Line Items Card */}
-            <div className="rounded-xl border border-zinc-800/80 bg-[#131316] p-4.5 space-y-4 shadow-sm">
+            <div className="rounded-xl border border-zinc-800/80 bg-panel p-4.5 space-y-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/60 pb-3">
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400">
@@ -737,7 +737,7 @@ export function BookingDetail({
                   <span className="text-xs font-semibold text-zinc-400">{progressPercent}% complete</span>
                   <div className="h-2 w-24 overflow-hidden rounded-full bg-zinc-800">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-300"
+                      className="h-full rounded-full bg-primary transition-all duration-300"
                       style={{ width: `${progressPercent}%` }}
                     />
                   </div>
@@ -749,7 +749,7 @@ export function BookingDetail({
                 {b.lines.map((line) => (
                   <div
                     key={line.id}
-                    className="rounded-xl border border-zinc-800/70 bg-[#16161a] p-3.5 space-y-3 transition-colors hover:border-zinc-700/80"
+                    className="rounded-xl border border-zinc-800/70 bg-card p-3.5 space-y-3 transition-colors hover:border-zinc-700/80"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
@@ -971,7 +971,7 @@ export function BookingDetail({
             </div>
 
             {/* Assigned Staff Section */}
-            <section aria-label="Assigned staff" className="rounded-xl border border-zinc-800/80 bg-[#131316] p-4.5 space-y-4 shadow-sm">
+            <section aria-label="Assigned staff" className="rounded-xl border border-zinc-800/80 bg-panel p-4.5 space-y-4 shadow-sm">
               <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400">
@@ -1097,7 +1097,7 @@ export function BookingDetail({
             </section>
 
             {/* Deposit Verification Card */}
-            <section aria-label="Deposit" className="rounded-xl border border-zinc-800/80 bg-[#131316] p-4.5 space-y-4 shadow-sm">
+            <section aria-label="Deposit" className="rounded-xl border border-zinc-800/80 bg-panel p-4.5 space-y-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/60 pb-3">
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400">
@@ -1208,7 +1208,7 @@ export function BookingDetail({
             {admin &&
               b.snapshot === "QUEUE_V3" &&
               ["PENDING", "CONFIRMED"].includes(b.status) && (
-                <div className="rounded-xl border border-zinc-800/80 bg-[#131316] p-4.5 space-y-3 shadow-sm">
+                <div className="rounded-xl border border-zinc-800/80 bg-panel p-4.5 space-y-3 shadow-sm">
                   <div className="flex items-center gap-2 border-b border-zinc-800/60 pb-2">
                     <Calendar className="h-4 w-4 text-amber-400" />
                     <h3 className="text-sm font-bold text-white">Reschedule & Queue Placement</h3>
@@ -1340,7 +1340,7 @@ export function BookingDetail({
             )}
 
             {/* Audit History (Collapsible) */}
-            <details className="group rounded-xl border border-zinc-800/80 bg-[#131316] p-4 transition-colors">
+            <details className="group rounded-xl border border-zinc-800/80 bg-panel p-4 transition-colors">
               <summary className="flex min-h-[44px] cursor-pointer items-center justify-between text-sm font-bold text-zinc-300 transition-colors hover:text-white">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-amber-400" />

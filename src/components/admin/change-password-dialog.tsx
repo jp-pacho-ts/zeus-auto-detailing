@@ -79,9 +79,9 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
       role="dialog"
       aria-modal="true"
       aria-labelledby="change-password-title"
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 grid place-items-center"
     >
-      <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-white dark:bg-[#18181b] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+      <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-card p-6 shadow-2xl overflow-y-auto">
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -126,11 +126,11 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
                 autoComplete="current-password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 required
               />
               {fieldErrors.currentPassword && (
-                <p className="mt-1 text-[11px] text-rose-400">{fieldErrors.currentPassword[0]}</p>
+                <p className="mt-1 text-xs text-rose-400">{fieldErrors.currentPassword[0]}</p>
               )}
             </div>
 
@@ -144,14 +144,14 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
                 autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 required
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Must be at least 15 characters and not easy to guess.
               </p>
               {fieldErrors.newPassword && (
-                <p className="mt-1 text-[11px] text-rose-400">{fieldErrors.newPassword[0]}</p>
+                <p className="mt-1 text-xs text-rose-400">{fieldErrors.newPassword[0]}</p>
               )}
             </div>
 
@@ -165,11 +165,11 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 required
               />
               {fieldErrors.confirmPassword && (
-                <p className="mt-1 text-[11px] text-rose-400">{fieldErrors.confirmPassword[0]}</p>
+                <p className="mt-1 text-xs text-rose-400">{fieldErrors.confirmPassword[0]}</p>
               )}
             </div>
 

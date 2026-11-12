@@ -111,8 +111,8 @@ export function BookingCalendar({ role }: { role: UserRole }) {
       <LoadState loading={calendar.loading} error={calendar.error} retry={calendar.reload} />
 
       {view === "MONTH" ? (
-        <div className="rounded-xl border border-border bg-white dark:bg-[#121214] p-2 sm:p-3 shadow-xs">
-          <div className="grid grid-cols-7 gap-1 pb-1 text-center text-[11px] font-bold text-stone-700 dark:text-muted-foreground" aria-hidden="true">
+        <div className="rounded-xl border border-border bg-panel p-2 sm:p-3 shadow-xs">
+          <div className="grid grid-cols-7 gap-1 pb-1 text-center text-xs font-bold text-stone-700 dark:text-muted-foreground" aria-hidden="true">
             {WEEKDAYS.map((w) => (
               <span key={w}>{w}</span>
             ))}
@@ -133,22 +133,22 @@ export function BookingCalendar({ role }: { role: UserRole }) {
                   className={`flex min-h-[56px] min-w-0 flex-col items-start gap-1 rounded-lg border p-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:min-h-[84px] sm:p-2 transition-colors ${
                     day === date
                       ? "border-primary bg-amber-500/10 dark:bg-primary/10"
-                      : "border-border bg-white dark:bg-[#18181b] hover:border-zinc-400 dark:hover:border-zinc-600 hover:bg-stone-50 dark:hover:bg-[#202024]"
-                  } ${inMonth && !past ? "" : "opacity-60 bg-stone-50 dark:bg-[#121214]"}`}
+                      : "border-border bg-card hover:border-zinc-400 dark:hover:border-zinc-600 hover:bg-stone-50 dark:hover:bg-raised"
+                  } ${inMonth && !past ? "" : "opacity-60 bg-stone-50 dark:bg-panel"}`}
                 >
                   <span className={`text-xs ${date === today ? "rounded bg-primary px-1 font-bold text-black" : "font-bold text-stone-900 dark:text-foreground"}`}>
                     {Number(date.slice(8))}
                   </span>
                   {info && info.total > 0 && <span className="text-sm font-bold tabular-nums sm:text-base text-stone-900 dark:text-foreground">{info.total}</span>}
                   {info && <Dots info={info} />}
-                  {info?.closed && <span className="hidden text-[10px] text-stone-500 dark:text-muted-foreground font-medium sm:block">Closed</span>}
+                  {info?.closed && <span className="hidden text-xs text-stone-500 dark:text-muted-foreground font-medium sm:block">Closed</span>}
                 </button>
               );
             })}
           </div>
         </div>
       ) : (
-        <ul className="divide-y divide-border rounded border border-border bg-white dark:bg-[#121214]">
+        <ul className="divide-y divide-border rounded border border-border bg-panel">
           {weeks[0].map((date) => {
             const info = byDate.get(date);
             return (
@@ -160,7 +160,7 @@ export function BookingCalendar({ role }: { role: UserRole }) {
                     setDay(date);
                     setBooking(null);
                   }}
-                  className={`flex min-h-[56px] w-full flex-wrap items-center justify-between gap-2 p-3 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${day === date ? "bg-amber-500/10 dark:bg-primary/10 font-bold" : "hover:bg-stone-50 dark:hover:bg-[#18181b]"} ${date < today ? "opacity-60" : ""}`}
+                  className={`flex min-h-[56px] w-full flex-wrap items-center justify-between gap-2 p-3 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${day === date ? "bg-amber-500/10 dark:bg-primary/10 font-bold" : "hover:bg-stone-50 dark:hover:bg-card"} ${date < today ? "opacity-60" : ""}`}
                 >
                   <span className="font-semibold">
                     {format(date, { weekday: "long", day: "numeric", month: "short" })}
@@ -258,14 +258,14 @@ function CalendarDayModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="calendar-day-modal-title"
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 sm:p-6 grid place-items-center"
     >
       <div
         className="fixed inset-0 transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative z-10 my-auto flex w-full max-w-xl max-h-[calc(100vh-3rem)] flex-col rounded-2xl border border-border/90 bg-white dark:bg-[#121214] p-5 sm:p-6 text-foreground shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30 space-y-4">
+      <div className="relative z-10 my-auto flex w-full max-w-xl max-h-[calc(100vh-3rem)] flex-col rounded-2xl border border-border/90 bg-panel p-5 sm:p-6 text-foreground shadow-2xl overflow-y-auto space-y-4">
         <div className="flex items-start justify-between gap-3 border-b border-border/70 pb-3.5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400">
@@ -345,7 +345,7 @@ function CalendarDayModal({
                       {b.lines.filter((l) => !l.removed).map((l) => l.name).join(", ") || b.serviceName}
                     </span>
                   </span>
-                  <span className={`inline-flex shrink-0 items-center rounded border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[b.status]}`}>
+                  <span className={`inline-flex shrink-0 items-center rounded border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${STATUS_PILL[b.status]}`}>
                     {statusLabel(b.status)}
                   </span>
                 </button>

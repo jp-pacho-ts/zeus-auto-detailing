@@ -10,7 +10,7 @@ export interface MetricCardProps {
 export function MetricCard({ title, value, meta }: MetricCardProps) {
   const isLoading = value === "—";
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-border bg-white dark:bg-[#161619] p-4 transition-colors hover:border-primary/40 hover:bg-stone-50 dark:hover:bg-[#18181c] shadow-xs">
+    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-stone-50 dark:hover:bg-card shadow-xs">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-stone-600 dark:text-muted-foreground">{title}</span>
         <span className="h-1.5 w-1.5 rounded-full bg-primary/60 transition-transform group-hover:scale-125" aria-hidden="true" />

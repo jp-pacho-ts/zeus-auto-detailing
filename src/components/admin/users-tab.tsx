@@ -182,7 +182,7 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
 
   if (role !== "ADMIN") {
     return (
-      <div className="rounded-xl border border-border bg-[#18181b] p-8 text-center text-muted-foreground">
+      <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
         <Shield className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
         <p className="text-sm font-semibold">Administrator Access Required</p>
         <p className="mt-1 text-xs">Only shop administrators can manage staff accounts.</p>
@@ -204,7 +204,7 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
           <button
             type="button"
             onClick={() => resource.reload()}
-            className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-border bg-[#18181b] px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${resource.loading ? "animate-spin" : ""}`} />
             Refresh
@@ -225,7 +225,7 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
       </div>
 
       {/* Users List */}
-      <div className="overflow-hidden rounded-xl border border-border bg-[#18181b]">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         {resource.loading && users.length === 0 ? (
           <div className="flex items-center justify-center p-12 text-xs text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2 text-primary" /> Loading user accounts...
@@ -245,10 +245,10 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
               return (
                 <li
                   key={u.id}
-                  className="flex flex-col gap-3 p-4 transition-colors sm:flex-row sm:items-center sm:justify-between sm:px-6 hover:bg-[#1e1e22]/50"
+                  className="flex flex-col gap-3 p-4 transition-colors sm:flex-row sm:items-center sm:justify-between sm:px-6 hover:bg-raised/50"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full border border-border bg-[#27272a] text-xs font-bold text-primary">
+                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full border border-border bg-raised text-xs font-bold text-primary">
                       {u.name
                         .trim()
                         .split(/\s+/)
@@ -261,12 +261,12 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-bold text-foreground text-sm">{u.name}</span>
                         {isCurrent && (
-                          <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                          <span className="rounded bg-primary/20 px-1.5 py-0.5 text-xs font-bold text-primary">
                             You
                           </span>
                         )}
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
                             u.role === "SUPERADMIN"
                               ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                               : "bg-purple-500/10 text-purple-400 border border-purple-500/20"
@@ -275,11 +275,11 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                           {u.role === "SUPERADMIN" ? "Super Admin" : "Admin"}
                         </span>
                         {u.isActive ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-medium">
                             <UserCheck className="h-3 w-3" /> Active
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-rose-400 font-medium">
+                          <span className="inline-flex items-center gap-1 text-xs text-rose-400 font-medium">
                             <UserX className="h-3 w-3" /> Inactive
                           </span>
                         )}
@@ -299,7 +299,7 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                     <button
                       type="button"
                       onClick={() => openEdit(u)}
-                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-border bg-[#141416] px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-border bg-panel px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
                     >
                       <Edit2 className="h-3.5 w-3.5" /> Edit
                     </button>
@@ -309,7 +309,7 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                         setResetTarget(u);
                         setResetError(null);
                       }}
-                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-border bg-[#141416] px-3 py-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 hover:border-amber-500/30"
+                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-border bg-panel px-3 py-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 hover:border-amber-500/30"
                     >
                       <KeyRound className="h-3.5 w-3.5" /> Reset Password
                     </button>
@@ -327,9 +327,9 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-account-title"
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 grid place-items-center"
         >
-          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-white dark:bg-[#18181b] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-card p-6 shadow-2xl overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <h3 id="create-account-title" className="text-base font-bold text-foreground">
                 Add Staff Account
@@ -359,10 +359,10 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                   placeholder="e.g. Maria Santos"
-                  className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 />
                 {createFieldErrors.name && (
-                  <p className="mt-1 text-[11px] text-rose-400">{createFieldErrors.name[0]}</p>
+                  <p className="mt-1 text-xs text-rose-400">{createFieldErrors.name[0]}</p>
                 )}
               </div>
 
@@ -374,10 +374,10 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                   value={createEmail}
                   onChange={(e) => setCreateEmail(e.target.value)}
                   placeholder="e.g. maria@zeusautodetailing.test"
-                  className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 />
                 {createFieldErrors.email && (
-                  <p className="mt-1 text-[11px] text-rose-400">{createFieldErrors.email[0]}</p>
+                  <p className="mt-1 text-xs text-rose-400">{createFieldErrors.email[0]}</p>
                 )}
               </div>
 
@@ -388,10 +388,10 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                   value={createPhone}
                   onChange={(e) => setCreatePhone(e.target.value)}
                   placeholder="e.g. +63 917 555 1234"
-                  className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 />
                 {createFieldErrors.phone && (
-                  <p className="mt-1 text-[11px] text-rose-400">{createFieldErrors.phone[0]}</p>
+                  <p className="mt-1 text-xs text-rose-400">{createFieldErrors.phone[0]}</p>
                 )}
               </div>
 
@@ -400,14 +400,14 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                 <select
                   value={createRole}
                   onChange={(e) => setCreateRole(e.target.value as "SUPERADMIN" | "ADMIN")}
-                  className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 >
                   <option value="ADMIN">Admin (Full shop manager)</option>
                   <option value="SUPERADMIN">Super Admin (System Owner)</option>
                 </select>
               </div>
 
-              <p className="text-[11px] text-muted-foreground bg-[#141416] p-3 rounded border border-border">
+              <p className="text-xs text-muted-foreground bg-panel p-3 rounded border border-border">
                 A cryptographically secure temporary password will be generated upon creation and displayed once for you to provide to the user.
               </p>
 
@@ -440,9 +440,9 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="edit-account-title"
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 grid place-items-center"
         >
-          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-white dark:bg-[#18181b] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-card p-6 shadow-2xl overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <h3 id="edit-account-title" className="text-base font-bold text-foreground">
                 Edit Staff Account
@@ -470,7 +470,7 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                   type="text"
                   disabled
                   value={editUser.email}
-                  className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-muted-foreground opacity-70 cursor-not-allowed"
+                  className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-muted-foreground opacity-70 cursor-not-allowed"
                 />
               </div>
 
@@ -481,10 +481,10 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 />
                 {editFieldErrors.name && (
-                  <p className="mt-1 text-[11px] text-rose-400">{editFieldErrors.name[0]}</p>
+                  <p className="mt-1 text-xs text-rose-400">{editFieldErrors.name[0]}</p>
                 )}
               </div>
 
@@ -494,24 +494,24 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                   type="text"
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
-                  className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 />
                 {editFieldErrors.phone && (
-                  <p className="mt-1 text-[11px] text-rose-400">{editFieldErrors.phone[0]}</p>
+                  <p className="mt-1 text-xs text-rose-400">{editFieldErrors.phone[0]}</p>
                 )}
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground">Account Role</label>
                 {editUser.role === "SUPERADMIN" ? (
-                  <div className="mt-1 flex items-center gap-2 rounded border border-border bg-[#141416] px-3 py-2 text-xs text-amber-400 font-bold">
+                  <div className="mt-1 flex items-center gap-2 rounded border border-border bg-panel px-3 py-2 text-xs text-amber-400 font-bold">
                     Super Admin (Primary Owner Account)
                   </div>
                 ) : (
                   <select
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value as "SUPERADMIN" | "ADMIN")}
-                    className="mt-1 w-full rounded border border-border bg-[#121214] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                   >
                     <option value="ADMIN">Admin (Full shop manager)</option>
                     <option value="SUPERADMIN">Super Admin (System Owner)</option>
@@ -519,10 +519,10 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                 )}
               </div>
 
-              <div className="flex items-center justify-between rounded bg-[#141416] p-3 border border-border">
+              <div className="flex items-center justify-between rounded bg-panel p-3 border border-border">
                 <div>
                   <p className="text-xs font-semibold text-foreground">Account Status</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Inactive accounts cannot sign in.
                   </p>
                 </div>
@@ -538,11 +538,11 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                 </label>
               </div>
               {editUser.role === "SUPERADMIN" ? (
-                <p className="text-[11px] text-amber-400/90">
+                <p className="text-xs text-amber-400/90">
                   Super Admin accounts cannot be deactivated.
                 </p>
               ) : currentUserId === editUser.id ? (
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   You cannot deactivate your own signed-in administrator account.
                 </p>
               ) : null}
@@ -576,9 +576,9 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="reset-password-title"
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 grid place-items-center"
         >
-          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-white dark:bg-[#18181b] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-card p-6 shadow-2xl overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <h3 id="reset-password-title" className="text-base font-bold text-foreground">
                 Reset Password
@@ -604,7 +604,7 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                 Are you sure you want to reset the password for{" "}
                 <span className="font-bold text-primary">{resetTarget.name}</span> ({resetTarget.email})?
               </p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 A new temporary password will be generated, and all existing active sessions for this user will be revoked immediately.
               </p>
             </div>
@@ -638,9 +638,9 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="temp-password-title"
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 grid place-items-center"
         >
-          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-amber-500/40 bg-white dark:bg-[#18181b] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-amber-500/40 bg-card p-6 shadow-2xl overflow-y-auto">
             <div className="flex items-center gap-2 pb-4 border-b border-border text-amber-500 dark:text-amber-400">
               <KeyRound className="h-5 w-5" />
               <h3 id="temp-password-title" className="text-base font-bold text-foreground">
@@ -658,11 +658,11 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Temporary Password
                 </label>
                 <div className="mt-1 flex items-center gap-2">
-                  <div className="flex-1 rounded border border-border bg-[#101012] px-3 py-2.5 font-mono text-sm font-bold text-foreground select-all break-all">
+                  <div className="flex-1 rounded border border-border bg-panel px-3 py-2.5 font-mono text-sm font-bold text-foreground select-all break-all">
                     {tempPasswordModal.password}
                   </div>
                   <button

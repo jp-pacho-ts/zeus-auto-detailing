@@ -32,7 +32,7 @@ test("Bookings owns customer bookings/calendar/history; the Bay board is separat
   assert.match(html, /id="bookings-view-BOOKINGS"[^>]*aria-pressed="true"/);
   assert.match(html, /id="bookings-view-CALENDAR"/);
   assert.match(html, />History<\/button>/);
-  assert.match(html, /Search bookings/);
+  assert.match(html, />Search<\/button>/);
   assert.doesNotMatch(html, />Kanban<\/button>|Customer booking history/);
 });
 
@@ -69,7 +69,7 @@ test("the calendar component starts at overview; history is a separate customer 
   const html = render("bookings", { initialView: "HISTORY" });
   assert.match(html, /id="bookings-view-HISTORY"[^>]*aria-pressed="true"/);
   assert.match(html, /Customer booking history/);
-  assert.doesNotMatch(html, /Queue day|Search bookings/);
+  assert.doesNotMatch(html, /Queue day|aria-label="Bookings mode"/);
   assert.doesNotMatch(html, /aria-label="Calendar view"/);
 });
 
@@ -82,22 +82,33 @@ test("Bay board renders directly without customer booking tabs or redundant sect
   assert.doesNotMatch(html, /aria-label="Bookings view"|Customer booking history/);
 });
 
-test("Find bookings is placed with the table below the metric tiles, with one Status filter", () => {
+test("the Bookings page has one mode switch, one day control and one Status filter", () => {
   const html = render("bookings", {});
-  const at = (re: RegExp) => html.search(re);
-  const find = at(/>Find bookings</), tiles = at(/Day(&#x27;|')s Bookings/), queueDay = at(/Queue day/);
-  assert.ok(find >= 0 && tiles >= 0 && queueDay >= 0, "all three are on the page");
-  assert.ok(tiles < find, "the metric tiles come before the table search");
-  assert.ok(find < queueDay, "the search comes before the queues");
-  assert.ok(html.indexOf("Search bookings") > tiles, "the search button is below the tiles");
-  assert.doesNotMatch(html, /Booking status|Search status/, "the two status dropdowns are one control now");
-  assert.equal((html.match(/<select/g) ?? []).length, 1, "one Status filter on the page");
+  assert.match(html, /role="group" aria-label="Bookings mode"/);
+  assert.match(html, /id="bookings-view-BOOKINGS"[^>]*aria-pressed="true"[^>]*>Day</);
+  assert.match(html, /Queue day/);
+  assert.match(html, /aria-label="Previous day"/);
+  assert.match(html, /aria-label="Next day"/);
+  assert.equal((html.match(/>Today</g) ?? []).length, 1, "one Today button");
+  assert.doesNotMatch(html, /Yesterday|Tomorrow|Last week|Find bookings|Day(&#x27;|')s Bookings/, "the old duplicate controls are gone");
+  assert.doesNotMatch(html, /Booking status|Search status|Refresh queues/);
+  assert.equal((html.match(/<select/g) ?? []).length, 1, "one Status filter on the day view");
   assert.match(html, /<label[^>]*>Status<select/);
-  assert.doesNotMatch(html, /Refresh queues/, "the redundant refresh queues button is removed");
+  assert.doesNotMatch(html, /<h1/, "the portal owns the page title");
 });
 
-test("STAFF sees the table search below metric tiles, and History still has none", () => {
+test("STAFF gets Day and Search only; History stays ADMIN-only", () => {
   const staff = render("bookings", { role: "STAFF" });
-  assert.ok(staff.search(/Day(&#x27;|')s Bookings/) < staff.search(/>Find bookings</));
-  assert.doesNotMatch(render("bookings", { initialView: "HISTORY" }), /Find bookings/);
+  assert.match(staff, />Search<\/button>/);
+  assert.doesNotMatch(staff, />History<\/button>/);
+  assert.doesNotMatch(render("bookings", { initialView: "HISTORY" }), /aria-label="Bookings mode"/);
+});
+
+test("date range presets: weeks run Monday to Sunday, months end on their last day", () => {
+  const { presetRange } = require("./bookings-tab") as typeof import("./bookings-tab");
+  assert.deepEqual(presetRange("TODAY", "2026-11-12"), { from: "2026-11-12", to: "2026-11-12" });
+  assert.deepEqual(presetRange("THIS_WEEK", "2026-11-12"), { from: "2026-11-09", to: "2026-11-15" });
+  assert.deepEqual(presetRange("THIS_WEEK", "2026-11-15"), { from: "2026-11-09", to: "2026-11-15" }, "Sunday ends the week");
+  assert.deepEqual(presetRange("LAST_WEEK", "2026-11-09"), { from: "2026-11-02", to: "2026-11-08" });
+  assert.deepEqual(presetRange("THIS_MONTH", "2028-02-10"), { from: "2028-02-01", to: "2028-02-29" }, "leap February");
 });

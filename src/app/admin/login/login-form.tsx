@@ -81,7 +81,7 @@ export function LoginForm({ next }: { next: string }) {
   };
 
   return (
-    <div className="relative flex h-full w-full min-h-screen flex-col items-center justify-center overflow-y-auto bg-[#09090b] px-4 py-12 text-[#f5f5f4] selection:bg-primary selection:text-black">
+    <div className="relative flex h-full w-full min-h-screen flex-col items-center justify-center overflow-y-auto bg-background px-4 py-12 text-[#f5f5f4] selection:bg-primary selection:text-black">
       {/* Ambient background glows */}
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(192,136,24,0.12),transparent_70%)]"
@@ -102,14 +102,14 @@ export function LoginForm({ next }: { next: string }) {
           >
             <Logo priority />
           </Link>
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
             <ShieldCheck className="h-3.5 w-3.5" />
             <span>Authorized Staff Portal</span>
           </div>
         </div>
 
         {/* Card Container */}
-        <div className="rounded-2xl border border-white/10 bg-[#121214]/95 p-7 sm:p-9 shadow-2xl backdrop-blur-xl ring-1 ring-white/5">
+        <div className="rounded-2xl border border-white/10 bg-panel/95 p-7 sm:p-9 shadow-2xl ring-1 ring-white/5">
           <div className="mb-6">
             <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
               Sign In
@@ -140,7 +140,7 @@ export function LoginForm({ next }: { next: string }) {
                   placeholder="name@zeusauto.ph"
                   autoComplete="username"
                   required
-                  className="flex min-h-[44px] w-full rounded-xl border border-zinc-800 bg-[#18181b] pl-10 pr-3.5 py-2.5 text-xs text-foreground placeholder:text-zinc-600 transition-colors focus:border-primary focus:bg-[#1c1c20] focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="flex min-h-[44px] w-full rounded-xl border border-zinc-800 bg-card pl-10 pr-3.5 py-2.5 text-xs text-foreground placeholder:text-zinc-600 transition-colors focus:border-primary focus:bg-raised focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
             </div>
@@ -165,7 +165,7 @@ export function LoginForm({ next }: { next: string }) {
                   placeholder="••••••••••••"
                   autoComplete="current-password"
                   required
-                  className="flex min-h-[44px] w-full rounded-xl border border-zinc-800 bg-[#18181b] pl-10 pr-11 py-2.5 text-xs text-foreground placeholder:text-zinc-600 transition-colors focus:border-primary focus:bg-[#1c1c20] focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="flex min-h-[44px] w-full rounded-xl border border-zinc-800 bg-card pl-10 pr-11 py-2.5 text-xs text-foreground placeholder:text-zinc-600 transition-colors focus:border-primary focus:bg-raised focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 <button
                   type="button"
@@ -228,7 +228,7 @@ export function LoginForm({ next }: { next: string }) {
         </div>
 
         {/* Security watermark footer */}
-        <p className="mt-6 text-center text-[11px] text-zinc-600">
+        <p className="mt-6 text-center text-xs text-zinc-600">
           Protected shop system · {brandConfig.location} · {brandConfig.timezone}
         </p>
       </div>

@@ -127,11 +127,11 @@ export function NotificationPopover({
             void reload();
           }
         }}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-[#18181b] text-zinc-300 transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-zinc-300 transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 font-mono text-[9px] font-bold text-black ring-2 ring-[#121214] animate-in zoom-in-50">
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 font-mono text-xs font-bold text-black ring-2 ring-[#121214] animate-in zoom-in-50">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -141,7 +141,7 @@ export function NotificationPopover({
         <div
           role="dialog"
           aria-label="Real-time notifications panel"
-          className="absolute right-0 top-full z-50 mt-2 w-[340px] rounded-xl border border-border bg-[#121214] shadow-2xl sm:w-[420px] animate-in fade-in-0 zoom-in-95"
+          className="absolute right-0 top-full z-50 mt-2 w-[340px] rounded-xl border border-border bg-panel shadow-2xl sm:w-[420px] animate-in fade-in-0 zoom-in-95"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
@@ -152,9 +152,9 @@ export function NotificationPopover({
               <div>
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-xs font-bold text-foreground">Notifications &amp; Alerts</h3>
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" title="Live real-time polling active" />
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" title="Live real-time polling active" />
                 </div>
-                <p className="text-[10px] text-zinc-400">Live operational events</p>
+                <p className="text-xs text-zinc-400">Live operational events</p>
               </div>
             </div>
 
@@ -163,7 +163,7 @@ export function NotificationPopover({
                 <button
                   type="button"
                   onClick={markAllRead}
-                  className="inline-flex min-h-[32px] items-center gap-1 rounded px-2 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors"
+                  className="inline-flex min-h-[32px] items-center gap-1 rounded px-2 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
                 >
                   <CheckCheck className="h-3 w-3" />
                   <span>Mark read</span>
@@ -181,7 +181,7 @@ export function NotificationPopover({
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border/60 bg-[#161619] px-4 py-2 scrollbar-none">
+          <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border/60 bg-card px-4 py-2 scrollbar-none">
             {(
               [
                 ["ALL", "All"],
@@ -196,7 +196,7 @@ export function NotificationPopover({
                   key={key}
                   type="button"
                   onClick={() => setActiveFilter(key)}
-                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
                     isActive
                       ? "bg-primary text-black font-semibold shadow-sm"
                       : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
@@ -259,10 +259,10 @@ export function NotificationPopover({
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                         )}
                       </div>
-                      <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground line-clamp-2">
+                      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground line-clamp-2">
                         {item.message}
                       </p>
-                      <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-400">
+                      <div className="mt-1 flex items-center justify-between text-xs text-zinc-400">
                         <span className="flex items-center gap-1">
                           <Clock className="h-2.5 w-2.5 text-zinc-400" />
                           <span>
@@ -287,9 +287,9 @@ export function NotificationPopover({
           </div>
 
           {/* Footer */}
-          <div className="border-t border-border/80 bg-[#161619] px-4 py-2 flex items-center justify-between text-[11px] text-zinc-400">
+          <div className="border-t border-border/80 bg-card px-4 py-2 flex items-center justify-between text-xs text-zinc-400">
             <span>Updates automatically</span>
-            <span className="font-mono text-[10px] text-zinc-400">Asia/Manila</span>
+            <span className="font-mono text-xs text-zinc-400">Asia/Manila</span>
           </div>
         </div>
       )}

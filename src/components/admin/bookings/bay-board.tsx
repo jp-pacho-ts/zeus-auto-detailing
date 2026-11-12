@@ -35,8 +35,8 @@ type BoardBay = AdminDayBoard["containers"][number]["bays"][number];
 type Pending = { card: AdminBoardCard; bayId: string; text: string };
 
 // One grey outline pill for every service tag: no colour per kind.
-const pill = "inline-flex min-w-0 max-w-full items-center truncate rounded-md border border-border bg-[#121214] px-2 py-0.5 text-xs font-medium leading-tight text-muted-foreground";
-const lane = "min-w-0 flex-col gap-3 rounded-lg border border-border bg-[#121214] p-3.5 lg:sticky lg:top-0 lg:h-[calc(100dvh-13rem)] lg:overflow-y-auto";
+const pill = "inline-flex min-w-0 max-w-full items-center truncate rounded-md border border-border bg-panel px-2 py-0.5 text-xs font-medium leading-tight text-muted-foreground";
+const lane = "min-w-0 flex-col gap-3 rounded-lg border border-border bg-panel p-3.5 lg:sticky lg:top-0 lg:h-[calc(100dvh-13rem)] lg:overflow-y-auto";
 const finishTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" });
 
 export function BayBoard({ role }: { role: UserRole }) {
@@ -251,7 +251,7 @@ export function BayBoard({ role }: { role: UserRole }) {
     return (
       <article
         key={b.id + "-" + boardGen}
-        className="min-w-0 cursor-pointer space-y-2 rounded-lg border border-border bg-[#18181b] p-3 leading-tight transition-colors hover:border-border/80"
+        className="min-w-0 cursor-pointer space-y-2 rounded-lg border border-border bg-card p-3 leading-tight transition-colors hover:border-border/80"
         aria-label={b.referenceCode}
         onClick={(e) => openFromCardClick(e, b.id)}
       >
@@ -269,7 +269,7 @@ export function BayBoard({ role }: { role: UserRole }) {
           <p className="min-w-0 break-words text-sm font-bold tracking-tight text-foreground">
             {b.vehicleModel} <span className="font-mono text-xs font-semibold text-muted-foreground">· {plateLabel(b.vehiclePlate)}</span>
           </p>
-          <span className="shrink-0 rounded border border-border/80 bg-[#121214] px-1.5 py-0.5 font-mono text-[11px] font-bold text-foreground">
+          <span className="shrink-0 rounded border border-border/80 bg-panel px-1.5 py-0.5 font-mono text-xs font-bold text-foreground">
             {b.sizeCode}
           </span>
         </div>
@@ -290,7 +290,7 @@ export function BayBoard({ role }: { role: UserRole }) {
       <article
         key={card.id + "-" + boardGen}
         className={
-          "min-w-0 space-y-2.5 rounded-lg border border-border bg-[#18181b] p-3 leading-tight transition-colors hover:border-border/80" +
+          "min-w-0 space-y-2.5 rounded-lg border border-border bg-card p-3 leading-tight transition-colors hover:border-border/80" +
           (canDrag ? " cursor-grab active:cursor-grabbing" : " cursor-pointer") +
           (dragging === card.id ? " opacity-50 ring-2 ring-primary" : "")
         }
@@ -327,17 +327,17 @@ export function BayBoard({ role }: { role: UserRole }) {
           <p className="min-w-0 break-words text-sm font-bold tracking-tight text-foreground">
             {card.vehicleModel} <span className="font-mono text-xs font-semibold text-muted-foreground">· {plateLabel(card.vehiclePlate)}</span>
           </p>
-          <span className="shrink-0 rounded border border-border/80 bg-[#121214] px-1.5 py-0.5 font-mono text-[11px] font-bold text-foreground">
+          <span className="shrink-0 rounded border border-border/80 bg-panel px-1.5 py-0.5 font-mono text-xs font-bold text-foreground">
             {card.sizeCode}
           </span>
         </div>
         {firstLine && (
-          <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-[#121214] px-2.5 py-1.5 text-xs" title={allLinesTitle}>
+          <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-panel px-2.5 py-1.5 text-xs" title={allLinesTitle}>
             <p className="min-w-0 truncate text-muted-foreground">
               <span className="font-semibold text-foreground">{firstLine.name}</span> · {statusLabel(firstLine.workStatus)}
               {extraLines > 0 ? ` · +${extraLines} more` : ""}
             </p>
-            <span className="shrink-0 rounded bg-[#1e1e22] px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground">
+            <span className="shrink-0 rounded bg-raised px-1.5 py-0.5 font-mono text-xs font-semibold text-foreground">
               · {card.progress.done}/{card.progress.total} done
             </span>
           </div>
@@ -371,7 +371,7 @@ export function BayBoard({ role }: { role: UserRole }) {
               <select
                 name="bay"
                 aria-label={"Move " + card.referenceCode + " to bay"}
-                className="min-h-[44px] min-w-0 flex-1 rounded-md border border-border bg-[#121214] px-2.5 py-1 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="min-h-[44px] min-w-0 flex-1 rounded-md border border-border bg-panel px-2.5 py-1 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 defaultValue=""
                 disabled={busy || locked}
               >
@@ -403,7 +403,7 @@ export function BayBoard({ role }: { role: UserRole }) {
   return (
     <div className="min-w-0 space-y-4">
       {/* Unified Board Control Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-[#121214] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-panel px-4 py-3">
         <div className="flex flex-wrap items-center gap-4">
           <label className="inline-flex items-center gap-2.5 whitespace-nowrap text-xs font-semibold text-foreground">
             <span>Board day</span>
@@ -413,7 +413,7 @@ export function BayBoard({ role }: { role: UserRole }) {
               type="date"
               value={date}
               disabled={busy}
-              className="min-h-[38px] w-40 rounded-md border border-border bg-[#18181b] px-3 py-1.5 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="min-h-[38px] w-40 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               onChange={(e) => {
                 if (e.target.value) {
                   clearDrag();
@@ -426,16 +426,16 @@ export function BayBoard({ role }: { role: UserRole }) {
           </label>
           {board && (
             <div className="hidden items-center gap-2 border-l border-border pl-4 text-xs sm:flex">
-              <span className="rounded-md border border-border bg-[#18181b] px-2.5 py-1 font-mono text-muted-foreground">
+              <span className="rounded-md border border-border bg-card px-2.5 py-1 font-mono text-muted-foreground">
                 Waiting: <b className="text-foreground">{board.waiting.length}</b>
               </span>
-              <span className="rounded-md border border-border bg-[#18181b] px-2.5 py-1 font-mono text-muted-foreground">
+              <span className="rounded-md border border-border bg-card px-2.5 py-1 font-mono text-muted-foreground">
                 Active Bays:{" "}
                 <b className="text-primary">
                   {allBays.filter((b) => b.cards.length > 0).length}/{allBays.length}
                 </b>
               </span>
-              <span className="rounded-md border border-border bg-[#18181b] px-2.5 py-1 font-mono text-muted-foreground">
+              <span className="rounded-md border border-border bg-card px-2.5 py-1 font-mono text-muted-foreground">
                 Done: <b className="text-emerald-400">{board.done.length}</b>
               </span>
             </div>
@@ -446,7 +446,7 @@ export function BayBoard({ role }: { role: UserRole }) {
         data-board-notice={refusal && message ? "refusal" : undefined}
         className={
           refusal && message
-            ? "sticky top-2 z-20 flex items-center justify-between gap-3 rounded border border-amber-500/40 bg-[#18181b] px-3 py-2 text-amber-200 shadow-lg"
+            ? "sticky top-2 z-20 flex items-center justify-between gap-3 rounded border border-amber-500/40 bg-card px-3 py-2 text-amber-200 shadow-lg"
             : ""
         }
       >
@@ -493,7 +493,7 @@ export function BayBoard({ role }: { role: UserRole }) {
             >
               <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5">
                 <h2 tabIndex={-1} className="text-sm font-bold tracking-tight">Waiting ({board.waiting.length})</h2>
-                <span className="rounded bg-[#18181b] px-2 py-0.5 text-[0.7rem] font-medium text-muted-foreground">All services</span>
+                <span className="rounded bg-card px-2 py-0.5 text-xs font-medium text-muted-foreground">All services</span>
               </div>
               {board.waiting.map(cardView)}
               {!board.waiting.length && <p className={emptySlot}>No waiting cars</p>}
@@ -504,12 +504,12 @@ export function BayBoard({ role }: { role: UserRole }) {
                 const shown = c.bays.filter((b) => b.isActive || b.cards.length);
                 const inUseCount = shown.filter((b) => b.cards.length > 0).length;
                 return (
-                  <article key={c.id} aria-label={c.name} data-container={c.id} className="min-w-0 overflow-hidden rounded-lg border border-border bg-[#121214]">
-                    <div className="flex items-center justify-between gap-3 border-b border-border bg-[#16161a] px-4 py-3">
+                  <article key={c.id} aria-label={c.name} data-container={c.id} className="min-w-0 overflow-hidden rounded-lg border border-border bg-panel">
+                    <div className="flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2.5">
                           <h3 tabIndex={-1} className="break-words text-sm font-bold tracking-tight text-foreground">{c.name}</h3>
-                          <span className="rounded-full border border-border bg-[#0d0d0f] px-2.5 py-0.5 font-mono text-[0.7rem] font-semibold tabular-nums text-muted-foreground">
+                          <span className="rounded-full border border-border bg-background px-2.5 py-0.5 font-mono text-xs font-semibold tabular-nums text-muted-foreground">
                             {inUseCount} of {shown.length} in use
                           </span>
                         </div>
@@ -534,8 +534,8 @@ export function BayBoard({ role }: { role: UserRole }) {
                             data-board-column={b.id}
                             className={`flex min-w-[17rem] flex-1 basis-0 shrink-0 flex-col gap-2.5 rounded-lg border p-3 transition-colors ${
                               hasCar
-                                ? "border-primary/35 bg-[#17171b]"
-                                : "border-border/80 bg-[#0d0d0f]"
+                                ? "border-primary/35 bg-card"
+                                : "border-border/80 bg-background"
                             }`}
                             onDragOver={(e) => { if (acceptsDrops()) e.preventDefault(); }}
                             onDrop={(e) => dropOnBay(e, b.id)}
@@ -579,11 +579,11 @@ export function BayBoard({ role }: { role: UserRole }) {
             >
               <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5">
                 <h2 tabIndex={-1} className="text-sm font-bold tracking-tight">Done ({board.done.length})</h2>
-                <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[0.7rem] font-medium text-emerald-400">Finished</span>
+                <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400">Finished</span>
               </div>
               {board.done.map(doneView)}
               {!board.done.length && <p className={emptySlot}>No cars finished yet</p>}
-              <p className="mt-auto border-t border-border/60 pt-2.5 text-[0.7rem] leading-relaxed text-muted-foreground">{role === "ADMIN" && "Drop a finished car here, or use Done (finish) on its card. "}Shows who worked and when it finished.</p>
+              <p className="mt-auto border-t border-border/60 pt-2.5 text-xs leading-relaxed text-muted-foreground">{role === "ADMIN" && "Drop a finished car here, or use Done (finish) on its card. "}Shows who worked and when it finished.</p>
             </section>
           </div>
           <p className="text-xs text-muted-foreground">

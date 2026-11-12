@@ -43,7 +43,7 @@ export function ColumnChart({ rows, unit }: { rows: AdminAnalyticsBucket[]; unit
           {ticks.map((tick) => (
             <g key={tick}>
               <line x1={LEFT} x2={width - RIGHT} y1={y(tick)} y2={y(tick)} className="stroke-border" strokeWidth={1} />
-              <text x={LEFT - 6} y={y(tick) + 4} textAnchor="end" className="fill-muted-foreground text-[11px] tabular-nums">{compactPesos(tick)}</text>
+              <text x={LEFT - 6} y={y(tick) + 4} textAnchor="end" className="fill-muted-foreground text-xs tabular-nums">{compactPesos(tick)}</text>
             </g>
           ))}
           {rows.map((row, index) => {
@@ -71,10 +71,10 @@ export function ColumnChart({ rows, unit }: { rows: AdminAnalyticsBucket[]; unit
                   />
                 )}
                 {index === peak && h > 0 && (
-                  <text x={x + band / 2} y={Math.max(11, tip - 5)} textAnchor="middle" className="fill-foreground text-[11px] tabular-nums">{compactPesos(row.revenueCentavos)}</text>
+                  <text x={x + band / 2} y={Math.max(11, tip - 5)} textAnchor="middle" className="fill-foreground text-xs tabular-nums">{compactPesos(row.revenueCentavos)}</text>
                 )}
                 {index % everyNth === 0 && (
-                  <text x={x + band / 2} y={height - 7} textAnchor="middle" className="fill-muted-foreground text-[11px] tabular-nums">{bucketAxisLabel(row, unit)}</text>
+                  <text x={x + band / 2} y={height - 7} textAnchor="middle" className="fill-muted-foreground text-xs tabular-nums">{bucketAxisLabel(row, unit)}</text>
                 )}
               </g>
             );

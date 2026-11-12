@@ -325,35 +325,35 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Total Technicians</p>
             <p className="text-2xl font-bold text-foreground mt-1">{totalStaff}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">All registered shop staff</p>
+            <p className="text-xs text-muted-foreground mt-0.5">All registered shop staff</p>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-[#1c1c20] text-primary">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-raised text-primary">
             <User className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Active on Duty</p>
             <p className="text-2xl font-bold text-emerald-400 mt-1">{activeStaff}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Available for day queue assign</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Available for day queue assign</p>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-[#1c1c20] text-emerald-400">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-raised text-emerald-400">
             <CheckCircle2 className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-[#141416] p-4 shadow-sm flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Active Job Assignments</p>
             <p className="text-2xl font-bold text-amber-400 mt-1">{totalOpenJobs}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Ongoing detailing/wash tasks</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Ongoing detailing/wash tasks</p>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-[#1c1c20] text-amber-400">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-raised text-amber-400">
             <Briefcase className="h-5 w-5" />
           </div>
         </div>
@@ -385,7 +385,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
       )}
 
       {/* Main Table Container */}
-      <div className="rounded-xl border border-border bg-[#141416] shadow-sm">
+      <div className="rounded-xl border border-border bg-panel shadow-sm">
         {/* Filters and Search Bar */}
         <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1 max-w-sm">
@@ -398,7 +398,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                 setCurrentPage(1);
               }}
               placeholder="Search by name, phone, position..."
-              className="w-full rounded-md border border-border bg-[#1a1a1e] pl-9 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-border bg-raised pl-9 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />
             {searchTerm && (
               <button
@@ -412,7 +412,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-md border border-border bg-[#1a1a1e] px-2.5 py-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 rounded-md border border-border bg-raised px-2.5 py-1 text-xs text-muted-foreground">
               <Filter className="h-3 w-3" />
               <span>Position:</span>
               <select
@@ -432,7 +432,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
               </select>
             </div>
 
-            <div className="flex items-center gap-1.5 rounded-md border border-border bg-[#1a1a1e] px-2.5 py-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 rounded-md border border-border bg-raised px-2.5 py-1 text-xs text-muted-foreground">
               <span>Status:</span>
               <select
                 value={statusFilter}
@@ -459,7 +459,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
           </div>
         ) : (
           <div className="divide-y divide-border">
-            <div className="hidden grid-cols-12 gap-3 px-6 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider sm:grid bg-[#101012]">
+            <div className="hidden grid-cols-12 gap-3 px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider sm:grid bg-panel">
               <div className="col-span-4">Staff Member</div>
               <div className="col-span-3">Contact & Details</div>
               <div className="col-span-3">Commission & Workload</div>
@@ -476,7 +476,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                   >
                     {/* Column 1: Staff Member */}
                     <div className="col-span-4 flex items-center gap-3 min-w-0">
-                      <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full border border-border bg-[#27272a] text-xs font-bold text-[#e8b44a]">
+                      <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full border border-border bg-raised text-xs font-bold text-[#e8b44a]">
                         {getInitials(p.name)}
                       </div>
                       <div className="min-w-0">
@@ -489,11 +489,11 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                           )}
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                          <span className="inline-block rounded border border-border bg-[#1c1c20] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          <span className="inline-block rounded border border-border bg-raised px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
                             {p.position || "Detailer"}
                           </span>
                           {p.nickname && (
-                            <span className="text-[11px] text-muted-foreground">({p.nickname})</span>
+                            <span className="text-xs text-muted-foreground">({p.nickname})</span>
                           )}
                         </div>
                       </div>
@@ -510,7 +510,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         <span className="text-zinc-600">No phone provided</span>
                       )}
                       {p.hiredOn && (
-                        <div className="flex items-center gap-1.5 text-[11px]">
+                        <div className="flex items-center gap-1.5 text-xs">
                           <Calendar className="h-3 w-3 shrink-0" />
                           <span>Hired: {p.hiredOn}</span>
                         </div>
@@ -523,7 +523,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         <Percent className="h-3 w-3 text-primary shrink-0" />
                         <span>Commission: {effectiveRate}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Briefcase className="h-3 w-3 shrink-0" />
                         <span>
                           {p.openJobs > 0 ? (
@@ -542,7 +542,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                       <button
                         type="button"
                         onClick={() => openEdit(p)}
-                        className="inline-flex min-h-[34px] items-center gap-1 rounded border border-border bg-[#18181b] px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+                        className="inline-flex min-h-[34px] items-center gap-1 rounded border border-border bg-card px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
                         title="Edit profile & rates"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
@@ -584,7 +584,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                     setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="rounded border border-border bg-[#1a1a1e] px-1.5 py-0.5 text-xs text-foreground focus:outline-none"
+                  className="rounded border border-border bg-raised px-1.5 py-0.5 text-xs text-foreground focus:outline-none"
                 >
                   <option value={5}>5</option>
                   <option value={10}>10</option>
@@ -599,7 +599,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPageSafe <= 1}
-                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-[#1a1a1e] px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
+                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-raised px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
                 <span>Prev</span>
@@ -611,7 +611,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPageSafe >= totalPages}
-                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-[#1a1a1e] px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
+                className="inline-flex h-8 items-center gap-1 rounded border border-border bg-raised px-2.5 text-xs font-semibold text-foreground hover:bg-white/5 disabled:opacity-40"
               >
                 <span>Next</span>
                 <ChevronRight className="h-3.5 w-3.5" />
@@ -627,12 +627,12 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
           role="dialog"
           aria-modal="true"
           aria-labelledby="staff-modal-title"
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 backdrop-blur-sm grid place-items-center"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 grid place-items-center"
         >
-          <div className="relative my-auto w-full max-w-xl max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-white dark:bg-[#141416] p-6 shadow-2xl overflow-y-auto before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+          <div className="relative my-auto w-full max-w-xl max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-panel p-6 shadow-2xl overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-[#27272a] text-xs font-bold text-[#e8b44a]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-raised text-xs font-bold text-[#e8b44a]">
                   {modalMode === "new" ? <UserPlus className="h-4 w-4" /> : getInitials(form.name)}
                 </div>
                 <div>
@@ -685,7 +685,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         value={form.name}
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
                         placeholder="e.g. Juan dela Cruz"
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                       />
                     </div>
                     <div>
@@ -696,7 +696,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         value={form.nickname}
                         onChange={(e) => setForm({ ...form, nickname: e.target.value })}
                         placeholder="e.g. Juan"
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                       />
                     </div>
                     <div>
@@ -708,7 +708,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         onChange={(e) => setForm({ ...form, position: e.target.value })}
                         placeholder="Detailer, Washer, Tinter..."
                         list="team-position-suggestions"
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                       />
                       <datalist id="team-position-suggestions">
                         <option value="Detailer" />
@@ -724,7 +724,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         type="date"
                         value={form.hiredOn}
                         onChange={(e) => setForm({ ...form, hiredOn: e.target.value })}
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                       />
                     </div>
                     <div>
@@ -733,7 +733,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         type="date"
                         value={form.birthDate}
                         onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                       />
                     </div>
                   </div>
@@ -753,7 +753,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         value={form.phone}
                         onChange={(e) => setForm({ ...form, phone: e.target.value })}
                         placeholder="e.g. +63 917 123 4567"
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                       />
                     </div>
                     <div>
@@ -764,7 +764,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         value={form.contactEmail}
                         onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
                         placeholder="e.g. juan@gmail.com"
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                       />
                     </div>
                     <div className="sm:col-span-2">
@@ -774,7 +774,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         value={form.address}
                         onChange={(e) => setForm({ ...form, address: e.target.value })}
                         placeholder="Street, Barangay, City, Province"
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none min-h-[60px]"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none min-h-[60px]"
                       />
                     </div>
                   </div>
@@ -795,9 +795,9 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                       value={form.rate}
                       onChange={(e) => setForm({ ...form, rate: e.target.value })}
                       placeholder={`Leave blank to use shop default (${basisPointsToPercent(team.defaultRateBp)}%)`}
-                      className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                      className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                     />
-                    <p className="mt-1 text-[11px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Leave empty to inherit the standard shop rate (
                       {basisPointsToPercent(team.defaultRateBp)}%). Custom rate applies to all jobs credited to this detailer unless overridden by a service.
                     </p>
@@ -818,7 +818,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         value={form.emergencyName}
                         onChange={(e) => setForm({ ...form, emergencyName: e.target.value })}
                         placeholder="e.g. Maria dela Cruz (Spouse)"
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                       />
                     </div>
                     <div>
@@ -829,7 +829,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         value={form.emergencyPhone}
                         onChange={(e) => setForm({ ...form, emergencyPhone: e.target.value })}
                         placeholder="e.g. +63 918 765 4321"
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                       />
                     </div>
                     <div className="sm:col-span-2">
@@ -839,7 +839,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                         value={form.notes}
                         onChange={(e) => setForm({ ...form, notes: e.target.value })}
                         placeholder="Specialties, certifications, internal shop notes..."
-                        className="mt-1 w-full rounded border border-border bg-[#1a1a1e] px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none min-h-[60px]"
+                        className="mt-1 w-full rounded border border-border bg-raised px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none min-h-[60px]"
                       />
                     </div>
                   </div>
@@ -870,7 +870,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                       type="button"
                       disabled={busy}
                       onClick={() => setModalMode(null)}
-                      className="rounded border border-border bg-[#18181b] px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                      className="rounded border border-border bg-card px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
                     >
                       Cancel
                     </button>
@@ -918,7 +918,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
             <span>Checking open jobs and unpaid commissions...</span>
           </div>
         ) : preview ? (
-          <div className="my-4 space-y-3 rounded-lg border border-border bg-[#101012] p-4 text-xs">
+          <div className="my-4 space-y-3 rounded-lg border border-border bg-panel p-4 text-xs">
             <div className="flex items-start gap-2">
               <Briefcase className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
               <div>
@@ -927,7 +927,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                     ? `${preview.openJobs.length} Active Job Assignments`
                     : "No Active Jobs"}
                 </p>
-                <p className="text-muted-foreground text-[11px] mt-0.5">
+                <p className="text-muted-foreground text-xs mt-0.5">
                   {preview.openJobs.length > 0
                     ? `Will be unassigned from: ${preview.openJobs.map((j) => j.referenceCode).join(", ")}.`
                     : "Not currently assigned to any open jobs."}
@@ -941,7 +941,7 @@ export function TeamPanel({ team, reload }: { team: AdminTeam; reload: () => unk
                 <p className="font-semibold text-foreground">
                   {formatPesos(preview.unpaidCentavos)} Unpaid Commissions
                 </p>
-                <p className="text-muted-foreground text-[11px] mt-0.5">
+                <p className="text-muted-foreground text-xs mt-0.5">
                   Retained for {preview.unpaidJobs} completed {preview.unpaidJobs === 1 ? "job" : "jobs"}. You can still mark them paid on the Commissions screen.
                 </p>
               </div>

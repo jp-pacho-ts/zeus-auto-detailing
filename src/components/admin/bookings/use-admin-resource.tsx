@@ -79,7 +79,7 @@ export function useAdminResource<T>(
   return { ...current, setData, reload, load };
 }
 export const fieldClass =
-  "mt-1 min-h-[44px] w-full rounded border border-border bg-[#18181b] px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
+  "mt-1 min-h-[44px] w-full rounded border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 export function LoadState({
   loading,
   error,

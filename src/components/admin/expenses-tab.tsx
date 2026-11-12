@@ -20,7 +20,7 @@ export function ExpensesTab({ role }: { role: UserRole }) {
   const data = useKeptResource<AdminExpenseMonth>(isAdmin ? `/api/admin/expenses?${query}` : null);
   const categories = useKeptResource<AdminExpenseCategory[]>(isAdmin ? "/api/admin/expense-categories" : null);
 
-  if (!isAdmin) return <div className="rounded border border-border bg-[#121214] p-6 text-sm text-muted-foreground">{NOT_ADMIN_TEXT}</div>;
+  if (!isAdmin) return <div className="rounded border border-border bg-panel p-6 text-sm text-muted-foreground">{NOT_ADMIN_TEXT}</div>;
 
   return (
     <div className="space-y-4">

@@ -26,6 +26,9 @@
   --color-ring: rgb(var(--ring));
   --color-success: rgb(var(--success));
   --color-warning: rgb(var(--warning));
+  /* Admin surfaces: panel = section, raised = nested or hover. Light values sit on html.light. */
+  --color-panel: rgb(var(--panel));
+  --color-raised: rgb(var(--raised));
   --color-obsidian: #09090b;
   --color-surface: #121214;
   --color-surface-card: #18181b;
@@ -83,6 +86,8 @@
     --destructive-foreground: var(--brand-destructive-foreground);
     --radius: var(--brand-radius);
     --font-sans: var(--brand-font-sans);
+    --panel: 20 20 22;
+    --raised: 30 30 34;
     color-scheme: dark;
   }
 
@@ -100,6 +105,8 @@
     --secondary-foreground: 28 25 23;
     --border: 231 229 228;
     --input: 231 229 228;
+    --panel: 255 255 255;
+    --raised: 245 245 244;
     scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
   }
 }
@@ -127,72 +134,6 @@
   html.light .bg-zinc-900:not([data-theme-ignore]) {
     background-color: #f5f5f4 !important;
     color: #0c0a09 !important;
-  }
-
-  /* Comprehensive light theme mappings for admin dashboard surfaces */
-  html.light [class*="bg-[#09090b]"],
-  html.light .bg-\[\#09090b\] {
-    background-color: #fafaf9 !important;
-  }
-
-  /* Main section containers and headers */
-  html.light [class*="bg-[#121214]"],
-  html.light .bg-\[\#121214\] {
-    background-color: #ffffff !important;
-    border-color: #e7e5e4 !important;
-  }
-
-  /* Metric cards, primary cards and modal dialogs */
-  html.light [class*="bg-[#161619]"],
-  html.light .bg-\[\#161619\],
-  html.light [class*="bg-[#18181b]"],
-  html.light .bg-\[\#18181b\],
-  html.light [class*="bg-[#18181c]"],
-  html.light .bg-\[\#18181c\],
-  html.light [class*="bg-[#161618]"],
-  html.light .bg-\[\#161618\],
-  html.light [class*="bg-[#16161a]"],
-  html.light .bg-\[\#16161a\],
-  html.light [class*="bg-[#17171b]"],
-  html.light .bg-\[\#17171b\],
-  html.light [class*="bg-[#101012]"],
-  html.light .bg-\[\#101012\],
-  html.light [class*="bg-[#131316]"],
-  html.light .bg-\[\#131316\],
-  html.light [class*="bg-[#141416]"],
-  html.light .bg-\[\#141416\],
-  html.light [class*="bg-[#141417]"],
-  html.light .bg-\[\#141417\] {
-    background-color: #ffffff !important;
-    border-color: #e7e5e4 !important;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
-  }
-
-  /* Nested inner cards, empty bay cards, and secondary metrics */
-  html.light [class*="bg-[#0d0d0f]"],
-  html.light .bg-\[\#0d0d0f\],
-  html.light [class*="bg-[#0e0e11]"],
-  html.light .bg-\[\#0e0e11\],
-  html.light [class*="bg-[#0e0e10]"],
-  html.light .bg-\[\#0e0e10\],
-  html.light [class*="bg-[#0d0d0e]"],
-  html.light .bg-\[\#0d0d0e\],
-  html.light [class*="bg-[#0f0f12]"],
-  html.light .bg-\[\#0f0f12\],
-  html.light [class*="bg-[#1a1a1e]"],
-  html.light .bg-\[\#1a1a1e\],
-  html.light [class*="bg-[#1c1c20]"],
-  html.light .bg-\[\#1c1c20\],
-  html.light [class*="bg-[#1e1e22]"],
-  html.light .bg-\[\#1e1e22\],
-  html.light [class*="bg-[#1f1f23]"],
-  html.light .bg-\[\#1f1f23\],
-  html.light [class*="bg-[#222228]"],
-  html.light .bg-\[\#222228\],
-  html.light [class*="bg-[#27272a]"],
-  html.light .bg-\[\#27272a\] {
-    background-color: #f5f5f4 !important;
-    border-color: #e7e5e4 !important;
   }
 
   /* Borders & Dividers */
@@ -261,10 +202,6 @@
   }
 
   /* Hover states */
-  html.light [class*="hover:bg-[#18181b]"]:hover,
-  html.light [class*="hover:bg-[#18181c]"]:hover,
-  html.light [class*="hover:bg-[#1a1a1e]"]:hover,
-  html.light [class*="hover:bg-[#27272a]"]:hover,
   html.light [class*="hover:bg-white/"]:hover {
     background-color: #f5f5f4 !important;
   }

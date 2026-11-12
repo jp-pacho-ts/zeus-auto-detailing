@@ -26,7 +26,7 @@ function WeekForm({ schedule, write, onSaved }: { schedule: AdminSchedule; write
     setDays((all) => all.map((d) => (d.dayOfWeek === dayOfWeek ? { ...d, ...change } : d)));
   const today = shopDate();
   return (
-    <section aria-label="Opening hours" className="space-y-4 rounded border border-border bg-[#121214] p-4">
+    <section aria-label="Opening hours" className="space-y-4 rounded border border-border bg-panel p-4">
       <div>
         <h2 className="font-bold">Opening hours</h2>
         <p className="text-xs text-muted-foreground">
@@ -94,7 +94,7 @@ function ClosedDates({ schedule, write, onSaved }: { schedule: AdminSchedule; wr
   const { busy, message, error, run } = write;
   const today = shopDate();
   return (
-    <section aria-label="Closed days" className="space-y-4 rounded border border-border bg-[#121214] p-4">
+    <section aria-label="Closed days" className="space-y-4 rounded border border-border bg-panel p-4">
       <div>
         <h2 className="font-bold">Closed days</h2>
         <p className="text-xs text-muted-foreground">Holidays and other days the shop is shut. Customers only see the day as closed.</p>

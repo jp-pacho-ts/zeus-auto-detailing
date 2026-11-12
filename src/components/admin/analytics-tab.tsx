@@ -44,7 +44,7 @@ import { RankedBars } from "./analytics/ranked-bars";
 import { fieldClass, LoadState } from "./bookings/use-admin-resource";
 import { useKeptResource } from "./team/use-kept-resource";
 
-const CARD = "rounded-xl border border-border/80 bg-white dark:bg-[#121214] p-5 shadow-xs";
+const CARD = "rounded-xl border border-border/80 bg-panel p-5 shadow-xs";
 const PRESETS: [AnalyticsPreset | "CUSTOM", string][] = [
   ["TODAY", "Today"],
   ["THIS_WEEK", "This week"],
@@ -124,7 +124,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
 
   if (!isAdmin) {
     return (
-      <div className="rounded-xl border border-border bg-[#121214] p-6 text-sm text-muted-foreground">
+      <div className="rounded-xl border border-border bg-panel p-6 text-sm text-muted-foreground">
         Only an admin can see sales and analytics.
       </div>
     );
@@ -160,7 +160,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Time Preset Pills */}
-          <div role="group" aria-label="Period preset" className="flex flex-wrap gap-1 rounded-lg border border-border/80 bg-stone-100 dark:bg-[#121214] p-1">
+          <div role="group" aria-label="Period preset" className="flex flex-wrap gap-1 rounded-lg border border-border/80 bg-stone-100 dark:bg-panel p-1">
             {PRESETS.map(([id, label]) => (
               <button
                 key={id}
@@ -179,7 +179,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
           </div>
 
           {/* Perspective View Mode Toggle */}
-          <div role="group" aria-label="Analytics view mode" className="flex items-center gap-1 rounded-lg border border-border/80 bg-stone-100 dark:bg-[#121214] p-1">
+          <div role="group" aria-label="Analytics view mode" className="flex items-center gap-1 rounded-lg border border-border/80 bg-stone-100 dark:bg-panel p-1">
             <button
               type="button"
               aria-pressed={viewMode === "ALL"}
@@ -221,7 +221,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
 
         {/* Custom Date Range Picker */}
         {preset === "CUSTOM" && (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/80 bg-stone-50 dark:bg-[#121214] p-3 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/80 bg-stone-50 dark:bg-panel p-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
               <span className="font-medium text-foreground">Custom range:</span>
@@ -278,7 +278,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
                       <div>
                         <div className="flex items-center gap-2">
                           <h1 className="text-base font-bold text-foreground">Financial Performance</h1>
-                          <span className="rounded bg-zinc-800 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                          <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-medium text-muted-foreground">
                             {periodLabel(data.from, data.to)}
                           </span>
                         </div>
@@ -306,7 +306,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
 
                     {/* Top Net Hero Summary */}
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                      <div className="rounded-xl border border-border/70 bg-stone-50 dark:bg-[#161618] p-4">
+                      <div className="rounded-xl border border-border/70 bg-stone-50 dark:bg-card p-4">
                         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Gross Revenue</p>
                         <p className="mt-2 font-mono text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
                           {formatPesos(rev)}
@@ -316,7 +316,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
                         </p>
                       </div>
 
-                      <div className="rounded-xl border border-border/70 bg-stone-50 dark:bg-[#161618] p-4">
+                      <div className="rounded-xl border border-border/70 bg-stone-50 dark:bg-card p-4">
                         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Deductions</p>
                         <p className="mt-2 font-mono text-3xl font-bold tracking-tight text-rose-600 dark:text-rose-400 sm:text-4xl">
                           −{formatPesos(totalOut)}
@@ -326,7 +326,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
                         </p>
                       </div>
 
-                      <div className="rounded-xl border border-border/70 bg-stone-50 dark:bg-[#18181b] p-4">
+                      <div className="rounded-xl border border-border/70 bg-stone-50 dark:bg-card p-4">
                         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Est. Net Income</p>
                         <p
                           className={`mt-2 font-mono text-3xl font-bold tracking-tight sm:text-4xl ${
@@ -343,17 +343,17 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
 
                     {/* Itemized P&L Outflow Breakdown Cards */}
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-[#141416] p-3.5">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-panel p-3.5">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Gross Revenue
                         </p>
                         <p className="mt-1 font-mono text-lg font-bold text-foreground">{formatPesos(rev)}</p>
                         <p className="mt-1 text-xs text-muted-foreground">{data.finishedJobs} finished jobs</p>
                       </div>
 
-                      <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-[#141416] p-3.5">
+                      <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-panel p-3.5">
                         <div className="flex items-center justify-between">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                             Technician Commissions
                           </p>
                           <span className="h-2 w-2 rounded-full bg-amber-400" />
@@ -364,9 +364,9 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
                         </p>
                       </div>
 
-                      <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-[#141416] p-3.5">
+                      <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-panel p-3.5">
                         <div className="flex items-center justify-between">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                             Operating Expenses
                           </p>
                           <span className="h-2 w-2 rounded-full bg-rose-400" />
@@ -375,9 +375,9 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
                         <p className="mt-1 text-xs text-muted-foreground">Direct shop &amp; facility expenses</p>
                       </div>
 
-                      <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-[#141416] p-3.5">
+                      <div className="rounded-lg border border-border/60 bg-stone-50 dark:bg-panel p-3.5">
                         <div className="flex items-center justify-between">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                             Supplies &amp; Stock
                           </p>
                           <span className="h-2 w-2 rounded-full bg-indigo-400" />
@@ -470,7 +470,7 @@ export function AnalyticsTab({ role }: { role: UserRole }) {
                   </p>
                 </div>
                 {hasBars && (
-                  <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-stone-100 dark:bg-[#161618] p-1">
+                  <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-stone-100 dark:bg-card p-1">
                     <button
                       type="button"
                       aria-pressed={!asTable}

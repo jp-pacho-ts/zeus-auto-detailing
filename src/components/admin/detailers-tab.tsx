@@ -14,7 +14,7 @@ export function DetailersTab({ role }: { role: UserRole }) {
 
   if (!isAdmin)
     return (
-      <div className="rounded border border-border bg-[#121214] p-6 text-sm text-muted-foreground">
+      <div className="rounded border border-border bg-panel p-6 text-sm text-muted-foreground">
         Only an admin can see the staff roster. Ask the shop owner if you need something changed.
       </div>
     );

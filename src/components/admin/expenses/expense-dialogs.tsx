@@ -203,7 +203,7 @@ export function CategoriesDialog({ categories, onClose, reload }: { categories: 
               <>
                 <span className="min-w-0 break-words text-sm text-foreground">
                   {c.name}
-                  {!c.isActive && <span className="ml-2 rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">Hidden</span>}
+                  {!c.isActive && <span className="ml-2 rounded border border-border px-1.5 py-0.5 text-xs text-muted-foreground">Hidden</span>}
                 </span>
                 <span className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" className="min-h-[44px]" disabled={busy} aria-label={`Rename ${c.name}`} onClick={() => setRenaming({ category: c, name: c.name })}>Rename</Button>

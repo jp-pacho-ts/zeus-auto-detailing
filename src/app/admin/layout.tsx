@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 };
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  return <div className="fixed inset-0 overflow-hidden bg-[#09090b]">{children}</div>;
+  return <div className="fixed inset-0 overflow-hidden bg-background">{children}</div>;
 }

@@ -444,7 +444,7 @@ export function CommissionsPanel({
       {/* 1. EXECUTIVE KPI METRICS (Clean Dashboard Cards) */}
       {data && (
         <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
-          <div className="group relative overflow-hidden rounded-xl border border-border bg-[#161619] p-4 transition-colors hover:border-primary/40">
+          <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">
                 Earned Commissions
@@ -459,7 +459,7 @@ export function CommissionsPanel({
             </p>
           </div>
 
-          <div className="group relative overflow-hidden rounded-xl border border-border bg-[#161619] p-4 transition-colors hover:border-emerald-500/40">
+          <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-colors hover:border-emerald-500/40">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">
                 Paid Out
@@ -474,7 +474,7 @@ export function CommissionsPanel({
             </p>
           </div>
 
-          <div className="group relative overflow-hidden rounded-xl border border-border bg-[#161619] p-4 transition-colors hover:border-amber-500/40">
+          <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-colors hover:border-amber-500/40">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">
                 {data.grandTotal.unpaidCentavos < 0 ? "Owed Back" : "Unpaid Balance"}
@@ -489,7 +489,7 @@ export function CommissionsPanel({
             </p>
           </div>
 
-          <div className="group relative overflow-hidden rounded-xl border border-border bg-[#161619] p-4 transition-colors hover:border-primary/40">
+          <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">
                 Credited Jobs
@@ -509,7 +509,7 @@ export function CommissionsPanel({
       {/* 2. HEADER CARD: Commission Rate Settings & Rules (De-cluttered) */}
       <section
         aria-labelledby="commissions-heading"
-        className="overflow-hidden rounded-xl border border-border bg-[#121214] shadow-sm"
+        className="overflow-hidden rounded-xl border border-border bg-panel shadow-sm"
       >
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/80 p-4 sm:p-5">
           <div className="space-y-1">
@@ -556,7 +556,7 @@ export function CommissionsPanel({
             ) : (
               <form
                 onSubmit={(e) => void saveRate(e)}
-                className="flex items-center gap-2 rounded-lg border border-primary/30 bg-[#161619] p-1.5"
+                className="flex items-center gap-2 rounded-lg border border-primary/30 bg-card p-1.5"
               >
                 <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   Default commission percent
@@ -641,7 +641,7 @@ export function CommissionsPanel({
         )}
 
         {/* 3. UNIFIED FILTER TOOLBAR */}
-        <div className="border-b border-border/80 bg-[#141416] p-4 sm:p-5 space-y-3">
+        <div className="border-b border-border/80 bg-panel p-4 sm:p-5 space-y-3">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="block text-xs font-semibold text-muted-foreground">
               From
@@ -708,21 +708,21 @@ export function CommissionsPanel({
               <button
                 type="button"
                 onClick={setRangeToday}
-                className="rounded border border-border/70 bg-[#18181b] px-2.5 py-1 text-xs text-foreground transition hover:border-primary/50"
+                className="rounded border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground transition hover:border-primary/50"
               >
                 Today
               </button>
               <button
                 type="button"
                 onClick={setRangeMonth}
-                className="rounded border border-border/70 bg-[#18181b] px-2.5 py-1 text-xs text-foreground transition hover:border-primary/50"
+                className="rounded border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground transition hover:border-primary/50"
               >
                 This Month
               </button>
               <button
                 type="button"
                 onClick={setRange30Days}
-                className="rounded border border-border/70 bg-[#18181b] px-2.5 py-1 text-xs text-foreground transition hover:border-primary/50"
+                className="rounded border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground transition hover:border-primary/50"
               >
                 Last 30 Days
               </button>
@@ -738,7 +738,7 @@ export function CommissionsPanel({
                   setSearchQuery(e.target.value);
                   setPage(1);
                 }}
-                className="h-8 w-full rounded-md border border-border bg-[#18181b] pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                className="h-8 w-full rounded-md border border-border bg-card pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
               {searchQuery && (
                 <button
@@ -771,7 +771,7 @@ export function CommissionsPanel({
         {data && (
           <>
             {/* 4. DETAIL ROSTER BREAKDOWN ("By person") */}
-            <div className="border-b border-border/80 bg-[#101012] p-4 sm:p-5">
+            <div className="border-b border-border/80 bg-panel p-4 sm:p-5">
               <div className="flex items-center justify-between pb-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   By person
@@ -806,7 +806,7 @@ export function CommissionsPanel({
                         className={`flex items-center justify-between gap-3 rounded-lg border p-3 text-left transition-all ${
                           isSelected
                             ? "border-primary bg-primary/10 shadow-xs"
-                            : "border-border/70 bg-[#161619] hover:border-border hover:bg-[#19191d]"
+                            : "border-border/70 bg-card hover:border-border hover:bg-raised"
                         }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -817,7 +817,7 @@ export function CommissionsPanel({
                             <p className="truncate text-xs font-bold text-foreground">
                               {t.staffName}
                             </p>
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                               {t.entryCount} {t.entryCount === 1 ? "job" : "jobs"}
                             </p>
                           </div>
@@ -828,7 +828,7 @@ export function CommissionsPanel({
                             Earned {formatPesos(t.earnedCentavos)}
                           </p>
                           <p
-                            className={`text-[11px] font-medium ${
+                            className={`text-xs font-medium ${
                               t.unpaidCentavos > 0
                                 ? "text-amber-400"
                                 : "text-emerald-400"
@@ -847,7 +847,7 @@ export function CommissionsPanel({
             {/* 5. JOBS LEDGER TABLE & CONTROLS */}
             <div className="p-4 sm:p-5 space-y-4">
               {/* Table Toolbar / Bulk Action Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/80 bg-[#161618] px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/80 bg-card px-4 py-3">
                 <div className="flex items-center gap-3">
                   <h3 className="text-sm font-bold text-foreground">
                     Jobs
@@ -895,7 +895,7 @@ export function CommissionsPanel({
               </div>
 
               {filteredEntries.length === 0 ? (
-                <div className="rounded-xl border border-border bg-[#141416] p-8 text-center">
+                <div className="rounded-xl border border-border bg-panel p-8 text-center">
                   <User className="mx-auto h-8 w-8 text-muted-foreground/50" />
                   <p className="mt-2 text-sm font-semibold text-foreground">
                     No commission jobs match your filters.
@@ -907,10 +907,10 @@ export function CommissionsPanel({
               ) : (
                 <>
                   {/* Clean Desktop Table */}
-                  <div className="overflow-hidden rounded-xl border border-border bg-[#121214]">
+                  <div className="overflow-hidden rounded-xl border border-border bg-panel">
                     <div className="w-full">
                       <table className="w-full text-left text-xs">
-                        <thead className="border-b border-border bg-[#161618] text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <thead className="border-b border-border bg-card text-xs font-bold uppercase tracking-wider text-muted-foreground">
                           <tr>
                             <th className="w-10 px-4 py-3.5 text-center">
                               <input
@@ -977,7 +977,7 @@ export function CommissionsPanel({
                             return (
                               <React.Fragment key={en.id}>
                                 <tr
-                                  className={`transition-colors hover:bg-[#18181c] ${
+                                  className={`transition-colors hover:bg-card ${
                                     isTicked ? "bg-primary/5" : ""
                                   }`}
                                 >
@@ -995,7 +995,7 @@ export function CommissionsPanel({
 
                                   <td className="px-4 py-3 align-top">
                                     <div className="flex items-center gap-2">
-                                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">
+                                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
                                         {getInitials(en.staffName)}
                                       </span>
                                       <span className="font-semibold text-foreground">
@@ -1007,10 +1007,10 @@ export function CommissionsPanel({
                                   <td className="px-4 py-3 align-top min-w-[200px]">
                                     <div className="space-y-1">
                                       <div className="flex items-center gap-2">
-                                        <span className="rounded bg-muted/40 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
+                                        <span className="rounded bg-muted/40 px-1.5 py-0.5 font-mono text-xs font-bold text-primary">
                                           {en.bookingReference}
                                         </span>
-                                        <span className="text-[11px] text-muted-foreground">
+                                        <span className="text-xs text-muted-foreground">
                                           {en.completedOn}
                                         </span>
                                       </div>
@@ -1039,7 +1039,7 @@ export function CommissionsPanel({
                                           <Pencil className="h-3 w-3" />
                                         </button>
                                         {hasRateAdj && (
-                                          <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                          <span className="rounded bg-primary/15 px-1.5 py-0.5 text-xs font-semibold text-primary">
                                             Rate updated from {basisPointsToPercent(en.rateBp)}%
                                           </span>
                                         )}
@@ -1049,7 +1049,7 @@ export function CommissionsPanel({
                                             )})`
                                           : ""}
                                       </p>
-                                      <p className="text-[11px]">
+                                      <p className="text-xs">
                                         Commission base{" "}
                                         {formatPesos(en.serviceTotalCentavos)}
                                         {summaryText.counted
@@ -1057,12 +1057,12 @@ export function CommissionsPanel({
                                           : ""}
                                       </p>
                                       {summaryText.notCounted && (
-                                        <p className="text-[11px] text-muted-foreground/75">
+                                        <p className="text-xs text-muted-foreground/75">
                                           Not counted: {summaryText.notCounted}
                                         </p>
                                       )}
                                       {en.unpricedLineCount > 0 && (
-                                        <p className="text-[11px] text-amber-300">
+                                        <p className="text-xs text-amber-300">
                                           Includes a service without a final price.
                                         </p>
                                       )}
@@ -1075,7 +1075,7 @@ export function CommissionsPanel({
                                         {formatPesos(netTotal)}
                                       </span>
                                       {adjTotal !== 0 && (
-                                        <p className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                                        <p className="font-mono text-xs text-muted-foreground tabular-nums">
                                           Base {formatPesos(en.amountCentavos)}{" "}
                                           {adjTotal >= 0 ? "+" : "-"}{" "}
                                           {formatPesos(Math.abs(adjTotal))}
@@ -1086,7 +1086,7 @@ export function CommissionsPanel({
 
                                   <td className="px-4 py-3 text-center align-top">
                                     <span
-                                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
                                         allPaid
                                           ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
                                           : "border border-amber-500/30 bg-amber-500/10 text-amber-400"
@@ -1129,7 +1129,7 @@ export function CommissionsPanel({
                                   return (
                                     <tr
                                       key={adj.id}
-                                      className={`bg-[#141416]/50 transition-colors hover:bg-[#18181c] ${
+                                      className={`bg-panel/50 transition-colors hover:bg-card ${
                                         isAdjTicked ? "bg-primary/5" : ""
                                       }`}
                                     >
@@ -1167,7 +1167,7 @@ export function CommissionsPanel({
                                       </td>
                                       <td className="px-4 py-2.5 text-center">
                                         <span
-                                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
                                             adj.paidAt
                                               ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
                                               : "border border-amber-500/20 bg-amber-500/10 text-amber-400"
@@ -1215,7 +1215,7 @@ export function CommissionsPanel({
                             setPageSize(Number(e.target.value));
                             setPage(1);
                           }}
-                          className="h-7 rounded border border-border bg-[#18181b] px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                          className="h-7 rounded border border-border bg-card px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                         >
                           <option value={10}>10</option>
                           <option value={25}>25</option>
@@ -1260,7 +1260,7 @@ export function CommissionsPanel({
                                 className={`h-8 w-8 rounded text-xs font-mono font-bold transition-colors ${
                                   currentPage === p
                                     ? "bg-primary text-primary-foreground"
-                                    : "border border-border/70 bg-[#161619] text-foreground hover:border-primary/50"
+                                    : "border border-border/70 bg-card text-foreground hover:border-primary/50"
                                 }`}
                               >
                                 {p}
@@ -1325,22 +1325,22 @@ export function CommissionsPanel({
         {adjustingEntry && (
           <form onSubmit={(e) => void saveAdjustment(e)} className="space-y-4 pt-1">
             {/* Quick Context Card */}
-            <div className="rounded-lg border border-border/80 bg-[#141417] p-3 text-xs">
+            <div className="rounded-lg border border-border/80 bg-panel p-3 text-xs">
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
-                  <span className="text-[11px] text-muted-foreground block">Base Share</span>
+                  <span className="text-xs text-muted-foreground block">Base Share</span>
                   <span className="font-mono font-bold text-foreground">
                     {formatPesos(adjustingEntry.shareCentavos)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-muted-foreground block">Current Rate</span>
+                  <span className="text-xs text-muted-foreground block">Current Rate</span>
                   <span className="font-mono font-bold text-amber-400">
                     {basisPointsToPercent(adjustingEntry.rateBp)}%
                   </span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-muted-foreground block">Current Commission</span>
+                  <span className="text-xs text-muted-foreground block">Current Commission</span>
                   <span className="font-mono font-bold text-emerald-400">
                     {formatPesos(adjustingCurrentNet)}
                   </span>
@@ -1349,7 +1349,7 @@ export function CommissionsPanel({
             </div>
 
             {/* Adjustment Method Selector */}
-            <div className="flex rounded-lg border border-border bg-[#121214] p-1 text-xs">
+            <div className="flex rounded-lg border border-border bg-panel p-1 text-xs">
               <button
                 type="button"
                 onClick={() => setAdjMethod("RATE")}
@@ -1375,7 +1375,7 @@ export function CommissionsPanel({
             </div>
 
             {adjMethod === "RATE" && (
-              <div className="space-y-3 rounded-lg border border-border/60 bg-[#18181b]/60 p-3.5">
+              <div className="space-y-3 rounded-lg border border-border/60 bg-card/60 p-3.5">
                 <div>
                   <label className="block text-xs font-semibold text-foreground">
                     Target Commission Percentage (%)
@@ -1389,7 +1389,7 @@ export function CommissionsPanel({
                       value={targetRate}
                       onChange={(e) => handleRateChange(e.target.value)}
                       placeholder="e.g. 30"
-                      className="w-full rounded-md border border-border bg-[#121214] px-3 py-2 font-mono text-sm font-bold text-foreground focus:border-primary focus:outline-none pr-8"
+                      className="w-full rounded-md border border-border bg-panel px-3 py-2 font-mono text-sm font-bold text-foreground focus:border-primary focus:outline-none pr-8"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-xs text-muted-foreground">
                       %
@@ -1399,16 +1399,16 @@ export function CommissionsPanel({
 
                 {/* Quick percentage presets */}
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-muted-foreground mr-1">Presets:</span>
+                  <span className="text-xs text-muted-foreground mr-1">Presets:</span>
                   {[10, 15, 20, 25, 30, 35, 40, 50].map((pct) => (
                     <button
                       key={pct}
                       type="button"
                       onClick={() => handleRateChange(pct.toString())}
-                      className={`rounded border px-2 py-0.5 text-[11px] font-mono font-semibold transition ${
+                      className={`rounded border px-2 py-0.5 text-xs font-mono font-semibold transition ${
                         targetRate === pct.toString()
                           ? "border-primary bg-primary/20 text-primary"
-                          : "border-border/70 bg-[#141416] text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                          : "border-border/70 bg-panel text-muted-foreground hover:border-primary/50 hover:text-foreground"
                       }`}
                     >
                       {pct}%
@@ -1497,7 +1497,7 @@ export function CommissionsPanel({
 
             {/* Multi-worker option on this booking */}
             {peerEntries.length > 1 && (
-              <label className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-[#161619] p-2.5 cursor-pointer select-none">
+              <label className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-card p-2.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={applyToAllOnBooking}
@@ -1508,7 +1508,7 @@ export function CommissionsPanel({
                   <span className="font-semibold text-foreground">
                     Apply to all {peerEntries.length} detailers on {adjustingEntry.bookingReference}
                   </span>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Will record this rate adjustment for {peerEntries.map((p) => p.staffName).join(", ")}.
                   </p>
                 </div>
