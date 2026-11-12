@@ -185,11 +185,12 @@ test("only an ADMIN card that is not mid-write or blocked can be dragged", () =>
   for (const role of ["STAFF", "DETAILER", "MANAGER"]) assert.equal(cardDraggable(role, false, false), false, role);
 });
 
-// P1-22 / P1-42: Board day sits in the toolbar before the helper text; no Refresh board button.
-test("Board day sits in the toolbar before the helper text", () => {
+// P1-22 / P1-42: Board day sits in the toolbar before the board body; no Refresh board button.
+// P1-69: 57f6697 removed the "One car per bay" helper text, so the order is checked against the Waiting lane, the board's first lane.
+test("Board day sits in the toolbar before the board body", () => {
   const html = render("ADMIN");
-  const day = html.indexOf('aria-label="Board day"'), helper = html.indexOf("One car per bay");
-  assert.ok(day > 0 && helper > day);
+  const day = html.indexOf('aria-label="Board day"'), body = html.indexOf('data-board-zone="WAITING"');
+  assert.ok(day > 0 && body > day);
   assert.equal(html.split('aria-label="Board day"').length, 2, "one Board day field");
   assert.equal(html.includes("Refresh board"), false, "no Refresh board button");
 });
@@ -197,10 +198,11 @@ test("Board day sits in the toolbar before the helper text", () => {
 // P1-62b (review F3): only someone who can drop a car is told to drop one, or to use a control they do not have.
 test("drop hints and the Add bay hint show to ADMIN only; STAFF still gets the plain words", () => {
   const admin = render("ADMIN"), staff = render("STAFF");
-  for (const hint of ["Empty. Drop a car here.", "Drop a car here to return it to Waiting.", "Drop a finished car here"]) assert.ok(admin.includes(hint), hint);
+  // P1-69: 57f6697 removed the Waiting lane footer ("Every waiting car is here. ... Drop a car here to return it to Waiting."), so neither is checked.
+  for (const hint of ["Empty. Drop a car here.", "Drop a finished car here"]) assert.ok(admin.includes(hint), hint);
   assert.doesNotMatch(staff, /Drop a/, "STAFF cannot drop");
   assert.doesNotMatch(staff, /Done \(finish\)/, "STAFF has no finish control to be told about");
-  for (const words of [">Empty.<", "Every waiting car is here.", "Shows who worked and when it finished."]) assert.ok(staff.includes(words), words);
+  for (const words of [">Empty.<", "Shows who worked and when it finished."]) assert.ok(staff.includes(words), words);
   const noBays = { ...board, containers: [{ ...containers[0], bays: [] }], bays: [] };
   const resources = require("./use-admin-resource");
   mock.method(resources, "useAdminResource", (url: string | null) => ({

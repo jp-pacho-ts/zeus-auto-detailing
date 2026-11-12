@@ -21,7 +21,8 @@ test("no admin component scrolls sideways except a bay board container's row of 
 });
 
 test("the shell is one screen tall; only the content region scrolls, below a header that stays", () => {
-  assert.match(portal, /className="[^"]*\bh-dvh\b[^"]*\boverflow-hidden\b/);
+  // P1-69: e3684fe pinned the shell with `fixed inset-0` (the double-scrollbar fix); it is still one screen tall.
+  assert.match(portal, /className="[^"]*\b(?:h-dvh|fixed inset-0)\b[^"]*\boverflow-hidden\b/);
   const content = portal.indexOf('id="admin-content"');
   assert.ok(content > 0, "a named content region");
   assert.match(portal.slice(content, content + 300), /overflow-y-auto/);
