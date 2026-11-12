@@ -1,5 +1,5 @@
 import "server-only";
-import { ShopSettingsUpdateSchema } from "@/lib/admin-validation";
+import { EmailSwitchSchema, ShopSettingsUpdateSchema } from "@/lib/admin-validation";
 import { withStaffDb, type StaffTx } from "@/server/auth/db-admission";
 import { notificationConfiguration } from "@/server/notifications/bookings";
 import { onlineBookingPaused } from "@/server/online-booking-mode";
@@ -45,6 +45,7 @@ async function view(tx: StaffTx, options: AdminOptions): Promise<AdminShopSettin
     bookingPausedByServer: onlineBookingPaused(),
     updatedAt: row.updatedAt.toISOString(),
     email: { configured: emailConfigured(), failedLast7Days, waitingLast7Days },
+    emails: { confirmation: row.emailConfirmation, reminder: row.emailReminder, car_ready: row.emailCarReady, shop_alerts: row.emailShopAlerts },
   };
 }
 
@@ -63,6 +64,18 @@ export async function setShopSettings(actor: StaffActor, input: unknown, options
       changed = row.r.changed;
     } catch (error) { return mapError(error); }
     adminEvent("admin.settings.changed", { actorStaffId: actor.staffId, changed });
+    return view(tx, options);
+  });
+}
+
+export async function setEmailSwitch(actor: StaffActor, input: unknown, options: AdminOptions = {}): Promise<AdminShopSettings> {
+  authorize(actor, "SETTINGS_WRITE");
+  const v = parse(EmailSwitchSchema, input);
+  return mutate(options, "email_switch", async (tx) => {
+    try {
+      await tx.$queryRaw`SELECT admin_shop_email_set(${actor.staffId}, ${v.expectedRevision}::integer, ${v.kind}::text, ${v.enabled}::boolean)`;
+    } catch (error) { return mapError(error); }
+    adminEvent("admin.settings.email_switch", { actorStaffId: actor.staffId, kind: v.kind, enabled: v.enabled });
     return view(tx, options);
   });
 }

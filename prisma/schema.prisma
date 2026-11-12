@@ -1308,6 +1308,10 @@ model ShopSettings {
   maintenance        Boolean  @default(false)
   maintenanceMessage String?
   bookingPaused      Boolean  @default(false)
+  emailConfirmation  Boolean  @default(true)
+  emailReminder      Boolean  @default(true)
+  emailCarReady      Boolean  @default(true)
+  emailShopAlerts    Boolean  @default(true)
   revision           Int      @default(1)
   updatedAt          DateTime @default(now()) @db.Timestamptz(3)
   updatedByStaffId   String?

@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { brandConfig } from "@/config/brand";
-import type { AdminShopSettings } from "@/types/admin-contracts";
+import type { AdminShopSettings, EmailKind } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import { adminRequest, AdminRequestError } from "./bookings/client";
 import { CapSettings } from "./bookings/cap-settings";
@@ -123,6 +123,13 @@ function SectionCard({
   );
 }
 
+const EMAIL_KINDS: [EmailKind, string, string][] = [
+  ["confirmation", "Booking received", "Sent to the customer once, when they book."],
+  ["reminder", "1-day reminder", "Sent to the customer once, the day before drop-off."],
+  ["car_ready", "Car ready", "Sent to the customer once, when the car is finished on the board."],
+  ["shop_alerts", "Shop alerts", "New booking and deposit proof alerts to the shop inbox."],
+];
+
 // Admin only: the server refuses everyone else, and this screen says so plainly first.
 export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: () => unknown }) {
   const isAdmin = role === "ADMIN";
@@ -165,6 +172,28 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
       setDraft(null);
       await settings.reload();
       void onChanged();
+    } catch (e) {
+      setError(describeError(e));
+      if (e instanceof AdminRequestError && e.status === 409) await settings.reload();
+    } finally {
+      writing.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function switchEmail(kind: EmailKind, enabled: boolean) {
+    if (!current || writing.current) return;
+    writing.current = true;
+    setBusy(true);
+    setError(null);
+    setSaved(null);
+    try {
+      await adminRequest<AdminShopSettings>("/api/admin/settings", {
+        method: "PATCH",
+        body: { expectedRevision: current.revision, kind, enabled },
+      });
+      setSaved(EMAIL_KINDS.find(([k]) => k === kind)![1] + (enabled ? " emails are on." : " emails are off."));
+      await settings.reload();
     } catch (e) {
       setError(describeError(e));
       if (e instanceof AdminRequestError && e.status === 409) await settings.reload();
@@ -402,6 +431,26 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                   </span>
                 </div>
               </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard icon={Mail} title="Which emails go out" intro="Turn one kind of email off if it misbehaves. Nothing else changes; turn it back on any time.">
+            <div className="divide-y divide-border/70">
+              {EMAIL_KINDS.map(([kind, label, hint]) => (
+                <div key={kind} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{label}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+                  </div>
+                  <Choice
+                    label={label + " emails"}
+                    options={[["on", "On"], ["off", "Off"]]}
+                    value={current.emails[kind] ? "on" : "off"}
+                    disabled={busy}
+                    onChoose={(v) => void switchEmail(kind, v === "on")}
+                  />
+                </div>
+              ))}
             </div>
           </SectionCard>
 

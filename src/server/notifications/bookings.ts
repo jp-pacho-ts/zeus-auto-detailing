@@ -359,14 +359,26 @@ export function customerTurnNoticeMessage(
   };
 }
 
+// Settings switch for one kind of automatic email. A read failure counts as off: a missed email beats a flood.
+const SWITCH_COLUMN = { confirmation: "emailConfirmation", reminder: "emailReminder", car_ready: "emailCarReady", shop_alerts: "emailShopAlerts" } as const;
+export async function emailEnabled(db: PrismaClient, kind: keyof typeof SWITCH_COLUMN): Promise<boolean> {
+  try {
+    const row = await withBookingDb(db, "NOTIFICATION", (tx) => tx.shopSettings.findUnique({ where: { id: 1 }, select: { [SWITCH_COLUMN[kind]]: true } }));
+    return (row as Record<string, boolean> | null)?.[SWITCH_COLUMN[kind]] ?? true;
+  } catch {
+    return false;
+  }
+}
+
 // Simple send now: no outbox/retry, including after SMTP rejection/timeout. Never throws
 // into the committed booking response. sendSmtpMessage retains its existing 3 s bound.
 export async function sendCustomerConfirmation(
   booking: DayBookingView,
   customerEmail: string | undefined,
   notification?: NotificationConfiguration,
+  db: PrismaClient = prisma,
 ): Promise<void> {
-  if (!customerEmail) return;
+  if (!customerEmail || !(await emailEnabled(db, "confirmation"))) return;
   let reason: EmailFailureReason = "error";
   try {
     const config = notification ?? notificationConfiguration();
@@ -608,6 +620,7 @@ export async function drainShopNotifications(
     );
     return;
   }
+  if (!(await emailEnabled(db, "shop_alerts"))) return;
   for (let n = 0; n < (options.bookingId ? 1 : 5); n++) {
     const item = await withBookingDb(db, "NOTIFICATION", async (tx) => {
       const now = await bookingDbNow(tx);
@@ -679,6 +692,7 @@ export async function drainDepositNotices(options: Options = {}): Promise<void> 
     console.warn(JSON.stringify({ event: "booking.notification_unconfigured" }));
     return;
   }
+  if (!(await emailEnabled(db, "shop_alerts"))) return;
   for (let n = 0; n < 5; n++) {
     const item = await withBookingDb(db, "NOTIFICATION", async (tx) => {
       const now = await bookingDbNow(tx);
@@ -762,10 +776,70 @@ export async function sendTurnNotice(
   }
 }
 
+// Records a one-time customer email BEFORE it is sent, under a per-booking lock: a second caller (a
+// later timer tick, a retried request, another instance) finds the record and sends nothing. False also
+// when no SUPERADMIN or ADMIN exists to record it under: nothing is sent unrecorded.
+async function claimCustomerNotice(db: PrismaClient, bookingId: string, reason: string): Promise<boolean> {
+  return withBookingDb(db, "NOTIFICATION", async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"customer-notice:" + reason + ":" + bookingId}))`;
+    const already = await tx.bookingAuditEvent.findFirst({ where: { bookingId, action: "CUSTOMER_NOTIFIED", reason }, select: { id: true } });
+    if (already) return false;
+    const actor = await tx.staff.findFirst({
+      where: { role: { in: ["SUPERADMIN", "ADMIN"] }, isActive: true, removedAt: null },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    if (!actor) return false;
+    await tx.bookingAuditEvent.create({ data: { bookingId, actorStaffId: actor.id, action: "CUSTOMER_NOTIFIED", reason } });
+    return true;
+  });
+}
+
+export function customerCarReadyMessage(booking: DayBookingView): { subject: string; text: string; html: string } {
+  const lines = [
+    "Your vehicle is ready for pick-up.",
+    "Booking reference: " + booking.referenceCode,
+    "Services done: " + booking.lines.map((l) => l.name).join(", "),
+    "Shop address: " + brandConfig.address,
+    "Opening hours: " + brandConfig.operatingSchedule,
+    "Phone: " + brandConfig.supportPhone,
+  ];
+  return {
+    subject: "Your vehicle is ready at " + brandConfig.businessName + " [" + booking.referenceCode + "]",
+    text: [brandConfig.businessName, ...lines].join("\n"),
+    html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #18181b;">
+  <h2 style="margin: 0 0 12px 0;">${brandConfig.businessName}</h2>
+  ${lines.map((l) => `<p style="margin: 0 0 8px 0;">${l}</p>`).join("")}
+</div>`,
+  };
+}
+
+// Sent once, after the booking is COMPLETED (the board's finish). Never throws: the finish already committed.
+export async function sendCarReady(bookingId: string, options: Options = {}): Promise<"SENT" | "NOT_SENT"> {
+  try {
+    const config = options.notification ?? notificationConfiguration();
+    if (!config) return "NOT_SENT";
+    const db = options.db ?? prisma;
+    const booking = await withBookingDb(db, "NOTIFICATION", (tx) =>
+      tx.booking.findUnique({ where: { id: bookingId }, include: { lineItems: true } }));
+    if (!booking?.customerEmail || booking.status !== "COMPLETED" || !(await emailEnabled(db, "car_ready"))) return "NOT_SENT";
+    if (!(await claimCustomerNotice(db, bookingId, "CAR_READY"))) return "NOT_SENT";
+    const result = await sendSmtpClassified(config, booking.customerEmail, customerCarReadyMessage(publicDayBooking(booking)),
+      `<booking-ready.${bookingId}@${new URL(config.origin).hostname}>`);
+    if (result === "sent") return "SENT";
+    logEmailNotSent("turn_notice", result, bookingId);
+    return "NOT_SENT";
+  } catch {
+    logEmailNotSent("turn_notice", "error", bookingId);
+    return "NOT_SENT";
+  }
+}
+
 export async function drainBookingReminders(options: Options = {}): Promise<number> {
   const config = options.notification ?? notificationConfiguration();
   if (!config) return 0;
   const db = options.db ?? prisma;
+  if (!(await emailEnabled(db, "reminder"))) return 0;
 
   const now = new Date();
   const tomorrowDay = new Intl.DateTimeFormat("en-CA", {
@@ -796,24 +870,7 @@ export async function drainBookingReminders(options: Options = {}): Promise<numb
   let sentCount = 0;
   for (const b of bookings) {
     if (!b.customerEmail) continue;
-    const claimed = await withBookingDb(db, "NOTIFICATION", async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"booking-reminder:" + b.id}))`;
-      const already = await tx.bookingAuditEvent.findFirst({
-        where: { bookingId: b.id, action: "CUSTOMER_NOTIFIED", reason: "APPOINTMENT_REMINDER_1_DAY_BEFORE" },
-        select: { id: true },
-      });
-      if (already) return false;
-      const actor = await tx.staff.findFirst({
-        where: { role: { in: ["SUPERADMIN", "ADMIN"] }, isActive: true, removedAt: null },
-        orderBy: { createdAt: "asc" },
-        select: { id: true },
-      });
-      if (!actor) return false; // nobody to record it under: send nothing rather than send unrecorded
-      await tx.bookingAuditEvent.create({
-        data: { bookingId: b.id, actorStaffId: actor.id, action: "CUSTOMER_NOTIFIED", reason: "APPOINTMENT_REMINDER_1_DAY_BEFORE" },
-      });
-      return true;
-    });
+    const claimed = await claimCustomerNotice(db, b.id, "APPOINTMENT_REMINDER_1_DAY_BEFORE");
     if (!claimed) continue;
 
     const result = await sendSmtpClassified(

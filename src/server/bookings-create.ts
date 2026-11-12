@@ -277,7 +277,7 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
                 }).catch(() => {
                     console.warn(JSON.stringify({ event: "booking.notification_deferred" }));
                 }),
-                sendCustomerConfirmation(committed.result.data.booking, r.customerEmail, options.notification),
+                sendCustomerConfirmation(committed.result.data.booking, r.customerEmail, options.notification, db),
             ]);
         }
         return committed;

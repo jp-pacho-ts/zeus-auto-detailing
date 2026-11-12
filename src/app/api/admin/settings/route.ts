@@ -9,6 +9,10 @@ export async function GET(request: NextRequest) {
   return adminRoute(request, (actor) => admin.getShopSettings(actor));
 }
 
+export async function PATCH(request: NextRequest) {
+  return adminRoute(request, (actor, body) => admin.setEmailSwitch(actor, body));
+}
+
 export async function PUT(request: NextRequest) {
   return adminRoute(request, (actor, body) => admin.setShopSettings(actor, body));
 }

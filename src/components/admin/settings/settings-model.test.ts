@@ -6,7 +6,8 @@ import { bookingLine, CONFIRM_MAINTENANCE, emailCounts, emailStatus, MAINTENANCE
 
 const settings = (extra: Partial<AdminShopSettings> = {}): AdminShopSettings => ({
   revision: 3, maintenance: false, maintenanceMessage: null, bookingPaused: false, bookingPausedByServer: false, updatedAt: "2026-11-07T00:00:00.000Z",
-  email: { configured: false, failedLast7Days: 0, waitingLast7Days: 0 }, ...extra,
+  email: { configured: false, failedLast7Days: 0, waitingLast7Days: 0 },
+  emails: { confirmation: true, reminder: true, car_ready: true, shop_alerts: true }, ...extra,
 });
 
 test("a save sends every value, with only the changed one different and the revision it was read at", () => {

@@ -103,7 +103,7 @@ BEGIN
     'admin_expense_create(text, text, date, text, bigint, text, text)', 'admin_expense_update(text, text, integer, date, text, bigint, text, text)',
     'admin_expense_void(text, text, integer, text)', 'admin_expense_restore(text, text, integer)', 'admin_category_create(text, text, text)', 'admin_category_update(text, text, integer, text, boolean)',
     -- P1-42 Settings: the one ADMIN writer. The trigger functions are executable by nobody but their owner.
-    'admin_shop_settings_set(text, integer, boolean, text, boolean)',
+    'admin_shop_settings_set(text, integer, boolean, text, boolean)', 'admin_shop_email_set(text, integer, text, boolean)',
     -- P1-41 User Management: the writers/readers.
     'admin_user_list(text)', 'admin_user_get(text, text)', 'admin_user_create(text, text, text, text, text, text, text)',
     'admin_user_update(text, text, text, text, text, boolean, integer)',

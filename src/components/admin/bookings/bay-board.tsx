@@ -185,8 +185,12 @@ export function BayBoard({ role }: { role: UserRole }) {
       showStatus("Move this car into a bay before finishing it.", true);
       return;
     }
+    // Double check: name what is still unfinished, so a car dropped on Done by mistake is caught here.
+    const open = card.lines.filter((l) => l.workStatus !== "DONE").map((l) => l.name);
     const sure = window.confirm(
-      "Finish " + card.referenceCode + "? All its services will be marked done and the booking completed. A finished car can't be moved back.",
+      "Finish " + card.referenceCode + "? " + card.progress.done + " of " + card.progress.total + " services are done." +
+        (open.length ? "\n\nNot done yet: " + open.join(", ") + ".\nFinishing marks them done." : "") +
+        "\n\nThe customer gets a \"car ready\" email. A finished car can't be moved back.",
     );
     if (!sure) {
       setBoardGen((g) => g + 1); // the card snaps back to where it was

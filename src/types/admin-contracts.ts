@@ -596,7 +596,10 @@ export interface AdminShopSettings {
   bookingPausedByServer: boolean;
   updatedAt: ISOInstant;
   email: { configured: boolean; failedLast7Days: number; waitingLast7Days: number };
+  /** Each kind of email can be switched off from Settings; all are on by default. */
+  emails: Record<EmailKind, boolean>;
 }
+export type EmailKind = "confirmation" | "reminder" | "car_ready" | "shop_alerts";
 
 // -----------------------------------------------------------------------------
 // P1-41 User Management & Password Change

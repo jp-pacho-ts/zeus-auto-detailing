@@ -10,7 +10,8 @@ const path = require('node:path');
 const { test } = require('node:test');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
-const confirmText = (ref) => `Finish ${ref}? All its services will be marked done and the booking completed. A finished car can't be moved back.`;
+// The confirm names the progress and any unfinished services; it always says what finishing does.
+const confirmText = (ref) => new RegExp(`^Finish ${ref}\\? \\d+ of \\d+ services are done\\.[\\s\\S]*A finished car can't be moved back\\.$`);
 
 test('the Bay board: a car is finished by dropping it on Done, or from its move control, after a confirm', { timeout: 240_000 }, async () => {
   const width = Number(process.env.P134_WIDTH || 1280);
@@ -105,7 +106,7 @@ test('the Bay board: a car is finished by dropping it on Done, or from its move 
       await dragTo(busy.getByText(/Synthetic Vehicle|·/).first(), doneCol);
       await page.waitForFunction(() => true);
       for (let i = 0; i < 30 && !dialogs.length; i++) await page.waitForTimeout(100);
-      assert.equal(dialogs.at(-1), confirmText(bref), 'the confirm says what will happen, in plain words');
+      assert.match(dialogs.at(-1), confirmText(bref), 'the confirm says what will happen, in plain words');
       assert.equal(finishes.length, 0, 'Cancel sends nothing');
       assert.equal(await col(busyBay).getByRole('article', { name: bref, exact: true }).count(), 1, 'Cancel leaves the car in its bay');
       assert.equal(await doneCount(), done0);
@@ -142,7 +143,7 @@ test('the Bay board: a car is finished by dropping it on Done, or from its move 
     await seated.getByRole('button', { name: 'Move car', exact: true }).focus();
     await page.keyboard.press('Enter');
     for (let i = 0; i < 30 && dialogs.length === before; i++) await page.waitForTimeout(100);
-    assert.equal(dialogs.at(-1), confirmText(ref2));
+    assert.match(dialogs.at(-1), confirmText(ref2));
     assert.equal(await col(emptyBay).getByRole('article', { name: ref2, exact: true }).count(), 1, 'Cancel from the keyboard changes nothing');
     answer = true;
     const sent = finishes.length;

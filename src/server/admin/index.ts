@@ -23,7 +23,7 @@ export { listContainers, addContainer, updateContainer, removeContainer, moveBay
 export { getExpenseMonth, addExpense, updateExpense, removeExpense, restoreExpense, listExpenseHistory, listExpenseCategories, addExpenseCategory, updateExpenseCategory } from "./expenses";
 export { expenseTotals, type ExpenseTotals } from "./expenses-read";
 export { getAnalytics } from "./analytics";
-export { getShopSettings, setShopSettings } from "./shop-settings";
+export { getShopSettings, setShopSettings, setEmailSwitch } from "./shop-settings";
 export { listUsers, createUser, updateUser, resetUserPassword } from "./users";
 export { listAdminServices, updateAdminService, createAdminService, toggleAdminService } from "./services";
 export { getWeeklyPayroll, savePayrollAdjustment, setPayrollPaid } from "./payroll";

@@ -197,3 +197,55 @@ test("F4 a service already done costs no audit row; finishing is terminal (nothi
   const line = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: b.id } });
   await assert.rejects(s.setLineStatus(ADMIN, b.id, line.id, { expectedRevision: await rev(b.id), workStatus: "WAITING" }, at(b.day)), /./, "a finished booking's lines cannot be reopened");
 });
+
+test("the car-ready email goes once after the finish, never before it, and never twice", { skip }, async () => {
+  const { sendCarReady, resetSendGuard } = await import("../notifications/bookings");
+  resetSendGuard();
+  const b = await seated(20, "IN_PROGRESS");
+  const email = (await db.booking.findUniqueOrThrow({ where: { id: b.id } })).customerEmail;
+  const sent: string[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (_u: unknown, init?: { body?: string }) => {
+    sent.push(JSON.parse(String(init?.body)).to[0].email);
+    return new Response("{}", { status: 201 });
+  }) as typeof fetch;
+  const notification = { provider: "brevo" as const, brevoApiKey: "k", host: "api.brevo.com", port: 443, secure: true, user: "brevo", password: "k",
+    from: "Shop <shop@example.test>", shopEmail: "shop@example.test", origin: "https://shop.example.test" };
+  try {
+    assert.equal(await sendCarReady(b.id, { db: app, notification }), "NOT_SENT", "an open booking gets no car-ready email");
+    await s.finishBooking(ADMIN, b.id, { expectedRevision: await rev(b.id) }, at(b.day));
+    const results = await Promise.all([sendCarReady(b.id, { db: app, notification }), sendCarReady(b.id, { db: app, notification })]);
+    results.push(await sendCarReady(b.id, { db: app, notification }));
+    assert.deepEqual(results.sort(), ["NOT_SENT", "NOT_SENT", "SENT"]);
+    assert.deepEqual(sent, [email]);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("Settings can switch the car-ready email off and on; off sends nothing, and each change is audited", { skip }, async () => {
+  const { sendCarReady, resetSendGuard } = await import("../notifications/bookings");
+  resetSendGuard();
+  const notification = { provider: "brevo" as const, brevoApiKey: "k", host: "api.brevo.com", port: 443, secure: true, user: "brevo", password: "k",
+    from: "Shop <shop@example.test>", shopEmail: "shop@example.test", origin: "https://shop.example.test" };
+  let calls = 0;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => { calls++; return new Response("{}", { status: 201 }); }) as typeof fetch;
+  try {
+    const before = await s.getShopSettings(ADMIN, { db: app });
+    assert.equal(before.emails.car_ready, true, "on by default");
+    await refused(s.setEmailSwitch(STAFF, { expectedRevision: before.revision, kind: "car_ready", enabled: false }, { db: app }), "FORBIDDEN", "STAFF");
+    const off = await s.setEmailSwitch(ADMIN, { expectedRevision: before.revision, kind: "car_ready", enabled: false }, { db: app });
+    assert.deepEqual([off.emails.car_ready, off.emails.reminder, off.revision], [false, true, before.revision + 1], "only that kind changes");
+    await refused(s.setEmailSwitch(ADMIN, { expectedRevision: before.revision, kind: "reminder", enabled: false }, { db: app }), "VERSION_CONFLICT", "stale");
+    const b = await seated(19, "IN_PROGRESS");
+    await s.finishBooking(ADMIN, b.id, { expectedRevision: await rev(b.id) }, at(b.day));
+    assert.equal(await sendCarReady(b.id, { db: app, notification }), "NOT_SENT");
+    assert.equal(calls, 0, "switched off: nothing reaches the provider");
+    await s.setEmailSwitch(ADMIN, { expectedRevision: off.revision, kind: "car_ready", enabled: true }, { db: app });
+    assert.equal(await sendCarReady(b.id, { db: app, notification }), "SENT", "back on: the finished car's email goes once");
+    assert.equal(await db.shopSettingsAuditEvent.count({ where: { setting: "email_car_ready" } }), 2);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
