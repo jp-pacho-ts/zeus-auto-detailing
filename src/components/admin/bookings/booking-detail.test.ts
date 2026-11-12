@@ -136,12 +136,15 @@ test("history: customer entries read 'Customer' with no trailing separator", () 
       createElement(require("./booking-detail").BookingDetail, { id: "booking", role: "ADMIN", queues: [], onChanged: () => {}, onClose: () => {} }),
     );
     const items = [...html.matchAll(/<li>([^<]*(?:<!-- -->[^<]*)*)<\/li>/g)].map((m) => m[1].replace(/<!-- -->/g, ""));
-    const lines = items.filter((s) => s.startsWith("2026-10-21T01:00:00.000Z"));
+    // Readable time (Manila) and plain-word actions, no raw codes.
+    const when = new Date("2026-10-21T01:00:00.000Z").toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" });
+    const lines = items.filter((s) => s.startsWith(when));
     assert.deepEqual(lines, [
-      "2026-10-21T01:00:00.000Z · CUSTOMER_CANCELLED · Customer",
-      "2026-10-21T01:00:00.000Z · STATUS_CHANGED · Synthetic Admin · called ahead",
-      "2026-10-21T01:00:00.000Z · STATUS_CHANGED · Synthetic Admin",
+      `${when} · Customer cancelled · Customer`,
+      `${when} · Status changed · Synthetic Admin · called ahead`,
+      `${when} · Status changed · Synthetic Admin`,
     ]);
+    assert.doesNotMatch(html, /STATUS_CHANGED|CUSTOMER_CANCELLED|Revision \d/);
   } finally {
     mock.restoreAll();
   }
