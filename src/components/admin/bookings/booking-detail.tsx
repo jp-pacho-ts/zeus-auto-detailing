@@ -99,6 +99,24 @@ export function BookingDetail({
     [conflict, setConflict] = React.useState<AdminBookingDetail | null>(null),
     [typed, setTyped] = React.useState("");
   const [editingDetails, setEditingDetails] = React.useState(false);
+  type Recalc = { before: { staffId: string; name: string; amountCentavos: number }[]; after: { staffId: string; name: string; amountCentavos: number }[] };
+  const [recalc, setRecalc] = React.useState<Recalc | null>(null);
+  async function recalculate() {
+    if (writing.current || !window.confirm("Recalculate this booking's commission with today's service and worker rates? Paid or adjusted commission is never changed.")) return;
+    writing.current = true;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      setRecalc(await adminRequest<Recalc>(`/api/admin/bookings/${id}/commission`, { method: "POST", body: {} }));
+    } catch (e) {
+      if (e instanceof AdminRequestError && e.status === 401) return window.location.replace("/admin/login");
+      setError(e instanceof AdminRequestError ? writeFeedback(e.detail).message : "Couldn't reach the shop server. Try again.");
+    } finally {
+      writing.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
   const [editName, setEditName] = React.useState("");
   const [editPhone, setEditPhone] = React.useState("");
   const [editEmail, setEditEmail] = React.useState("");
@@ -755,6 +773,42 @@ export function BookingDetail({
                     </Button>
                   </form>
                 </>
+              )}
+              {admin && b.status === "COMPLETED" && b.snapshot === "QUEUE_V3" && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">Changed a service or worker rate? Work this booking&apos;s commission out again.</p>
+                    <Button variant="outline" size="sm" disabled={disabled} onClick={() => void recalculate()}>
+                      Recalculate commission
+                    </Button>
+                  </div>
+                  {recalc && (
+                    <table className="w-full text-sm" aria-label="Commission before and after">
+                      <thead>
+                        <tr className="text-left text-xs text-muted-foreground">
+                          <th className="py-1 font-medium">Worker</th>
+                          <th className="py-1 text-right font-medium">Before</th>
+                          <th className="py-1 text-right font-medium">Now</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...new Set([...recalc.before, ...recalc.after].map((r) => r.staffId))].map((staffId) => {
+                          const was = recalc.before.find((r) => r.staffId === staffId), now = recalc.after.find((r) => r.staffId === staffId);
+                          return (
+                            <tr key={staffId} className="border-t border-border">
+                              <td className="py-1.5 text-foreground">{(now ?? was)!.name}</td>
+                              <td className="py-1.5 text-right text-muted-foreground">{was ? money(was.amountCentavos) : "—"}</td>
+                              <td className="py-1.5 text-right font-semibold text-foreground">{now ? money(now.amountCentavos) : "—"}</td>
+                            </tr>
+                          );
+                        })}
+                        {recalc.after.length === 0 && recalc.before.length === 0 && (
+                          <tr><td colSpan={3} className="py-1.5 text-muted-foreground">No commission on this booking: no worker assigned or no service earns one.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               )}
             </section>
 

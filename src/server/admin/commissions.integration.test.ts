@@ -957,3 +957,35 @@ test("C34 a name made inactive after being credited keeps its history, and can n
   assert.equal((await s.removePerson(ADMIN, unused.id, { expectedRevision: u.revision }, opts())).outcome, "DELETED");
   assert.ok(!(await pickerNames("2027-07-11")).includes("Never Used"));
 });
+
+// LE 2026-11-12: each service earns at its own rate, and Booking details can recalculate a finished booking's commission.
+test("C37 each service at its own rate; Recalculate uses today's rates, shows before and after, and never touches paid commission", { skip }, async () => {
+  const tint = bySlug(r0(), "regular-tint").id, interior = bySlug(r0(), "interior-detailing").id;
+  try {
+    // At completion neither service has its own rate: both earn the shop default of 20% (wash first, earns nothing).
+    const w = await person("Recalc Worker");
+    const job = await shopCompleted([w.id], [{ slug: "regular-tint", price: 100_000 }, { slug: "interior-detailing", price: 50_000 }], { washPrice: 40_000 });
+    assert.deepEqual((await entries(job.id)).map((e) => [e.baseCentavos, e.rateBp, e.amountCentavos]), [[150_000, 2000, 30_000]]);
+    // The admin then gives the tint its own 10%. Nothing changes until Recalculate (C8).
+    await db.$executeRaw`UPDATE services SET "commissionRateBp" = 1000 WHERE id = ${tint}`;
+    assert.equal((await entries(job.id))[0].amountCentavos, 30_000);
+    await refused(s.recalculateCommission({ ...ADMIN, role: "STAFF" }, job.id, opts()), "FORBIDDEN", "STAFF recalculates");
+    const r = await s.recalculateCommission(ADMIN, job.id, opts());
+    // Tint 100,000 at 10% plus detailing 50,000 at 20%: a 13.33% mix, rounded to 13.33% (1333 basis points).
+    assert.deepEqual(r, { before: [{ staffId: w.id, name: "Recalc Worker", rateBp: 2000, amountCentavos: 30_000 }], after: [{ staffId: w.id, name: "Recalc Worker", rateBp: 1333, amountCentavos: 19_995 }] });
+    assert.deepEqual((await entries(job.id)).map((e) => [e.baseCentavos, e.rateBp, e.amountCentavos]), [[150_000, 1333, 19_995]]);
+    assert.equal(await count("admin_audit_events", `"bookingId" = '${job.id}' AND reason = 'Recalculated by ${ADMIN.staffId}'`), 1);
+    // A second booking: the second service's own rate now counts from the start, not the first service's.
+    const later = await shopCompleted([w.id], [{ slug: "regular-tint", price: 100_000 }], { keepWash: false });
+    assert.deepEqual((await entries(later.id)).map((e) => [e.rateBp, e.amountCentavos]), [[1000, 10_000]]);
+    // Paid: refused, and nothing moves.
+    await s.setCommissionsPaid(ADMIN, { ids: [(await entries(job.id))[0].id], paid: true }, opts());
+    await refused(s.recalculateCommission(ADMIN, job.id, opts()), "VALIDATION_ERROR", "paid commission", (e) => assert.match(e.message, /already paid or adjusted/));
+    assert.equal((await entries(job.id))[0].amountCentavos, 19_995);
+    // Not finished: refused.
+    const open = await shopJob([w.id], [{ slug: "regular-tint", price: 100_000 }], { keepWash: false });
+    await refused(s.recalculateCommission(ADMIN, open.id, opts()), "VALIDATION_ERROR", "open booking", (e) => assert.match(e.message, /Only a finished booking/));
+  } finally {
+    await db.$executeRaw`UPDATE services SET "commissionRateBp" = NULL WHERE id IN (${tint}, ${interior})`;
+  }
+});

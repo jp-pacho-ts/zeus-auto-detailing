@@ -17,7 +17,7 @@ export { assignWorker, unassignWorker } from "./workers-write";
 export { setDepositStatus, readDepositProof } from "./deposit";
 export { deleteBooking } from "./delete-booking";
 export { listTeam, getPerson, addPerson, updatePerson, removePreview, removePerson } from "./team";
-export { getCommissionSettings, setDefaultRate, listCommissions, setCommissionsPaid, repairCommissions, adjustCommission } from "./commissions";
+export { getCommissionSettings, setDefaultRate, listCommissions, setCommissionsPaid, repairCommissions, adjustCommission, recalculateCommission } from "./commissions";
 export { listSupplies, addSupply, updateSupply, recordStock, removeSupply, restoreSupply, listMovements } from "./supplies";
 export { listContainers, addContainer, updateContainer, removeContainer, moveBay } from "./containers";
 export { getExpenseMonth, addExpense, updateExpense, removeExpense, restoreExpense, listExpenseHistory, listExpenseCategories, addExpenseCategory, updateExpenseCategory } from "./expenses";

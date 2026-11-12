@@ -9,7 +9,7 @@ import type {
   AdminCommissionSettings,
   AdminCommissionSummary,
 } from "@/types/admin-contracts";
-import { CommissionAdjustSchema, CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema } from "@/lib/admin-validation";
+import { AdminIdSchema, CommissionAdjustSchema, CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema } from "@/lib/admin-validation";
 import { percentToBasisPoints, safeCentavos } from "@/lib/commission";
 import { withStaffDb, type StaffTx } from "@/server/auth/db-admission";
 import { authorize, parse, type AdminOptions, type StaffActor } from "./context";
@@ -191,5 +191,32 @@ export async function adjustCommission(actor: StaffActor, input: unknown, option
     } catch (error) { return mapError(error); }
     adminEvent("admin.commission.adjusted", { actorStaffId: actor.staffId });
     return { id };
+  });
+}
+
+export interface CommissionRecalculation {
+  before: { staffId: string; name: string; rateBp: number; amountCentavos: number }[];
+  after: { staffId: string; name: string; rateBp: number; amountCentavos: number }[];
+}
+// Redoes one finished booking's commission with today's service and worker rates (LE 2026-11-12: from Booking details
+// only). Refused when any part is paid or adjusted, so settled payroll never moves. Returns each worker before and after.
+export async function recalculateCommission(actor: StaffActor, rawBookingId: unknown, options: AdminOptions = {}): Promise<CommissionRecalculation> {
+  authorize(actor, "COMMISSION_WRITE");
+  const bookingId = parse(AdminIdSchema, rawBookingId);
+  return mutate(options, "commission_recalculate", async (tx) => {
+    let result: CommissionRecalculation;
+    try {
+      const [row] = await tx.$queryRaw<{ r: CommissionRecalculation }[]>`SELECT admin_commission_recalculate(${actor.staffId}, ${bookingId}) AS r`;
+      result = row.r;
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "";
+      if (text.includes("ZT404")) throw new AdminServiceError("NOT_FOUND");
+      if (text.includes("ZC010")) throw new AdminServiceError("VALIDATION_ERROR", "Only a finished booking has a commission to recalculate.");
+      if (text.includes("ZC011")) throw new AdminServiceError("VALIDATION_ERROR", "This commission is already paid or adjusted, so it was not changed.");
+      return mapError(error);
+    }
+    adminEvent("admin.commission.recalculated", { actorStaffId: actor.staffId });
+    const num = (rows: CommissionRecalculation["before"]) => rows.map((r) => ({ ...r, rateBp: Number(r.rateBp), amountCentavos: Number(r.amountCentavos) }));
+    return { before: num(result.before), after: num(result.after) };
   });
 }

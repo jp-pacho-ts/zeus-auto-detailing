@@ -114,7 +114,9 @@ BEGIN
     -- P1-41e: Service catalog management
     'admin_user_update(text, text, text, text, text, boolean, bigint)',
     'admin_service_list(text)', 'admin_service_update(text, text, text, text, text, jsonb)',
-    'admin_service_create(text, text, text, text, text, text, jsonb)', 'admin_service_toggle_active(text, text, boolean)'
+    'admin_service_create(text, text, text, text, text, text, jsonb)', 'admin_service_toggle_active(text, text, boolean)',
+    -- Pick-up prices (20261114000000) and the per-booking commission recalculation (20261115000000).
+    'admin_service_set_pickup_prices(text, text, jsonb)', 'admin_commission_recalculate(text, text)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);
