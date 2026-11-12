@@ -771,3 +771,32 @@ test("pick-up price: a PICKUP booking is charged the pick-up price and passes th
     // The database refuses a body type that does not fit the size.
     await assert.rejects(f.db.$executeRaw `UPDATE bookings SET "vehicleBodyType"='VAN' WHERE id=${suv.id}`, /booking_body_type_size|check constraint|guard|immutable/i);
 });
+// LE 2026-11-12: a sunroof tint is an add-on to its tint film, at a fixed price. It books only with that film.
+test("tint add-on: a priced add-on under a tint film books at its fixed price, and cannot be booked alone", { skip }, async () => {
+    const f = await fixture("tintaddon"), tint = bySlug(release, "regular-tint"), S = sizeId(release, "S");
+    const admin = await f.db.staff.create({ data: { name: "Addon Admin", phone: "", email: "addon-admin@example.test", role: "ADMIN" } });
+    const offers = ["MOTOR", "S", "M", "L", "XL"].map(sizeCode => ({ sizeCode, state: sizeCode === "MOTOR" ? "NOT_OFFERED" : "OFFERED", unitPriceCentavos: sizeCode === "MOTOR" ? null : 600_000, compareAtCentavos: null }));
+    const [{ id: sunroof }] = await f.db.$queryRaw<{ id: string }[]> `SELECT admin_service_create(${admin.id}, 'Sunroof Tint', NULL, 'TINT', 'ADD_ON', 'VEHICLE', ${JSON.stringify(offers)}::jsonb, NULL::integer) AS id`;
+    await f.db.$transaction(async (tx) => {
+        await tx.$executeRaw `SELECT set_config('zeus.allow_catalog_edit', 'on', true)`;
+        await tx.$executeRaw `INSERT INTO add_on_compatibility ("releaseId", "baseServiceId", "addOnServiceId", "sizeCodes") SELECT "releaseId", ${tint.id}, ${sunroof}, ARRAY['S','M','L','XL'] FROM catalog_head WHERE "shopId" = 1`;
+    });
+    const quote = async (ids: string[]) => getBookingQuote({ vehicleCategoryId: S, lines: ids.map(serviceId => ({ serviceId, quantity: 1 })) }, { db: f.options.db, ring: config.quote });
+    const alone = await quote([sunroof]);
+    assert.equal(alone.ok, false, "an add-on is never booked alone");
+    const both = await quote([tint.id, sunroof]);
+    assert.ok(both.ok, JSON.stringify(both));
+    if (!both.ok) throw Error("quote");
+    const line = both.data.quote.lines.find(l => l.serviceId === sunroof)!;
+    assert.deepEqual([line.kind, line.priceStatus, line.unitPriceCentavos], ["ADD_ON", "PRICED", 600_000]);
+    const result = await f.create({ contractVersion: 4 as const, idempotencyKey: randomUUID(), vehicleCategoryId: S, lines: both.data.quote.lines.map(l => ({ serviceId: l.serviceId, quantity: l.quantity })), bookingDate: day(),
+        acceptedQuote: both.data.quote, turnstileToken: randomUUID(), customerName: "Synthetic Sunroof", customerPhone: "+639170000201", vehicleModel: "Synthetic Car" });
+    assert.equal(code(result), "OK", JSON.stringify(result));
+    const row = await f.db.booking.findFirstOrThrow({ where: { customerName: "Synthetic Sunroof" }, include: { lineItems: true } });
+    assert.equal(row.lineItems.find(l => l.serviceId === sunroof)!.unitPriceCentavos, 600_000);
+    // A wash still cannot have a fixed-price add-on: the widened rule is for tint only.
+    await assert.rejects(f.db.$transaction(async (tx) => {
+        await tx.$executeRaw `SELECT set_config('zeus.allow_catalog_edit', 'on', true)`;
+        await tx.$executeRaw `UPDATE catalog_service_versions SET "group" = 'WASH' WHERE "serviceId" = ${sunroof}`;
+    }), /Inconsistent offer\/work plan|work plan/);
+});
