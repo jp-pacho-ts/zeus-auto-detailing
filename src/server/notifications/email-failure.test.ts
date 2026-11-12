@@ -46,7 +46,7 @@ test("P1-31: missing settings log once per process, not once per booking", () =>
 test("P1-31: with no shop email settings a staff notice is not sent, says why (not_configured), and the log says config_missing, nothing else", async () => {
   capture();
   const saved = { ...process.env };
-  for (const k of Object.keys(process.env)) if (k.startsWith("SMTP_") || k.startsWith("RESEND_")) delete process.env[k];
+  for (const k of Object.keys(process.env)) if (k.startsWith("SMTP_") || k.startsWith("RESEND_") || k.startsWith("BREVO_")) delete process.env[k];
   try {
     assert.equal(await sendTurnNotice("11111111-1111-4111-8111-111111111111"), "not_configured");
   } finally { Object.assign(process.env, saved); }

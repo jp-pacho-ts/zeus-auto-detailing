@@ -9,6 +9,7 @@ import { withBookingDb } from "../bookings-admission";
 import { bookingDbNow } from "../bookings-locks";
 import { publicDayBooking } from "../bookings-view";
 import nodemailer from "nodemailer";
+import { customerEmailHtml } from "./email-layout";
 export interface NotificationConfiguration {
   provider?: "brevo" | "resend" | "smtp";
   brevoApiKey?: string;
@@ -192,36 +193,7 @@ export function customerConfirmationMessage(
       "Phone: " + brandConfig.supportPhone,
       "Messenger: " + brandConfig.facebookMessengerUrl,
     ].join("\n"),
-    html: `
-<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background-color: #121214; color: #ededed; border: 1px solid #27272a; border-radius: 8px; padding: 24px;">
-  <h2 style="color: #f59e0b; margin-top: 0; text-transform: uppercase; letter-spacing: 0.5px;">${brandConfig.businessName}</h2>
-  <p style="font-size: 16px; margin: 0 0 12px 0;"><strong>Booking Received</strong></p>
-  <p style="margin: 0 0 8px 0;">Booking reference: <strong style="font-family: monospace; color: #f59e0b; font-size: 18px;">${booking.referenceCode}</strong></p>
-  <p style="margin: 0 0 16px 0; color: #d4d4d8;">Your request is sent. The shop will text or call you to confirm.</p>
-  <div style="background-color: #18181b; border: 1px solid #3f3f46; border-radius: 6px; padding: 18px; margin: 20px 0; text-align: center;">
-    <p style="margin: 0 0 12px 0; font-size: 14px; color: #d4d4d8; font-weight: 500;">Please monitor your booking progress on our site:</p>
-    <a href="${manageUrl}" style="background-color: #f59e0b; color: #000; font-weight: bold; text-decoration: none; padding: 12px 24px; border-radius: 6px; display: inline-block; font-size: 14px;">Monitor Your Booking &rarr;</a>
-    <p style="margin: 12px 0 0 0; font-size: 12px; color: #a1a1aa;">Open that page and enter your reference code (<strong>${booking.referenceCode}</strong>) and last name to view status.</p>
-  </div>
-  <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 16px;">
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Drop-off day:</td><td style="padding: 6px 0; font-weight: bold; text-align: right;">${booking.bookingDate} (${brandConfig.timezone})</td></tr>
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Opening hours:</td><td style="padding: 6px 0; text-align: right;">${brandConfig.operatingSchedule}</td></tr>
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Vehicle size:</td><td style="padding: 6px 0; text-align: right;">${booking.vehicleCategoryName}</td></tr>
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Estimated total:</td><td style="padding: 6px 0; font-weight: bold; color: #f59e0b; text-align: right;">${estimate}</td></tr>
-  </table>
-  <div style="margin-top: 14px; border-top: 1px solid #27272a; padding-top: 12px;">
-    <p style="margin: 0 0 6px 0; color: #a1a1aa; font-size: 12px;">Selected services:</p>
-    <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
-      ${booking.lines.map((l) => `<li>${l.name}${l.quantity > 1 ? ` × ${l.quantity}` : ""}${l.priceStatus === "FOR_QUOTE" ? " (for quote)" : ""}</li>`).join("")}
-    </ul>
-    ${forQuote ? `<p style="color: #fbbf24; font-size: 12px; margin: 8px 0 0 0;">Some services are for quote. The shop will confirm the final price.</p>` : ""}
-  </div>
-  <div style="margin-top: 20px; border-top: 1px solid #27272a; padding-top: 12px; font-size: 12px; color: #71717a;">
-    <p style="margin: 0 0 4px 0;">Phone: ${brandConfig.supportPhone} | Messenger: <a href="${brandConfig.facebookMessengerUrl}" style="color: #f59e0b;">Zeus Detailing</a></p>
-    <p style="margin: 0;">${brandConfig.address}</p>
-  </div>
-</div>
-    `.trim(),
+    html: customerEmailHtml({ origin, booking, preheader: "We got your booking " + booking.referenceCode + ". The shop will contact you to confirm.", heading: "Booking received", intro: "Thank you! Your request is in. The shop will text or call you to confirm.", note: forQuote ? "Some services are for quote. The shop will confirm the final price." : undefined, button: { label: "Track your booking", href: manageUrl } }),
   };
 }
 
@@ -261,37 +233,7 @@ export function customerReminderMessage(
       "Phone: " + brandConfig.supportPhone,
       "Messenger: " + brandConfig.facebookMessengerUrl,
     ].join("\n"),
-    html: `
-<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background-color: #121214; color: #ededed; border: 1px solid #27272a; border-radius: 8px; padding: 24px;">
-  <h2 style="color: #f59e0b; margin-top: 0; text-transform: uppercase; letter-spacing: 0.5px;">${brandConfig.businessName}</h2>
-  <p style="font-size: 16px; margin: 0 0 12px 0;"><strong>Appointment Reminder (Tomorrow)</strong></p>
-  <p style="margin: 0 0 8px 0;">Booking reference: <strong style="font-family: monospace; color: #f59e0b; font-size: 18px;">${booking.referenceCode}</strong></p>
-  <p style="margin: 0 0 16px 0; color: #d4d4d8;">This is a friendly reminder that your vehicle detailing appointment is scheduled for tomorrow.</p>
-  <div style="background-color: #18181b; border: 1px solid #3f3f46; border-radius: 6px; padding: 18px; margin: 20px 0; text-align: center;">
-    <p style="margin: 0 0 12px 0; font-size: 14px; color: #d4d4d8; font-weight: 500;">Please monitor your booking progress on our site:</p>
-    <a href="${manageUrl}" style="background-color: #f59e0b; color: #000; font-weight: bold; text-decoration: none; padding: 12px 24px; border-radius: 6px; display: inline-block; font-size: 14px;">Monitor Your Booking &rarr;</a>
-    <p style="margin: 12px 0 0 0; font-size: 12px; color: #a1a1aa;">Open that page and enter your reference code (<strong>${booking.referenceCode}</strong>) and last name to view status.</p>
-  </div>
-  <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 16px;">
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Drop-off day:</td><td style="padding: 6px 0; font-weight: bold; text-align: right;">Tomorrow, ${booking.bookingDate} (${brandConfig.timezone})</td></tr>
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Opening hours:</td><td style="padding: 6px 0; text-align: right;">${brandConfig.operatingSchedule}</td></tr>
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Vehicle size:</td><td style="padding: 6px 0; text-align: right;">${booking.vehicleCategoryName}</td></tr>
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Estimated total:</td><td style="padding: 6px 0; font-weight: bold; color: #f59e0b; text-align: right;">${estimate}</td></tr>
-  </table>
-  <div style="margin-top: 14px; border-top: 1px solid #27272a; padding-top: 12px;">
-    <p style="margin: 0 0 6px 0; color: #a1a1aa; font-size: 12px;">Selected services:</p>
-    <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
-      ${booking.lines.map((l) => `<li>${l.name}${l.quantity > 1 ? ` × ${l.quantity}` : ""}${l.priceStatus === "FOR_QUOTE" ? " (for quote)" : ""}</li>`).join("")}
-    </ul>
-    ${forQuote ? `<p style="color: #fbbf24; font-size: 12px; margin: 8px 0 0 0;">Some services are for quote. The shop will confirm the final price.</p>` : ""}
-  </div>
-  <p style="margin: 16px 0 0 0; font-size: 13px; color: #fbbf24;">Please bring your vehicle to our shop during opening hours so our detailers can start on schedule.</p>
-  <div style="margin-top: 20px; border-top: 1px solid #27272a; padding-top: 12px; font-size: 12px; color: #71717a;">
-    <p style="margin: 0 0 4px 0;">Phone: ${brandConfig.supportPhone} | Messenger: <a href="${brandConfig.facebookMessengerUrl}" style="color: #f59e0b;">Zeus Detailing</a></p>
-    <p style="margin: 0;">${brandConfig.address}</p>
-  </div>
-</div>
-    `.trim(),
+    html: customerEmailHtml({ origin, booking, preheader: "Your detailing appointment is tomorrow.", heading: "See you tomorrow", intro: "A reminder that your vehicle detailing appointment is tomorrow. Please bring your vehicle during opening hours so we can start on time.", dropOff: "Tomorrow, " + booking.bookingDate, note: forQuote ? "Some services are for quote. The shop will confirm the final price." : undefined, button: { label: "Track your booking", href: manageUrl } }),
   };
 }
 
@@ -327,36 +269,7 @@ export function customerTurnNoticeMessage(
       "Phone: " + brandConfig.supportPhone,
       "Messenger: " + brandConfig.facebookMessengerUrl,
     ].join("\n"),
-    html: `
-<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background-color: #121214; color: #ededed; border: 1px solid #27272a; border-radius: 8px; padding: 24px;">
-  <h2 style="color: #f59e0b; margin-top: 0; text-transform: uppercase; letter-spacing: 0.5px;">${brandConfig.businessName}</h2>
-  <p style="font-size: 16px; margin: 0 0 12px 0;"><strong>Your Turn is Coming!</strong></p>
-  <p style="margin: 0 0 8px 0;">Booking reference: <strong style="font-family: monospace; color: #f59e0b; font-size: 18px;">${booking.referenceCode}</strong></p>
-  <p style="margin: 0 0 16px 0; color: #d4d4d8;">Your turn is coming up at ${brandConfig.businessName}. Please be ready to visit the shop.</p>
-  <div style="background-color: #18181b; border: 1px solid #3f3f46; border-radius: 6px; padding: 18px; margin: 20px 0; text-align: center;">
-    <p style="margin: 0 0 12px 0; font-size: 14px; color: #d4d4d8; font-weight: 500;">Please monitor your live booking progress on our site:</p>
-    <a href="${manageUrl}" style="background-color: #f59e0b; color: #000; font-weight: bold; text-decoration: none; padding: 12px 24px; border-radius: 6px; display: inline-block; font-size: 14px;">Monitor Your Booking &rarr;</a>
-    <p style="margin: 12px 0 0 0; font-size: 12px; color: #a1a1aa;">Open that page and enter your reference code (<strong>${booking.referenceCode}</strong>) and last name to view status.</p>
-  </div>
-  <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 16px;">
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Drop-off day:</td><td style="padding: 6px 0; font-weight: bold; text-align: right;">${booking.bookingDate} (${brandConfig.timezone})</td></tr>
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Opening hours:</td><td style="padding: 6px 0; text-align: right;">${brandConfig.operatingSchedule}</td></tr>
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Vehicle size:</td><td style="padding: 6px 0; text-align: right;">${booking.vehicleCategoryName}</td></tr>
-    <tr><td style="padding: 6px 0; color: #a1a1aa;">Estimated total:</td><td style="padding: 6px 0; font-weight: bold; color: #f59e0b; text-align: right;">${estimate}</td></tr>
-  </table>
-  <div style="margin-top: 14px; border-top: 1px solid #27272a; padding-top: 12px;">
-    <p style="margin: 0 0 6px 0; color: #a1a1aa; font-size: 12px;">Selected services:</p>
-    <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
-      ${booking.lines.map((l) => `<li>${l.name}${l.quantity > 1 ? ` × ${l.quantity}` : ""}${l.priceStatus === "FOR_QUOTE" ? " (for quote)" : ""}</li>`).join("")}
-    </ul>
-    ${forQuote ? `<p style="color: #fbbf24; font-size: 12px; margin: 8px 0 0 0;">Some services are for quote. The shop will confirm the final price.</p>` : ""}
-  </div>
-  <div style="margin-top: 20px; border-top: 1px solid #27272a; padding-top: 12px; font-size: 12px; color: #71717a;">
-    <p style="margin: 0 0 4px 0;">Phone: ${brandConfig.supportPhone} | Messenger: <a href="${brandConfig.facebookMessengerUrl}" style="color: #f59e0b;">Zeus Detailing</a></p>
-    <p style="margin: 0;">${brandConfig.address}</p>
-  </div>
-</div>
-    `.trim(),
+    html: customerEmailHtml({ origin, booking, preheader: "Your turn is coming up.", heading: "Your turn is coming up", intro: "Please get ready to bring your vehicle to the shop. Contact us if you need help.", button: { label: "Track your booking", href: manageUrl } }),
   };
 }
 
@@ -796,7 +709,7 @@ async function claimCustomerNotice(db: PrismaClient, bookingId: string, reason: 
   });
 }
 
-export function customerCarReadyMessage(booking: DayBookingView): { subject: string; text: string; html: string } {
+export function customerCarReadyMessage(booking: DayBookingView, origin: string): { subject: string; text: string; html: string } {
   const lines = [
     "Your vehicle is ready for pick-up.",
     "Booking reference: " + booking.referenceCode,
@@ -808,10 +721,7 @@ export function customerCarReadyMessage(booking: DayBookingView): { subject: str
   return {
     subject: "Your vehicle is ready at " + brandConfig.businessName + " [" + booking.referenceCode + "]",
     text: [brandConfig.businessName, ...lines].join("\n"),
-    html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #18181b;">
-  <h2 style="margin: 0 0 12px 0;">${brandConfig.businessName}</h2>
-  ${lines.map((l) => `<p style="margin: 0 0 8px 0;">${l}</p>`).join("")}
-</div>`,
+    html: customerEmailHtml({ origin, booking, preheader: "Your vehicle is ready for pick-up.", heading: "Your vehicle is ready", intro: "All done! Your vehicle is ready for pick-up during opening hours." }),
   };
 }
 
@@ -825,7 +735,7 @@ export async function sendCarReady(bookingId: string, options: Options = {}): Pr
       tx.booking.findUnique({ where: { id: bookingId }, include: { lineItems: true } }));
     if (!booking?.customerEmail || booking.status !== "COMPLETED" || !(await emailEnabled(db, "car_ready"))) return "NOT_SENT";
     if (!(await claimCustomerNotice(db, bookingId, "CAR_READY"))) return "NOT_SENT";
-    const result = await sendSmtpClassified(config, booking.customerEmail, customerCarReadyMessage(publicDayBooking(booking)),
+    const result = await sendSmtpClassified(config, booking.customerEmail, customerCarReadyMessage(publicDayBooking(booking), config.origin),
       `<booking-ready.${bookingId}@${new URL(config.origin).hostname}>`);
     if (result === "sent") return "SENT";
     logEmailNotSent("turn_notice", result, bookingId);
