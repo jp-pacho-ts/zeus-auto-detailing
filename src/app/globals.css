@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind 4 ignores tailwind.config.ts: without this, dark: follows the device's colour scheme, not the html class the theme toggle sets. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: rgb(var(--background));
   --color-foreground: rgb(var(--foreground));

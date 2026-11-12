@@ -120,7 +120,7 @@ export async function seedCatalog(db, { manifest = readManifest(), sourcePath } 
             if (old)
                 assert.equal(old.id, service.id, 'Service identity collision');
             else
-                await tx.service.create({ data: { id: service.id, slug: service.slug, name: service.name, category: ({ WASH: 'EXTERIOR_WASH_SEAL', DETAILING: 'INTERIOR_DETAILING', GRAPHENE: 'CERAMIC_COATING', TINT: 'WINDOW_TINT_PPF', PPF: 'WINDOW_TINT_PPF', REPAINT: 'PAINT_CORRECTION' })[service.group], price: null, durationMinutes: null, isActive: false } });
+                await tx.service.create({ data: { id: service.id, slug: service.slug, name: service.name, category: ({ WASH: 'EXTERIOR_WASH_SEAL', DETAILING: 'INTERIOR_DETAILING', GRAPHENE: 'CERAMIC_COATING', TINT: 'WINDOW_TINT_PPF', PPF: 'WINDOW_TINT_PPF', REPAINT: 'PAINT_CORRECTION' })[service.group], price: null, durationMinutes: null, isActive: true } });
             const { id, offers, ...metadata } = service;
             await tx.catalogServiceVersion.create({ data: { releaseId, serviceId: id, ...metadata } });
             for (const offer of offers) {

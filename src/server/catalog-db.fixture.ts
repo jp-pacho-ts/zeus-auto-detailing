@@ -106,7 +106,7 @@ export async function insertDraft(db: PrismaClient, target: Manifest, stableId: 
     }
     for (const service of target.services) {
       if (!(await tx.service.findUnique({ where: { slug: service.slug } }))) {
-        await tx.service.create({ data: { id: service.id, slug: service.slug, name: service.name, category: groupToKind[service.group], price: null, durationMinutes: null, isActive: false } });
+        await tx.service.create({ data: { id: service.id, slug: service.slug, name: service.name, category: groupToKind[service.group], price: null, durationMinutes: null, isActive: true } });
       }
       const { id, offers, ...metadata } = service;
       await tx.catalogServiceVersion.create({ data: { releaseId, serviceId: id, ...metadata } });

@@ -1297,3 +1297,26 @@ test("P1-28: a future booking already in a bay (live bad row) stays off today's 
   assert.equal(await db.bookingBayAssignment.count({ where: { bookingId: seated } }), 0);
   await refused(s.setBay(ADMIN, seated, { expectedRevision: 3, date: day, bayId: bays[0].id }, opts()), "BOOKING_NOT_MANAGEABLE", "re-seat early", says("re-seat"));
 });
+
+test("P1-41b edit details: ADMIN saves customer details and notes carrying a payment tag; stale revision refused", { skip }, async () => {
+  const id = await book(select("S", "basic-wash"), "2027-03-21");
+  const body = { customerName: "Maria Santos", customerPhone: "+639170000002", customerEmail: null, vehicleModel: "Vios", vehiclePlate: "abc 123", notes: "[Payment Mode: CASH]\n\nCall first" };
+  await refused(s.updateBookingDetails(STAFF, id, { expectedRevision: 1, ...body }, opts()), "FORBIDDEN", "STAFF edit");
+  const saved = await s.updateBookingDetails(ADMIN, id, { expectedRevision: 1, ...body }, opts());
+  assert.deepEqual([saved.booking.revision, saved.booking.customerName, saved.booking.vehiclePlate, saved.booking.notes],
+    [2, "Maria Santos", "ABC 123", "[Payment Mode: CASH]\n\nCall first"]);
+  await refused(s.updateBookingDetails(ADMIN, id, { expectedRevision: 1, ...body }, opts()), "VERSION_CONFLICT", "stale edit");
+});
+
+test("a service edited on the Services page does not block price, status or added services on bookings that already hold it", { skip }, async () => {
+  const day = "2027-03-24", wash = bySlug(r0(), "basic-wash").id;
+  const priced = await book(select("S", "basic-wash"), day), worked = await book(select("S", "basic-wash"), day), grown = await book(select("S", "basic-wash"), day);
+  await s.updateAdminService(ADMIN, wash, { name: "Basic Wash Plus", category: "WASH", offers: [{ sizeCode: "S", state: "OFFERED", unitPriceCentavos: 19_900, compareAtCentavos: null }] }, opts());
+  const [pricedLine] = await lineIds(priced), [workedLine] = await lineIds(worked);
+  const after = await s.setLinePrice(ADMIN, priced, pricedLine, { expectedRevision: 1, priceCentavos: 21_000, reason: "Final price" }, opts());
+  // The booking keeps the name and price it was sold under.
+  assert.deepEqual([after.booking.lines[0].name, after.booking.totals.currentTotalCentavos], ["Basic Wash", 21_000]);
+  assert.equal((await s.setLineStatus(STAFF, worked, workedLine, { expectedRevision: 1, workStatus: "IN_PROGRESS" }, at(day))).booking.status, "IN_PROGRESS");
+  const added = await s.addLine(ADMIN, grown, { expectedRevision: 1, serviceId: bySlug(r0(), "arcane-graphene").id, quantity: 1 }, opts());
+  assert.equal(added.booking.lines.length, 2);
+});
