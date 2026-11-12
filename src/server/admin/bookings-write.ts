@@ -4,6 +4,7 @@ import type {
   AdminNotifyResult,
   AdminQueueDay,
   AdminWriteResult,
+  NoticeFailure,
 } from "@/types/admin-contracts";
 import { brandConfig } from "@/config/brand";
 import {
@@ -920,8 +921,11 @@ async function notifyOnce(
   if (!outcome.send)
     return { booking: outcome.booking, noChange: true, notice: "NO_EMAIL" };
   let notice: "SENT" | "NOT_SENT" = "NOT_SENT";
+  let failure: NoticeFailure | undefined;
   try {
-    notice = await (options.sender ?? unavailableSender).send(bookingId, v.type ?? "turn");
+    const sent = await (options.sender ?? unavailableSender).send(bookingId, v.type ?? "turn");
+    notice = sent === "SENT" ? "SENT" : "NOT_SENT";
+    if (sent !== "SENT" && sent !== "NOT_SENT") failure = sent;
   } catch {
     notice = "NOT_SENT";
   }
@@ -945,7 +949,7 @@ async function notifyOnce(
     actorStaffId: actor.staffId,
     notice,
   });
-  return { booking: outcome.booking, noChange: true, notice };
+  return { booking: outcome.booking, noChange: true, notice, ...(failure ? { reason: failure } : {}) };
 }
 
 // P1-34 (LE 2026-10-31): drop a car on Done. Every active service is marked done and the booking is

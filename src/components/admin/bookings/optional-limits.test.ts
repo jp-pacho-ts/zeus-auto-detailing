@@ -100,3 +100,12 @@ test("the Optional limits panel is not rendered and does not load the caps", () 
     assert.equal(urls.some((u) => u?.startsWith("/api/admin/schedule/caps")), false, role);
   }
 });
+
+test("a failed email says why, in plain words, without provider text", () => {
+  const { notifyNotice } = require("./model") as typeof import("./model");
+  assert.match(notifyNotice("NOT_SENT", "not_configured"), /not set up on the server/);
+  assert.match(notifyNotice("NOT_SENT", "refused"), /sender address is not verified/);
+  assert.match(notifyNotice("NOT_SENT", "rejected_key"), /API key/);
+  assert.match(notifyNotice("NOT_SENT"), /not set up or was refused/, "an older server without a reason still reads well");
+  assert.equal(notifyNotice("SENT"), "Email sent.");
+});

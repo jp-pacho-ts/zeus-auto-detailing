@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Booking, BookingLineItem, PrismaClient } from "@prisma/client";
 import { brandConfig } from "@/config/brand";
 import type { DayBookingView } from "@/types/contracts";
+import type { NoticeFailure } from "@/types/admin-contracts";
 import { prisma } from "../db";
 import { withBookingDb } from "../bookings-admission";
 import { bookingDbNow } from "../bookings-locks";
@@ -734,12 +735,12 @@ export async function sendTurnNotice(
   bookingId: string,
   options: Options = {},
   noticeType: "turn" | "reminder" | "confirmation" = "turn",
-): Promise<"SENT" | "NOT_SENT"> {
+): Promise<"SENT" | "NOT_SENT" | NoticeFailure> {
   try {
     const config = options.notification ?? notificationConfiguration();
     if (!config) {
       logEmailNotSent("turn_notice", "config_missing", bookingId);
-      return "NOT_SENT";
+      return "not_configured";
     }
     const booking = await withBookingDb(
       options.db ?? prisma,
@@ -769,7 +770,7 @@ export async function sendTurnNotice(
     );
     if (result === "sent") return "SENT";
     logEmailNotSent("turn_notice", result, bookingId);
-    return "NOT_SENT";
+    return result === "auth_rejected" ? "rejected_key" : result === "timeout" ? "timeout" : result === "unreachable" || result === "tls_failed" ? "unreachable" : "refused";
   } catch {
     logEmailNotSent("turn_notice", "error", bookingId);
     return "NOT_SENT";

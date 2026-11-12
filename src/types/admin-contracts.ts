@@ -175,7 +175,10 @@ export interface AdminDeleteResult {
 }
 export interface AdminNotifyResult extends AdminWriteResult {
   notice: "SENT" | "NOT_SENT" | "NO_EMAIL";
+  /** Why NOT_SENT, as a class only (never the provider's text). */
+  reason?: NoticeFailure;
 }
+export type NoticeFailure = "not_configured" | "rejected_key" | "refused" | "timeout" | "unreachable";
 
 export interface AdminHistoryItem {
   id: UUID;

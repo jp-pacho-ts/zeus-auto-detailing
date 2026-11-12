@@ -3,6 +3,7 @@ import type {
   AdminBookingDetail,
   AdminQueueBooking,
   AdminTotals,
+  NoticeFailure,
 } from "@/types/admin-contracts";
 import type { BookingStatus, UserRole } from "@/types/contracts";
 export const money = (value: number) =>
@@ -96,13 +97,21 @@ export const statusLabel = (status: string) =>
   })[status] ?? status;
 
 // P1-31: what staff read after pressing Notify customer. Plain words, no code labels.
-export const notifyNotice = (notice: "SENT" | "NOT_SENT" | "NO_EMAIL"): string =>
-  ({
-    SENT: "Email sent.",
-    NOT_SENT:
-      "Email could not be sent. The shop email is not set up or was refused, so nothing went out. Try again, or phone the customer.",
-    NO_EMAIL: "No customer email address is on file.",
-  })[notice];
+const NOT_SENT_BECAUSE: Record<NoticeFailure, string> = {
+  not_configured: "The shop email is not set up on the server (Railway email settings are missing).",
+  rejected_key: "The email service rejected the API key. Check the key in the Railway settings.",
+  refused: "The email service refused it. Usually the sender address is not verified there, or today's limit for this customer was reached.",
+  timeout: "The email service did not answer in time.",
+  unreachable: "The email service could not be reached.",
+};
+export const notifyNotice = (notice: "SENT" | "NOT_SENT" | "NO_EMAIL", reason?: NoticeFailure): string =>
+  notice === "SENT"
+    ? "Email sent."
+    : notice === "NO_EMAIL"
+      ? "No customer email address is on file."
+      : reason
+        ? "Email could not be sent. " + NOT_SENT_BECAUSE[reason] + " Nothing went out. Try again, or phone the customer."
+        : "Email could not be sent. The shop email is not set up or was refused, so nothing went out. Try again, or phone the customer.";
 
 export type PaymentMode = "CASH" | "CARD" | "ONLINE_QR" | "WALK_IN" | "PENDING";
 

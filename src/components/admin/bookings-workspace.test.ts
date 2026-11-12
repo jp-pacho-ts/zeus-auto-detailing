@@ -112,3 +112,12 @@ test("date range presets: weeks run Monday to Sunday, months end on their last d
   assert.deepEqual(presetRange("LAST_WEEK", "2026-11-09"), { from: "2026-11-02", to: "2026-11-08" });
   assert.deepEqual(presetRange("THIS_MONTH", "2028-02-10"), { from: "2028-02-01", to: "2028-02-29" }, "leap February");
 });
+
+test("forward ranges: tomorrow, next week (Monday to Sunday) and next month, across a year end", () => {
+  const { presetRange } = require("./bookings-tab") as typeof import("./bookings-tab");
+  assert.deepEqual(presetRange("TOMORROW", "2026-12-31"), { from: "2027-01-01", to: "2027-01-01" });
+  assert.deepEqual(presetRange("NEXT_WEEK", "2026-11-12"), { from: "2026-11-16", to: "2026-11-22" });
+  assert.deepEqual(presetRange("NEXT_MONTH", "2026-12-15"), { from: "2027-01-01", to: "2027-01-31" });
+  assert.deepEqual(presetRange("NEXT_MONTH", "2028-01-31"), { from: "2028-02-01", to: "2028-02-29" });
+  assert.deepEqual(presetRange("THIS_MONTH", "2026-11-12"), { from: "2026-11-01", to: "2026-11-30" });
+});

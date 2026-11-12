@@ -205,7 +205,7 @@ function BookingRows({
   );
 }
 
-type RangePreset = "TODAY" | "THIS_WEEK" | "LAST_WEEK" | "THIS_MONTH";
+type RangePreset = "TODAY" | "TOMORROW" | "THIS_WEEK" | "NEXT_WEEK" | "LAST_WEEK" | "THIS_MONTH" | "NEXT_MONTH";
 
 const addDays = (day: string, n: number) =>
   new Date(Date.parse(day + "T00:00:00Z") + n * 86_400_000).toISOString().slice(0, 10);
@@ -213,11 +213,13 @@ const addDays = (day: string, n: number) =>
 // Weeks run Monday to Sunday in the shop's own calendar day.
 export function presetRange(p: RangePreset, today: string): { from: string; to: string } {
   if (p === "TODAY") return { from: today, to: today };
-  if (p === "THIS_MONTH") {
-    const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7));
-    return { from: today.slice(0, 8) + "01", to: new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10) };
+  if (p === "TOMORROW") return { from: addDays(today, 1), to: addDays(today, 1) };
+  if (p === "THIS_MONTH" || p === "NEXT_MONTH") {
+    const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7)) + (p === "NEXT_MONTH" ? 1 : 0);
+    return { from: new Date(Date.UTC(y, m - 1, 1)).toISOString().slice(0, 10), to: new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10) };
   }
-  const monday = addDays(today, -((new Date(today + "T00:00:00Z").getUTCDay() + 6) % 7) - (p === "LAST_WEEK" ? 7 : 0));
+  const shift = p === "LAST_WEEK" ? -7 : p === "NEXT_WEEK" ? 7 : 0;
+  const monday = addDays(today, -((new Date(today + "T00:00:00Z").getUTCDay() + 6) % 7) + shift);
   return { from: monday, to: addDays(monday, 6) };
 }
 
@@ -683,9 +685,12 @@ function BookingsList({
                       className={fieldClass}
                     >
                       <option value="TODAY">Today</option>
+                      <option value="TOMORROW">Tomorrow</option>
                       <option value="THIS_WEEK">This week</option>
+                      <option value="NEXT_WEEK">Next week</option>
                       <option value="LAST_WEEK">Last week</option>
                       <option value="THIS_MONTH">This month</option>
+                      <option value="NEXT_MONTH">Next month</option>
                       <option value="CUSTOM">Custom range…</option>
                     </select>
                   </label>

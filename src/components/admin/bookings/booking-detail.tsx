@@ -164,7 +164,7 @@ export function BookingDetail({
       } else {
         setNotice(
           "notice" in result
-            ? notifyNotice(result.notice)
+            ? notifyNotice(result.notice, result.reason)
             : result.noChange
               ? "No change was needed."
               : "Booking updated.",

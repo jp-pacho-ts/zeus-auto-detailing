@@ -1,5 +1,6 @@
 import "server-only";
 import { sendTurnNotice } from "@/server/notifications/bookings";
+import type { NoticeFailure } from "@/types/admin-contracts";
 
 // "Your turn is coming" (ADR-005 §18). P1-03 owns the email send; P1-07 codes against this
 // interface (PM decision D2) and the integrator wires P1-03's function in. Until then the
@@ -7,7 +8,7 @@ import { sendTurnNotice } from "@/server/notifications/bookings";
 export type NoticeType = "turn" | "reminder" | "confirmation";
 
 export interface TurnNoticeSender {
-  send(bookingId: string, type?: NoticeType): Promise<"SENT" | "NOT_SENT">;
+  send(bookingId: string, type?: NoticeType): Promise<"SENT" | "NOT_SENT" | NoticeFailure>;
 }
 export const unavailableSender: TurnNoticeSender = { async send() { return "NOT_SENT"; } };
 
