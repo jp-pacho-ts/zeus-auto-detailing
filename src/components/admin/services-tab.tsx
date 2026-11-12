@@ -139,7 +139,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
       customVal = "0";
     } else if (commBp !== null && commBp !== undefined) {
       mode = "CUSTOM";
-      customVal = (commBp / 100).toString();
+      customVal = String(Math.round(commBp / 100)); // whole percent only: an old 29.98 opens as 30
     }
     setEditCommissionMode(mode);
     setEditCommissionRate(customVal);
@@ -849,11 +849,14 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     <div className="relative mt-1.5">
                       <input
                         type="number"
-                        step="0.01"
-                        min="0.01"
+                        step="1"
+                        inputMode="numeric"
+                        // Whole percentages only (LE 2026-11-12), and the mouse wheel never changes a typed rate (it stepped 30 to 29.95).
+                        onWheel={(e) => e.currentTarget.blur()}
+                        min="1"
                         max="100"
                         value={editCommissionRate}
-                        onChange={(e) => setEditCommissionRate(e.target.value)}
+                        onChange={(e) => setEditCommissionRate(e.target.value.replace(/\D/g, "").slice(0, 3))}
                         placeholder="e.g. 10"
                         className="w-full rounded border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none pr-8"
                       />
@@ -1165,11 +1168,14 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     <div className="relative mt-1.5">
                       <input
                         type="number"
-                        step="0.01"
-                        min="0.01"
+                        step="1"
+                        inputMode="numeric"
+                        // Whole percentages only (LE 2026-11-12), and the mouse wheel never changes a typed rate (it stepped 30 to 29.95).
+                        onWheel={(e) => e.currentTarget.blur()}
+                        min="1"
                         max="100"
                         value={createCommissionRate}
-                        onChange={(e) => setCreateCommissionRate(e.target.value)}
+                        onChange={(e) => setCreateCommissionRate(e.target.value.replace(/\D/g, "").slice(0, 3))}
                         placeholder="e.g. 10"
                         className="w-full rounded border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none pr-8"
                       />
