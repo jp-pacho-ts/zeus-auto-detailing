@@ -1,6 +1,8 @@
 // P1-31: failed customer emails are classified and logged without any secret, and staff see plain words.
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { afterEach, beforeEach, test } from "node:test";
+// The per-address daily email cap counts across tests in one process; each test starts from zero.
+beforeEach(async () => (await import("@/server/notifications/bookings")).resetSendGuard());
 import { classifySmtpError, logEmailNotSent, resetEmailFailureLog, sendSmtpClassified, sendTurnNotice } from "./bookings";
 import { notifyNotice } from "@/components/admin/bookings/model";
 

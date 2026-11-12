@@ -4,7 +4,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { after, before, test } from "node:test";
+import { after, before, beforeEach, test } from "node:test";
+// The per-address daily email cap counts across tests in one process; each test starts from zero.
+beforeEach(async () => (await import("@/server/notifications/bookings")).resetSendGuard());
 import { PrismaClient } from "@prisma/client";
 import type { CatalogSelection } from "@/types/catalog-contracts";
 import { bySlug, readManifest, releaseFromManifest, sizeId } from "../catalog.fixture";

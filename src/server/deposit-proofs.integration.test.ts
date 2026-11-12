@@ -3,7 +3,9 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
-import { after, before, test } from "node:test";
+import { after, before, beforeEach, test } from "node:test";
+// The per-address daily email cap counts across tests in one process; each test starts from zero.
+beforeEach(async () => (await import("@/server/notifications/bookings")).resetSendGuard());
 import { PrismaClient } from "@prisma/client";
 import { NextRequest } from "next/server";
 import sharp from "sharp";

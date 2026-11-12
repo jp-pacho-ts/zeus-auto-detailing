@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { beforeEach, test } from "node:test";
+// The per-address daily email cap counts across tests in one process; each test starts from zero.
+beforeEach(async () => (await import("@/server/notifications/bookings")).resetSendGuard());
 import { notificationConfiguration, sendSmtpClassified, customerReminderMessage } from "./bookings";
 import type { DayBookingView } from "@/types/contracts";
 

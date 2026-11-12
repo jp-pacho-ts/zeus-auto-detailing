@@ -4,7 +4,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { after, before, test } from "node:test";
+import { after, before, beforeEach, test } from "node:test";
+// The per-address daily email cap counts across tests in one process; each test starts from zero.
+beforeEach(async () => (await import("@/server/notifications/bookings")).resetSendGuard());
 import { PrismaClient } from "@prisma/client";
 import type { CatalogSelection } from "@/types/catalog-contracts";
 import type { AdminBookingDetail } from "@/types/admin-contracts";
@@ -1319,4 +1321,34 @@ test("a service edited on the Services page does not block price, status or adde
   assert.equal((await s.setLineStatus(STAFF, worked, workedLine, { expectedRevision: 1, workStatus: "IN_PROGRESS" }, at(day))).booking.status, "IN_PROGRESS");
   const added = await s.addLine(ADMIN, grown, { expectedRevision: 1, serviceId: bySlug(r0(), "arcane-graphene").id, quantity: 1 }, opts());
   assert.equal(added.booking.lines.length, 2);
+});
+
+test("the 1-day reminder goes out once, even when the shop's only admin is a SUPERADMIN", { skip }, async () => {
+  const { drainBookingReminders, resetSendGuard } = await import("../notifications/bookings");
+  resetSendGuard();
+  const tomorrow = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" })
+    .format(new Date(Date.now() + 86_400_000));
+  // regular-tint: an earlier test in this file edits basic-wash on the Services page.
+  const id = await book(select("S", "regular-tint"), tomorrow, { customerEmail: "reminder@example.test" });
+  const roles = await db.staff.findMany({ where: { role: { in: ["ADMIN", "MANAGER"] } }, select: { id: true, role: true } });
+  await db.staff.updateMany({ where: { id: { in: roles.map((r) => r.id) } }, data: { role: "SUPERADMIN" } });
+  const sent: string[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: unknown, init?: { body?: string }) => {
+    sent.push(JSON.parse(String(init?.body)).to[0]);
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+  try {
+    const notification = { provider: "resend" as const, resendApiKey: "test-key", host: "api.resend.com", port: 443, secure: true,
+      user: "resend", password: "test-key", from: "Shop <shop@example.test>", shopEmail: "shop@example.test", origin: "https://shop.example.test" };
+    // Three ticks of the 30-second timer, one of them racing another.
+    // 100 ticks of the 30-second timer (50 minutes), plus two racing ticks.
+    for (let i = 0; i < 100; i++) await drainBookingReminders({ db: app, notification });
+    await Promise.all([drainBookingReminders({ db: app, notification }), drainBookingReminders({ db: app, notification })]);
+    assert.deepEqual(sent, ["reminder@example.test"], "one email, not one per tick");
+    assert.equal(await db.bookingAuditEvent.count({ where: { bookingId: id, reason: "APPOINTMENT_REMINDER_1_DAY_BEFORE" } }), 1);
+  } finally {
+    globalThis.fetch = realFetch;
+    for (const r of roles) await db.staff.update({ where: { id: r.id }, data: { role: r.role } });
+  }
 });

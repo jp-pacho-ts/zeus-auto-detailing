@@ -9,7 +9,8 @@ import { bookingDbNow } from "../bookings-locks";
 import { publicDayBooking } from "../bookings-view";
 import nodemailer from "nodemailer";
 export interface NotificationConfiguration {
-  provider?: "resend" | "smtp";
+  provider?: "brevo" | "resend" | "smtp";
+  brevoApiKey?: string;
   resendApiKey?: string;
   host: string;
   port: number;
@@ -39,6 +40,17 @@ function cleanEnvValue(val: string | undefined): string | undefined {
 export function notificationConfiguration(
   env: Record<string, string | undefined> = process.env,
 ): NotificationConfiguration | null {
+  const brevoApiKey = cleanEnvValue(env.BREVO_API_KEY);
+  const brevoFrom = cleanEnvValue(env.BREVO_FROM);
+  const brevoShop = cleanEnvValue(env.BREVO_SHOP_NOTIFY_EMAIL);
+  if (brevoApiKey && brevoFrom && brevoShop) {
+    let origin = "https://zeusautodetailingtacloban.com";
+    try {
+      const url = new URL(cleanEnvValue(env.APP_ORIGIN) ?? origin);
+      if (["http:", "https:"].includes(url.protocol)) origin = url.origin;
+    } catch { /* keep the default */ }
+    return { provider: "brevo", brevoApiKey, host: "api.brevo.com", port: 443, secure: true, user: "brevo", password: brevoApiKey, from: brevoFrom, shopEmail: brevoShop, origin };
+  }
   const resendApiKey = cleanEnvValue(env.RESEND_API_KEY);
   if (resendApiKey) {
     const rawOrigin = cleanEnvValue(env.APP_ORIGIN) || "https://zeusautodetailingtacloban.com";
@@ -435,12 +447,62 @@ export async function sendSmtpMessage(
 ): Promise<boolean> {
   return (await sendSmtpClassified(config, to, message, messageId)) === "sent";
 }
+// Last line of defence against a send loop: whatever the caller does, one address gets at most
+// CUSTOMER_DAILY_CAP emails a day (the shop inbox SHOP_DAILY_CAP). Every legitimate flow sends a
+// customer at most 1 confirmation + 1 auto reminder + 3 manual notices = 5.
+// shortcut: counts live in this process only (reset on restart, per instance); move to the database if the app runs more than one instance.
+export const CUSTOMER_DAILY_CAP = 6;
+export const SHOP_DAILY_CAP = 300;
+const sendLog = new Map<string, number[]>();
+export function resetSendGuard(): void { sendLog.clear(); }
+export function allowSend(to: string, shopEmail: string, now = Date.now()): boolean {
+  const key = to.trim().toLowerCase();
+  const cap = key === shopEmail.trim().toLowerCase() ? SHOP_DAILY_CAP : CUSTOMER_DAILY_CAP;
+  const recent = (sendLog.get(key) ?? []).filter((t) => t > now - 86_400_000);
+  if (recent.length >= cap) { sendLog.set(key, recent); return false; }
+  recent.push(now);
+  sendLog.set(key, recent);
+  return true;
+}
+
 export async function sendSmtpClassified(
   config: NotificationConfiguration,
   to: string,
   message: { subject: string; text: string; html?: string },
   messageId: string,
 ): Promise<"sent" | Exclude<EmailFailureReason, "config_missing">> {
+  if (!allowSend(to, config.shopEmail)) {
+    console.error(JSON.stringify({ event: "email.daily_cap_reached", subject: message.subject.slice(0, 60) }));
+    return "refused";
+  }
+  if (config.provider === "brevo" && config.brevoApiKey) {
+    // BREVO_FROM is "Name <address>" or a bare address; the address must be a verified Brevo sender.
+    const m = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(config.from);
+    const sender = m ? { name: m[1] || undefined, email: m[2] } : { email: config.from };
+    try {
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: { "api-key": config.brevoApiKey, "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          sender,
+          to: [{ email: to }],
+          subject: message.subject,
+          textContent: message.text,
+          ...(message.html ? { htmlContent: message.html } : {}),
+          headers: { "Message-ID": messageId },
+        }),
+      });
+      if (res.ok) return "sent";
+      const data = (await res.json().catch(() => ({}))) as { code?: string };
+      console.warn(JSON.stringify({ event: "brevo.error", status: res.status, code: data.code }));
+      if (res.status === 401 || res.status === 403) return "auth_rejected";
+      if (res.status === 408 || res.status === 504) return "timeout";
+      if (res.status >= 500) return "unreachable";
+      return "refused";
+    } catch {
+      return "unreachable";
+    }
+  }
   if (config.provider === "resend" && config.resendApiKey) {
     try {
       const res = await fetch("https://api.resend.com/emails", {
@@ -728,49 +790,40 @@ export async function drainBookingReminders(options: Options = {}): Promise<numb
     }),
   );
 
+  // This runs every 30 s. The reminder is recorded BEFORE it is sent, so a failed record can never
+  // cause a resend: before, a shop with only a SUPERADMIN (or any error after sending) had no record
+  // and the same customer got the reminder every 30 s. A send that fails after the record is not retried.
   let sentCount = 0;
   for (const b of bookings) {
     if (!b.customerEmail) continue;
-
-    const alreadySent = await withBookingDb(db, "NOTIFICATION", (tx) =>
-      tx.bookingAuditEvent.findFirst({
-        where: {
-          bookingId: b.id,
-          action: "CUSTOMER_NOTIFIED",
-          reason: "APPOINTMENT_REMINDER_1_DAY_BEFORE",
-        },
+    const claimed = await withBookingDb(db, "NOTIFICATION", async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"booking-reminder:" + b.id}))`;
+      const already = await tx.bookingAuditEvent.findFirst({
+        where: { bookingId: b.id, action: "CUSTOMER_NOTIFIED", reason: "APPOINTMENT_REMINDER_1_DAY_BEFORE" },
         select: { id: true },
-      }),
-    );
-    if (alreadySent) continue;
+      });
+      if (already) return false;
+      const actor = await tx.staff.findFirst({
+        where: { role: { in: ["SUPERADMIN", "ADMIN"] }, isActive: true, removedAt: null },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (!actor) return false; // nobody to record it under: send nothing rather than send unrecorded
+      await tx.bookingAuditEvent.create({
+        data: { bookingId: b.id, actorStaffId: actor.id, action: "CUSTOMER_NOTIFIED", reason: "APPOINTMENT_REMINDER_1_DAY_BEFORE" },
+      });
+      return true;
+    });
+    if (!claimed) continue;
 
-    const view = publicDayBooking(b);
-    const message = customerReminderMessage(view, config.origin);
     const result = await sendSmtpClassified(
       config,
       b.customerEmail,
-      message,
-      `<booking-reminder-auto.${b.id}.${Date.now()}@${new URL(config.origin).hostname}>`,
+      customerReminderMessage(publicDayBooking(b), config.origin),
+      `<booking-reminder-auto.${b.id}@${new URL(config.origin).hostname}>`,
     );
-
-    if (result === "sent") {
-      sentCount++;
-      const actorStaff = await withBookingDb(db, "NOTIFICATION", (tx) =>
-        tx.staff.findFirst({ where: { role: "ADMIN", isActive: true }, select: { id: true } }),
-      );
-      if (actorStaff) {
-        await withBookingDb(db, "NOTIFICATION", (tx) =>
-          tx.bookingAuditEvent.create({
-            data: {
-              bookingId: b.id,
-              actorStaffId: actorStaff.id,
-              action: "CUSTOMER_NOTIFIED",
-              reason: "APPOINTMENT_REMINDER_1_DAY_BEFORE",
-            },
-          }),
-        );
-      }
-    }
+    if (result === "sent") sentCount++;
+    else logEmailNotSent("reminder", result, b.id);
   }
   return sentCount;
 }
