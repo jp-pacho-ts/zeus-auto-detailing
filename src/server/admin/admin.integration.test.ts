@@ -1368,3 +1368,13 @@ test("Services page: L and XL save a pick-up price, other sizes cannot, and the 
   await s.updateAdminService(ADMIN, tint, { name: before.name, category: "TINT", commissionRatePercent: null, offers: [keep("L"), keep("XL")] }, opts());
   assert.ok((await s.listAdminServices(ADMIN, opts())).services.find((x) => x.id === tint)!.offers.every((o) => (o.pickupPriceCentavos ?? null) === null));
 });
+
+test("Add service: a new service joins its group's queue (tint and PPF share one), so non-wash services can be created", { skip }, async () => {
+  const offers = ["MOTOR", "S", "M", "L", "XL"].map((sizeCode) => ({ sizeCode, state: sizeCode === "MOTOR" ? "NOT_OFFERED" : "OFFERED", unitPriceCentavos: sizeCode === "MOTOR" ? null : 1_600_000, compareAtCentavos: null }));
+  const want: Record<string, string> = { WASH: "WASH", TINT: "TINT_PPF", PPF: "TINT_PPF", REPAINT: "REPAINT", DETAILING: "DETAILING_COATING", GRAPHENE: "DETAILING_COATING" };
+  for (const [category, queue] of Object.entries(want)) {
+    const { serviceId } = await s.createAdminService(ADMIN, { name: "Queue check " + category, category, offers }, opts());
+    const [row] = await db.$queryRaw<{ q: string }[]>`SELECT v."queueCode" AS q FROM catalog_service_versions v JOIN catalog_head h ON h."releaseId" = v."releaseId" WHERE v."serviceId" = ${serviceId}`;
+    assert.equal(row.q, queue, category);
+  }
+});
