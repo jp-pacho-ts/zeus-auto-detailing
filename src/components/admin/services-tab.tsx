@@ -93,21 +93,21 @@ function SizeCommissionBoxes({ mode, values, onChange }: { mode: CommissionMode;
   if (!PER_SIZE.includes(mode)) return null;
   const percent = mode === "SIZE_PERCENT";
   return (
-    <div className="mt-1.5 grid grid-cols-5 gap-1.5">
+    <div className="mt-2 space-y-1.5 rounded border border-border bg-raised p-2.5">
       {SIZE_ORDER.map((size) => (
-        <label key={size} className="text-xs text-muted-foreground">
-          {SIZE_LABEL[size]}
-          <span className="relative mt-0.5 block">
-            {!percent && <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₱</span>}
+        <label key={size} className="flex items-center justify-between gap-3 text-sm text-foreground">
+          <span>{SIZE_LABEL[size]}</span>
+          <span className="relative block w-28 shrink-0">
+            {!percent && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₱</span>}
             <input
               type="text"
               inputMode="numeric"
               value={values[size] ?? "0"}
               onChange={(e) => onChange({ ...values, [size]: e.target.value.replace(/\D/g, "").slice(0, percent ? 3 : 7) })}
               aria-label={`${SIZE_LABEL[size]} commission ${percent ? "percent" : "pesos"}`}
-              className={`w-full rounded border border-border bg-card py-1.5 text-xs text-foreground focus:border-primary focus:outline-none ${percent ? "px-2 pr-5" : "pl-5 pr-2"}`}
+              className={`h-9 w-full rounded border border-border bg-card text-right text-sm text-foreground focus:border-primary focus:outline-none ${percent ? "pl-2.5 pr-7" : "pl-6 pr-2.5"}`}
             />
-            {percent && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>}
+            {percent && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>}
           </span>
         </label>
       ))}
