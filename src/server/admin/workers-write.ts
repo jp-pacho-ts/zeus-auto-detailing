@@ -97,9 +97,8 @@ async function worker(
       fromRevision: v.expectedRevision,
       toRevision: v.expectedRevision + 1,
     });
-    if (b.status === "COMPLETED") {
-      await tx.$executeRaw`SELECT public.commission_accrue(${bookingId})`;
-    }
+    // On a COMPLETED booking the owner-run trigger commission_accrue_on_late_assign re-runs the accrual in this transaction
+    // (P1-74); the runtime role cannot call commission_accrue itself (P1-37).
     return { booking: await detailOrThrow(tx, bookingId), noChange: false };
   });
 }

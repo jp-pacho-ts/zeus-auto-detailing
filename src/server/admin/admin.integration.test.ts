@@ -1228,6 +1228,28 @@ test("P1-17 DB retention: even an audited ADMIN delete cannot erase completed wo
   assert.equal((await detail(id)).revision, 4);
 });
 
+// P1-74 (CEO D-1 in P1-71; CEO chose option B): a name can still be ADDED to a completed booking (late attribution), and the
+// owner-run trigger commission_accrue_on_late_assign re-runs the accrual, so the late worker is credited. The app never calls the
+// accrual itself (it stays owner-only, P1-37). runtime-role-suites.check.ts reruns this file as zeus_app, so this also proves the
+// runtime role can do it after prisma/sql/runtime-role.sql.
+test("P1-74 a worker added to a completed booking is credited through the trigger, including as the runtime role", { skip }, async () => {
+  const day = "2027-06-25";
+  const id = await book(select("S", "basic-wash", "regular-tint"), day);
+  const revision = async () => (await db.booking.findUniqueOrThrow({ where: { id } })).revision;
+  const tint = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: id, serviceId: bySlug(r0(), "regular-tint").id } });
+  await s.setLinePrice(ADMIN, id, tint.id, { expectedRevision: await revision(), priceCentavos: 100_000, reason: "P1-74 test price" }, at(day));
+  await s.assignWorker(ADMIN, id, STAFF.staffId, { expectedRevision: await revision() }, opts());
+  for (const lineId of await lineIds(id)) await s.setLineStatus(STAFF, id, lineId, { expectedRevision: await revision(), workStatus: "DONE" }, at(day));
+  await s.setBookingStatus(STAFF, id, { expectedRevision: await revision(), status: "COMPLETED" }, at(day));
+  const credited = async () => (await db.commissionEntry.findMany({ where: { bookingId: id } })).map((e) => e.staffId).sort();
+  assert.deepEqual(await credited(), [STAFF.staffId], "completion credited the first worker");
+  const late = await db.staff.create({ data: { name: "Late attribution worker", email: "late174@example.test", phone: "", role: "DETAILER" } });
+  const result = await s.assignWorker(ADMIN, id, late.id, { expectedRevision: await revision() }, opts());
+  assert.equal(result.noChange, false);
+  assert.deepEqual(result.booking.assignedWorkers.map((w) => w.staffId).sort(), [STAFF.staffId, late.id].sort());
+  assert.deepEqual(await credited(), [STAFF.staffId, late.id].sort(), "the late worker is credited too (re-accrued by the trigger)");
+});
+
 // P1-28 (live bug): a booking for a later day was put in a bay and started on today's board.
 test("P1-28: before its Manila day a booking can't take a bay, start a service, start or complete; confirming ahead stays allowed", { skip }, async () => {
   const day = "2027-03-03"; // NOW is 10:00 Manila on 2027-03-01
