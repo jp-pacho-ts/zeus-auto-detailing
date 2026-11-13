@@ -137,11 +137,12 @@ export function NotificationPopover({
         )}
       </button>
 
+      {/* P1-70: below lg the bell is not at the screen edge, so the panel is pinned to the viewport (it was clipped 187 px at 390). */}
       {open && (
         <div
           role="dialog"
           aria-label="Real-time notifications panel"
-          className="absolute right-0 top-full z-50 mt-2 w-[340px] rounded-xl border border-border bg-panel shadow-2xl sm:w-[420px] animate-in fade-in-0 zoom-in-95"
+          className="fixed inset-x-3 top-14 z-50 mt-2 rounded-xl border border-border bg-panel shadow-2xl sm:left-auto sm:w-[420px] md:top-16 lg:absolute lg:inset-x-auto lg:right-0 lg:top-full animate-in fade-in-0 zoom-in-95"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">

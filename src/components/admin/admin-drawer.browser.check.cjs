@@ -22,10 +22,10 @@ test('mobile drawer contains focus, makes background inert, restores focus and p
     const page = await context.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
+    await page.getByLabel('Staff Email or Username').fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
-    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();
     const firstMenu = page.locator('button[aria-controls=admin-nav]');
     if (await firstMenu.isVisible()) await firstMenu.click();
     await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
@@ -33,12 +33,13 @@ test('mobile drawer contains focus, makes background inert, restores focus and p
     const nav = page.locator('#admin-nav');
     const menu = page.locator('button[aria-controls=admin-nav]');
     const shot = async name => { if (process.env.P120_DRAWER_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.P120_DRAWER_SCREENSHOTS, name + '.png') }); };
+    // P1-70: Sign out left the sidebar (362b5a1). Its last control is now Settings in the drawer and Collapse sidebar on desktop; Team & Commissions is now Staff.
     for (const width of [390, 767]) {
       await page.setViewportSize({ width, height: 900 });
       await menu.click();
       await nav.getByRole('button', { name: 'Bookings', exact: true }).waitFor();
       await shot(width + '-open');
-      await nav.getByRole('button', { name: 'Sign out', exact: true }).focus();
+      await nav.getByRole('button', { name: 'Settings', exact: true }).focus();
       await page.keyboard.press('Tab');
       assert.equal(await nav.evaluate(el => el.contains(document.activeElement)), true, width + 'px Tab must stay in drawer');
       await nav.getByRole('link', { name: 'Return to public shop site' }).focus();
@@ -64,12 +65,12 @@ test('mobile drawer contains focus, makes background inert, restores focus and p
       await page.setViewportSize({ width: 1280, height: 900 });
       await page.waitForFunction(() => !document.querySelector('#admin-content').closest('[inert]'));
       assert.equal(await nav.getAttribute('aria-modal'), null, 'desktop sidebar is not modal');
-      await nav.getByRole('button', { name: 'Sign out', exact: true }).focus(); await page.keyboard.press('Tab');
+      await nav.getByRole('button', { name: 'Collapse sidebar', exact: true }).focus(); await page.keyboard.press('Tab');
       assert.equal(await page.locator('header').getByRole('link', { name: /Public Site/ }).evaluate(el => el === document.activeElement), true, 'desktop Tab leaves sidebar normally');
       await page.keyboard.press('Shift+Tab');
-      assert.equal(await nav.getByRole('button', { name: 'Sign out', exact: true }).evaluate(el => el === document.activeElement), true, 'desktop Shift+Tab returns normally');
-      await nav.getByRole('button', { name: 'Team & Commissions', exact: true }).click();
-      await page.getByRole('heading', { name: 'Team & Commissions', exact: true }).waitFor();
+      assert.equal(await nav.getByRole('button', { name: 'Collapse sidebar', exact: true }).evaluate(el => el === document.activeElement), true, 'desktop Shift+Tab returns normally');
+      await nav.getByRole('button', { name: 'Staff', exact: true }).click();
+      await page.getByRole('heading', { name: 'Staff', exact: true }).waitFor();
       await shot(width + '-desktop');
       await nav.getByRole('button', { name: 'Bookings', exact: true }).click();
     }
