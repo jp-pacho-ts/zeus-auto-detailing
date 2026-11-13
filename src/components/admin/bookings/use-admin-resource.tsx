@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   AdminBoardSkeleton,
   AdminRowsSkeleton,
@@ -78,8 +79,85 @@ export function useAdminResource<T>(
     setState({ key, data, error: null, loading: false });
   return { ...current, setData, reload, load };
 }
-export const fieldClass =
-  "mt-1 min-h-[44px] w-full rounded border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
+const fieldBase =
+  "min-h-[44px] rounded border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60";
+export const fieldClass = "mt-1 w-full " + fieldBase;
+// P1-76: one date style. 44 px tall, sized to its content, the calendar icon kept off the edge.
+export const dateClass =
+  "mt-1 w-auto min-w-[10.5rem] " + fieldBase + " [&::-webkit-calendar-picker-indicator]:ml-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70";
+
+// P1-76: one select style. A native select (keyboard, screen readers and phone pickers unchanged) with our own chevron 12 px in.
+export function Select({ className = "", wrapperClassName = "", ...props }: React.ComponentProps<"select"> & { wrapperClassName?: string }) {
+  return (
+    <span className={"relative mt-1 block " + wrapperClassName}>
+      <select {...props} className={"w-full appearance-none pr-9 " + fieldBase + " " + className} />
+      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    </span>
+  );
+}
+
+// P1-76: the day control shared by the Bookings day view and the Bay board: previous, the date, next, Today.
+export function DayStepper({
+  label,
+  value,
+  today,
+  onChange,
+  disabled = false,
+  inputId,
+  inputLabel,
+}: {
+  label: string;
+  value: string;
+  today: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+  inputId?: string;
+  inputLabel?: string;
+}) {
+  const step = (days: number) => {
+    const d = new Date(value + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + days);
+    onChange(d.toISOString().slice(0, 10));
+  };
+  const square =
+    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded border border-border bg-card text-muted-foreground hover:bg-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60";
+  return (
+    <div className="flex items-end gap-2">
+      <button type="button" aria-label="Previous day" className={square} disabled={disabled} onClick={() => step(-1)}>
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+      </button>
+      <label className="text-xs font-semibold text-muted-foreground">
+        {label}
+        <input
+          id={inputId}
+          aria-label={inputLabel}
+          type="date"
+          value={value}
+          required
+          disabled={disabled}
+          className={dateClass + " block"}
+          onChange={(e) => e.target.value && onChange(e.target.value)}
+        />
+      </label>
+      <button type="button" aria-label="Next day" className={square} disabled={disabled} onClick={() => step(1)}>
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      </button>
+      {/* On today it reads as selected, not as a broken disabled button. */}
+      <button
+        type="button"
+        aria-pressed={value === today}
+        disabled={disabled}
+        onClick={() => onChange(today)}
+        className={
+          "min-h-[44px] rounded border px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60 " +
+          (value === today ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-card text-foreground hover:bg-raised")
+        }
+      >
+        Today
+      </button>
+    </div>
+  );
+}
 export function LoadState({
   loading,
   error,

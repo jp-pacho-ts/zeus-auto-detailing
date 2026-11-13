@@ -93,7 +93,8 @@ test("the Bookings page has one mode switch, one day control and one Status filt
   assert.doesNotMatch(html, /Yesterday|Tomorrow|Last week|Find bookings|Day(&#x27;|')s Bookings/, "the old duplicate controls are gone");
   assert.doesNotMatch(html, /Booking status|Search status|Refresh queues/);
   assert.equal((html.match(/<select/g) ?? []).length, 1, "one Status filter on the day view");
-  assert.match(html, /<label[^>]*>Status<select/);
+  // P1-76: the shared Select wraps the native select with its own chevron; the Status label still holds it.
+  assert.match(html, /<label[^>]*>Status<span[^>]*><select[^>]*class="[^"]*appearance-none[^"]*pr-9/);
   assert.doesNotMatch(html, /<h1/, "the portal owns the page title");
 });
 
