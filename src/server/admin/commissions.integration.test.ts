@@ -1020,3 +1020,39 @@ test("C38 per-size commission: % per size and fixed pesos per size; other sizes 
     await setMode(wash, "Basic Wash", "WASH", null);
   }
 });
+
+// P1-74 (CEO option B; Security conditions 4 and 6): adding a name to a COMPLETED booking re-runs the accrual through the owner-run
+// trigger commission_accrue_on_late_assign. The app never calls commission_accrue (it stays owner-only, P1-37).
+test("L1 adding a worker to an open booking accrues nothing", { skip }, async () => {
+  const w = await person("L1 Worker", "10"), late = await person("L1 Late", "10");
+  const job = await inProgress([w.id], 50_000);
+  await s.assignWorker(ADMIN, job.id, late.id, { expectedRevision: await rev(job.id) }, at(job.day));
+  assert.equal(await header(job.id), null, "no accrual header while the booking is open");
+  assert.equal((await entries(job.id)).length, 0);
+});
+
+test("L2 a late worker on a completed booking is credited once; the crew is split again, no double credit", { skip }, async () => {
+  const w = await person("L2 Worker", "10"), late = await person("L2 Late", "10");
+  const job = await completed([w.id], 50_000);
+  assert.deepEqual((await entries(job.id)).map((e) => [e.staffId, e.amountCentavos]), [[w.id, 5_000]], "completion credited one worker");
+  await s.assignWorker(ADMIN, job.id, late.id, { expectedRevision: await rev(job.id) }, at(job.day));
+  const after = await entries(job.id);
+  assert.deepEqual(after.map((e) => e.staffId).sort(), [w.id, late.id].sort(), "both credited, each once");
+  assert.equal(after.reduce((t, e) => t + e.amountCentavos, 0), 5_000, "the same 10% of the base, now shared");
+  assert.equal((await header(job.id))!.creditedCount, 2);
+  // Re-running the accrual with the same crew changes nothing.
+  const [{ n }] = await db.$queryRawUnsafe<{ n: number }[]>(`SELECT public.commission_accrue('${job.id}') AS n`);
+  assert.equal(Number(n), 0);
+  assert.deepEqual(await entries(job.id), after);
+});
+
+test("L3 paid commission is never changed by a late worker", { skip }, async () => {
+  const w = await person("L3 Worker", "10"), late = await person("L3 Late", "10");
+  const job = await completed([w.id], 50_000);
+  const [paid] = await entries(job.id);
+  await s.setCommissionsPaid(ADMIN, { ids: [paid.id], paid: true }, opts());
+  const before = await entries(job.id);
+  await s.assignWorker(ADMIN, job.id, late.id, { expectedRevision: await rev(job.id) }, at(job.day));
+  assert.deepEqual(await entries(job.id), before, "the paid entry and its amount are untouched; nobody else is credited");
+  assert.deepEqual((await s.getBookingDetail(ADMIN, job.id, opts())).assignedWorkers.map((x) => x.staffId).sort(), [w.id, late.id].sort(), "the name is still recorded");
+});
