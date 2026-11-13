@@ -2,6 +2,8 @@
 
 /* Tailwind 4 ignores tailwind.config.ts: without this, dark: follows the device's colour scheme, not the html class the theme toggle sets. */
 @custom-variant dark (&:where(.dark, .dark *));
+/* P1-70: button.tsx uses light: classes; only /admin sets html.light, so the public site is unaffected. */
+@custom-variant light (&:where(.light, .light *));
 
 @theme inline {
   --color-background: rgb(var(--background));

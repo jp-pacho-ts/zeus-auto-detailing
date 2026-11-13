@@ -33,10 +33,10 @@ test('only an ADMIN can delete a booking, after typing its reference code', { ti
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or ID').fill(email);
+    await page.getByLabel('Staff Email or Username').fill(email);
     await page.getByLabel('Password', { exact: true }).fill(password);
     await page.getByRole('button', { name: /sign in/i }).click();
-    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();
     await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
     return { context, page };
@@ -61,6 +61,8 @@ test('only an ADMIN can delete a booking, after typing its reference code', { ti
     await card.getByRole('button', { name: ref, exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByText('Booking details').waitFor();
+    // P1-68: Delete booking sits in a closed Manage booking row; open it first.
+    await dialog.locator('summary', { hasText: 'Delete booking' }).click();
     const button = dialog.getByRole('button', { name: 'Delete booking', exact: true });
     const input = dialog.getByLabel('Type ' + ref + ' to confirm');
     assert.match(await dialog.getByText(/removes it from history, from the day.s counts and from any totals/).innerText(), /A short record that you deleted it is kept/);

@@ -37,10 +37,10 @@ test('click anywhere on a board card opens its details modal; controls and drags
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or ID').fill(email);
+    await page.getByLabel('Staff Email or Username').fill(email);
     await page.getByLabel('Password', { exact: true }).fill(password);
     await page.getByRole('button', { name: /sign in/i }).click();
-    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();
     const menu = page.locator('button[aria-controls=admin-nav]');
     if (await menu.isVisible()) await menu.click();
     await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
@@ -129,6 +129,8 @@ test('click anywhere on a board card opens its details modal; controls and drags
     const moved = washRow.getByRole('region', { name: emptyBay, exact: true }).getByRole('article', { name: ref, exact: true });
     await moved.getByText(/Synthetic Vehicle|·/).first().click();
     await dialog.waitFor();
+    // P1-68: Delete booking sits in a closed Manage booking row; open it first.
+    await dialog.locator('summary', { hasText: 'Delete booking' }).click();
     const del = dialog.getByRole('button', { name: 'Delete booking', exact: true });
     assert.equal(await del.isDisabled(), true, 'Delete booking needs the typed code');
     await dialog.getByLabel('Type ' + ref + ' to confirm').fill(ref);
@@ -169,7 +171,7 @@ test('click anywhere on a board card opens its details modal; controls and drags
       return detail.status;
     }, doneRef);
     assert.equal(finished, 'COMPLETED', 'the fixture car was completed so the board has a Done card');
-    await page.getByRole('button', { name: 'Refresh board', exact: true }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event('focus'))); // P1-70: Refresh board left in P1-42; window focus runs the same reload.
     const done = washRow.getByRole('region', { name: 'Done', exact: true }).getByRole('article', { name: doneRef, exact: true });
     await done.waitFor({ timeout: 10_000 });
     assert.equal(await done.count(), 1, 'a Done card is on the board');

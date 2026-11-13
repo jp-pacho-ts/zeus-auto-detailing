@@ -34,10 +34,10 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
       if (request.method() === 'PUT' && /\/api\/admin\/bookings\/[^/]+\/bay$/.test(new URL(request.url()).pathname)) puts.push(JSON.parse(request.postData() || '{}'));
     });
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
+    await page.getByLabel('Staff Email or Username').fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
-    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();
     await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     const waiting = page.getByRole('region', { name: 'Waiting', exact: true });
     const card = waiting.locator('article[aria-label^="ZEUS-"]').filter({ hasText: 'Synthetic Vios' });

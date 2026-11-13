@@ -27,6 +27,8 @@ export function NotificationPopover({
   onNavigate: (tab: AdminNotificationTab) => void;
 }) {
   const [open, setOpen] = React.useState(false);
+  // Below lg the panel is fixed to the viewport; its top follows the bell, because the header's height varies as it wraps.
+  const [panelTop, setPanelTop] = React.useState(64);
   const [activeFilter, setActiveFilter] = React.useState<"ALL" | "BOOKINGS" | "SUPPLIES" | "PAYROLL">("ALL");
   const [lastReadAt, setLastReadAt] = React.useState<string>(() => {
     try {
@@ -121,7 +123,8 @@ export function NotificationPopover({
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread alerts` : ""}`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={() => {
+        onClick={(e) => {
+          setPanelTop(Math.round(e.currentTarget.getBoundingClientRect().bottom) + 8);
           setOpen((prev) => !prev);
           if (!open) {
             void reload();
@@ -137,11 +140,13 @@ export function NotificationPopover({
         )}
       </button>
 
+      {/* P1-70: below lg the bell is not at the screen edge, so the panel is pinned to the viewport (it was clipped 187 px at 390). */}
       {open && (
         <div
           role="dialog"
           aria-label="Real-time notifications panel"
-          className="absolute right-0 top-full z-50 mt-2 w-[340px] rounded-xl border border-border bg-panel shadow-2xl sm:w-[420px] animate-in fade-in-0 zoom-in-95"
+          style={{ "--panel-top": `${panelTop}px` } as React.CSSProperties}
+          className="fixed inset-x-3 top-[var(--panel-top)] z-50 rounded-xl border border-border bg-panel shadow-2xl sm:left-auto sm:w-[420px] lg:absolute lg:inset-x-auto lg:right-0 lg:top-full lg:mt-2 animate-in fade-in-0 zoom-in-95"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
