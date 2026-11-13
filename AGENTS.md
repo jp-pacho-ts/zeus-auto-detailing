@@ -16,13 +16,14 @@ For a new PM session, use [.team/START-HERE.md](.team/START-HERE.md).
 
 ## Roles and authority
 
-- **ZEUS-PM:** plans, assigns tasks, maintains BOARD and dispatch prompts. The provider may be Claude or GPT/Codex; switching it requires the LE's instruction. It may implement only an explicitly assigned task in its own worktree.
-- **ZEUS-CLAUDE / ZEUS-CODEX:** full-stack engineers. Capability never expands task scope.
-- **ZEUS-CODEX:** designated integrator for local dev.
+- **CEO (the LE):** also a full-stack engineer; gives and splits tasks. Roster, seats, communication and review pairing: [.team/roles/ROSTER.md](.team/roles/ROSTER.md).
+- **ZEUS-PM:** plans, assigns tasks the CEO approves, maintains BOARD, relays messages between seats and integrates into local dev. It may implement only an explicitly assigned task in its own worktree.
+- **Seats (roles, not providers):** Lead Full-Stack (ZEUS-CLAUDE-1), UI/UX Specialist, Security Engineer, Database Engineer with DevOps. Any provider (Claude, Antigravity, Codex) can fill a seat when the CEO says so; the role file stays the same. Capability never expands task scope.
+- Seats report to the PM by SendMessage and may message each other directly; a message never changes scope, ownership or approvals.
 - The LE starts sessions manually. Never launch agents, subagents, background AI workers or automated dispatch.
 - At most two implementation writers, on independent scopes. Schema, migrations, shared contracts/validation, dependencies/lockfiles and config have one writer at a time.
 - One owner, branch and writing worktree per implementation task. Transfers must preserve existing work and record custody.
-- Review and integrated QA must be independent of the provider that authored the affected changes. GPT PM and Codex are the same provider for this rule.
+- Review and integrated QA must come from a different session than the author. With more than one provider active, prefer review across providers. The PM must record which provider and seat actually reviewed.
 
 A task assigned by the LE or PM in TODO/DOING authorizes implementation. A direct LE request also authorizes its stated scope; routine documentation work does not require inventing a P1 feature task.
 Only PM or the LE edits BOARD and task assignment metadata. Engineers record plans and progress in handoffs.
@@ -45,7 +46,7 @@ Preserve historical handoffs and archives.
 - Read current shared instructions at that root even when a task branch contains an older tracked copy. Reconcile outdated instruction-file commits during integration; do not overwrite current policy with a stale branch version.
 - Directly authorized workflow-document maintenance may update these canonical instruction files; do not edit application code as part of it.
 - Commit scoped implementation on its task branch after self-review. Use `type(scope): summary`, explain why in the body and add the provider's attribution trailer.
-- No PRs. No push without approval. Only ZEUS-CODEX integrates reviewed, verified SHAs into dev with `git merge --no-ff <branch>`.
+- No PRs. No push without approval. Only the integrator (ZEUS-PM, currently ZEUS-CLAUDE-PM) merges reviewed, verified SHAs into dev with `git merge --no-ff <branch>`.
 
 ## Stack and conventions
 
