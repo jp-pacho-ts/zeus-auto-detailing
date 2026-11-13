@@ -223,6 +223,35 @@ test("the car-ready email goes once after the finish, never before it, and never
   }
 });
 
+// P1-73 (Security N1): the staff-sent confirmation and reminder and the car-ready email are real SMTP sends; the HTML part
+// of each carries none of the booking's private values and nothing staff-only (bay, worker, staff reason, capacity).
+test("P1-73 the confirmation, reminder and car-ready HTML parts carry no private or staff-only text", { skip }, async () => {
+  const { sendTurnNotice, sendCarReady, resetSendGuard } = await import("../notifications/bookings");
+  const { smtpSimulation } = await import("../notifications/smtp.fixture");
+  const { assertCustomerHtmlPrivate } = await import("../notifications/email-privacy.fixture");
+  resetSendGuard();
+  const b = await seated(9, "IN_PROGRESS");
+  const worker = await db.staff.create({ data: { name: "Canary Worker P173", phone: "", email: "p173-worker@example.test", role: "DETAILER" } });
+  await s.assignWorker(ADMIN, b.id, worker.id, { expectedRevision: await rev(b.id) }, at(b.day));
+  const row = await db.booking.findUniqueOrThrow({ where: { id: b.id } });
+  const privateValues = [row.id, row.customerName, row.customerPhone, row.customerEmail!, row.vehicleModel!, row.vehiclePlate!, row.notes!,
+    b.bay.name, worker.name, "Customer declined"];
+  const smtp = await smtpSimulation();
+  try {
+    const options = { db: app, notification: smtp.config };
+    assert.equal(await sendTurnNotice(b.id, options, "confirmation"), "SENT");
+    assert.equal(await sendTurnNotice(b.id, options, "reminder"), "SENT");
+    await s.finishBooking(ADMIN, b.id, { expectedRevision: await rev(b.id) }, at(b.day));
+    assert.equal(await sendCarReady(b.id, options), "SENT");
+    const mails = smtp.messages.filter((m) => m.to === row.customerEmail);
+    assert.deepEqual(mails.map((m) => m.subject.split(" ")[0]), ["Booking", "Appointment", "Your"], "confirmation, reminder, car-ready");
+    for (const [mail, label] of mails.map((m, i) => [m, ["confirmation", "reminder", "car-ready"][i]] as const))
+      assertCustomerHtmlPrivate(mail.html, row.referenceCode, privateValues, label);
+  } finally {
+    await smtp.close();
+  }
+});
+
 test("Settings can switch the car-ready email off and on; off sends nothing, and each change is audited", { skip }, async () => {
   const { sendCarReady, resetSendGuard } = await import("../notifications/bookings");
   resetSendGuard();
