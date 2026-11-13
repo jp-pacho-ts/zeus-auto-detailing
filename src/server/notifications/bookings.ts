@@ -237,39 +237,12 @@ export function customerReminderMessage(
   };
 }
 
-export function customerTurnNoticeMessage(
-  booking: DayBookingView,
-  origin: string,
-): { subject: string; text: string; html: string } {
-  const forQuote = booking.lines.some((line) => line.priceStatus === "FOR_QUOTE");
-  const services = booking.lines.map((line) =>
-    "- " + line.name + (line.quantity > 1 ? " × " + line.quantity : "") +
-    (line.priceStatus === "FOR_QUOTE" ? " (for quote)" : ""),
-  );
-  const estimate = booking.estimatedTotalCentavos === null
-    ? "To be quoted by the shop."
-    : brandConfig.currency + " " + (booking.estimatedTotalCentavos / 100).toFixed(2);
-  const manageUrl = origin + "/book/manage";
+// CEO D-4 (P1-71b, 2026-11-13): the turn notice is the short message again, with no booking details (no reference, day,
+// vehicle, services or price) and no HTML part, as before e77e437. The other customer emails keep their branded layout.
+export function customerTurnNoticeMessage(): { subject: string; text: string } {
   return {
-    subject: "Your turn is coming at " + brandConfig.businessName + " [" + booking.referenceCode + "]",
-    text: [
-      brandConfig.businessName,
-      "Booking reference: " + booking.referenceCode,
-      "Your turn is coming at " + brandConfig.businessName + ". Please be ready to visit the shop. Contact the shop if you need help.",
-      "Please monitor your booking on our site.",
-      "Manage your booking: " + manageUrl,
-      "To check your booking's progress, open that page and enter your reference code and last name.",
-      "Drop-off day: " + booking.bookingDate + " (" + brandConfig.timezone + ")",
-      "Opening hours: " + brandConfig.operatingSchedule,
-      "Vehicle size: " + booking.vehicleCategoryName,
-      "Selected services:",
-      ...services,
-      "Estimated total: " + estimate,
-      ...(forQuote ? ["Some services are for quote. The shop will confirm the final price."] : []),
-      "Phone: " + brandConfig.supportPhone,
-      "Messenger: " + brandConfig.facebookMessengerUrl,
-    ].join("\n"),
-    html: customerEmailHtml({ origin, booking, preheader: "Your turn is coming up.", heading: "Your turn is coming up", intro: "Please get ready to bring your vehicle to the shop. Contact us if you need help.", button: { label: "Track your booking", href: manageUrl } }),
+    subject: "Your turn is coming at " + brandConfig.businessName,
+    text: "Your turn is coming at " + brandConfig.businessName + ". Please be ready to visit the shop. Contact the shop if you need help.",
   };
 }
 
@@ -672,7 +645,7 @@ export async function sendTurnNotice(
     } else if (noticeType === "confirmation") {
       message = customerConfirmationMessage(publicDayBooking(booking), config.origin);
     } else {
-      message = customerTurnNoticeMessage(publicDayBooking(booking), config.origin);
+      message = customerTurnNoticeMessage();
     }
 
     const result = await sendSmtpClassified(
