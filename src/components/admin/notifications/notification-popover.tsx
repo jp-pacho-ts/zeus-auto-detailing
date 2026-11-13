@@ -142,7 +142,7 @@ export function NotificationPopover({
         <div
           role="dialog"
           aria-label="Real-time notifications panel"
-          className="fixed inset-x-3 top-14 z-50 mt-2 rounded-xl border border-border bg-panel shadow-2xl sm:left-auto sm:w-[420px] md:top-16 lg:absolute lg:inset-x-auto lg:right-0 lg:top-full animate-in fade-in-0 zoom-in-95"
+          className="fixed inset-x-3 top-14 z-50 mt-2 rounded-xl border border-border bg-panel shadow-2xl sm:left-auto sm:w-[420px] md:top-20 lg:absolute lg:inset-x-auto lg:right-0 lg:top-full animate-in fade-in-0 zoom-in-95"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
