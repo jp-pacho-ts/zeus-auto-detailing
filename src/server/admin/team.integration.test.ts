@@ -50,8 +50,13 @@ async function refused(p: Promise<unknown>, code: string, label: string, check?:
 }
 const count = async (table: string, where = "TRUE") => Number((await db.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*) AS n FROM ${table} WHERE ${where}`))[0].n);
 // P1-84: every string value of the rows except a whole uuid (an id). Numbers, bigints, dates and nulls are not text.
+// Nested arrays and objects are walked (fail closed), as the old JSON.stringify search did (Security N1).
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const textValues = (rows: object[]) => rows.flatMap((r) => Object.values(r).filter((v): v is string => typeof v === "string" && !UUID.test(v)));
+const textValues = (values: unknown[]): string[] => values.flatMap((v) =>
+  typeof v === "string" ? (UUID.test(v) ? [] : [v])
+  : Array.isArray(v) ? textValues(v)
+  : v && typeof v === "object" && !(v instanceof Date) ? textValues(Object.values(v))
+  : []);
 const audits = (action?: string) => db.adminAuditEvent.findMany({ where: action ? { action: action as never } : {}, orderBy: { createdAt: "asc" } });
 let seq = 0;
 const newPerson = (extra: Record<string, unknown> = {}) => s.addPerson(ADMIN, { name: `Synthetic Detailer ${++seq}`, ...extra }, opts());
@@ -103,6 +108,8 @@ test("P1-84 the T3 and T16 leak check skips random ids, numbers and times but st
   }
   const leaked = textValues([{ ...row, reason: "Phone 0917 555 0101 (" + row.id + ")" }]);
   for (const pii of ["0917", "555"]) assert.ok(leaked.some((t) => t.includes(pii)), "a private value in a text field is found: " + pii);
+  const nested = textValues([{ ...row, extra: { contacts: [{ id: row.id, phone: "0917 555 0101" }] } }]);
+  for (const pii of ["0917", "555"]) assert.ok(nested.some((t) => t.includes(pii)), "a private value inside a nested value is found: " + pii);
 });
 
 test("T4 add with an email and a personal percentage: lowercased, exact basis points", { skip }, async () => {
