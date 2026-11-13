@@ -5,7 +5,7 @@ import { brandConfig } from "@/config/brand";
 import type { AdminSchedule, AdminWeekdayHours } from "@/lib/admin-schedule";
 import { adminRequest } from "../bookings/client";
 import { shopDate } from "../bookings/model";
-import { fieldClass, LoadState, useAdminResource } from "../bookings/use-admin-resource";
+import { dateClass, fieldClass, LoadState, useAdminResource } from "../bookings/use-admin-resource";
 import { addDay } from "./calendar-model";
 import { useAdminWrite, WriteFeedback } from "./use-admin-write";
 
@@ -17,6 +17,8 @@ const longDay = (day: string) =>
   new Intl.DateTimeFormat(brandConfig.locale, { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(day + "T00:00:00Z"));
 
 type Write = ReturnType<typeof useAdminWrite>;
+const ROW = "grid grid-cols-[7.5rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 py-1.5 sm:grid-cols-[9rem_10rem_10rem]";
+const timeClass = fieldClass.replace("mt-1 ", "");
 
 // A refused save keeps the edits on screen (the server says why); a saved one reloads.
 function WeekForm({ schedule, write, onSaved }: { schedule: AdminSchedule; write: Write; onSaved: () => Promise<void> }) {
@@ -47,10 +49,16 @@ function WeekForm({ schedule, write, onSaved }: { schedule: AdminSchedule; write
           if (ok) await onSaved();
         }}
       >
+        {/* P1-77: one compact row per day (day, opens, closes) under one header. */}
+        <div aria-hidden="true" className={ROW + " pb-0 text-xs font-semibold text-muted-foreground"}>
+          <span>Day</span>
+          <span>Opens</span>
+          <span>Closes</span>
+        </div>
         <ul className="divide-y divide-border">
           {days.map((d) => (
-            <li key={d.dayOfWeek} className="flex flex-wrap items-end gap-3 py-3">
-              <label className="flex min-h-[44px] w-36 items-center gap-2 text-sm font-semibold">
+            <li key={d.dayOfWeek} className={ROW}>
+              <label className="flex min-h-[44px] items-center gap-2 text-sm font-semibold">
                 <input
                   type="checkbox"
                   checked={d.open}
@@ -61,17 +69,11 @@ function WeekForm({ schedule, write, onSaved }: { schedule: AdminSchedule; write
               </label>
               {d.open ? (
                 <>
-                  <label className="text-xs">
-                    Opens
-                    <input type="time" step={1800} required value={d.openTime} onChange={(e) => set(d.dayOfWeek, { openTime: e.target.value })} className={fieldClass} />
-                  </label>
-                  <label className="text-xs">
-                    Closes
-                    <input type="time" step={1800} required value={d.closeTime} onChange={(e) => set(d.dayOfWeek, { closeTime: e.target.value })} className={fieldClass} />
-                  </label>
+                  <input type="time" step={1800} required aria-label={NAMES[d.dayOfWeek] + " opens"} value={d.openTime} onChange={(e) => set(d.dayOfWeek, { openTime: e.target.value })} className={timeClass} />
+                  <input type="time" step={1800} required aria-label={NAMES[d.dayOfWeek] + " closes"} value={d.closeTime} onChange={(e) => set(d.dayOfWeek, { closeTime: e.target.value })} className={timeClass} />
                 </>
               ) : (
-                <span className="min-h-[44px] py-3 text-sm text-muted-foreground">Closed</span>
+                <span className="col-span-2 text-sm text-muted-foreground">Closed</span>
               )}
             </li>
           ))}
@@ -113,7 +115,7 @@ function ClosedDates({ schedule, write, onSaved }: { schedule: AdminSchedule; wr
       >
         <label className="text-xs">
           Day
-          <input name="date" type="date" required min={today} max={addDay(today, 365)} className={fieldClass} />
+          <input name="date" type="date" required min={today} max={addDay(today, 365)} className={dateClass + " block"} />
         </label>
         <label className="min-w-0 flex-1 basis-48 text-xs">
           Note for staff (optional)
