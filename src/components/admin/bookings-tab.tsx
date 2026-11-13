@@ -433,6 +433,14 @@ function BookingsList({
     `-mb-px min-h-[40px] border-b-2 px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
       active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
     }`;
+  // Focus goes back to the row the details were opened from; if that row has gone (deleted), to the view switch (as on the Dashboard, P1-75).
+  const returnTo = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const id = returnTo.current;
+    if (!id || selected || document.getElementById("booking-row-" + id)) return;
+    returnTo.current = null;
+    if (!document.activeElement || document.activeElement === document.body) document.getElementById("bookings-view-BOOKINGS")?.focus();
+  });
   const queueNames: Record<string, string> = Object.fromEntries((day.data?.queues ?? []).map((x) => [x.code, x.name]));
   const pickQueue = (code: string) => {
     setActiveQueueTab(code);
@@ -771,7 +779,12 @@ function BookingsList({
           role={role}
           queues={day.data?.queues ?? []}
           onChanged={day.reload}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            const row = selected;
+            returnTo.current = row;
+            setSelected(null);
+            requestAnimationFrame(() => document.getElementById("booking-row-" + row)?.focus());
+          }}
         />
       )}
     </div>
