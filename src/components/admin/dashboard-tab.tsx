@@ -1,18 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatPesos } from "@/lib/commission";
 import type {
   AdminAnalytics,
   AdminDayBoard,
   AdminDayQueues,
+  AdminQueueBooking,
 } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import type { AdminTab } from "./admin-portal";
 import { analyticsUrl, manilaToday, periodRange } from "./analytics/analytics-model";
-import { money, shopDate, statusLabel, totalLabel } from "./bookings/model";
+import { BookingDetail } from "./bookings/booking-detail";
+import { statusPill } from "./bookings/detail/shared";
+import { money, shopDate, statusLabel } from "./bookings/model";
 import { LoadState, useAdminResource } from "./bookings/use-admin-resource";
 import { MetricCard } from "./metric-card";
 import { useKeptResource } from "./team/use-kept-resource";
@@ -25,6 +28,7 @@ export function DashboardTab({
   onNavigate: (tab: AdminTab) => void;
 }) {
   const [today] = React.useState(shopDate);
+  const [openId, setOpenId] = React.useState<string | null>(null);
   const isAdmin = role === "ADMIN";
   const day = useAdminResource<AdminDayQueues>(`/api/admin/queues?date=${today}`);
   const board = useAdminResource<AdminDayBoard>(`/api/admin/board?date=${today}`);
@@ -39,6 +43,14 @@ export function DashboardTab({
     ? [...day.data.queues.flatMap((q) => q.bookings), ...day.data.legacy]
     : [];
   const activeBookings = allBookings.filter((b) => b.status !== "CANCELLED");
+  // Focus goes back to the row the details were opened from; if that row has gone (deleted or cancelled), to the queue heading.
+  const returnTo = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const id = returnTo.current;
+    if (!id || openId || activeBookings.some((b) => b.id === id)) return;
+    returnTo.current = null;
+    if (!document.activeElement || document.activeElement === document.body) document.getElementById("dash-queue-title")?.focus();
+  });
   const pendingCount = activeBookings.filter((b) => b.status === "PENDING").length;
   const inProgressCount = activeBookings.filter(
     (b) => b.status === "IN_PROGRESS",
@@ -211,14 +223,13 @@ export function DashboardTab({
           </div>
         </section>
 
-        {/* Today's Priority Queue */}
-        <section className="rounded-lg border border-border bg-panel lg:col-span-5">
+        {/* Today's Queue: every booking today; the list scrolls inside the card (P1-75). From lg the card takes the Bay Floor's height. */}
+        <section aria-labelledby="dash-queue-title" className="flex flex-col rounded-lg border border-border bg-panel lg:col-span-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5">
-            <div>
-              <h2 className="text-base font-bold text-foreground">
-                Today&apos;s Queue
-              </h2>
-            </div>
+            <h2 id="dash-queue-title" tabIndex={-1} className="text-base font-bold text-foreground outline-none">
+              Today&apos;s Queue
+              {day.data && <span className="ml-2 text-xs font-medium text-muted-foreground">{activeBookings.length}</span>}
+            </h2>
             <button
               type="button"
               onClick={() => onNavigate("Bookings")}
@@ -228,68 +239,34 @@ export function DashboardTab({
             </button>
           </div>
 
-          <div className="divide-y divide-border">
-            {day.loading && !day.data && (
-              <div className="space-y-3 p-4" role="status" aria-busy="true">
-                <span className="sr-only">Loading today&apos;s queue...</span>
-                {[0, 1, 2, 3].map((idx) => (
-                  <div key={idx} className="flex items-center justify-between gap-3 py-1.5">
-                    <div className="space-y-1.5">
-                      <Skeleton className="h-3.5 w-32" />
-                      <Skeleton className="h-3 w-44 opacity-70" />
+          <div className="max-h-[28rem] overflow-y-auto lg:relative lg:max-h-none lg:min-h-[20rem] lg:flex-1 lg:overflow-visible">
+            <div className="divide-y divide-border lg:absolute lg:inset-0 lg:overflow-y-auto">
+              {day.loading && !day.data && (
+                <div className="space-y-3 p-4" role="status" aria-busy="true">
+                  <span className="sr-only">Loading today&apos;s queue...</span>
+                  {[0, 1, 2, 3].map((idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-3 py-1.5">
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-3.5 w-32" />
+                        <Skeleton className="h-3 w-44 opacity-70" />
+                      </div>
+                      <Skeleton className="h-4 w-16" />
                     </div>
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                ))}
-              </div>
-            )}
-            {activeBookings.slice(0, 8).map((b) => (
-              <div
-                key={b.id}
-                className="flex items-center justify-between gap-3 p-3.5 transition-colors hover:bg-card/60"
-              >
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onNavigate("Bookings")}
-                      className="font-mono text-xs font-bold text-primary underline underline-offset-4"
-                    >
-                      {b.referenceCode}
-                    </button>
-                    <span
-                      className={`inline-block rounded border px-2 py-0.5 text-xs font-bold uppercase tracking-wider ${
-                        b.status === "CONFIRMED" || b.status === "COMPLETED"
-                          ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
-                          : b.status === "PENDING"
-                            ? "border-amber-500/30 bg-amber-500/15 text-amber-400"
-                            : "border-blue-500/30 bg-blue-500/15 text-blue-400"
-                      }`}
-                    >
-                      {statusLabel(b.status)}
-                    </span>
-                  </div>
-                  <p className="truncate text-xs font-medium text-foreground">
-                    {b.customerName} · {b.vehicleModel}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {b.lines
-                      .filter((l) => !l.removed)
-                      .map((l) => l.name)
-                      .join(", ") || b.serviceName}{" "}
-                    · {b.bay?.name ?? "Unassigned bay"}
-                  </p>
+                  ))}
                 </div>
-                <div className="shrink-0 text-right font-mono text-xs font-semibold tabular-nums text-foreground">
-                  {totalLabel(b.totals)}
-                </div>
-              </div>
-            ))}
-            {day.data && activeBookings.length === 0 && (
-              <p className="p-4 text-xs text-muted-foreground">
-                No active bookings scheduled for today yet.
-              </p>
-            )}
+              )}
+              {activeBookings.map((b) => (
+                <QueueRow
+                  key={b.id}
+                  booking={b}
+                  queue={day.data?.queues.find((q) => q.code === b.queueCode)?.name ?? null}
+                  onOpen={() => setOpenId(b.id)}
+                />
+              ))}
+              {day.data && activeBookings.length === 0 && (
+                <p className="p-4 text-sm text-muted-foreground">No bookings today</p>
+              )}
+            </div>
           </div>
         </section>
       </div>
@@ -379,6 +356,56 @@ export function DashboardTab({
           })()}
         </section>
       )}
+      {openId && (
+        <BookingDetail
+          id={openId}
+          role={role}
+          queues={day.data?.queues ?? []}
+          onChanged={reloadAll}
+          onClose={() => {
+            const row = openId;
+            setOpenId(null);
+            returnTo.current = row;
+            requestAnimationFrame(() => document.getElementById("dash-booking-" + row)?.focus());
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// One booking in Today's Queue: the whole row opens its details (P1-75).
+export function QueueRow({ booking: b, queue, onOpen }: { booking: AdminQueueBooking; queue: string | null; onOpen: () => void }) {
+  const services = b.lines.filter((l) => !l.removed).map((l) => l.name).join(", ") || b.serviceName;
+  return (
+    <button
+      type="button"
+      id={"dash-booking-" + b.id}
+      onClick={onOpen}
+      className="group flex min-h-[44px] w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+    >
+      <span className="min-w-0 flex-1 space-y-1">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-foreground">
+            {queue ?? "Older booking"}
+            {b.queuePosition ? ` #${b.queuePosition}` : ""}
+          </span>
+          <span className={statusPill(b.status)}>{statusLabel(b.status)}</span>
+          <span className="font-mono text-xs text-muted-foreground">{b.referenceCode}</span>
+        </span>
+        <span className="block truncate text-sm font-medium text-foreground">
+          {b.customerName} · {b.vehicleModel}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {services} · {b.bay?.name ?? "Unassigned bay"}
+        </span>
+      </span>
+      {/* Short amount so the names keep their room; the estimate stays in Booking details. */}
+      <span className="shrink-0 whitespace-nowrap text-right">
+        <span className="block font-mono text-xs font-semibold tabular-nums text-foreground">{money(b.totals.currentTotalCentavos)}</span>
+        {b.totals.forQuoteCount > 0 && <span className="block text-xs text-muted-foreground">+{b.totals.forQuoteCount} for quote</span>}
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+    </button>
   );
 }
