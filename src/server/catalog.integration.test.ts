@@ -105,7 +105,11 @@ test("the published release loads exactly as the reviewed manifest, in one read-
   assert.deepEqual(seen.settings[0], { s: "2s", ro: "on", iso: "repeatable read" });
   const expected = releaseFromManifest(manifest, releaseA);
   assert.ok(seen.release);
-  assert.deepEqual({ ...seen.release, compatibility: sortPairs(seen.release.compatibility) }, { ...expected, compatibility: sortPairs(expected.compatibility) });
+  // P1-71 (CEO D-2): the loader also returns each offer's compare-at price (20261112040000) and pick-up price (20261114000000).
+  // The reviewed manifest has neither, so a published release carries NULL for both. The shared fixture stays without them, because
+  // catalog-pricing.test.ts proves that no comparison price ever reaches a charge.
+  const loaded = { ...expected, services: expected.services.map((s) => ({ ...s, offers: s.offers.map((o) => ({ ...o, compareAtCentavos: null, pickupPriceCentavos: null })) })) };
+  assert.deepEqual({ ...seen.release, compatibility: sortPairs(seen.release.compatibility) }, { ...loaded, compatibility: sortPairs(expected.compatibility) });
   // Every one of the 105 cells, priced from the database, matches pricing from the manifest.
   for (const service of manifest.services) {
     for (const offer of service.offers) {

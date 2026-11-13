@@ -49,7 +49,8 @@ async function worker(
     const b = await loadForWrite(tx, bookingId, v.expectedRevision, {
       v3: true,
     });
-    if (!["PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED"].includes(b.status))
+    // A name can be added to a completed booking (late attribution), but a finished job keeps its crew (P1-17; CEO D-1, P1-71).
+    if (!["PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED"].includes(b.status) || (remove && b.status === "COMPLETED"))
       return conflict(tx, "BOOKING_NOT_MANAGEABLE", bookingId);
     const staff = await tx.staff.findUnique({
       where: { id: targetStaffId },
@@ -71,9 +72,6 @@ async function worker(
       );
     if (remove) {
       await takeOff(tx, actor, bookingId, targetStaffId, v.expectedRevision);
-      if (b.status === "COMPLETED") {
-        await tx.$executeRaw`SELECT public.commission_accrue(${bookingId})`;
-      }
       return { booking: await detailOrThrow(tx, bookingId), noChange: false };
     }
     await bump(tx, bookingId, v.expectedRevision);

@@ -108,7 +108,9 @@ test("S9 zeus_app cannot write the row or read the audit directly; the row canno
   await assert.rejects(app.$executeRawUnsafe(`DELETE FROM shop_settings`), /permission denied/);
   await assert.rejects(app.$queryRawUnsafe(`SELECT * FROM shop_settings_audit_events`), /permission denied/);
   await assert.rejects(db.$executeRawUnsafe(`INSERT INTO shop_settings (id) VALUES (2)`), /shop_settings_one_row/);
-  await assert.rejects(db.$executeRawUnsafe(`INSERT INTO shop_settings (id) VALUES (1)`), /duplicate key|shop_settings_pkey/);
+  // P1-71 (CEO D-2): Prisma 6 reports a unique violation as "Code: `23505`. Message: `Key (id)=(1) already exists.`", without
+  // PostgreSQL's "duplicate key" sentence, so the 23505 form is accepted too. It is still the primary-key rejection.
+  await assert.rejects(db.$executeRawUnsafe(`INSERT INTO shop_settings (id) VALUES (1)`), /duplicate key|shop_settings_pkey|23505[\s\S]*Key \(id\)=\(1\) already exists/);
   for (const sql of [`UPDATE shop_settings_audit_events SET "newValue" = 'x'`, `DELETE FROM shop_settings_audit_events`, `TRUNCATE shop_settings_audit_events`]) {
     await assert.rejects(db.$executeRawUnsafe(sql), /append-only/, sql);
   }
@@ -117,7 +119,9 @@ test("S9 zeus_app cannot write the row or read the audit directly; the row canno
 test("S10 a temporary table named like the real one does not reach the function (pg_temp last)", { skip }, async () => {
   const r = (await s.getShopSettings(ADMIN, opts())).revision;
   await app.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(`CREATE TEMP TABLE shop_settings_audit_events (LIKE public.shop_settings_audit_events) ON COMMIT DROP`);
+    // P1-71 (CEO D-2): the columns are written out because "LIKE public.shop_settings_audit_events" needs a privilege on the real
+    // table, which zeus_app rightly does not have ("permission denied"); the decoy is the same shape.
+    await tx.$executeRawUnsafe(`CREATE TEMP TABLE shop_settings_audit_events (id text DEFAULT gen_random_uuid()::text, action text DEFAULT 'SETTING_CHANGED', "actorStaffId" text, setting text, "previousValue" text, "newValue" text, "txId" bigint DEFAULT txid_current(), "createdAt" timestamptz(3) DEFAULT CURRENT_TIMESTAMP) ON COMMIT DROP`);
     await tx.$executeRawUnsafe(`CREATE TEMP TABLE shop_settings (id smallint, maintenance boolean, "maintenanceMessage" text, "bookingPaused" boolean, revision integer) ON COMMIT DROP`);
     await tx.$queryRawUnsafe(`SELECT admin_shop_settings_set('${ADMIN.staffId}', ${r}, false, 'real row', false)`);
     assert.equal((await tx.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*) AS n FROM pg_temp.shop_settings_audit_events`))[0].n, BigInt(0));

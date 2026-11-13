@@ -533,7 +533,9 @@ test("C19 two lines at the maximum price: the total is 200,000,000, not clipped,
   const day = nextDay();
   const b = await book(select("S", "basic-wash"), day);
   const o = at(day);
-  await s.addLine(ADMIN, b.id, { expectedRevision: await rev(b.id), serviceId: bySlug(r0(), "arcane-graphene").id, quantity: 1 }, o);
+  // P1-71 (CEO D-2): since 20261112070000 a coating's base is pegged to the Eclipse price, so a coating line can no longer carry a
+  // staff price of 100,000,000 into the base. PPF earns on its own price, so it keeps this check on the clipping it was written for.
+  await s.addLine(ADMIN, b.id, { expectedRevision: await rev(b.id), serviceId: bySlug(r0(), "ppf-8-0-mil").id, quantity: 1 }, o);
   await s.addLine(ADMIN, b.id, { expectedRevision: await rev(b.id), serviceId: bySlug(r0(), "regular-tint").id, quantity: 1 }, o); // round 4: two lines that earn, so the base can still reach 200,000,000
   for (const l of await db.bookingLineItem.findMany({ where: { bookingId: b.id, removedAt: null } }))
     await s.setLinePrice(ADMIN, b.id, l.id, { expectedRevision: await rev(b.id), priceCentavos: 100_000_000, reason: "P1-37 maximum price test" }, o);
