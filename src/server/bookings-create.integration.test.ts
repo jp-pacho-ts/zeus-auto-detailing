@@ -304,6 +304,7 @@ test("mail outage cannot roll back booking, retry uses one stable Message-ID, tu
     assert.equal(parsed.to[0], "canary@example.test");
     assert.equal(parsed.text, "Your turn is coming at Zeus Auto Detailing. Please be ready to visit the shop. Contact the shop if you need help.");
     noPrivate(parsed.text);
+    assert.equal(turn.html, "", "the turn notice is text only, with no HTML part (CEO D-4; P1-73 N2)");
     smtp.setRejected(true);
     try {
         // CEO 2026-11-13 (P1-71b): since 87f08c2 a rejected send reports its reason class, so the exact value is "refused".
