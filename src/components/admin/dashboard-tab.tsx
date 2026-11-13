@@ -43,6 +43,14 @@ export function DashboardTab({
     ? [...day.data.queues.flatMap((q) => q.bookings), ...day.data.legacy]
     : [];
   const activeBookings = allBookings.filter((b) => b.status !== "CANCELLED");
+  // Focus goes back to the row the details were opened from; if that row has gone (deleted or cancelled), to the queue heading.
+  const returnTo = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const id = returnTo.current;
+    if (!id || openId || activeBookings.some((b) => b.id === id)) return;
+    returnTo.current = null;
+    if (!document.activeElement || document.activeElement === document.body) document.getElementById("dash-queue-title")?.focus();
+  });
   const pendingCount = activeBookings.filter((b) => b.status === "PENDING").length;
   const inProgressCount = activeBookings.filter(
     (b) => b.status === "IN_PROGRESS",
@@ -218,7 +226,7 @@ export function DashboardTab({
         {/* Today's Queue: every booking today; the list scrolls inside the card (P1-75). From lg the card takes the Bay Floor's height. */}
         <section aria-labelledby="dash-queue-title" className="flex flex-col rounded-lg border border-border bg-panel lg:col-span-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5">
-            <h2 id="dash-queue-title" className="text-base font-bold text-foreground">
+            <h2 id="dash-queue-title" tabIndex={-1} className="text-base font-bold text-foreground outline-none">
               Today&apos;s Queue
               {day.data && <span className="ml-2 text-xs font-medium text-muted-foreground">{activeBookings.length}</span>}
             </h2>
@@ -357,6 +365,7 @@ export function DashboardTab({
           onClose={() => {
             const row = openId;
             setOpenId(null);
+            returnTo.current = row;
             requestAnimationFrame(() => document.getElementById("dash-booking-" + row)?.focus());
           }}
         />
