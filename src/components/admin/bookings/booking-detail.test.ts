@@ -93,6 +93,31 @@ test("Mark done: disabled with the open-service count, then enabled once every s
   assert.doesNotMatch(ready, /<button[^>]*disabled=""[^>]*>Mark done/);
 });
 
+// P1-71 D-1 (CEO 2026-11-12): a finished job keeps its crew. A name can still be added (late attribution), never removed.
+test("crew: a completed booking offers Add a worker but no Remove; an open booking offers both", () => {
+  const resources = require("./use-admin-resource");
+  const render = (status: string) => {
+    mock.method(resources, "useAdminResource", (url: string | null) => ({
+      data: url === "/api/admin/bookings/booking"
+        ? { ...detail("Toyota Vios", "QA 101"), status, assignedWorkers: [{ staffId: "w1", name: "Ana Reyes", isActive: true }] }
+        : null,
+      loading: false, error: null, reload: () => {}, setData: () => {},
+    }));
+    try {
+      return renderToStaticMarkup(
+        createElement(require("./booking-detail").BookingDetail, { id: "booking", role: "ADMIN", queues: [], onChanged: () => {}, onClose: () => {} }),
+      );
+    } finally {
+      mock.restoreAll();
+    }
+  };
+  const done = render("COMPLETED");
+  assert.match(done, /Ana Reyes/);
+  assert.doesNotMatch(done, /aria-label="Remove Ana Reyes"/, "no Remove on a completed booking");
+  assert.match(done, /Add a worker/, "a name can still be added after completion");
+  assert.match(render("IN_PROGRESS"), /aria-label="Remove Ana Reyes"/, "an open booking keeps Remove");
+});
+
 // P1-18: staff see the proofs through the staff route; only ADMIN gets the decision buttons.
 function depositHtml(role: "ADMIN" | "STAFF", depositStatus: string, proofs: number) {
   const resources = require("./use-admin-resource");

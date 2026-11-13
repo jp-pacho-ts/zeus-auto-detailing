@@ -99,25 +99,37 @@ export async function smtpSimulation(
           const raw = body.join("\r\n"),
             split = raw.indexOf("\r\n\r\n"),
             headers = raw.slice(0, split).replace(/\r\n[ \t]+/g, " ");
-          let text = raw.slice(split + 4);
-          const header = (key: string) =>
-            new RegExp("^" + key + ":\\s*(.*)$", "im").exec(headers)?.[1] ?? "";
-          if (header("Content-Transfer-Encoding").toLowerCase() === "base64")
-            text = Buffer.from(text.replace(/\s/g, ""), "base64").toString(
-              "utf8",
-            );
-          else if (
-            header("Content-Transfer-Encoding").toLowerCase() ===
-            "quoted-printable"
-          )
-            text = Buffer.from(
-              text
-                .replace(/=\r\n/g, "")
-                .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
-                  String.fromCharCode(parseInt(hex, 16)),
-                ),
-              "binary",
-            ).toString("utf8");
+          const header = (key: string, from = headers) =>
+            new RegExp("^" + key + ":\\s*(.*)$", "im").exec(from)?.[1] ?? "";
+          const decode = (body: string, encoding: string) =>
+            encoding.toLowerCase() === "base64"
+              ? Buffer.from(body.replace(/\s/g, ""), "base64").toString("utf8")
+              : encoding.toLowerCase() === "quoted-printable"
+                ? Buffer.from(
+                    body
+                      .replace(/=\r\n/g, "")
+                      .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
+                        String.fromCharCode(parseInt(hex, 16)),
+                      ),
+                    "binary",
+                  ).toString("utf8")
+                : body;
+          let text = decode(raw.slice(split + 4), header("Content-Transfer-Encoding"));
+          // P1-71: customer emails are multipart/alternative (text + branded HTML) since the e77e437/a81183c templates.
+          // `text` is the decoded text/plain part, so assertions read what a customer's plain-text view shows.
+          const boundary = /boundary="?([^";\s]+)"?/i.exec(header("Content-Type"))?.[1];
+          if (boundary) {
+            const plain = raw
+              .slice(split + 4)
+              .split("--" + boundary)
+              .map((part) => part.replace(/^\r\n/, ""))
+              .find((part) => /^Content-Type:\s*text\/plain/im.test(part.slice(0, Math.max(0, part.indexOf("\r\n\r\n")))));
+            if (plain) {
+              const at = plain.indexOf("\r\n\r\n"),
+                partHeaders = plain.slice(0, at).replace(/\r\n[ \t]+/g, " ");
+              text = decode(plain.slice(at + 4).replace(/\r\n$/, ""), header("Content-Transfer-Encoding", partHeaders));
+            }
+          }
           const email = {
             raw,
             to,

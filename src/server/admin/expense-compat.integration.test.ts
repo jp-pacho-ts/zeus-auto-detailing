@@ -59,7 +59,10 @@ test("EC1 existing rows and functions are unchanged by the migration", { skip, t
     });
     const was = await snapshot();
     assert.ok(was.fns.length > 20, "a real function list");
-    const second = prisma(["migrate", "deploy"], process.cwd());
+    // P1-71 (CEO D-2): apply THIS migration only. Deploying from the repository applied every later migration as well, and later
+    // migrations replace functions on purpose, so the comparison measured them instead of 20261109000000.
+    fs.cpSync(path.join(migrationsDir, MIGRATION), path.join(tmp, "prisma", "migrations", MIGRATION), { recursive: true });
+    const second = prisma(["migrate", "deploy", "--schema", path.join(tmp, "prisma", "schema.prisma")], tmp);
     assert.equal(second.status, 0, second.stdout + second.stderr);
     const now = await snapshot();
     assert.deepEqual([now.items, now.moves, now.staff, now.bookings, now.entries], [was.items, was.moves, was.staff, was.bookings, was.entries], "no existing row changed");
@@ -67,5 +70,9 @@ test("EC1 existing rows and functions are unchanged by the migration", { skip, t
     assert.deepEqual(was.fns.filter((f) => later.get(f.fn) !== f.h).map((f) => f.fn), [], "no existing function changed");
     assert.equal(now.fns.length - was.fns.length, 8, "the six writers and two trigger functions are the only additions");
     assert.equal((await db.$queryRawUnsafe<{ n: number }[]>(`SELECT count(*)::int AS n FROM expense_categories`))[0].n, 7, "seeded");
-  } finally { await db.$disconnect(); fs.rmSync(tmp, { recursive: true, force: true }); }
+  } finally {
+    await db.$disconnect();
+    // P1-71: prisma now runs with this folder as its working directory, and Windows may hold it for a moment after it exits.
+    try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* a disposable copy in the OS temp folder */ }
+  }
 });

@@ -120,7 +120,9 @@ BEGIN
     -- The service writers with the commission argument (20261112090000), which replaced the forms above.
     'admin_service_update(text, text, text, text, text, jsonb, integer)', 'admin_service_create(text, text, text, text, text, text, jsonb, integer)',
     -- Commission per car size (20261118000000).
-    'admin_service_set_size_commissions(text, text, text, jsonb)', 'commission_line_eligible(text, text)'
+    'admin_service_set_size_commissions(text, text, text, jsonb)', 'commission_line_eligible(text, text)',
+    -- Weekly payroll (20261112080000; P1-71): the two ADMIN writers. staff_payroll_adjustments is read only (below).
+    'admin_payroll_save_adjustment(text, text, date, integer, bigint, text)', 'admin_payroll_set_paid(text, text, date, boolean)'
   ] LOOP
     IF to_regprocedure('public.' || fn) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC', fn);
@@ -187,10 +189,13 @@ BEGIN
     ['expense_categories', 'SELECT'], ['expenses', 'SELECT'], ['expense_events', 'SELECT'], ['expense_category_events', 'SELECT'],
     -- Settings (P1-42): read only. The one write is an owner-run function; shop_settings_audit_events gets nothing at all.
     ['shop_settings', 'SELECT'],
+    -- Weekly payroll (P1-71): read only. Every write is admin_payroll_save_adjustment or admin_payroll_set_paid.
+    ['staff_payroll_adjustments', 'SELECT'],
 
     -- Staff sign-in and sessions. Staff rows and passwords are set by the operator CLI with the
-    -- owner URL, never by the app; the app reads no staff phone numbers.
-    ['staff', 'SELECT (id, email, name, role, "isActive", phone, revision, "createdAt", "removedAt")'],
+    -- owner URL, never by the app; the app reads no staff phone numbers (ADR-003). User management
+    -- reads phone, revision and the dates through its SECURITY DEFINER functions (P1-71).
+    ['staff', 'SELECT (id, email, name, role, "isActive")'],
     ['staff_credentials', 'SELECT'],
     ['staff_credentials', 'UPDATE ("passwordHash", "failedLoginCount", "lockedUntil", "updatedAt")'],
     ['staff_sessions', 'SELECT, INSERT'],

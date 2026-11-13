@@ -698,9 +698,11 @@ async function claimCustomerNotice(db: PrismaClient, bookingId: string, reason: 
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"customer-notice:" + reason + ":" + bookingId}))`;
     const already = await tx.bookingAuditEvent.findFirst({ where: { bookingId, action: "CUSTOMER_NOTIFIED", reason }, select: { id: true } });
     if (already) return false;
+    // P1-71: only columns the runtime role may read. A removed person is never active (CHECK staff_removed_is_inactive), and
+    // ordering by id keeps the pick stable without staff."createdAt".
     const actor = await tx.staff.findFirst({
-      where: { role: { in: ["SUPERADMIN", "ADMIN"] }, isActive: true, removedAt: null },
-      orderBy: { createdAt: "asc" },
+      where: { role: { in: ["SUPERADMIN", "ADMIN"] }, isActive: true },
+      orderBy: { id: "asc" },
       select: { id: true },
     });
     if (!actor) return false;

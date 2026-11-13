@@ -47,8 +47,10 @@ export async function changeOwnPassword(
       SELECT c."passwordHash", s."name", s."email", s."isActive"
       FROM public.staff s
       JOIN public.staff_credentials c ON c."staffId" = s.id
-      WHERE s.id = ${staffId} AND s."removedAt" IS NULL
+      WHERE s.id = ${staffId}
     `;
+    // A removed person is always inactive (CHECK staff_removed_is_inactive), so the isActive test below also refuses them; the
+    // runtime role may not read staff."removedAt" (P1-71), and auth_user_change_password re-checks the account itself.
 
     if (!row || !row.isActive) {
       throw new AdminServiceError("NOT_FOUND", "Account not found or inactive.");

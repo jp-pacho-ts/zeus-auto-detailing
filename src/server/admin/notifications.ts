@@ -6,6 +6,7 @@ import type {
   AdminNotificationSummary,
 } from "@/types/admin-contracts";
 import { addDays, authorize, type AdminOptions, type StaffActor } from "./context";
+import { canPerform } from "./roles";
 
 function read<T>(
   options: AdminOptions,
@@ -33,7 +34,7 @@ export async function getAdminNotifications(
 
   return read(options, async (tx) => {
     const notifications: AdminNotificationItem[] = [];
-    const now = new Date();
+    const now = options.now?.() ?? new Date();
     const todayStr = manilaToday(now);
     const tomorrowStr = addDays(todayStr, 1);
     const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
@@ -153,7 +154,8 @@ export async function getAdminNotifications(
       weekday: "short",
     }).format(now);
 
-    if (["Fri", "Sat", "Sun"].includes(manilaDayOfWeek)) {
+    // Payroll is money: only roles that may read it get the alert (P1-71; STAFF used to see the unpaid count).
+    if (canPerform("COMMISSION_READ", actor.role) && ["Fri", "Sat", "Sun"].includes(manilaDayOfWeek)) {
       const currentMonday = getMondayOfWeek(todayStr);
       const adjustments = await tx.staffPayrollAdjustment.findMany({
         where: { weekStart: new Date(currentMonday + "T00:00:00.000Z") },

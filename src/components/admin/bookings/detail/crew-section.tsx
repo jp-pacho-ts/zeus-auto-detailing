@@ -40,7 +40,8 @@ export function CrewSection({
                 {w.name}
                 {w.isActive ? "" : " (inactive)"}
               </span>
-              {canAssignStaff ? (
+              {/* A finished job keeps its crew (P1-17; CEO D-1, P1-71): a name can be added after completion, not removed. */}
+              {canAssignStaff && b.status !== "COMPLETED" ? (
                 <button
                   type="button"
                   disabled={disabled}

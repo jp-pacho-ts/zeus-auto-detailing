@@ -65,33 +65,16 @@ export async function getWeeklyPayroll(
   const weekEnd = addDays(weekStart, 6);
 
   return read(options, async (tx) => {
-    // 1. Fetch all active staff detailers
-    let staffList: TeamRow[] = [];
-    try {
-      staffList = await tx.$queryRaw<TeamRow[]>`SELECT id, name, phone, role, position, "isActive" FROM admin_team_list_v2(${actor.staffId})`;
-    } catch {
-      // Fallback if procedure is unavailable
-      staffList = await tx.$queryRaw<TeamRow[]>`
-        SELECT s.id, s.name, s.phone, s.role::text, p.position, s."isActive"
-        FROM staff s
-        LEFT JOIN staff_profiles p ON p."staffId" = s.id
-        WHERE s."isActive" = true AND s."removedAt" IS NULL AND s.role = 'DETAILER'
-        ORDER BY lower(s.name)
-      `;
-    }
+    // 1. All active staff, through the Team list (SECURITY DEFINER; the runtime role reads no staff phone or profile itself).
+    // A failure here is an error: inside this one transaction no fallback query could run anyway (P1-71).
+    const staffList = await tx.$queryRaw<TeamRow[]>`SELECT id, name, phone, role, position, "isActive" FROM admin_team_list_v2(${actor.staffId})`;
 
-    // 2. Fetch existing adjustments for this week
-    let adjustments: AdjustmentRow[] = [];
-    try {
-      adjustments = await tx.$queryRaw<AdjustmentRow[]>`
-        SELECT "staffId", "daysAbsent", "dailyRateCentavos", "cashAdvanceCentavos", "advanceNotes", "isPaid", "paidAt"
-        FROM staff_payroll_adjustments
-        WHERE "weekStart" = ${weekStart}::date
-      `;
-    } catch {
-      // Table will exist once migration runs
-      adjustments = [];
-    }
+    // 2. Existing adjustments for this week (the runtime role may read this table; every write is a definer function).
+    const adjustments = await tx.$queryRaw<AdjustmentRow[]>`
+      SELECT "staffId", "daysAbsent", "dailyRateCentavos", "cashAdvanceCentavos", "advanceNotes", "isPaid", "paidAt"
+      FROM staff_payroll_adjustments
+      WHERE "weekStart" = ${weekStart}::date
+    `;
     const adjMap = new Map(adjustments.map((a) => [a.staffId, a]));
 
     // 3. Fetch commissions earned in that Monday-Sunday week
