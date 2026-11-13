@@ -306,7 +306,8 @@ test("mail outage cannot roll back booking, retry uses one stable Message-ID, tu
     noPrivate(parsed.text);
     smtp.setRejected(true);
     try {
-        assert.equal(await sendTurnNotice(b.id, f.options), "NOT_SENT");
+        // CEO 2026-11-13 (P1-71b): since 87f08c2 a rejected send reports its reason class, so the exact value is "refused".
+        assert.equal(await sendTurnNotice(b.id, f.options), "refused");
     }
     finally {
         smtp.setRejected(false);
@@ -622,6 +623,13 @@ test("P1-24: first commit sends one private-safe customer receipt; racing and la
         assert.equal(mail.text.includes(privateValue), false, "customer receipt excludes unrelated private fields");
     }
     assert.doesNotMatch(mail.text, /\/admin\b|accessToken|\b(?:bay|capacity|worker)\b/i);
+    // P1-71b (Security F1): the branded HTML part gets the same privacy checks; it must exist, so the checks are not vacuous.
+    assert.ok(mail.html.includes(row.referenceCode), "the receipt's HTML part is decoded");
+    noPrivate(mail.html);
+    for (const privateValue of [row.id, r.customerName.trim(), r.customerPhone, r.customerEmail, "Test Car", "PRIVATE PLATE", "PRIVATE NOTES"]) {
+        assert.equal(mail.html.includes(privateValue), false, "the receipt's HTML part excludes unrelated private fields");
+    }
+    assert.doesNotMatch(mail.html, /\/admin\b|accessToken|\b(?:bay|capacity|worker)\b/i);
     assert.doesNotMatch(mail.text, /for quote/i, "a fully priced selection has no for-quote warning");
     const box = await f.db.bookingNotificationOutbox.findFirstOrThrow();
     const shop = smtp.messages.slice(before).filter(e => e.to === smtp.config.shopEmail);
@@ -659,6 +667,8 @@ test("P1-24: customer receipt preserves selected quantities and estimated for-qu
     assert.ok(text.includes("Estimated total: PHP " + (estimated / 100).toFixed(2)));
     assert.notEqual(estimated, r.acceptedQuote.totalPriceCentavos, "estimate must include quote references");
     noPrivate(text);
+    assert.ok(customer[0].html.length > 0, "the receipt has an HTML part"); // P1-71b (Security F1)
+    noPrivate(customer[0].html);
 });
 
 test("P1-24: no customer recipient or SMTP configuration means no customer send", { skip }, async () => {

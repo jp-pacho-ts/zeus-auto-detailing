@@ -58,6 +58,7 @@ export interface SimulatedEmail {
   to: string;
   subject: string;
   text: string;
+  html: string;
   messageId: string;
 }
 export async function smtpSimulation(
@@ -114,27 +115,30 @@ export async function smtpSimulation(
                     "binary",
                   ).toString("utf8")
                 : body;
-          let text = decode(raw.slice(split + 4), header("Content-Transfer-Encoding"));
+          let text = decode(raw.slice(split + 4), header("Content-Transfer-Encoding")),
+            html = "";
           // P1-71: customer emails are multipart/alternative (text + branded HTML) since the e77e437/a81183c templates.
-          // `text` is the decoded text/plain part, so assertions read what a customer's plain-text view shows.
+          // `text` is the decoded text/plain part, so assertions read what a customer's plain-text view shows; `html` is the
+          // decoded text/html part ("" for a text-only email), so the same privacy checks can read it too (P1-71b, Security F1).
           const boundary = /boundary="?([^";\s]+)"?/i.exec(header("Content-Type"))?.[1];
           if (boundary) {
-            const plain = raw
-              .slice(split + 4)
-              .split("--" + boundary)
-              .map((part) => part.replace(/^\r\n/, ""))
-              .find((part) => /^Content-Type:\s*text\/plain/im.test(part.slice(0, Math.max(0, part.indexOf("\r\n\r\n")))));
-            if (plain) {
-              const at = plain.indexOf("\r\n\r\n"),
-                partHeaders = plain.slice(0, at).replace(/\r\n[ \t]+/g, " ");
-              text = decode(plain.slice(at + 4).replace(/\r\n$/, ""), header("Content-Transfer-Encoding", partHeaders));
-            }
+            const parts = raw.slice(split + 4).split("--" + boundary).map((part) => part.replace(/^\r\n/, ""));
+            const partOf = (type: string) => {
+              const part = parts.find((p) => new RegExp("^Content-Type:\\s*" + type, "im").test(p.slice(0, Math.max(0, p.indexOf("\r\n\r\n")))));
+              if (!part) return null;
+              const at = part.indexOf("\r\n\r\n"),
+                partHeaders = part.slice(0, at).replace(/\r\n[ \t]+/g, " ");
+              return decode(part.slice(at + 4).replace(/\r\n$/, ""), header("Content-Transfer-Encoding", partHeaders));
+            };
+            text = partOf("text/plain") ?? text;
+            html = partOf("text/html") ?? "";
           }
           const email = {
             raw,
             to,
             subject: header("Subject"),
             text: text.replace(/\r\n/g, "\n").trimEnd(),
+            html: html.replace(/\r\n/g, "\n").trimEnd(),
             messageId: header("Message-ID"),
           };
           attempts.push(email);
