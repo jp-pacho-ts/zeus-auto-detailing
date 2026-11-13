@@ -110,7 +110,7 @@ function SectionCard({
       id={id}
       tabIndex={-1}
       aria-labelledby={id + "-title"}
-      className={CARD_SHELL + " scroll-mt-24 outline-none" + (danger ? " border-rose-500/40" : "")}
+      className={CARD_SHELL + " scroll-mt-40 sm:scroll-mt-24 outline-none" + (danger ? " border-rose-500/40" : "")}
     >
       <div className="flex items-start gap-3 border-b border-border/70 pb-4">
         <div className={"flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-raised " + (danger ? "border-rose-500/40 text-rose-400" : "border-border text-primary")}>
@@ -330,7 +330,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                 <Feedback here="settings-general" {...fb} />
               </SectionCard>
 
-              <div id="settings-hours" tabIndex={-1} className="scroll-mt-24 outline-none">
+              <div id="settings-hours" tabIndex={-1} className="scroll-mt-40 outline-none sm:scroll-mt-24">
                 <HoursManager />
               </div>
 
