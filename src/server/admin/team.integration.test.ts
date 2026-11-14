@@ -49,6 +49,14 @@ async function refused(p: Promise<unknown>, code: string, label: string, check?:
   }, label);
 }
 const count = async (table: string, where = "TRUE") => Number((await db.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*) AS n FROM ${table} WHERE ${where}`))[0].n);
+// P1-84: every string value of the rows except a whole uuid (an id). Numbers, bigints, dates and nulls are not text.
+// Nested arrays and objects are walked (fail closed), as the old JSON.stringify search did (Security N1).
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const textValues = (values: unknown[]): string[] => values.flatMap((v) =>
+  typeof v === "string" ? (UUID.test(v) ? [] : [v])
+  : Array.isArray(v) ? textValues(v)
+  : v && typeof v === "object" && !(v instanceof Date) ? textValues(Object.values(v))
+  : []);
 const audits = (action?: string) => db.adminAuditEvent.findMany({ where: action ? { action: action as never } : {}, orderBy: { createdAt: "asc" } });
 let seq = 0;
 const newPerson = (extra: Record<string, unknown> = {}) => s.addPerson(ADMIN, { name: `Synthetic Detailer ${++seq}`, ...extra }, opts());
@@ -82,8 +90,26 @@ test("T3 add: a detailer is created with a placeholder email, no sign-in, one au
   const rows = (await audits("STAFF_CREATED")).filter((a) => a.targetStaffId === p.id);
   assert.equal(rows.length, 1);
   assert.deepEqual([rows[0].actorStaffId, rows[0].newValue, rows[0].targetLabel], [MANAGER.staffId, "DEFAULT", null]);
-  const trail = JSON.stringify(rows, (_k, v) => (typeof v === "bigint" ? String(v) : v));
-  for (const pii of ["Maria", "Santos", "0917", "555"]) assert.ok(!trail.includes(pii), `audit row leaked ${pii}`);
+  // P1-84: search the row's text values, not its random ids, txId or time (a uuid like 5551b039-… tripped "555").
+  const trail = textValues(rows);
+  for (const pii of ["Maria", "Santos", "0917", "555"]) assert.ok(!trail.some((t) => t.includes(pii)), `audit row leaked ${pii}`);
+});
+
+// P1-84: the T3 and T16 leak check, without a database. A random id, txId or time holding "555" or "0917" must not trip it;
+// the phone in a text field must.
+test("P1-84 the T3 and T16 leak check skips random ids, numbers and times but still finds a private value", () => {
+  const row = { id: "5551b039-6c45-460f-9ba8-8a13d10f3e13", action: "STAFF_CREATED", actorStaffId: "3356d0cf-1300-4a3c-848f-3a19bbd9be1d",
+    targetStaffId: "0917d33a-1af6-4ead-8dd4-088f83c79bec", targetLabel: null, newValue: "DEFAULT", reason: null as string | null, txId: BigInt(15550),
+    createdAt: new Date("2026-11-14T02:04:39.555Z") };
+  const whole = JSON.stringify([row], (_k, v) => (typeof v === "bigint" ? String(v) : v));
+  for (const digits of ["555", "0917"]) {
+    assert.ok(whole.includes(digits), "the old whole-row search would have failed on this row: " + digits);
+    assert.equal(textValues([row]).some((t) => t.includes(digits)), false, "random values are not searched: " + digits);
+  }
+  const leaked = textValues([{ ...row, reason: "Phone 0917 555 0101 (" + row.id + ")" }]);
+  for (const pii of ["0917", "555"]) assert.ok(leaked.some((t) => t.includes(pii)), "a private value in a text field is found: " + pii);
+  const nested = textValues([{ ...row, extra: { contacts: [{ id: row.id, phone: "0917 555 0101" }] } }]);
+  for (const pii of ["0917", "555"]) assert.ok(nested.some((t) => t.includes(pii)), "a private value inside a nested value is found: " + pii);
 });
 
 test("T4 add with an email and a personal percentage: lowercased, exact basis points", { skip }, async () => {
@@ -288,10 +314,10 @@ test("T16 PII: across every audit row written by this suite, no name, phone or e
   const named = new Set<string>();
   for (const r of rows) {
     if (r.targetLabel !== null) { assert.equal(r.action, "STAFF_REMOVED"); named.add(r.targetLabel); }
-    const copy = { ...r, targetLabel: null } as Record<string, unknown>;
-    const text = JSON.stringify(copy, (_k, v) => (typeof v === "bigint" ? String(v) : v));
+    // P1-84: search the row's text values, not its random ids, txId or time (a uuid can hold "0917" by chance).
+    const text = textValues([{ ...r, targetLabel: null }]);
     for (const pii of ["Synthetic Detailer", "Renamed", "Maria", "Santos", "@example.test", "@staff.invalid", "0917", "Team Admin", "Team Manager", "Team Detailer"])
-      assert.ok(!text.includes(pii), `${r.action} row leaked ${pii}`);
+      assert.ok(!text.some((t) => t.includes(pii)), `${r.action} row leaked ${pii}`);
   }
   assert.deepEqual([...named], ["Removed Person Zed"], "the removed person's name is the only name stored, and only here");
 });
