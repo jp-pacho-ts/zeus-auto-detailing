@@ -3,7 +3,7 @@ import * as React from "react";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { adminRequest, AdminRequestError } from "./client";
-import { fieldClass } from "./use-admin-resource";
+import { fieldClass, Select } from "./use-admin-resource";
 
 // P1-20 item 4 (LE 2026-10-28): ADMIN adds, renames and removes bays inline on the board rows,
 // through the existing audited routes (POST /api/admin/bays, PATCH /api/admin/bays/[id]).
@@ -141,9 +141,9 @@ function MoveForm({ id, label, options, onSubmit, onCancel }: {
       }}
     >
       <label className="block text-xs" htmlFor={id}>{label}</label>
-      <select ref={select} id={id} value={value} onChange={(e) => setValue(e.target.value)} className={fieldClass}>
+      <Select ref={select} id={id} value={value} onChange={(e) => setValue(e.target.value)}>
         {options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-      </select>
+      </Select>
       {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
       <div className="flex flex-wrap gap-2">
         <Button type="submit" size="sm" disabled={busy || !value}>Move bay</Button>

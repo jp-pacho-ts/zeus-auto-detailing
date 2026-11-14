@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   Search,
   Calendar as CalendarIcon,
-  ChevronLeft,
   ChevronRight,
   Plus,
   X,
@@ -25,17 +24,26 @@ import {
   totalLabel,
   money,
 } from "./bookings/model";
+import { shopDay, statusPill } from "./bookings/detail/shared";
 import {
+  DayStepper,
   LoadState,
+  Select,
+  dateClass,
+  fieldBare,
   fieldClass,
   useAdminResource,
 } from "./bookings/use-admin-resource";
 import { BookingDetail } from "./bookings/booking-detail";
 import { CalendarTab } from "./calendar-tab";
 
-function BookingRows({
+// P1-76: one booking per row; the whole row opens its details (the P1-75 Dashboard pattern). Reorder stays as its own buttons.
+export function BookingRows({
   bookings,
   queueCode,
+  queueNames,
+  showDate = false,
+  emptyText,
   filter,
   role,
   busy,
@@ -44,6 +52,9 @@ function BookingRows({
 }: {
   bookings: AdminQueueBooking[];
   queueCode?: string;
+  queueNames: Record<string, string>;
+  showDate?: boolean;
+  emptyText: string;
   filter: string;
   role: UserRole;
   busy: boolean;
@@ -55,153 +66,67 @@ function BookingRows({
     direction: -1 | 1,
   ) => Promise<void>;
 }) {
-  const filtered = (rows: AdminQueueBooking[]) =>
-    filter === "ALL" ? rows : rows.filter((b) => b.status === filter);
-
-  // P1-20: a table from xl up; below it each booking stacks as a labelled card (no sideways scroll).
-  const cell = "block min-w-0 break-words xl:table-cell xl:p-3.5";
-  const cellLabel = (text: string) => (
-    <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground xl:hidden">
-      {text}
-    </span>
-  );
-
-  const displayed = filtered(bookings);
-
+  const displayed = filter === "ALL" ? bookings : bookings.filter((b) => b.status === filter);
+  if (!displayed.length) return <p className="p-6 text-center text-sm text-muted-foreground">{emptyText}</p>;
   return (
-    <div>
-      <table className="block w-full text-left text-xs xl:table">
-        <thead className="sticky top-0 z-10 hidden border-b border-border bg-card text-muted-foreground xl:table-header-group">
-          <tr>
-            {[
-              "Reference",
-              "Client",
-              "Treatment",
-              "Day / bay",
-              "Status",
-              "Amount",
-              "Actions",
-            ].map((label) => (
-              <th
-                key={label}
-                className="p-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground"
-              >
-                {label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="block divide-y divide-border/70 xl:table-row-group">
-          {displayed.map((b) => (
-            <tr
-              key={b.id}
-              className="grid grid-cols-1 gap-2.5 p-3.5 transition-colors hover:bg-card/70 sm:grid-cols-2 xl:table-row xl:p-0"
+    <ul className="divide-y divide-border/70">
+      {displayed.map((b) => {
+        const services = b.lines.filter((l) => !l.removed).map((l) => l.name).join(", ") || b.serviceName;
+        const queue = b.queueCode ? (queueNames[b.queueCode] ?? b.queueCode) : "Older booking";
+        const canReorder = role === "ADMIN" && queueCode && b.status !== "CANCELLED";
+        return (
+          <li key={b.id} className="flex items-stretch">
+            <button
+              type="button"
+              id={"booking-row-" + b.id}
+              onClick={() => onSelect(b.id)}
+              className="group flex min-h-[44px] min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
             >
-              <td className={cell + " font-mono font-bold text-primary"}>
-                {cellLabel("Reference")}
-                <button
-                  type="button"
-                  className="inline-flex min-h-[36px] items-center gap-1.5 rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary hover:bg-primary/20 hover:text-primary transition-colors focus-visible:ring-2 focus-visible:ring-primary"
-                  onClick={() => onSelect(b.id)}
-                >
-                  {b.referenceCode}
-                </button>
-              </td>
-              <td className={cell}>
-                {cellLabel("Client")}
-                <span className="font-semibold text-foreground block">{b.customerName}</span>
-                <span className="text-xs text-muted-foreground block">
-                  {b.vehicleModel}
+              <span className="min-w-0 flex-1 space-y-1">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-xs font-semibold text-foreground">
+                    {queue}
+                    {b.queuePosition ? ` #${b.queuePosition}` : ""}
+                  </span>
+                  <span className={statusPill(b.status)}>{statusLabel(b.status)}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{b.referenceCode}</span>
+                  {showDate && <span className="text-xs text-muted-foreground">{shopDay(b.bookingDate)}</span>}
+                </span>
+                <span className="block truncate text-sm font-medium text-foreground">
+                  {b.customerName} · {b.vehicleModel}
                   {b.vehiclePlate ? ` · ${b.vehiclePlate}` : ""}
                 </span>
-              </td>
-              <td className={cell + " text-muted-foreground"}>
-                {cellLabel("Treatment")}
-                <span className="text-foreground/90 font-medium">
-                  {b.lines
-                    .filter((l) => !l.removed)
-                    .map((l) => l.name)
-                    .join(", ") || b.serviceName}
+                <span className="block truncate text-xs text-muted-foreground">
+                  {services} · {b.bay?.name ?? "Unassigned bay"}
                 </span>
-              </td>
-              <td className={cell + " text-muted-foreground"}>
-                {cellLabel("Day / bay")}
-                <span className="text-foreground/90 font-medium">{b.bookingDate}</span>
-                <p className="text-xs text-muted-foreground">{b.bay?.name ?? "Unassigned bay"}</p>
-              </td>
-              <td className={cell}>
-                {cellLabel("Status")}
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${
-                    b.status === "CONFIRMED" || b.status === "COMPLETED"
-                      ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
-                      : b.status === "PENDING"
-                        ? "border-amber-500/30 bg-amber-500/15 text-amber-400"
-                        : b.status === "IN_PROGRESS"
-                          ? "border-blue-500/30 bg-blue-500/15 text-blue-400"
-                          : "border-rose-500/30 bg-rose-500/15 text-rose-400"
-                  }`}
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      b.status === "CONFIRMED" || b.status === "COMPLETED"
-                        ? "bg-emerald-400"
-                        : b.status === "PENDING"
-                          ? "bg-amber-400"
-                          : b.status === "IN_PROGRESS"
-                            ? "bg-blue-400"
-                            : "bg-rose-400"
-                    }`}
-                  />
-                  {statusLabel(b.status)}
-                </span>
-              </td>
-              <td className={cell + " font-mono font-semibold tabular-nums text-foreground"}>
-                {cellLabel("Amount")}
-                {totalLabel(b.totals)}
-              </td>
-              <td className={cell}>
-                <div className="flex flex-wrap items-center gap-1.5">
+              </span>
+              <span className="shrink-0 whitespace-nowrap text-right">
+                <span className="block font-mono text-xs font-semibold tabular-nums text-foreground">{money(b.totals.currentTotalCentavos)}</span>
+                {b.totals.forQuoteCount > 0 && <span className="block text-xs text-muted-foreground">+{b.totals.forQuoteCount} for quote</span>}
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+            </button>
+            {canReorder && (
+              <span className="flex shrink-0 flex-col justify-center gap-1 border-l border-border/70 px-2">
+                {([-1, 1] as const).map((direction) => (
                   <Button
+                    key={direction}
                     variant="outline"
                     size="sm"
-                    className="h-8 px-2.5 text-xs font-semibold hover:border-primary hover:text-primary transition-colors"
-                    onClick={() => onSelect(b.id)}
+                    className="h-9 min-h-0 w-9 p-0 text-xs font-bold"
+                    aria-label={`Move ${b.referenceCode} ${direction === -1 ? "up" : "down"}`}
+                    disabled={busy || !reorderPayload(bookings, b.id, direction)}
+                    onClick={() => void onReorder(queueCode, bookings, b.id, direction)}
                   >
-                    Open
+                    {direction === -1 ? "↑" : "↓"}
                   </Button>
-                  {role === "ADMIN" &&
-                    queueCode &&
-                    b.status !== "CANCELLED" &&
-                    ([-1, 1] as const).map((direction) => (
-                      <Button
-                        key={direction}
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-xs font-bold"
-                        aria-label={`Move ${b.referenceCode} ${direction === -1 ? "up" : "down"}`}
-                        disabled={
-                          busy || !reorderPayload(bookings, b.id, direction)
-                        }
-                        onClick={() =>
-                          void onReorder(queueCode, bookings, b.id, direction)
-                        }
-                      >
-                        {direction === -1 ? "↑" : "↓"}
-                      </Button>
-                    ))}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {displayed.length === 0 && (
-        <div className="p-6 text-center text-sm text-muted-foreground">
-          No bookings match this view.
-        </div>
-      )}
-    </div>
+                ))}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -400,6 +325,15 @@ function BookingsList({
     runSearch(r);
   }
 
+  function searchFromBar(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setMode("SEARCH");
+    const r = range === "CUSTOM" ? { from: searchFrom, to: searchTo } : presetRange(range, shopDate());
+    setSearchFrom(r.from);
+    setSearchTo(r.to);
+    runSearch(r);
+  }
+
   function goDay(next: string) {
     setDate(next);
     setQueuePage(1);
@@ -473,23 +407,22 @@ function BookingsList({
 
   const today = shopDate();
   const statusSelect = (
-    <label className="text-xs font-semibold text-muted-foreground">
+    <label className="min-w-0 text-xs font-semibold text-muted-foreground sm:w-44">
       Status
-      <select
+      <Select
         name="status"
         value={filter}
         onChange={(e) => {
           setFilter(e.target.value);
           if (mode === "SEARCH") runSearch({ status: e.target.value });
         }}
-        className={fieldClass}
       >
         {["ALL", "PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((s) => (
           <option key={s} value={s}>
             {s === "ALL" ? "All statuses" : statusLabel(s)}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   );
   const open = all.filter((b) => b.status !== "CANCELLED");
@@ -501,8 +434,19 @@ function BookingsList({
     `-mb-px min-h-[40px] border-b-2 px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
       active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
     }`;
-  const iconButton =
-    "inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:bg-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
+  // Focus goes back to the row the details were opened from; if that row has gone (deleted), to the view switch (as on the Dashboard, P1-75).
+  const returnTo = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const id = returnTo.current;
+    if (!id || selected || document.getElementById("booking-row-" + id)) return;
+    returnTo.current = null;
+    if (!document.activeElement || document.activeElement === document.body) document.getElementById("bookings-view-BOOKINGS")?.focus();
+  });
+  const queueNames: Record<string, string> = Object.fromEntries((day.data?.queues ?? []).map((x) => [x.code, x.name]));
+  const pickQueue = (code: string) => {
+    setActiveQueueTab(code);
+    setQueuePage(1);
+  };
 
   return (
     <div className="space-y-4">
@@ -523,6 +467,22 @@ function BookingsList({
                 </button>
               )}
             </div>
+            {/* P1-76: search is always one box away; Enter shows the results in the Search view. */}
+            {mode !== "SEARCH" && (
+              <form role="search" onSubmit={searchFromBar} className="relative order-last w-full sm:order-none sm:w-auto sm:max-w-md sm:flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <input
+                  type="search"
+                  aria-label="Search bookings"
+                  maxLength={80}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  autoComplete="off"
+                  placeholder="Name, phone, last 4 or reference"
+                  className={fieldBare + " pl-9"}
+                />
+              </form>
+            )}
             <div className="flex items-center gap-2">
               <Button id="bookings-view-CALENDAR" variant="outline" size="sm" onClick={onNavigateCalendar} className="gap-1.5">
                 <CalendarIcon className="h-4 w-4" aria-hidden="true" />
@@ -541,23 +501,26 @@ function BookingsList({
           <section className="overflow-hidden rounded-xl border border-border bg-panel">
             {mode === "DAY" && (
               <div>
+                {/* P1-76: one 44 px toolbar; on phones the filters share the second row. */}
                 <div className="flex flex-wrap items-end justify-between gap-3 p-4">
-                  <div className="flex items-end gap-2">
-                    <button type="button" aria-label="Previous day" className={iconButton} onClick={() => goDay(addDays(date, -1))}>
-                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <label className="text-xs font-semibold text-muted-foreground">
-                      Queue day
-                      <input type="date" value={date} required className={fieldClass} onChange={(e) => e.target.value && goDay(e.target.value)} />
-                    </label>
-                    <button type="button" aria-label="Next day" className={iconButton} onClick={() => goDay(addDays(date, 1))}>
-                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <Button type="button" variant="outline" className="min-h-[40px]" disabled={date === today} onClick={() => goDay(today)}>
-                      Today
-                    </Button>
+                  <DayStepper label="Queue day" value={date} today={today} onChange={goDay} />
+                  <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+                    {statusSelect}
+                    {day.data && (
+                      <label className="min-w-0 text-xs font-semibold text-muted-foreground sm:hidden">
+                        Queue
+                        <Select value={activeQueueTab} onChange={(e) => pickQueue(e.target.value)}>
+                          <option value="ALL">All ({all.length})</option>
+                          {day.data.queues.map((x) => (
+                            <option key={x.code} value={x.code}>
+                              {x.name} ({x.bookings.length}{x.effectiveCap === null ? "" : `/${x.effectiveCap}`})
+                            </option>
+                          ))}
+                          {Boolean(day.data.legacy.length) && <option value="LEGACY">Legacy ({day.data.legacy.length})</option>}
+                        </Select>
+                      </label>
+                    )}
                   </div>
-                  {statusSelect}
                 </div>
 
                 {day.data && (
@@ -573,8 +536,8 @@ function BookingsList({
                 )}
 
                 {day.data && (
-                  <div role="tablist" aria-label="Queues" className="flex flex-wrap gap-1 border-b border-border px-4">
-                    <button type="button" role="tab" aria-selected={activeQueueTab === "ALL"} className={tab(activeQueueTab === "ALL")} onClick={() => { setActiveQueueTab("ALL"); setQueuePage(1); }}>
+                  <div role="tablist" aria-label="Queues" className="hidden flex-wrap gap-1 border-b border-border px-4 sm:flex">
+                    <button type="button" role="tab" aria-selected={activeQueueTab === "ALL"} className={tab(activeQueueTab === "ALL")} onClick={() => pickQueue("ALL")}>
                       All <span className="tabular-nums text-muted-foreground">{all.length}</span>
                     </button>
                     {day.data.queues.map((q) => (
@@ -585,7 +548,7 @@ function BookingsList({
                         aria-selected={activeQueueTab === q.code}
                         title={`${q.committed} committed · ${q.effectiveCap === null ? "no limit" : `Limit ${q.effectiveCap}`}${q.isActive ? "" : " · Inactive"}`}
                         className={tab(activeQueueTab === q.code)}
-                        onClick={() => { setActiveQueueTab(q.code); setQueuePage(1); }}
+                        onClick={() => pickQueue(q.code)}
                       >
                         {q.name}{" "}
                         <span className="tabular-nums text-muted-foreground">
@@ -594,7 +557,7 @@ function BookingsList({
                       </button>
                     ))}
                     {Boolean(day.data.legacy.length) && (
-                      <button type="button" role="tab" aria-selected={activeQueueTab === "LEGACY"} className={tab(activeQueueTab === "LEGACY")} onClick={() => { setActiveQueueTab("LEGACY"); setQueuePage(1); }}>
+                      <button type="button" role="tab" aria-selected={activeQueueTab === "LEGACY"} className={tab(activeQueueTab === "LEGACY")} onClick={() => pickQueue("LEGACY")}>
                         Legacy <span className="tabular-nums text-muted-foreground">{day.data.legacy.length}</span>
                       </button>
                     )}
@@ -618,6 +581,8 @@ function BookingsList({
                     <BookingRows
                       bookings={pagedQueueBookings}
                       queueCode={activeQueueTab !== "ALL" && activeQueueTab !== "LEGACY" ? activeQueueTab : undefined}
+                      queueNames={queueNames}
+                      emptyText="No bookings on this day."
                       filter={filter}
                       role={role}
                       busy={busy}
@@ -669,7 +634,7 @@ function BookingsList({
                   </label>
                   <label className="text-xs font-semibold text-muted-foreground">
                     Dates
-                    <select
+                    <Select
                       aria-label="Date range"
                       value={range}
                       onChange={(e) => {
@@ -682,7 +647,6 @@ function BookingsList({
                           runSearch(r);
                         }
                       }}
-                      className={fieldClass}
                     >
                       <option value="TODAY">Today</option>
                       <option value="TOMORROW">Tomorrow</option>
@@ -692,22 +656,22 @@ function BookingsList({
                       <option value="THIS_MONTH">This month</option>
                       <option value="NEXT_MONTH">Next month</option>
                       <option value="CUSTOM">Custom range…</option>
-                    </select>
+                    </Select>
                   </label>
                   {range === "CUSTOM" && (
                     <>
                       <label className="text-xs font-semibold text-muted-foreground">
                         From
-                        <input name="from" type="date" required value={searchFrom} onChange={(e) => setSearchFrom(e.target.value)} className={fieldClass} />
+                        <input name="from" type="date" required value={searchFrom} onChange={(e) => setSearchFrom(e.target.value)} className={dateClass + " block"} />
                       </label>
                       <label className="text-xs font-semibold text-muted-foreground">
                         To
-                        <input name="to" type="date" required value={searchTo} onChange={(e) => setSearchTo(e.target.value)} className={fieldClass} />
+                        <input name="to" type="date" required value={searchTo} onChange={(e) => setSearchTo(e.target.value)} className={dateClass + " block"} />
                       </label>
                     </>
                   )}
                   {statusSelect}
-                  <Button disabled={list.loading} className="min-h-[40px] px-4">
+                  <Button disabled={list.loading} className="px-4">
                     Search
                   </Button>
                 </form>
@@ -715,7 +679,7 @@ function BookingsList({
                 <LoadState loading={list.loading} error={list.error} retry={list.reload} />
                 {list.data && (
                   <div className="border-t border-border">
-                    <BookingRows bookings={list.data.items} filter="ALL" role={role} busy={busy} onSelect={setSelected} onReorder={reorder} />
+                    <BookingRows bookings={list.data.items} queueNames={queueNames} showDate emptyText="No bookings match this search." filter="ALL" role={role} busy={busy} onSelect={setSelected} onReorder={reorder} />
                     {(searchPage > 1 || list.data.nextCursor) && (
                       <Pager
                         label={`Page ${searchPage}`}
@@ -816,7 +780,12 @@ function BookingsList({
           role={role}
           queues={day.data?.queues ?? []}
           onChanged={day.reload}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            const row = selected;
+            returnTo.current = row;
+            setSelected(null);
+            requestAnimationFrame(() => document.getElementById("booking-row-" + row)?.focus());
+          }}
         />
       )}
     </div>

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { AdminBookingDetail, AdminLine } from "@/types/admin-contracts";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import { centavos, money, statusLabel } from "../model";
-import { fieldClass, LoadState } from "../use-admin-resource";
+import { fieldClass, LoadState, Select } from "../use-admin-resource";
 import { dangerText, label, panel, panelHead, primary, sectionTitle, statusPill, submit, type Write } from "./shared";
 
 const segment: Record<AdminLine["workStatus"], string> = {
@@ -189,7 +189,7 @@ export function ServicesSection({
             >
               <label className={`${label} min-w-0 flex-1 basis-full sm:basis-0`}>
                 Add service
-                <select name="service" required className={fieldClass} defaultValue="">
+                <Select name="service" required defaultValue="">
                   <option value="" disabled>
                     Choose a service
                   </option>
@@ -209,7 +209,7 @@ export function ServicesSection({
                         {s.unit === "PANEL" ? " (per panel)" : ""}
                       </option>
                     ))}
-                </select>
+                </Select>
               </label>
               <label className={`${label} w-20`}>
                 Qty

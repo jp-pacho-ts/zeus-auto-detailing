@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AdminBookingDetail, AdminDayBoard } from "@/types/admin-contracts";
 import { money } from "../model";
-import { fieldClass, LoadState } from "../use-admin-resource";
+import { LoadState, Select } from "../use-admin-resource";
 import { label, panel, sectionTitle, submit, type Write } from "./shared";
 
 type Row = { staffId: string; name: string; amountCentavos: number };
@@ -65,7 +65,7 @@ export function CrewSection({
           <form className="flex items-end gap-2" onSubmit={(e) => submit(e, (f) => void write("/workers/" + String(f.get("worker")), {}, "PUT"))}>
             <label className={`${label} min-w-0 flex-1`}>
               Add a worker
-              <select name="worker" className={fieldClass} required disabled={disabled} defaultValue="">
+              <Select name="worker" required disabled={disabled} defaultValue="">
                 <option value="" disabled>
                   Choose an active worker
                 </option>
@@ -76,7 +76,7 @@ export function CrewSection({
                       {w.name}
                     </option>
                   ))}
-              </select>
+              </Select>
             </label>
             <Button variant="outline" disabled={disabled}>
               Assign

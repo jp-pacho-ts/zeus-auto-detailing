@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AdminBookingDetail, AdminDayQueues } from "@/types/admin-contracts";
-import { fieldClass } from "../use-admin-resource";
+import { fieldClass, Select, dateClass } from "../use-admin-resource";
 import { dangerText, label, panel, primary, sectionTitle, submit, type Write } from "./shared";
 
 const row = "group";
@@ -83,11 +83,11 @@ export function ManageSection({
             >
               <label className={label}>
                 New date
-                <input type="date" name="date" required defaultValue={b.bookingDate} className={fieldClass} />
+                <input type="date" name="date" required defaultValue={b.bookingDate} className={dateClass + " block"} />
               </label>
               <label className={label}>
                 Queue
-                <select name="queue" defaultValue={b.queueCode ?? ""} className={fieldClass}>
+                <Select name="queue" defaultValue={b.queueCode ?? ""}>
                   {queues
                     .filter((q) => q.isActive)
                     .map((q) => (
@@ -95,7 +95,7 @@ export function ManageSection({
                         {q.name}
                       </option>
                     ))}
-                </select>
+                </Select>
               </label>
               <Button variant="outline" disabled={disabled}>
                 Move booking
