@@ -16,6 +16,21 @@ const DOCUMENT_CSP_PRODUCTION =
   "img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; " +
   "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests";
 
+test("unlisted preview alone is noindex and uncached, with the unchanged document CSP", () => {
+  for (const production of [false, true]) {
+    const rules = securityHeaders(production) as Rule[];
+    const preview = Object.assign({}, ...matching(rules, "/preview/landing").map(headerMap));
+    assert.equal(preview["X-Robots-Tag"], "noindex, nofollow");
+    assert.equal(preview["Cache-Control"], "private, no-store");
+    assert.equal(preview["Content-Security-Policy"], documentContentSecurityPolicy(production));
+    for (const url of ["/", "/book", "/book/manage", "/admin", "/api/catalog"]) {
+      const other = Object.assign({}, ...matching(rules, url).map(headerMap));
+      assert.equal(other["X-Robots-Tag"], undefined, url);
+      assert.equal(other["Cache-Control"], undefined, url);
+    }
+  }
+});
+
 test("production: HSTS without subdomains or preload, deny framing, nosniff, no referrer, and the exact document CSP", () => {
   const rules = securityHeaders(true) as Rule[];
   const everywhere = headerMap(matching(rules, "/api/bookings/manage")[0]);
