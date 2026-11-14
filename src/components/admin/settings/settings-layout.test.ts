@@ -35,6 +35,13 @@ test("Settings: one summary bar, a section list, and the Danger zone last", () =
   assert.match(danger, /aria-label="Customer website"/, "the maintenance switch sits in the Danger zone");
   assert.match(danger, /id="maintenance-message-input"/, "and its message with it");
   assert.equal(html.slice(0, order[5]).includes('aria-label="Customer website"'), false, "not before the Danger zone");
+  // Lead QA F1 (P1-77): the summary bar wraps to two rows up to lg (phones and 768), so a jumped-to section keeps the larger margin until lg.
+  for (const id of ["settings-general", "settings-hours", "settings-email", "settings-danger"]) {
+    const tag = html.match(new RegExp(`<[a-z]+ id="${id}"[^>]*>`))?.[0] ?? "";
+    assert.match(tag, /scroll-mt-40/, id);
+    assert.match(tag, /lg:scroll-mt-24/, id);
+    assert.doesNotMatch(tag, /sm:scroll-mt-24/, id);
+  }
   // Status lives only in the summary bar; no repeated badges, no "Railway".
   assert.doesNotMatch(html, /Storefront Live|Public Site Live|Bookings Open|SMTP Configured|Setup in Railway|Railway/);
   assert.match(html, />Which emails go out</);
