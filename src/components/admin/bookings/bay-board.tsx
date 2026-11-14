@@ -506,7 +506,7 @@ export function BayBoard({ role }: { role: UserRole }) {
                       )}
                     </div>
                     {/* P1-80 (B3): below md (phones, 200% zoom) a container's bays stack so every control is on screen; from md the row scrolls sideways. */}
-                    <div data-board-row-scroll className="flex flex-col gap-3.5 overflow-x-auto p-3.5 md:flex-row">
+                    <div data-board-row-scroll className="flex flex-col gap-3.5 md:flex-row overflow-x-auto p-3.5">
                       {shown.map((b) => {
                         const hasCar = b.cards.length > 0;
                         return (
