@@ -5,7 +5,7 @@ import { brandConfig } from "@/config/brand";
 import type { AdminSchedule, AdminWeekdayHours } from "@/lib/admin-schedule";
 import { adminRequest } from "../bookings/client";
 import { shopDate } from "../bookings/model";
-import { dateClass, fieldClass, LoadState, useAdminResource } from "../bookings/use-admin-resource";
+import { dateClass, fieldBare, fieldClass, LoadState, useAdminResource } from "../bookings/use-admin-resource";
 import { addDay } from "./calendar-model";
 import { useAdminWrite, WriteFeedback } from "./use-admin-write";
 
@@ -18,7 +18,7 @@ const longDay = (day: string) =>
 
 type Write = ReturnType<typeof useAdminWrite>;
 const ROW = "grid grid-cols-[7.5rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 py-1.5 sm:grid-cols-[9rem_10rem_10rem]";
-const timeClass = fieldClass.replace("mt-1 ", "");
+const timeClass = fieldBare;
 
 // A refused save keeps the edits on screen (the server says why); a saved one reloads.
 function WeekForm({ schedule, write, onSaved }: { schedule: AdminSchedule; write: Write; onSaved: () => Promise<void> }) {

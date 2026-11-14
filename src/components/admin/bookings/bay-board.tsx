@@ -634,7 +634,7 @@ export function MoveForm({
           ref={select}
           name="bay"
           aria-label={"Move " + card.referenceCode + " to bay"}
-          wrapperClassName="mt-0 min-w-0 flex-1"
+          wrapperClassName="min-w-0 flex-1"
           className="text-xs font-medium"
           value={value}
           onChange={(e) => setValue(e.target.value)}
