@@ -82,3 +82,19 @@ test("Daily limits: one sentence per line of work with Edit; the forms open on E
     mock.restoreAll();
   }
 });
+
+// CEO 2026-11-14: Bays starts collapsed behind a one-line summary; its toggle is a real button with aria-expanded.
+test("Settings: Bays is collapsed by default with a summary and a Show bays toggle", () => {
+  const html = renderSettings("ADMIN", settings());
+  const bays = html.slice(html.indexOf('id="settings-bays"'), html.indexOf('id="settings-danger"'));
+  const toggle = bays.match(/<button[^>]*>Show bays<\/button>/)?.[0] ?? "";
+  assert.match(toggle, /type="button"/);
+  assert.match(toggle, /aria-expanded="false"/);
+  assert.match(toggle, /aria-controls="settings-bays-panel"/);
+  assert.doesNotMatch(bays, /id="settings-bays-panel"|aria-label="Add a bay"/, "the bay manager is not mounted while closed");
+  const { baySummary } = require("../settings-tab");
+  const bay = (isActive: boolean) => ({ isActive });
+  assert.equal(baySummary(null), "Add, move or bring back bays.");
+  assert.equal(baySummary([bay(true), bay(true), bay(false)]), "2 bays · 1 removed");
+  assert.equal(baySummary([bay(true)]), "1 bay");
+});
