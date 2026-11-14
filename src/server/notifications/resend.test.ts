@@ -90,11 +90,22 @@ test("Resend: an error that quotes the recipient logs only the status and the er
 
 test("Resend: returns auth_rejected when Resend API returns 401 Unauthorized", async () => {
   const config = notificationConfiguration({ RESEND_API_KEY: "re_invalid_key_test" })!;
-  const result = await sendSmtpClassified(
-    config,
-    "customer@example.test",
-    { subject: "Test", text: "Test body" },
-    "<test.message.id@localhost>",
-  );
+  // No outbound call (CEO, P1-78): the provider's 401 answer is stubbed.
+  const realFetch = globalThis.fetch;
+  const hosts: string[] = [];
+  globalThis.fetch = async (input) => {
+    hosts.push(new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url).hostname);
+    return new Response(JSON.stringify({ name: "missing_api_key", message: "API key is invalid", statusCode: 401 }), { status: 401, headers: { "content-type": "application/json" } });
+  };
+  let result: string;
+  try {
+    result = await sendSmtpClassified(
+      config,
+      "customer@example.test",
+      { subject: "Test", text: "Test body" },
+      "<test.message.id@localhost>",
+    );
+  } finally { globalThis.fetch = realFetch; }
   assert.equal(result, "auth_rejected");
+  assert.deepEqual(hosts, ["api.resend.com"], "one stubbed call, nothing reached the network");
 });
