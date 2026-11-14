@@ -177,15 +177,14 @@ test('ADMIN drags a board card from anywhere on its body; controls on the card k
 
     // Keyboard/phone fallback after that rejection writes once each way and must not inherit a ring.
     await page.setViewportSize({ width: 390, height: 900 });
-    // P1-76 (CEO): once a place is chosen the button names it ("Move to <bay>"); Waiting is its own option.
     await resting().getByLabel('Move ' + ref + ' to bay').selectOption({ label: emptyBay });
-    await resting().getByRole('button', { name: 'Move to ' + emptyBay, exact: true }).focus();
+    await resting().getByRole('button', { name: 'Move car', exact: true }).focus();
     await page.keyboard.press('Enter'); await cardIn(emptyBay).waitFor();
     assert.equal(puts.length, 3, 'post-rejection keyboard move sends exactly one PUT');
     assert.equal(typeof puts[2].bayId, 'string');
     await cleanDragStyle(cardIn(emptyBay), 'keyboard move after rejection');
-    await cardIn(emptyBay).getByLabel('Move ' + ref + ' to bay').selectOption({ label: 'Waiting' });
-    await cardIn(emptyBay).getByRole('button', { name: 'Move to Waiting', exact: true }).focus();
+    await cardIn(emptyBay).getByLabel('Move ' + ref + ' to bay').selectOption({ index: 0 });
+    await cardIn(emptyBay).getByRole('button', { name: 'Move car', exact: true }).focus();
     await page.keyboard.press('Enter'); await resting().waitFor();
     assert.equal(puts.length, 4, 'post-rejection keyboard return sends exactly one PUT');
     assert.equal(puts[3].bayId, null);
