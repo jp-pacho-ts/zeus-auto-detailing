@@ -24,6 +24,7 @@ export { getExpenseMonth, addExpense, updateExpense, removeExpense, restoreExpen
 export { expenseTotals, type ExpenseTotals } from "./expenses-read";
 export { getAnalytics } from "./analytics";
 export { getShopSettings, setShopSettings, setEmailSwitch } from "./shop-settings";
+export { previewEmail, sendTestEmail } from "./settings-tools";
 export { listUsers, createUser, updateUser, resetUserPassword } from "./users";
 export { listAdminServices, updateAdminService, createAdminService, toggleAdminService } from "./services";
 export { getWeeklyPayroll, savePayrollAdjustment, setPayrollPaid } from "./payroll";
