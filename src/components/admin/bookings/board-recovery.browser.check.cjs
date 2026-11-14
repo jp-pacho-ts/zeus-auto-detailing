@@ -44,10 +44,10 @@ test('an uncertain move stays locked while the board reload fails, and unlocks o
     });
 
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
+    await page.getByLabel('Staff Email or Username').fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
-    await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();
     await page.getByRole('navigation', { name: 'Shop Operations Navigation' }).getByRole('button', { name: 'Bay board', exact: true }).click();
     await page.getByLabel('Board day').waitFor();
 
@@ -55,7 +55,8 @@ test('an uncertain move stays locked while the board reload fails, and unlocks o
     await card.waitFor();
     const ref = (await card.getAttribute('aria-label')) ?? '';
     assert.match(ref, /^ZEUS-/, 'waiting Wash card present');
-    const moveButton = card.getByRole('button', { name: 'Move car', exact: true });
+    // P1-76: the Move button names its target once one is chosen ("Move to Wash 2"), so it is found by its id; P1-80 restores Refresh board in the alert.
+    const moveButton = card.locator('button[id^="board-move-"]');
     const uncertain = page.getByRole('alert').filter({ hasText: 'The move outcome is uncertain.' });
     assert.equal(await moveButton.isDisabled(), false, 'Move car starts enabled');
     assert.equal(await card.getAttribute('draggable'), 'true', 'the card starts draggable');
@@ -96,7 +97,7 @@ test('an uncertain move stays locked while the board reload fails, and unlocks o
     await uncertain.waitFor({ state: 'detached' });
     const fresh = page.getByRole('region', { name: 'Waiting', exact: true }).locator('article[aria-label^="ZEUS-"]').filter({ hasText: 'Synthetic Vios' });
     await fresh.waitFor();
-    assert.equal(await fresh.getByRole('button', { name: 'Move car', exact: true }).isDisabled(), false, 'Move car enabled again after a good reload');
+    assert.equal(await fresh.locator('button[id^="board-move-"]').isDisabled(), false, 'Move car enabled again after a good reload');
     assert.equal(await fresh.getAttribute('draggable'), 'true', 'draggable again after a good reload');
     assert.deepEqual(errors, []);
   } finally {
