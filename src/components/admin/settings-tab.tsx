@@ -14,13 +14,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { brandConfig } from "@/config/brand";
-import type { AdminShopSettings, EmailKind } from "@/types/admin-contracts";
+import type { AdminBay, AdminShopSettings, EmailKind } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import { adminRequest, AdminRequestError } from "./bookings/client";
 import { CapSettings } from "./bookings/cap-settings";
 import { BayManager } from "./calendar/bay-manager";
 import { HoursManager } from "./calendar/hours-manager";
-import { fieldClass, LoadState, Select } from "./bookings/use-admin-resource";
+import { fieldClass, LoadState, Select, useAdminResource } from "./bookings/use-admin-resource";
 import {
   bookingLine,
   BOOKING_INTRO,
@@ -154,6 +154,12 @@ const SECTIONS: [string, string][] = [
   ["settings-bays", "Bays"],
   ["settings-danger", "Danger zone"],
 ];
+// "6 bays · 1 removed": one line while the Bays section is closed.
+export function baySummary(bays: AdminBay[] | null | undefined): string {
+  if (!bays) return "Add, move or bring back bays.";
+  const removed = bays.filter((b) => !b.isActive).length, working = bays.length - removed;
+  return `${working} ${working === 1 ? "bay" : "bays"}` + (removed ? ` · ${removed} removed` : "");
+}
 const jump = (id: string) => {
   const target = document.getElementById(id);
   target?.scrollIntoView({ block: "start" });
@@ -176,6 +182,13 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
   const [error, setError] = React.useState<string | null>(null);
   const [saved, setSaved] = React.useState<string | null>(null);
   const [feedbackAt, setFeedbackAt] = React.useState<string | null>(null);
+  // CEO 2026-11-14: Bays starts collapsed behind a one-line summary; a jump to Bays opens it.
+  const [baysOpen, setBaysOpen] = React.useState(false);
+  const bayList = useAdminResource<AdminBay[]>(isAdmin ? "/api/admin/bays" : null);
+  const go = (id: string) => {
+    if (id === "settings-bays") setBaysOpen(true);
+    jump(id);
+  };
   const [draft, setDraft] = React.useState<string | null>(null); // null: the message as saved
   const [limitsDay, setLimitsDay] = React.useState(today);
   const writing = React.useRef(false);
@@ -264,16 +277,16 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
         <>
           {/* P1-77: the one place status lives; each item jumps to its section. */}
           <nav aria-label="Settings summary" className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 bg-background/95 px-1 py-2">
-            <button type="button" className={chip(current.maintenance ? "warn" : "ok")} onClick={() => jump("settings-danger")}>
+            <button type="button" className={chip(current.maintenance ? "warn" : "ok")} onClick={() => go("settings-danger")}>
               Site: {current.maintenance ? "Under maintenance" : "Live"}
             </button>
-            <button type="button" className={chip(paused ? "warn" : "ok")} onClick={() => jump("settings-general")}>
+            <button type="button" className={chip(paused ? "warn" : "ok")} onClick={() => go("settings-general")}>
               Online booking: {paused ? "Paused" : "Open"}
             </button>
-            <button type="button" className={chip(current.email.configured ? "ok" : "warn")} onClick={() => jump("settings-email")}>
+            <button type="button" className={chip(current.email.configured ? "ok" : "warn")} onClick={() => go("settings-email")}>
               Email: {current.email.configured ? "Set up" : "Not set up"}
             </button>
-            <button type="button" className={chip(current.email.failedLast7Days > 0 ? "bad" : "plain")} onClick={() => jump("settings-email")}>
+            <button type="button" className={chip(current.email.failedLast7Days > 0 ? "bad" : "plain")} onClick={() => go("settings-email")}>
               Failed emails, 7 days: {current.email.failedLast7Days}
             </button>
           </nav>
@@ -285,7 +298,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                   <li key={id}>
                     <button
                       type="button"
-                      onClick={() => jump(id)}
+                      onClick={() => go(id)}
                       className="flex min-h-[44px] w-full items-center rounded-md px-3 text-left text-sm text-muted-foreground hover:bg-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     >
                       {label}
@@ -298,7 +311,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
             <div className="min-w-0 space-y-6">
               <label className="block text-xs font-semibold text-muted-foreground lg:hidden">
                 Section
-                <Select value="" onChange={(e) => e.target.value && jump(e.target.value)}>
+                <Select value="" onChange={(e) => e.target.value && go(e.target.value)}>
                   <option value="" disabled>
                     Jump to a section…
                   </option>
@@ -373,7 +386,23 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
               </SectionCard>
 
               <SectionCard id="settings-bays" icon={Warehouse} title="Bays" intro="Add a bay, move it to another container, or bring back a removed one. The Bay board shows the working bays.">
-                <BayManager />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-foreground">{baySummary(bayList.data)}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-expanded={baysOpen}
+                    aria-controls="settings-bays-panel"
+                    onClick={() => setBaysOpen((open) => !open)}
+                  >
+                    {baysOpen ? "Hide bays" : "Show bays"}
+                  </Button>
+                </div>
+                {baysOpen && (
+                  <div id="settings-bays-panel">
+                    <BayManager onChanged={() => void bayList.reload()} />
+                  </div>
+                )}
               </SectionCard>
 
               <SectionCard id="settings-danger" icon={Globe} title="Danger zone" intro={WEBSITE_INTRO} danger>
