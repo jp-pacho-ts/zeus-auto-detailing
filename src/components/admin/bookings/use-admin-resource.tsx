@@ -82,14 +82,16 @@ export function useAdminResource<T>(
 const fieldBase =
   "min-h-[44px] rounded border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60";
 export const fieldClass = "mt-1 w-full " + fieldBase;
+// The same field with no top margin, for a field that is not under a label.
+export const fieldBare = "w-full " + fieldBase;
 // P1-76: one date style. 44 px tall, sized to its content, the calendar icon kept off the edge.
 export const dateClass =
   "mt-1 w-auto min-w-[10.5rem] " + fieldBase + " [&::-webkit-calendar-picker-indicator]:ml-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70";
 
 // P1-76: one select style. A native select (keyboard, screen readers and phone pickers unchanged) with our own chevron 12 px in.
-export function Select({ className = "", wrapperClassName = "", ...props }: React.ComponentProps<"select"> & { wrapperClassName?: string }) {
+export function Select({ className = "", wrapperClassName = "mt-1", ...props }: React.ComponentProps<"select"> & { wrapperClassName?: string }) {
   return (
-    <span className={"relative mt-1 block " + wrapperClassName}>
+    <span className={"relative block " + wrapperClassName}>
       <select {...props} className={"w-full appearance-none pr-9 " + fieldBase + " " + className} />
       <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
     </span>
@@ -97,6 +99,7 @@ export function Select({ className = "", wrapperClassName = "", ...props }: Reac
 }
 
 // P1-76: the day control shared by the Bookings day view and the Bay board: previous, the date, next, Today.
+// Pixel sizes, not h-11/w-11: the admin shell sets html to 92.5%, so rem-based 44 comes out at 40.7 px (Lead QA F1).
 export function DayStepper({
   label,
   value,
@@ -120,7 +123,7 @@ export function DayStepper({
     onChange(d.toISOString().slice(0, 10));
   };
   const square =
-    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded border border-border bg-card text-muted-foreground hover:bg-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60";
+    "inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded border border-border bg-card text-muted-foreground hover:bg-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60";
   return (
     <div className="flex items-end gap-2">
       <button type="button" aria-label="Previous day" className={square} disabled={disabled} onClick={() => step(-1)}>

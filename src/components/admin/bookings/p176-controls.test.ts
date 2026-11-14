@@ -10,7 +10,7 @@ const html = (type: unknown, props: Record<string, unknown>) => renderToStaticMa
 test("shared Select: native select, appearance-none, pr-9, 44 px, chevron 12 px in", () => {
   const { Select, dateClass } = require("./use-admin-resource");
   const out = html(Select, { "aria-label": "Status", children: createElement("option", { value: "A" }, "A") });
-  assert.match(out, /^<span class="relative mt-1 block[^"]*"><select aria-label="Status" class="w-full appearance-none pr-9 min-h-\[44px\]/);
+  assert.match(out, /^<span class="relative block mt-1"><select aria-label="Status" class="w-full appearance-none pr-9 min-h-\[44px\]/);
   const chevron = out.match(/<svg[^>]*>/)?.[0] ?? "";
   assert.match(chevron, /aria-hidden="true"/);
   assert.match(chevron, /class="[^"]*pointer-events-none absolute right-3 top-1\/2/);
@@ -22,8 +22,8 @@ test("shared Select: native select, appearance-none, pr-9, 44 px, chevron 12 px 
 test("DayStepper: previous, date, next and Today, all 44 px; Today reads as selected on today", () => {
   const { DayStepper } = require("./use-admin-resource");
   const onToday = html(DayStepper, { label: "Board day", inputId: "board-day-input", inputLabel: "Board day", value: "2026-11-13", today: "2026-11-13", onChange: () => {} });
-  assert.match(onToday, /aria-label="Previous day" class="[^"]*h-11 w-11/);
-  assert.match(onToday, /aria-label="Next day" class="[^"]*h-11 w-11/);
+  assert.match(onToday, /aria-label="Previous day" class="[^"]*h-\[44px\] w-\[44px\]/, "pixel sizes: the shell sets html to 92.5%");
+  assert.match(onToday, /aria-label="Next day" class="[^"]*h-\[44px\] w-\[44px\]/);
   assert.match(onToday, /id="board-day-input" aria-label="Board day" type="date"/);
   assert.match(onToday, /aria-pressed="true"[^>]*>Today</);
   assert.doesNotMatch(onToday, /disabled=""[^>]*>Today</, "Today is not shown as a disabled button");
@@ -48,6 +48,7 @@ test("MoveForm: a 'Move to…' placeholder, Waiting only for a seated car, Done 
   assert.doesNotMatch(waiting, /Done \(finish\)/);
   assert.doesNotMatch(waiting, /Old bay/, "inactive bays are not offered");
   assert.match(waiting, /aria-label="Move ZEUS-1 to bay"/);
+  assert.match(waiting, /<span class="relative block min-w-0 flex-1"><select/, "no top margin, so the select lines up with the Move button (Lead QA N2)");
   assert.match(waiting, /id="board-move-k1"[^>]*>Move car</);
   const seated = html(MoveForm, { card: { id: "k2", referenceCode: "ZEUS-2", assignedBayId: "b2" }, containers, role: "ADMIN", disabled: false, canFinish: true, onMove: () => {} });
   assert.match(seated, /<option value="WAITING">Waiting<\/option>/);

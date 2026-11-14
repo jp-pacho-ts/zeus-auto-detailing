@@ -30,6 +30,7 @@ import {
   LoadState,
   Select,
   dateClass,
+  fieldBare,
   fieldClass,
   useAdminResource,
 } from "./bookings/use-admin-resource";
@@ -478,7 +479,7 @@ function BookingsList({
                   onChange={(e) => setQ(e.target.value)}
                   autoComplete="off"
                   placeholder="Name, phone, last 4 or reference"
-                  className={fieldClass.replace("mt-1 ", "") + " pl-9"}
+                  className={fieldBare + " pl-9"}
                 />
               </form>
             )}
