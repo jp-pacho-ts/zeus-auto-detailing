@@ -10,7 +10,7 @@ import type {
 } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import { adminRequest, AdminRequestError } from "./client";
-import { DayStepper, LoadState, Select, useAdminResource } from "./use-admin-resource";
+import { LoadState, Select, dateBare, useAdminResource } from "./use-admin-resource";
 import { shopDate, statusLabel } from "./model";
 import { bayPayload, canDrop, isControlTarget, plateLabel, writeFeedback } from "./board-model";
 import { AddBay, addBayButtonId, BayMenu } from "./bay-controls";
@@ -346,35 +346,61 @@ export function BayBoard({ role }: { role: UserRole }) {
             </span>
           </div>
         )}
-        {(card.bookingDate < date || card.assignedWorkers.length > 0 || card.assignedBayId) && (
-          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs leading-tight text-muted-foreground">
-            {card.assignedBayId && <span>{statusLabel(card.status)}</span>}
-            {card.bookingDate < date && <span>Carry-over {card.bookingDate}</span>}
-            {card.assignedWorkers.length > 0 && (
-              <span>
-                Staff: <span className="font-medium text-foreground">{staffNames}</span>
-              </span>
-            )}
-          </div>
-        )}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs leading-tight text-muted-foreground">
+          <span>
+            {statusLabel(card.status)}
+            {card.bookingDate < date ? " · Carry-over " + card.bookingDate : " · " + card.bookingDate}
+          </span>
+          <span>
+            Staff: <span className="font-medium text-foreground">{staffNames}</span>
+          </span>
+        </div>
         {card.depositStatus && card.depositStatus !== "NONE" && (
           <p>
             <DepositBadge status={card.depositStatus} />
           </p>
         )}
         {role === "ADMIN" && (
-          <MoveForm
-            card={card}
-            containers={containers}
-            role={role}
-            disabled={busy || locked}
-            canFinish={canFinishCard(card)}
-            onMove={(value) => {
+          <form
+            className="border-t border-border/50 pt-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const value = String(new FormData(e.currentTarget).get("bay"));
               if (value === "DONE") void finish(card);
-              else if (value === "WAITING") void move(card, null);
-              else place(card, value);
+              else if (value) place(card, value);
+              else void move(card, null);
             }}
-          />
+          >
+            <div className="flex items-center gap-1.5">
+              {/* P1-86: the old Move car select, in the shared Select style (arrow 12 px in) the CEO kept. Same options and behaviour. */}
+              <Select
+                name="bay"
+                aria-label={"Move " + card.referenceCode + " to bay"}
+                wrapperClassName="min-w-0 flex-1"
+                className="text-xs font-medium"
+                defaultValue=""
+                disabled={busy || locked}
+              >
+                <option value="" disabled={!card.assignedBayId}>Waiting</option>
+                {containers.map((c) => (
+                  <optgroup key={c.id} label={c.name}>
+                    {c.bays
+                      .filter((b) => b.isActive)
+                      .map((b) => (
+                        <option key={b.id} value={b.id} disabled={!canDrop(role, card, b)}>
+                          {b.name}
+                          {b.cards.length ? " · Busy" : ""}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+                {canFinishCard(card) && <option value="DONE">Done (finish)</option>}
+              </Select>
+              <Button id={"board-move-" + card.id} size="sm" className="shrink-0 px-3" disabled={busy || locked} type="submit" variant="outline">
+                Move car
+              </Button>
+            </div>
+          </form>
         )}
       </article>
     );
@@ -385,20 +411,25 @@ export function BayBoard({ role }: { role: UserRole }) {
       {/* Unified Board Control Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-panel px-4 py-3">
         <div className="flex flex-wrap items-center gap-4">
-          <DayStepper
-            label="Board day"
-            inputId="board-day-input"
-            inputLabel="Board day"
-            value={date}
-            today={shopDate()}
-            disabled={busy}
-            onChange={(next) => {
-              clearDrag();
-              setDate(next);
-              setSelected(null);
-              showStatus("", false);
-            }}
-          />
+          <label className="inline-flex items-center gap-2.5 whitespace-nowrap text-xs font-semibold text-foreground">
+            <span>Board day</span>
+            <input
+              id="board-day-input"
+              aria-label="Board day"
+              type="date"
+              value={date}
+              disabled={busy}
+              className={dateBare}
+              onChange={(e) => {
+                if (e.target.value) {
+                  clearDrag();
+                  setDate(e.target.value);
+                  setSelected(null);
+                  showStatus("", false);
+                }
+              }}
+            />
+          </label>
           {board && (
             <div className="hidden items-center gap-2 border-l border-border pl-4 text-xs sm:flex">
               <span className="rounded-md border border-border bg-card px-2.5 py-1 font-mono text-muted-foreground">
@@ -597,71 +628,5 @@ export function BayBoard({ role }: { role: UserRole }) {
         />
       )}
     </div>
-  );
-}
-
-// P1-76 (CEO 2026-11-13): the Move button stays, and names where the car goes ("Move to Wash 2") once a place is chosen.
-export function MoveForm({
-  card,
-  containers,
-  role,
-  disabled,
-  canFinish,
-  onMove,
-}: {
-  card: AdminBoardCard;
-  containers: AdminDayBoard["containers"];
-  role: UserRole;
-  disabled: boolean;
-  canFinish: boolean;
-  onMove: (value: string) => void;
-}) {
-  const [value, setValue] = React.useState("");
-  const select = React.useRef<HTMLSelectElement>(null);
-  const bays = containers.flatMap((c) => c.bays);
-  const target = value === "WAITING" ? "Waiting" : value === "DONE" ? "Done" : bays.find((b) => b.id === value)?.name;
-  return (
-    <form
-      className="border-t border-border/50 pt-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (value) onMove(value);
-        else select.current?.focus();
-      }}
-    >
-      <div className="flex items-center gap-1.5">
-        <Select
-          ref={select}
-          name="bay"
-          aria-label={"Move " + card.referenceCode + " to bay"}
-          wrapperClassName="min-w-0 flex-1"
-          className="text-xs font-medium"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          disabled={disabled}
-        >
-          <option value="" disabled>
-            Move to…
-          </option>
-          {card.assignedBayId && <option value="WAITING">Waiting</option>}
-          {containers.map((c) => (
-            <optgroup key={c.id} label={c.name}>
-              {c.bays
-                .filter((b) => b.isActive)
-                .map((b) => (
-                  <option key={b.id} value={b.id} disabled={!canDrop(role, card, b)}>
-                    {b.name}
-                    {b.cards.length ? " · Busy" : ""}
-                  </option>
-                ))}
-            </optgroup>
-          ))}
-          {canFinish && <option value="DONE">Done (finish)</option>}
-        </Select>
-        <Button id={"board-move-" + card.id} size="sm" className="shrink-0 px-3" disabled={disabled} type="submit" variant="outline">
-          {target ? "Move to " + target : "Move car"}
-        </Button>
-      </div>
-    </form>
   );
 }

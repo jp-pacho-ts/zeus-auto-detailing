@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import {
   AdminBoardSkeleton,
   AdminRowsSkeleton,
@@ -85,8 +85,11 @@ export const fieldClass = "mt-1 w-full " + fieldBase;
 // The same field with no top margin, for a field that is not under a label.
 export const fieldBare = "w-full " + fieldBase;
 // P1-76: one date style. 44 px tall, sized to its content, the calendar icon kept off the edge.
-export const dateClass =
-  "mt-1 w-auto min-w-[10.5rem] " + fieldBase + " [&::-webkit-calendar-picker-indicator]:ml-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70";
+const dateBase =
+  "w-auto min-w-[10.5rem] " + fieldBase + " [&::-webkit-calendar-picker-indicator]:ml-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70";
+export const dateClass = "mt-1 " + dateBase;
+// The same date field with no top margin, for one that sits beside its label (the Bay board's Board day).
+export const dateBare = dateBase;
 
 // P1-76: one select style. A native select (keyboard, screen readers and phone pickers unchanged) with our own chevron 12 px in.
 export function Select({ className = "", wrapperClassName = "mt-1", ...props }: React.ComponentProps<"select"> & { wrapperClassName?: string }) {
@@ -98,69 +101,6 @@ export function Select({ className = "", wrapperClassName = "mt-1", ...props }: 
   );
 }
 
-// P1-76: the day control shared by the Bookings day view and the Bay board: previous, the date, next, Today.
-// Pixel sizes, not h-11/w-11: the admin shell sets html to 92.5%, so rem-based 44 comes out at 40.7 px (Lead QA F1).
-export function DayStepper({
-  label,
-  value,
-  today,
-  onChange,
-  disabled = false,
-  inputId,
-  inputLabel,
-}: {
-  label: string;
-  value: string;
-  today: string;
-  onChange: (next: string) => void;
-  disabled?: boolean;
-  inputId?: string;
-  inputLabel?: string;
-}) {
-  const step = (days: number) => {
-    const d = new Date(value + "T00:00:00Z");
-    d.setUTCDate(d.getUTCDate() + days);
-    onChange(d.toISOString().slice(0, 10));
-  };
-  const square =
-    "inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded border border-border bg-card text-muted-foreground hover:bg-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60";
-  return (
-    <div className="flex items-end gap-2">
-      <button type="button" aria-label="Previous day" className={square} disabled={disabled} onClick={() => step(-1)}>
-        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-      </button>
-      <label className="text-xs font-semibold text-muted-foreground">
-        {label}
-        <input
-          id={inputId}
-          aria-label={inputLabel}
-          type="date"
-          value={value}
-          required
-          disabled={disabled}
-          className={dateClass + " block"}
-          onChange={(e) => e.target.value && onChange(e.target.value)}
-        />
-      </label>
-      <button type="button" aria-label="Next day" className={square} disabled={disabled} onClick={() => step(1)}>
-        <ChevronRight className="h-4 w-4" aria-hidden="true" />
-      </button>
-      {/* On today it reads as selected, not as a broken disabled button. */}
-      <button
-        type="button"
-        aria-pressed={value === today}
-        disabled={disabled}
-        onClick={() => onChange(today)}
-        className={
-          "min-h-[44px] rounded border px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60 " +
-          (value === today ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-card text-foreground hover:bg-raised")
-        }
-      >
-        Today
-      </button>
-    </div>
-  );
-}
 export function LoadState({
   loading,
   error,
