@@ -554,7 +554,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         {isMaintenance && (
           <p role="status" className="shrink-0 border-b border-primary bg-primary/10 px-4 py-2 text-xs font-bold text-foreground sm:px-8 lg:px-10">{MAINTENANCE_BANNER}</p>
         )}
-        <header className="flex shrink-0 items-center border-b border-border bg-panel px-4 py-3 sm:px-8 md:h-20 md:py-0 lg:px-10">
+        <header className="flex shrink-0 items-center border-b border-border bg-panel px-4 py-3 sm:px-8 md:min-h-20 lg:px-10">
           <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-primary">

@@ -439,6 +439,12 @@ export function BayBoard({ role }: { role: UserRole }) {
           {review
             ? "Someone changed this booking. Review its current revision before another move."
             : "The move outcome is uncertain. Refresh before another move."}
+          {/* P1-80 (B1): the only way to clear an uncertain lock is a successful reload, so the alert offers it. */}
+          {!review && (
+            <Button variant="outline" disabled={busy} onClick={() => void refresh()}>
+              Refresh board
+            </Button>
+          )}
           {review && (
             <Button variant="outline" onClick={() => setSelected(review)}>
               Review current booking
@@ -499,7 +505,8 @@ export function BayBoard({ role }: { role: UserRole }) {
                         </div>
                       )}
                     </div>
-                    <div data-board-row-scroll className="flex gap-3.5 overflow-x-auto p-3.5">
+                    {/* P1-80 (B3): below md (phones, 200% zoom) a container's bays stack so every control is on screen; from md the row scrolls sideways. */}
+                    <div data-board-row-scroll className="flex flex-col gap-3.5 overflow-x-auto p-3.5 md:flex-row">
                       {shown.map((b) => {
                         const hasCar = b.cards.length > 0;
                         return (
@@ -507,7 +514,7 @@ export function BayBoard({ role }: { role: UserRole }) {
                             key={b.id}
                             aria-label={b.name}
                             data-board-column={b.id}
-                            className={`flex min-w-[17rem] flex-1 basis-0 shrink-0 flex-col gap-2.5 rounded-lg border p-3 transition-colors ${
+                            className={`flex flex-col gap-2.5 rounded-lg border p-3 transition-colors md:min-w-[17rem] md:flex-1 md:basis-0 md:shrink-0 ${
                               hasCar
                                 ? "border-primary/35 bg-card"
                                 : "border-border/80 bg-background"

@@ -29,6 +29,14 @@ export function NotificationPopover({
   const [open, setOpen] = React.useState(false);
   // Below lg the panel is fixed to the viewport; its top follows the bell, because the header's height varies as it wraps.
   const [panelTop, setPanelTop] = React.useState(64);
+  const bell = React.useRef<HTMLButtonElement>(null);
+  // P1-80: the bell moves when the header re-wraps (window resize), so the open panel follows it.
+  React.useEffect(() => {
+    if (!open) return;
+    const follow = () => bell.current && setPanelTop(Math.round(bell.current.getBoundingClientRect().bottom) + 8);
+    window.addEventListener("resize", follow);
+    return () => window.removeEventListener("resize", follow);
+  }, [open]);
   const [activeFilter, setActiveFilter] = React.useState<"ALL" | "BOOKINGS" | "SUPPLIES" | "PAYROLL">("ALL");
   const [lastReadAt, setLastReadAt] = React.useState<string>(() => {
     try {
@@ -123,6 +131,7 @@ export function NotificationPopover({
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread alerts` : ""}`}
         aria-haspopup="dialog"
         aria-expanded={open}
+        ref={bell}
         onClick={(e) => {
           setPanelTop(Math.round(e.currentTarget.getBoundingClientRect().bottom) + 8);
           setOpen((prev) => !prev);
@@ -130,7 +139,7 @@ export function NotificationPopover({
             void reload();
           }
         }}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-zinc-300 transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-zinc-300 transition-colors hover:border-primary/40 hover:bg-zinc-800 hover:text-white light:hover:bg-raised light:hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
@@ -141,12 +150,13 @@ export function NotificationPopover({
       </button>
 
       {/* P1-70: below lg the bell is not at the screen edge, so the panel is pinned to the viewport (it was clipped 187 px at 390). */}
+      {/* P1-80: the panel is never taller than the screen below the bell (landscape phones); its alert list takes what is left and scrolls. */}
       {open && (
         <div
           role="dialog"
           aria-label="Real-time notifications panel"
           style={{ "--panel-top": `${panelTop}px` } as React.CSSProperties}
-          className="fixed inset-x-3 top-[var(--panel-top)] z-50 rounded-xl border border-border bg-panel shadow-2xl sm:left-auto sm:w-[420px] lg:absolute lg:inset-x-auto lg:right-0 lg:top-full lg:mt-2 animate-in fade-in-0 zoom-in-95"
+          className="flex max-h-[calc(100dvh-var(--panel-top)-0.75rem)] flex-col fixed inset-x-3 top-[var(--panel-top)] z-50 rounded-xl border border-border bg-panel shadow-2xl sm:left-auto sm:w-[420px] lg:absolute lg:inset-x-auto lg:right-0 lg:top-full lg:mt-2 animate-in fade-in-0 zoom-in-95"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
@@ -214,7 +224,7 @@ export function NotificationPopover({
           </div>
 
           {/* List of Alerts */}
-          <div className="max-h-[360px] overflow-y-auto divide-y divide-border/50">
+          <div className="max-h-[360px] min-h-0 flex-1 overflow-y-auto divide-y divide-border/50">
             {filteredItems.length === 0 ? (
               <div className="p-8 text-center text-xs text-muted-foreground">
                 <CheckCheck className="mx-auto h-7 w-7 text-emerald-400/60 mb-2" />
