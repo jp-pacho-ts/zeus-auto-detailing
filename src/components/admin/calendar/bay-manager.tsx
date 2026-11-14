@@ -3,7 +3,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import type { AdminBay, AdminContainer } from "@/types/admin-contracts";
 import { adminRequest } from "../bookings/client";
-import { fieldClass, LoadState, useAdminResource } from "../bookings/use-admin-resource";
+import { fieldClass, LoadState, useAdminResource, Select } from "../bookings/use-admin-resource";
 import { nextSortOrder } from "./calendar-model";
 import { useAdminWrite, WriteFeedback } from "./use-admin-write";
 
@@ -65,9 +65,9 @@ function BayRow({ bay, busy, onPatch, moveTo, onMove }: {
         >
           <label className="min-w-0 flex-1 basis-40 text-xs">
             Its container was removed. Move it to
-            <select name="containerId" className={fieldClass} aria-label={`Move ${bay.name} to`}>
+            <Select name="containerId" aria-label={`Move ${bay.name} to`}>
               {moveTo.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            </Select>
           </label>
           <Button type="submit" variant="outline" disabled={busy}>Move bay</Button>
         </form>
@@ -126,13 +126,13 @@ export function BayManager({ onChanged }: { onChanged?: () => unknown }) {
           </label>
           <label className="text-xs">
             Container
-            <select name="containerId" className={fieldClass}>
+            <Select name="containerId">
               {active.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <Button type="submit" disabled={busy || !bays.data || !active.length}>
             Add bay

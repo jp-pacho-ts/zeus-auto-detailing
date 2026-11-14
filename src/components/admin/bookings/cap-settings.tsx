@@ -3,14 +3,19 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import type { AdminQueueCaps } from "@/types/admin-contracts";
 import { adminRequest, AdminRequestError } from "./client";
-import { fieldClass, LoadState, useAdminResource } from "./use-admin-resource";
+import { dateClass, fieldClass, LoadState, useAdminResource } from "./use-admin-resource";
+import { shopDay } from "./detail/shared";
+// P1-77: each line of work reads as one sentence with an Edit button; the day picker comes last, not first.
 export function CapSettings({
   date,
   onChanged,
+  onDateChange,
 }: {
   date: string;
   onChanged: () => unknown;
+  onDateChange?: (date: string) => void;
 }) {
+  const [editing, setEditing] = React.useState<string | null>(null);
   const caps = useAdminResource<AdminQueueCaps[]>(
     `/api/admin/schedule/caps?from=${date}&to=${date}`,
   );
@@ -65,13 +70,10 @@ export function CapSettings({
     }
   }
   return (
-    <section
-      className="rounded border border-border bg-panel p-4 sm:p-6"
-      aria-labelledby="caps-title"
-    >
-      <h2 id="caps-title" className="font-bold">
-        Optional limits · {date}
-      </h2>
+    <section aria-labelledby="caps-title">
+      <h3 id="caps-title" className="text-sm font-semibold text-foreground">
+        Limits on {shopDay(date)}
+      </h3>
       <p className="mt-1 text-xs text-muted-foreground">
         Limits are off by default. Leave the default blank for no limit. An
         enabled limit counts car visits and cannot go below committed visits.
@@ -93,15 +95,33 @@ export function CapSettings({
       )}
       {caps.data?.map((q) => {
         const override = q.overrides.find((d) => d.date === date);
+        const booked = q.committed.find((d) => d.date === date)?.count ?? 0;
+        const open = editing === q.code;
         return (
           <div
             key={q.code + q.revision + (override?.revision ?? 0)}
-            className="mt-4 border-t border-border pt-4"
+            className="mt-3 border-t border-border pt-3"
           >
-            <h3 className="text-sm font-bold">{q.name}</h3>
-            <p className="text-xs text-muted-foreground">
-              Committed: {q.committed.find((d) => d.date === date)?.count ?? 0}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="min-w-0 text-sm">
+                <span className="font-semibold text-foreground">{q.name}</span>{" "}
+                <span className="text-muted-foreground">
+                  {q.dailyCap === null ? "No daily limit" : `Up to ${q.dailyCap} cars a day`} · {booked} booked
+                  {override ? ` · this day: up to ${override.dailyCap}` : ""}
+                </span>
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-expanded={open}
+                aria-label={(open ? "Close " : "Edit ") + q.name + " limits"}
+                onClick={() => setEditing(open ? null : q.code)}
+              >
+                {open ? "Close" : "Edit"}
+              </Button>
+            </div>
+            {open && (
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <form
                 onSubmit={(e) => {
@@ -196,9 +216,23 @@ export function CapSettings({
                 </div>
               </form>
             </div>
+            )}
           </div>
         );
       })}
+      {onDateChange && (
+        <label className="mt-4 block border-t border-border pt-4 text-xs font-semibold text-muted-foreground">
+          Day shown (booked counts and one-day limits)
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => {
+              if (e.target.value) onDateChange(e.target.value);
+            }}
+            className={dateClass + " block"}
+          />
+        </label>
+      )}
     </section>
   );
 }

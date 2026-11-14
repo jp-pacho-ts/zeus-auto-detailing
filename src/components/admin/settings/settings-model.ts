@@ -4,7 +4,7 @@ import type { AdminShopSettings } from "@/types/admin-contracts";
 export const WEBSITE_INTRO = "Takes the whole customer site offline: home, booking and manage booking. The admin and sign-in keep working.";
 export const BOOKING_INTRO = "Paused stops new bookings only. Customers can still look up and manage the bookings they have.";
 export const LIMITS_INTRO = "How many cars the shop accepts each day, for each line of work. A change never cancels a booking that already exists.";
-export const EMAIL_INTRO = "Booking emails. The password stays in Railway and is never shown here.";
+export const EMAIL_INTRO = "Emails to customers and the shop inbox. No password is ever shown here.";
 export const CONFIRM_MAINTENANCE = "Customers will see a maintenance page and cannot book or look up a booking. You can still use the admin.";
 export const MAINTENANCE_BANNER = "The customer website is under maintenance. Customers see a maintenance page. Turn it off in Settings.";
 
@@ -28,7 +28,7 @@ export function bookingLine(s: AdminShopSettings): string {
   return s.bookingPaused ? "Paused. New bookings are refused; customers can still manage the bookings they have." : "Open. Customers can book online.";
 }
 export const emailStatus = (s: AdminShopSettings): string =>
-  s.email.configured ? "Set up. The server has what it needs to send booking emails." : "Not set up. Customers do not get an email. The shop email has to be added in Railway.";
+  s.email.configured ? "Set up. The server has what it needs to send booking emails." : "Not set up. Customers do not get an email. Whoever manages the website has to add the shop's mail account in the hosting settings.";
 export const emailCounts = (s: AdminShopSettings): string => `Shop emails in the last 7 days: ${s.email.failedLast7Days} failed, ${s.email.waitingLast7Days} waiting.`;
 
 export function savedText(before: AdminShopSettings, after: AdminShopSettings): string {
