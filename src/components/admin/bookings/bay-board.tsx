@@ -10,7 +10,7 @@ import type {
 } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import { adminRequest, AdminRequestError } from "./client";
-import { LoadState, dateBare, useAdminResource } from "./use-admin-resource";
+import { LoadState, Select, dateBare, useAdminResource } from "./use-admin-resource";
 import { shopDate, statusLabel } from "./model";
 import { bayPayload, canDrop, isControlTarget, plateLabel, writeFeedback } from "./board-model";
 import { AddBay, addBayButtonId, BayMenu } from "./bay-controls";
@@ -372,10 +372,12 @@ export function BayBoard({ role }: { role: UserRole }) {
             }}
           >
             <div className="flex items-center gap-1.5">
-              <select
+              {/* P1-86: the old Move car select, in the shared Select style (arrow 12 px in) the CEO kept. Same options and behaviour. */}
+              <Select
                 name="bay"
                 aria-label={"Move " + card.referenceCode + " to bay"}
-                className="min-h-[44px] min-w-0 flex-1 rounded-md border border-border bg-panel px-2.5 py-1 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                wrapperClassName="min-w-0 flex-1"
+                className="text-xs font-medium"
                 defaultValue=""
                 disabled={busy || locked}
               >
@@ -393,7 +395,7 @@ export function BayBoard({ role }: { role: UserRole }) {
                   </optgroup>
                 ))}
                 {canFinishCard(card) && <option value="DONE">Done (finish)</option>}
-              </select>
+              </Select>
               <Button id={"board-move-" + card.id} size="sm" className="shrink-0 px-3" disabled={busy || locked} type="submit" variant="outline">
                 Move car
               </Button>

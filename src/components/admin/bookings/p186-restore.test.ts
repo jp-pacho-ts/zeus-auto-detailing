@@ -34,6 +34,8 @@ test("kept fixes: shared Select and 44 px dates on the old controls, pixel-sized
   assert.equal((tab.match(/className=\{dateClass \+ " block"\}/g) ?? []).length, 3, "Queue day, From and To use the 44 px date style");
   assert.match(tab, /inline-flex h-\[44px\] w-\[44px\]/, "Previous/Next are 44 px in pixels (the admin root is 92.5%)");
   assert.match(board, /className=\{dateBare\}/, "Board day uses the 44 px date style");
+  assert.match(board, /<Select\s+name="bay"[\s\S]*?wrapperClassName="min-w-0 flex-1"[\s\S]*?defaultValue=""/, "the old Move car select uses the shared Select, still uncontrolled with Waiting first");
+  assert.doesNotMatch(board, /<select\b/, "no plain select left on the board");
   assert.match(fields, /export const dateBare = dateBase;/);
   assert.doesNotMatch(fields, /export function DayStepper/, "the unused stepper is gone");
   assert.match(tab, /id=\{"booking-open-" \+ b\.id\}/);
