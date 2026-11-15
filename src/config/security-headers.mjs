@@ -42,5 +42,13 @@ export function securityHeaders(production) {
       source: "/:path((?!api/).*)",
       headers: [{ key: "Content-Security-Policy", value: documentContentSecurityPolicy(production) }],
     },
+    {
+      // Public but unlisted preview: discovery controls and fresh render-time booking status.
+      source: "/preview/:path*",
+      headers: [
+        { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        { key: "Cache-Control", value: "private, no-store" },
+      ],
+    },
   ];
 }
