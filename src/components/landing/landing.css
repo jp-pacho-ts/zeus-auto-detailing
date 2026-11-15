@@ -204,7 +204,7 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
   .landing-total strong{text-align:left}
   .landing-band{height:150vh}
   .landing-band-stage{flex-direction:column-reverse;justify-content:flex-end;padding-top:64px}
-  .landing-band-media{flex:none;aspect-ratio:4/5;max-height:calc(100svh - 300px);-webkit-mask-image:none;mask-image:none}
+  .landing-band-media{flex:none;width:100%;aspect-ratio:4/5;max-height:calc(100svh - 300px);-webkit-mask-image:none;mask-image:none}
   .landing-band-copy{padding-top:24px}
   .landing-band-copy a{scroll-margin-bottom:120px}
   .landing-phone-bar{position:fixed;bottom:0;left:0;right:0;z-index:28;display:flex;gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}
