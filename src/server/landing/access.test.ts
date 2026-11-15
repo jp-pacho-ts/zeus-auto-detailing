@@ -20,6 +20,6 @@ test("public ComingSoon switch and its video remain isolated", () => {
 test("unverified booking slots are never presented as shop opening hours", () => {
   assert.doesNotMatch(source("src/server/landing/status.ts"), /timeSlot\.findMany/);
   const page = source("src/components/landing/landing-page.tsx");
-  assert.match(page, /Call to confirm hours/);
+  assert.match(page, /Call \{brandConfig\.displayPhone\} to confirm hours/);
   assert.doesNotMatch(page, /operatingSchedule|Saved opening hours|Saved shop schedule/);
 });

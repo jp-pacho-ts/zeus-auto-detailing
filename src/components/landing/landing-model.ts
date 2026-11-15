@@ -1,3 +1,4 @@
+import type { LandingStatus } from "@/server/landing/status";
 import type { BookingCatalog, CatalogSelection, ServicePackage, VehicleCategory, VehicleBodyType } from "@/types/catalog-contracts";
 
 export const money = (centavos: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: centavos % 100 ? 2 : 0, maximumFractionDigits: 2 }).format(centavos / 100);
@@ -8,7 +9,7 @@ export function servicePrice(service: ServicePackage, size?: VehicleCategory, bo
     return prices.length ? `from ${money(Math.min(...prices))}` : "Price on inspection";
   }
   const offer = offers[0];
-  if (!offer || offer.state === "NOT_OFFERED" || offer.onlineBooking === "UNAVAILABLE") return "Not offered for this vehicle";
+  if (!offer || offer.state === "NOT_OFFERED" || offer.onlineBooking === "UNAVAILABLE") return "Not offered for this size";
   if (offer.state === "UNCONFIRMED") return "Ask for a price";
   const amount = body === "PICKUP" ? offer.pickupPriceCentavos ?? offer.unitPriceCentavos : offer.unitPriceCentavos;
   const unit = service.unit === "PANEL" ? " per panel" : "";
@@ -36,4 +37,14 @@ export function quoteFailure(status: number, answer: QuoteAnswer, retryAfter: st
   if (answer?.error?.code === "CATALOG_UPDATED") return { message: "Prices just changed. Get a new estimate." };
   if (status === 503 || !answer) return { message: "Prices are unavailable right now." };
   return { message: answer.error?.message ?? "Could not get an estimate. Try again later." };
+}
+// Section 5.2: one label and target per booking state, shared by every gold pill.
+export function bookingAction(status: LandingStatus, phone: string): { label: string; href: string } {
+  if (status === "PAUSED") return { label: "Call to book", href: `tel:${phone}` };
+  return { label: status === "OPEN" ? "Book an appointment" : "Check online booking", href: "/book" };
+}
+// 17.4: the card arrow books that one service; it never depends on the estimate selection.
+export function serviceArrow(catalog: Pick<BookingCatalog, "services">, size: VehicleCategory | undefined, service: Pick<ServicePackage, "id" | "name">, status: LandingStatus, phone: string): { label: string; href: string } {
+  if (status === "PAUSED") return { label: `Call to book ${service.name}`, href: `tel:${phone}` };
+  return { label: `Book ${service.name}`, href: bookingHref(catalog, size, [{ serviceId: service.id, quantity: 1 }]) };
 }
