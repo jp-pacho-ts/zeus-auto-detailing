@@ -224,3 +224,4 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
   .landing-band-copy a{scroll-margin-bottom:0}
 }
 @media(prefers-reduced-motion:reduce) and (max-width:767px){.landing-band-stage{padding-top:0}.landing-band-media{height:auto;aspect-ratio:4/5}}
+.landing-photo img{width:100%;height:100%;object-fit:cover}
