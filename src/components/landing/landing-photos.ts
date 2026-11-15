@@ -1,6 +1,7 @@
 // Shop photos for the service cards (P1-88 17.13, UI/UX rulings on the CEO picks, 2026-11-16).
 // One photo per service it shows, never a whole category; a service without an entry keeps the "Photo coming soon" frame.
-// Keyed by catalog slug, which the public projection already carries; files are 4:3 1600x1200 WebP in public/media/landing.
+// Keyed by catalog slug, which the public projection already carries; files are 4:3 1600x1200 WebP in public/media/landing,
+// re-encoded from the shop's photos with no EXIF, GPS, XMP or ICC data (sources, crops and blur: P1-88 implementation handoff).
 export type LandingPhoto = { src: string; alt: string };
 
 export const LANDING_PHOTOS: Record<string, LandingPhoto> = {
@@ -12,3 +13,6 @@ export const LANDING_PHOTOS: Record<string, LandingPhoto> = {
   "arcane-graphene": { src: "/media/landing/arcane.webp", alt: "Gloved detailer wiping coating across a white pickup's hood" },
   "kenzo-graphene": { src: "/media/landing/kenzo.webp", alt: "Kenzo coating kit: base and top bottles, Strip panel-prep spray, applicator and card" },
 };
+
+// Own keys only: a staff-set slug such as "constructor" or "__proto__" must not resolve to an Object prototype member.
+export const landingPhoto = (slug: string) => Object.hasOwn(LANDING_PHOTOS, slug) ? LANDING_PHOTOS[slug] : undefined;

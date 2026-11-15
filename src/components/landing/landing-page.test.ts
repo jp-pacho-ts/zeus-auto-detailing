@@ -69,11 +69,13 @@ test("photos (17.13): a photo only on its own service, lazy next/image with size
 
 test("photo files (17.13): one 4:3 WebP per mapped service, under 250 KB, with no EXIF, XMP or ICC chunk", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+  const { readFileSync, readdirSync } = require("node:fs") as typeof import("node:fs");
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { LANDING_PHOTOS } = require("./landing-photos") as typeof import("./landing-photos");
   const sources = Object.values(LANDING_PHOTOS).map((p) => p.src);
   assert.equal(new Set(sources).size, sources.length, "no photo on two different services");
+  // public/ is served as-is: the folder holds only the mapped photos, never notes or originals (N10).
+  assert.deepEqual(readdirSync("public/media/landing").sort(), sources.map((src) => src.replace("/media/landing/", "")).sort());
   for (const src of sources) {
     const file = readFileSync(`public${src}`);
     assert.equal(file.toString("latin1", 0, 4) + file.toString("latin1", 8, 12), "RIFFWEBP", src);
@@ -84,4 +86,13 @@ test("photo files (17.13): one 4:3 WebP per mapped service, under 250 KB, with n
     // Simple-format VP8 frame header: 14-bit width and height at bytes 26 and 28.
     assert.deepEqual([file.readUInt16LE(26) & 0x3fff, file.readUInt16LE(28) & 0x3fff], [1600, 1200], src);
   }
+});
+
+test("photos: a slug that names an Object prototype key gets the labelled frame, not a broken render", () => {
+  const services = [service("p1", "Odd Wash", "WASH"), service("p2", "Odd Coat", "GRAPHENE")];
+  services[0].slug = "constructor"; services[1].slug = "__proto__";
+  const html = renderToStaticMarkup(createElement(LandingPage, { catalog: { ...catalog, services } as unknown as BookingCatalog, status: "OPEN" }));
+  assert.doesNotMatch(html, /url=%2Fmedia%2Flanding%2F/);
+  // Wash tab once; the graphene card twice (Graphene tab and Coatings).
+  assert.equal(html.match(/Photo coming soon/g)?.length, 3);
 });
