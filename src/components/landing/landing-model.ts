@@ -29,3 +29,11 @@ export function pruneSelection(catalog: Pick<BookingCatalog, "services" | "addOn
 }
 export const selectionKey = (size: string, body: VehicleBodyType | undefined, lines: CatalogSelection["lines"]) => JSON.stringify([size, body ?? null, lines.map((l) => [l.serviceId, l.quantity])]);
 export const estimateLabels = (hasInspection: boolean, estimate: number | null) => ({ subtotal: hasInspection ? "Known-price subtotal" : "Total", estimate: hasInspection ? estimate === null ? "Unknown until inspection" : money(estimate) : null });
+export type QuoteAnswer = { ok?: boolean; error?: { code?: string; message?: string; retryAfterSeconds?: number } } | null;
+// answer is null when the body is not JSON (for example a proxy 502 page): show "unavailable", never parser text.
+export function quoteFailure(status: number, answer: QuoteAnswer, retryAfter: string | null): { message: string; seconds?: number } {
+  if (status === 429) { const seconds = Number(answer?.error?.retryAfterSeconds ?? retryAfter) || 60; return { message: `Too many estimates right now. Try again in ${seconds} seconds.`, seconds }; }
+  if (answer?.error?.code === "CATALOG_UPDATED") return { message: "Prices just changed. Get a new estimate." };
+  if (status === 503 || !answer) return { message: "Prices are unavailable right now." };
+  return { message: answer.error?.message ?? "Could not get an estimate. Try again later." };
+}

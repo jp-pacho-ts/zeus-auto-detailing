@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { BookingCatalog, BookingQuote, CatalogSelection, ServicePackage, VehicleBodyType } from "@/types/catalog-contracts";
 import { BODY_TYPES_BY_SIZE, BODY_TYPE_LABEL, MAX_SELECTION_LINES } from "@/types/catalog-contracts";
-import { bookingHref, estimateLabels, money, pruneSelection, selectionKey, servicePrice } from "./landing-model";
+import { brandConfig } from "@/config/brand";
+import { bookingHref, estimateLabels, money, pruneSelection, quoteFailure, selectionKey, servicePrice, type QuoteAnswer } from "./landing-model";
 
 export type DisplayCatalog = Omit<BookingCatalog, "catalogReleaseId" | "catalogVersion">;
 const CATEGORIES = ["WASH", "DETAILING", "GRAPHENE", "TINT", "PPF", "REPAINT"] as const;
@@ -70,7 +71,7 @@ export function LandingServices({ catalog, phone, messenger, bookingLabel, booki
   const getEstimate = async () => {
     setError("");
     if (!size) { setError("Choose your vehicle size above."); return; }
-    if (bodies && !body) { setError("Choose SUV, Pick-up or Van for this vehicle size."); return; }
+    if (bodies && !body) { setError("Choose your body type above."); return; }
     if (!lines.some((l) => catalog.services.some((s) => s.id === l.serviceId && s.type === "BASE"))) { setError("Choose at least one main service above."); return; }
     const sentKey = key, sentRevision = revision.current, vehicle = body ? `${size.name} · ${BODY_TYPE_LABEL[body]}` : size.name;
     setResult(null);
@@ -78,20 +79,16 @@ export function LandingServices({ catalog, phone, messenger, bookingLabel, booki
     try {
       const params = new URLSearchParams({ vehicleCategoryId: size.id, lines: lines.map((l) => `${l.serviceId}:${l.quantity}`).join(","), ...(body ? { bodyType: body } : {}) });
       const response = await fetch(`/api/bookings/quote?${params}`, { cache: "no-store", signal: controller.signal });
-      const answer = await response.json();
+      const answer = await response.json().catch(() => null) as (QuoteAnswer & { data?: { quote: BookingQuote } });
       if (sentRevision !== revision.current) return;
-      if (!response.ok || !answer.ok) {
-        if (response.status === 429) {
-          const seconds = Number(answer.error?.retryAfterSeconds ?? response.headers.get("Retry-After")) || 60;
-          setRemaining(seconds); throw Error(`Too many estimates right now. Try again in ${seconds} seconds.`);
-        }
-        if (answer.error?.code === "CATALOG_UPDATED") throw Error("Prices just changed. Get a new estimate.");
-        if (response.status === 503) throw Error("Prices are unavailable right now. Call the shop.");
-        throw Error(answer.error?.message ?? "Could not get an estimate. Try again or call the shop.");
+      if (!response.ok || !answer?.ok) {
+        const failure = quoteFailure(response.status, answer, response.headers.get("Retry-After"));
+        if (failure.seconds) setRemaining(failure.seconds);
+        setError(failure.message); return;
       }
-      const q = answer.data.quote as BookingQuote;
+      const q = answer.data!.quote;
       setResult({ key: sentKey, revision: sentRevision, vehicle, quote: { lines: q.lines, totalPriceCentavos: q.totalPriceCentavos, estimatedTotalCentavos: q.estimatedTotalCentavos } });
-    } catch (e) { if (!controller.signal.aborted && sentRevision === revision.current) setError(e instanceof Error ? e.message : "Could not get an estimate."); }
+    } catch { if (!controller.signal.aborted && sentRevision === revision.current) setError(quoteFailure(0, null, null).message); }
     finally { if (!controller.signal.aborted) setBusy(false); }
   };
   const stale = result && (result.key !== key || result.revision !== version);
@@ -105,7 +102,7 @@ export function LandingServices({ catalog, phone, messenger, bookingLabel, booki
       <p className="landing-small">Ask us about each service. Inspection prices are references, not fixed charges.</p><a className="landing-button" href={bookingLink}>{bookingLabel}</a>
     </section>
     <section id="estimate" className="landing-section landing-wrap landing-estimate"><div><p className="landing-eyebrow">Plan your visit</p><h2>Estimate your price</h2><p>Choose your vehicle and services above, then request an estimate from the shop’s current price list.</p><p>Nothing is reserved. You’ll choose your services again when you book.</p><p>{lines.length} of {MAX_SELECTION_LINES} services selected{size ? ` · ${size.name}` : ""}{body ? ` · ${BODY_TYPE_LABEL[body]}` : ""}</p>{note && <p role="status">{note}</p>}
-      <button className="landing-button" type="button" disabled={!enhanced || busy || remaining > 0} onClick={getEstimate}>{busy ? "Getting estimate…" : remaining > 0 ? `Try again in ${remaining}s` : "Get estimate"}</button><noscript><p>The calculator needs JavaScript. Prices above and booking links still work.</p></noscript>{error && <p className="landing-error" role="alert">{error} <a href={`tel:${phone}`}>Call the shop</a></p>}</div>
+      <button className="landing-button" type="button" disabled={!enhanced || busy || remaining > 0} onClick={getEstimate}>{busy ? "Getting estimate…" : remaining > 0 ? `Try again in ${remaining}s` : "Get estimate"}</button><noscript><p>The calculator needs JavaScript. Prices above and booking links still work.</p></noscript>{error && <p className="landing-error" role="alert">{error} <a href={`tel:${phone}`}>Call {brandConfig.displayPhone}</a></p>}</div>
       <div className="landing-estimate-result" aria-live="polite" aria-atomic="true">{result && labels ? <>{stale && <p className="landing-stale">Out of date — get a new estimate</p>}<h3>{stale ? "Previous estimate" : "Your estimate"}</h3><p className="landing-small">For: {result.vehicle}</p><ul>{result.quote.lines.map((l) => <li key={l.serviceId}><span>{l.name}{l.quantity > 1 ? ` × ${l.quantity}` : ""}</span><span>{l.priceStatus === "PRICED" ? money(l.subtotalCentavos!) : l.referenceUnitPriceCentavos === null ? "Price on inspection" : `Price on inspection · about ${money(l.referenceUnitPriceCentavos)}${l.unit === "PANEL" ? ` per panel × ${l.quantity}` : ""}`}</span></li>)}</ul><p className="landing-total">{labels.subtotal}<strong>{money(result.quote.totalPriceCentavos)}</strong></p>{labels.estimate && <p className="landing-total">Estimated total incl. inspection items<strong>{labels.estimate}</strong></p>}<p className="landing-small">From the shop’s current price list. An estimate, not a booking.</p><div className="landing-actions"><a className="landing-button" href={stale ? bookingLink : href}>{bookingLabel}</a><a href={messenger}>Message us about this estimate</a></div></> : <><p className="landing-eyebrow">Your estimate will appear here</p><p>Fixed prices and inspection items are listed separately. No booking is created.</p></>}</div>
     </section>
   </>;

@@ -1,6 +1,6 @@
 ﻿import test from "node:test";
 import assert from "node:assert/strict";
-import { money, servicePrice, bookingHref, pruneSelection, estimateLabels, selectionKey } from "./landing-model";
+import { money, servicePrice, bookingHref, pruneSelection, estimateLabels, selectionKey, quoteFailure } from "./landing-model";
 import type { BookingCatalog, ServicePackage, VehicleCategory } from "@/types/catalog-contracts";
 const size = { id: "size", code: "S", name: "Small" } as VehicleCategory;
 const service = { id: "wash", slug: "wash", name: "Wash", type: "BASE", unit: "VEHICLE", offers: [{ vehicleCategoryId: "size", onlineBooking: "PRICED", state: "OFFERED", unitPriceCentavos: 123450, pickupPriceCentavos: 150000, duration: { kind: "TIMED", minutes: 30 } }] } as ServicePackage;
@@ -27,4 +27,13 @@ test("mixed quotes label known subtotal and null estimate explicitly", () => {
   assert.deepEqual(estimateLabels(false, null), { subtotal: "Total", estimate: null });
   assert.deepEqual(estimateLabels(true, null), { subtotal: "Known-price subtotal", estimate: "Unknown until inspection" });
   assert.equal(estimateLabels(true, 123450).estimate, "₱1,234.50");
+});
+test("quote failures map to fixed public messages; a non-JSON body never shows parser text", () => {
+  assert.deepEqual(quoteFailure(429, { error: { retryAfterSeconds: 7 } }, null), { message: "Too many estimates right now. Try again in 7 seconds.", seconds: 7 });
+  assert.equal(quoteFailure(429, null, "30").seconds, 30);
+  assert.equal(quoteFailure(409, { error: { code: "CATALOG_UPDATED" } }, null).message, "Prices just changed. Get a new estimate.");
+  for (const [status, answer] of [[503, { error: { code: "ONLINE_BOOKING_UNAVAILABLE", message: "x" } }], [502, null], [200, null]] as const) assert.deepEqual(quoteFailure(status, answer, null), { message: "Prices are unavailable right now." });
+  assert.equal(quoteFailure(400, { error: { message: "Choose a size." } }, null).message, "Choose a size.");
+  assert.equal(quoteFailure(400, { error: {} }, null).message, "Could not get an estimate. Try again later.");
+  for (const status of [400, 409, 429, 500, 502, 503]) assert.doesNotMatch(quoteFailure(status, null, null).message, /call the shop|unexpected token|json/i);
 });
