@@ -7,6 +7,7 @@ import { brandConfig } from "@/config/brand";
 import type { LandingStatus } from "@/server/landing/status";
 import { bookingAction, bookingHref, estimateLabels, money, pruneSelection, quoteFailure, selectionKey, serviceArrow, servicePrice, type QuoteAnswer } from "./landing-model";
 import { LandingCard } from "./landing-card";
+import { landingPhoto } from "./landing-photos";
 
 export type DisplayCatalog = Omit<BookingCatalog, "catalogReleaseId" | "catalogVersion">;
 const CATEGORIES = ["WASH", "DETAILING", "GRAPHENE", "TINT", "PPF", "REPAINT"] as const;
@@ -65,7 +66,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
     const reason = picked || !enhanced ? null : !compatible ? "Add a main service first" : lines.length >= MAX_SELECTION_LINES ? "Limit of 10 reached" : null;
     const unavailable = !picked && offer?.onlineBooking === "UNAVAILABLE";
     const duration = offer?.duration.kind === "TIMED" ? `About ${offer.duration.minutes} min` : offer?.duration.kind === "MULTI_DAY" ? "Multi-day" : null;
-    return <LandingCard key={service.id} chip={service.type === "ADD_ON" ? "Add-on" : LABELS[service.category]} duration={duration} title={service.name} price={servicePrice(service, size, body)} priceId={`landing-price-${service.id}`} arrow={serviceArrow(catalog, size, service, status, phone)}
+    return <LandingCard key={service.id} chip={service.type === "ADD_ON" ? "Add-on" : LABELS[service.category]} duration={duration} title={service.name} price={servicePrice(service, size, body)} priceId={`landing-price-${service.id}`} arrow={serviceArrow(catalog, size, service, status, phone)} photo={landingPhoto(service.slug)}
       action={<button type="button" className="landing-toggle" aria-pressed={!!picked} disabled={!enhanced || !!reason || unavailable} aria-describedby={unavailable ? `landing-price-${service.id}` : undefined} onClick={() => toggle(service, !picked)}>{picked ? <><Check aria-hidden="true" />In estimate</> : reason ?? <><Plus aria-hidden="true" />Add to estimate</>}</button>}>
       {picked && service.unit === "PANEL" && <label className="landing-panels">Panels, 1 to 20<input aria-label={`Panels, 1 to 20, for ${service.name}`} type="number" min="1" max="20" value={picked.quantity} onChange={(e) => { edit(); setLines(lines.map((l) => l.serviceId === service.id ? { ...l, quantity: Math.max(1, Math.min(20, Math.trunc(Number(e.target.value) || 1))) } : l)); }} /></label>}
       {service.description && <p className="landing-card-text">{service.description}</p>}

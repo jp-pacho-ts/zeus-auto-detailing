@@ -9,6 +9,7 @@ import { LandingVideo } from "./landing-video";
 import { LandingLifecycle } from "./landing-lifecycle";
 import { LandingServices, type DisplayCatalog } from "./landing-services";
 import { LandingCard } from "./landing-card";
+import { landingPhoto } from "./landing-photos";
 import { bookingAction, serviceArrow, servicePrice } from "./landing-model";
 import "./landing.css";
 
@@ -44,7 +45,7 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
       <section id="coatings" className="landing-section landing-wrap">
         <h2>Coatings and films</h2>
         <p className="landing-muted">Ask us which coating or film suits your vehicle.</p>
-        {graphene.length > 0 && <div className="landing-grid">{graphene.map((s) => <LandingCard key={s.id} level={3} chip="Graphene" title={s.name} price={servicePrice(s)} arrow={serviceArrow(display!, undefined, s, status, phone)}>{s.inclusions.length > 0 && <details><summary>What&apos;s included</summary><ul>{s.inclusions.map((item) => <li key={item}>{item}</li>)}</ul></details>}</LandingCard>)}</div>}
+        {graphene.length > 0 && <div className="landing-grid">{graphene.map((s) => <LandingCard key={s.id} level={3} chip="Graphene" title={s.name} price={servicePrice(s)} arrow={serviceArrow(display!, undefined, s, status, phone)} photo={landingPhoto(s.slug)}>{s.inclusions.length > 0 && <details><summary>What&apos;s included</summary><ul>{s.inclusions.map((item) => <li key={item}>{item}</li>)}</ul></details>}</LandingCard>)}</div>}
         {films.length > 0 && <><h3>Window tint and paint protection film</h3><ul className="landing-chip-list">{films.map((s) => <li className="landing-chip" key={s.id}>{s.name}</li>)}</ul></>}
         <p><a href={brandConfig.facebookMessengerUrl}>Ask about coatings on Messenger</a></p>
       </section>
