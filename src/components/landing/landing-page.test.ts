@@ -103,16 +103,18 @@ test("photos: a slug that names an Object prototype key gets the labelled frame,
 });
 
 test("coatings summaries use the same arrow icon as the cards, never a text glyph (UI/UX P1-89 copy note)", () => {
-  const html = page("OPEN");
+  // P1-90 F1: the comparison lists packages with catalog inclusions, so the fixture gives two packages inclusions.
+  const withInclusions = (id: string, name: string) => ({ ...service(id, name, "GRAPHENE"), inclusions: ["Decon wash"] }) as unknown as ServicePackage;
+  const html = renderToStaticMarkup(createElement(LandingPage, { catalog: { ...catalog, services: [withInclusions("gloss", "Graphene Coat"), withInclusions("gloss2", "Graphene Top")] } as unknown as BookingCatalog, status: "OPEN" }));
   assert.doesNotMatch(text(html), /↗/);
   const coatings = html.slice(html.indexOf('id="coatings"'), html.indexOf('id="gallery"'));
   assert.match(coatings, /class="landing-arrow" href="[^"]+" aria-label="Book Graphene Coat"><svg[^>]*aria-hidden="true"/);
 });
 
 test("CEO rule A on the page: services cards and coatings summaries say 'Price depends on size' before a size is chosen", () => {
-  const sized = { ...service("eclipse", "Eclipse", "GRAPHENE"), offers: [{ ...offer, vehicleCategoryId: "s", unitPriceCentavos: 1170000 }, { ...offer, vehicleCategoryId: "m", unitPriceCentavos: 1215000 }] } as unknown as ServicePackage;
-  const html = renderToStaticMarkup(createElement(LandingPage, { catalog: { ...catalog, vehicleCategories: [{ id: "s", code: "S", name: "Small" }, { id: "m", code: "M", name: "Medium" }], services: [sized] } as unknown as BookingCatalog, status: "OPEN" }));
-  // Graphene tab card and the Coatings summary.
+  const sized = { ...service("eclipse", "Eclipse", "GRAPHENE"), inclusions: ["Decon wash"], offers: [{ ...offer, vehicleCategoryId: "s", unitPriceCentavos: 1170000 }, { ...offer, vehicleCategoryId: "m", unitPriceCentavos: 1215000 }] } as unknown as ServicePackage;
+  const html = renderToStaticMarkup(createElement(LandingPage, { catalog: { ...catalog, vehicleCategories: [{ id: "s", code: "S", name: "Small" }, { id: "m", code: "M", name: "Medium" }], services: [sized, { ...service("kenzo", "Kenzo", "GRAPHENE"), inclusions: ["Decon wash"] }] } as unknown as BookingCatalog, status: "OPEN" }));
+  // Graphene tab card and the Coatings phone block (P1-90: the comparison needs two packages with inclusions; the table cell is a td).
   assert.equal(html.match(/<p class="landing-price"[^>]*>Price depends on size<\/p>/g)?.length, 2);
   assert.doesNotMatch(text(html), /from ₱11,700/);
 });

@@ -98,3 +98,15 @@ test("Barlow Condensed is used for the outlined ZEUS word only (CEO, P1-90)", ()
   assert.ok(rules.length > 0);
   for (const selector of rules) assert.match(selector, /^\.landing-word$/, selector);
 });
+
+test("UI/UX F1: a graphene package with no catalog inclusions is left out of the comparison; under two packages, no comparison", () => {
+  const moto = service("motorcycle-graphene", "Motorcycle Graphene", "GRAPHENE", [], [multiDay("m", 200000)]);
+  const coatings = section(page("OPEN", catalog({ services: [...services, moto] } as Partial<BookingCatalog>)), "coatings");
+  assert.doesNotMatch(coatings, /<th scope="col"[^>]*>Motorcycle Graphene<\/th>/);
+  assert.doesNotMatch(coatings.slice(coatings.indexOf("landing-compare-blocks")), /<h4>Motorcycle Graphene<\/h4>/);
+  assert.match(coatings, /<th scope="col"[^>]*>Kenzo<\/th>/);
+  // The motorcycle package keeps its card in the Graphene tab.
+  assert.match(section(page("OPEN", catalog({ services: [...services, moto] } as Partial<BookingCatalog>)), "services"), /id="service-motorcycle-graphene"/);
+  const one = section(page("OPEN", catalog({ services: [...services.filter((s) => s.slug !== "kenzo-graphene"), moto] } as Partial<BookingCatalog>)), "coatings");
+  assert.doesNotMatch(one, /Compare graphene packages|<table/);
+});

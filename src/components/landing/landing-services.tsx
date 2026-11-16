@@ -115,7 +115,9 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
   const href = booking.href === "/book" ? bookingHref(catalog, size, lines) : booking.href;
   const graphene = catalog.services.filter((s) => s.category === "GRAPHENE" && s.type === "BASE");
   const films = catalog.services.filter((s) => (s.category === "TINT" || s.category === "PPF") && s.type === "BASE");
-  const inclusions = [...new Set(graphene.flatMap((s) => s.inclusions))];
+  // UI/UX F1: only packages whose catalog lists inclusions are compared; an empty list would read as "includes nothing".
+  const compared = graphene.filter((s) => s.inclusions.length > 0);
+  const inclusions = [...new Set(compared.flatMap((s) => s.inclusions))];
   const durationFor = (s: ServicePackage) => { const o = s.offers.find((offer) => offer.vehicleCategoryId === sizeId); return o?.duration.kind === "TIMED" ? `About ${o.duration.minutes} min` : o?.duration.kind === "MULTI_DAY" ? "Multi-day" : null; };
   const included = <><Check aria-hidden="true" /><span className="landing-sr">Included</span></>, notIncluded = <><Minus aria-hidden="true" /><span className="landing-sr">Not included</span></>;
   const step = (by: number) => { const i = CATEGORIES.indexOf(category as typeof CATEGORIES[number]); chooseTab(CATEGORIES[(i + by + 6) % 6]); focusTab(i + by); };
@@ -138,18 +140,18 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
     <section id="coatings" className="landing-coatings">
       <CoatingsBleed />
       <div className="landing-wrap landing-compare">
-        {graphene.length > 0 && <>
+        {compared.length >= 2 && <>
           <div className="landing-compare-head"><h3>Compare graphene packages</h3><p className="landing-muted">{size ? `Prices for ${size.name}.` : "Choose your vehicle size to see prices."}</p></div>
           <div className="landing-compare-scroll"><table className="landing-compare-table">
-            <thead><tr><td />{graphene.map((s) => <th scope="col" key={s.id}>{s.name}</th>)}</tr></thead>
+            <thead><tr><td />{compared.map((s) => <th scope="col" key={s.id}>{s.name}</th>)}</tr></thead>
             <tbody>
-              <tr><th scope="row">Price</th>{graphene.map((s) => <td key={s.id} className="landing-price">{servicePrice(s, size, body)}</td>)}</tr>
-              {size && <tr><th scope="row">Time</th>{graphene.map((s) => <td key={s.id}>{durationFor(s)}</td>)}</tr>}
-              {inclusions.map((item) => <tr key={item}><th scope="row">{item}</th>{graphene.map((s) => <td key={s.id}>{s.inclusions.includes(item) ? included : notIncluded}</td>)}</tr>)}
-              <tr><td />{graphene.map((s) => { const a = serviceArrow(catalog, size, s, status, phone); return <td key={s.id}><a className="landing-arrow" href={a.href} aria-label={a.label}><ArrowUpRight aria-hidden="true" /></a></td>; })}</tr>
+              <tr><th scope="row">Price</th>{compared.map((s) => <td key={s.id} className="landing-price">{servicePrice(s, size, body)}</td>)}</tr>
+              {size && <tr><th scope="row">Time</th>{compared.map((s) => <td key={s.id}>{durationFor(s)}</td>)}</tr>}
+              {inclusions.map((item) => <tr key={item}><th scope="row">{item}</th>{compared.map((s) => <td key={s.id}>{s.inclusions.includes(item) ? included : notIncluded}</td>)}</tr>)}
+              <tr><td />{compared.map((s) => { const a = serviceArrow(catalog, size, s, status, phone); return <td key={s.id}><a className="landing-arrow" href={a.href} aria-label={a.label}><ArrowUpRight aria-hidden="true" /></a></td>; })}</tr>
             </tbody>
           </table></div>
-          <div className="landing-compare-blocks">{graphene.map((s) => { const a = serviceArrow(catalog, size, s, status, phone); return <article className="landing-card" key={s.id}>
+          <div className="landing-compare-blocks">{compared.map((s) => { const a = serviceArrow(catalog, size, s, status, phone); return <article className="landing-card" key={s.id}>
             <h4>{s.name}</h4><p className="landing-price">{servicePrice(s, size, body)}</p>{size && durationFor(s) && <p className="landing-muted">{durationFor(s)}</p>}
             {s.inclusions.length > 0 && <ul className="landing-check-list">{s.inclusions.map((item) => <li key={item}><Check aria-hidden="true" />{item}</li>)}</ul>}
             <a className="landing-arrow" href={a.href} aria-label={a.label}><ArrowUpRight aria-hidden="true" /></a>
