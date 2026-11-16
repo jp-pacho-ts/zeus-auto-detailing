@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { MessageCircle, Phone } from "lucide-react";
+import { ArrowUpRight, MessageCircle, Phone } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import type { LandingStatus } from "@/server/landing/status";
@@ -59,7 +59,7 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           <div className="landing-coating-frame">{workPhoto("eclipse-graphene", "landing-coating-photo", "(max-width: 767px) 100vw, 700px")}<span className="landing-coating-edge" aria-hidden="true" /></div>
           <div className="landing-coating-summaries">{graphene.map((s) => {
             const arrow = serviceArrow(display!, undefined, s, status, phone);
-            return <article className="landing-card" key={s.id}><h3>{s.name}</h3><div className="landing-card-actions"><p className="landing-price">{servicePrice(s)}</p><a className="landing-arrow" href={arrow.href} aria-label={arrow.label}>↗</a></div>{s.inclusions.length > 0 && <details><summary>What&apos;s included</summary><ul>{s.inclusions.map((item) => <li key={item}>{item}</li>)}</ul></details>}</article>;
+            return <article className="landing-card" key={s.id}><h3>{s.name}</h3><div className="landing-card-actions"><p className="landing-price">{servicePrice(s)}</p><a className="landing-arrow" href={arrow.href} aria-label={arrow.label}><ArrowUpRight aria-hidden="true" /></a></div>{s.inclusions.length > 0 && <details><summary>What&apos;s included</summary><ul>{s.inclusions.map((item) => <li key={item}>{item}</li>)}</ul></details>}</article>;
           })}</div>
         </div>
         {films.length > 0 && <><h3>Window tint and paint protection film</h3><ul className="landing-chip-list">{films.map((s) => <li className="landing-chip" key={s.id}>{s.name}</li>)}</ul></>}

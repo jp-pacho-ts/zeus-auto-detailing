@@ -250,14 +250,24 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
   .landing-total{flex-direction:column;gap:4px}
   .landing-total strong{text-align:left}
   .landing-band{height:150vh}
-  .landing-band-stage{flex-direction:column-reverse;justify-content:flex-end;padding-top:64px}
+  .landing-band-stage{padding-top:64px}
   /* Keep the tool and hands in the frame while reserving room for stationary copy and actions. */
-  .landing-band-media{flex:none;width:100%;height:min(125vw,calc(100svh - 420px));-webkit-mask-image:none;mask-image:none}
+  .landing-band-media{width:100%;-webkit-mask-image:none;mask-image:none}
   .landing-band-copy{padding-top:24px}
   .landing-band-copy a{scroll-margin-bottom:120px}
   .landing-phone-bar{position:fixed;bottom:0;left:0;right:0;z-index:28;display:flex;gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}
   .landing-phone-bar .landing-gold{flex:1;min-width:0;font-size:15px}
   .landing-call{min-width:48px;padding-inline:16px}
+}
+/* P1-89 (CEO): phones and tablets follow the laptop hero, with the copy over the footage. The scrim sits under the copy block itself, so contrast holds however tall the copy grows. */
+@media(max-width:1199px){
+  .landing-hero{min-height:calc(100svh - 64px);display:flex;flex-direction:column;justify-content:flex-end;padding:0 0 32px}
+  .landing-hero .landing-media{position:absolute;inset:0}
+  .landing-hero .landing-media-frame{height:100%;max-height:none;aspect-ratio:auto;-webkit-mask-image:none;mask-image:none}
+  .landing-word{position:absolute;z-index:2;left:0;right:0;top:16px;margin:0;opacity:.45}
+  .landing-hero-copy{background:none;padding-top:0;width:100%;z-index:3}
+  .landing-hero-copy::before{content:"";position:absolute;z-index:-1;inset:-120px 0 -32px;pointer-events:none;background:linear-gradient(to top,rgb(9 9 11 / .94) 0%,rgb(9 9 11 / .94) calc(100% - 120px),rgb(9 9 11 / 0) 100%)}
+  .landing-hero-copy .landing-lede,.landing-hero-address{color:var(--fg)}
 }
 /* Section 12 / 17.11.1: nothing moves; the band has its natural height, no sticky stage and no doors. */
 @media(prefers-reduced-motion:reduce){
@@ -273,3 +283,14 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
 @media(prefers-reduced-motion:reduce) and (max-width:767px){.landing-band-stage{padding-top:0}.landing-band-media{height:auto;aspect-ratio:4/5}}
 @media(max-height:700px){.landing-band{height:auto}.landing-band-stage{position:relative;height:auto;padding-top:0}.landing-band-media{flex:none;height:auto;aspect-ratio:4/3}.landing-band-copy{padding-block:32px}.landing-door{display:none}}
 .landing-photo img{width:100%;height:100%;object-fit:cover}
+/* P1-89 phone review: 44 px hit areas without moving anything. Vertical padding on an inline link does not change its line box; on a flex item and in the nav, negative margins cancel the padding. */
+.landing p>a:not([class]),.landing-actions>a:not([class]){padding-block:12px}
+.landing-actions>a:not([class]){margin-block:-12px}
+.landing-desktop-nav a,.landing-footer-links a{padding-inline:8px;margin-inline:-8px}
+.landing-header>a:first-child{display:flex;align-items:center;min-height:44px}
+@media(max-width:767px){
+  /* The fixed phone bar must not cover a focused control or an anchor target (WCAG 2.4.11). */
+  html:has([data-landing-preview]){scroll-padding-bottom:88px}
+  /* One column: no side-by-side form to align with, so the empty estimate takes its natural height. */
+  .landing-estimate-result{min-height:0}
+}

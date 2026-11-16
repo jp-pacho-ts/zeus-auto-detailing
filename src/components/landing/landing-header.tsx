@@ -12,10 +12,10 @@ export function LandingHeader({ logo, label, href, phone }: { logo: string; labe
     if (!hero) return;
     const observer = new IntersectionObserver(([entry]) => setPastHero(!entry.isIntersecting && entry.boundingClientRect.top < 0));
     observer.observe(hero);
-    // 17.7.1: one gold pill per view, so the bar steps aside while the estimate result or the closing CTA is on screen.
+    // 17.7.1: one gold pill per view, so the bar steps aside while the category tabs (gold selected pill), the estimate result or the closing CTA is on screen.
     const seen = new Map<Element, boolean>();
     const gold = new IntersectionObserver((entries) => { for (const e of entries) seen.set(e.target, e.isIntersecting); setGoldInView([...seen.values()].some(Boolean)); });
-    for (const id of ["landing-estimate-result", "landing-closing-cta"]) { const el = document.getElementById(id); if (el) gold.observe(el); }
+    for (const el of document.querySelectorAll(".landing-tabs, #landing-estimate-result, #landing-closing-cta")) gold.observe(el);
     return () => { observer.disconnect(); gold.disconnect(); };
   }, []);
   const links = <><a href="#services">Services</a><a href="#estimate">Prices</a><a href="#coatings">Coatings</a><a href="#visit">Visit</a><a href="/book/manage">Manage booking</a></>;

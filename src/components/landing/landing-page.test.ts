@@ -101,3 +101,10 @@ test("photos: a slug that names an Object prototype key gets the labelled frame,
   assert.doesNotMatch(servicesHtml, /url=%2Fmedia%2Flanding%2F/);
   assert.equal(servicesHtml.match(/Photo coming soon/g)?.length, 2);
 });
+
+test("coatings summaries use the same arrow icon as the cards, never a text glyph (UI/UX P1-89 copy note)", () => {
+  const html = page("OPEN");
+  assert.doesNotMatch(text(html), /↗/);
+  const coatings = html.slice(html.indexOf('id="coatings"'), html.indexOf('id="gallery"'));
+  assert.match(coatings, /class="landing-arrow" href="[^"]+" aria-label="Book Graphene Coat"><svg[^>]*aria-hidden="true"/);
+});
