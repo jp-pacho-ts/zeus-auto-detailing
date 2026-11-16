@@ -1,64 +1,95 @@
-"use client";
+﻿"use client";
 import { useRef } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+import { bandScrolls } from "./landing-model";
+
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
-// The one motion owner (17.11.4): M1 hero parallax, M2 card reveal, M3 closing band, plus the H2 rise.
-// Transforms only. SSR text and actions stay visible even if GSAP or a trigger fails.
+// One motion owner. Only images and framing move; text, prices and actions stay put.
 export function LandingLifecycle() {
   const marker = useRef<HTMLSpanElement>(null);
+  const rowPlayed = useRef(false);
   useGSAP(() => {
     const root = marker.current?.closest<HTMLElement>("[data-landing-preview]");
     if (!root) return;
     const one = (selector: string) => root.querySelector<HTMLElement>(selector);
     ScrollTrigger.config({ ignoreMobileResize: true });
     const media = gsap.matchMedia();
-    media.add({ motion: "(prefers-reduced-motion: no-preference)", phone: "(max-width: 767px)" }, (context) => {
-      const { motion, phone } = context.conditions as { motion: boolean; phone: boolean };
+    media.add({ motion: "(prefers-reduced-motion: no-preference)", desktop: "(min-width: 1200px)", phone: "(max-width: 767px)", short: "(max-height: 700px)" }, (context) => {
+      const { motion, desktop, phone, short } = context.conditions as { motion: boolean; desktop: boolean; phone: boolean; short: boolean };
       if (!motion) return;
-      const hero = one(".landing-hero"), frame = one(".landing-media-frame"), layer = one(".landing-media-layer"), word = one(".landing-word");
-      const scrubbed: HTMLElement[] = [];
-      const hint = (on: boolean, els: Element[]) => els.forEach((el) => { (el as HTMLElement).style.willChange = on ? "transform" : ""; });
-      // UI/UX 2026-11-15 (4x long-task gate): no M1 at 767 px and below; the phone hero is static, as under reduced motion.
-      if (!phone && hero && frame && layer && word) {
-        // The word rises 12 px once; yPercent keeps it apart from the parallax y below.
-        gsap.from(word, { yPercent: () => 12 / Math.max(1, word.offsetHeight) * 100, duration: .45, ease: "power2.out" });
-        // M1: footage 0.3x and word 0.5x. The footage travel is capped by its 15% overscan so no edge shows.
-        const els = [layer, word]; scrubbed.push(...els);
-        gsap.timeline({ scrollTrigger: { trigger: hero, start: "top top", end: "bottom top", scrub: 0.6, invalidateOnRefresh: true, onToggle: (self) => hint(self.isActive, els) } })
-          .fromTo(layer, { y: 0 }, { y: () => Math.min(0.3 * hero.offsetHeight, 0.15 * frame.offsetHeight), ease: "none" }, 0)
-          .fromTo(word, { y: 0 }, { y: () => 0.5 * hero.offsetHeight, ease: "none" }, 0);
+      const owned: { scene: Element; animation: gsap.core.Animation; elements: Element[] }[] = [];
+      const hint = (active: boolean, elements: Element[]) => elements.forEach((el) => { (el as HTMLElement).style.willChange = active ? "transform" : ""; });
+      const scene = (element: HTMLElement, elements: Element[], start: string, end: string, scrub = .3) => {
+        const timeline = gsap.timeline({ scrollTrigger: { trigger: element, start, end, scrub, invalidateOnRefresh: true, onToggle: (self) => hint(self.isActive, elements) } });
+        owned.push({ scene: element, animation: timeline, elements });
+        return timeline;
+      };
+      const hero = one(".landing-hero"), frame = one(".landing-media-frame"), layer = one(".landing-media-layer");
+      // M1 is off on phones and stacked tablets. Fixed scrim and copy never move.
+      if (desktop && hero && frame && layer) {
+        // Keep the optional outlined word static: hero + two process images stay within the three-layer cap.
+        scene(hero, [layer], "top top", "bottom top", .35)
+          .fromTo(layer, { y: 0 }, { y: () => frame.offsetHeight * .06, duration: 1, ease: "none" }, 0);
       }
-      // M2: cards are visible from first paint; they rise 24 px once, never on tab changes. y only (UI/UX 2026-11-15): a scale re-rasters each card.
-      const reveal = context.add("reveal", (batch: Element[]) => gsap.from(batch, { y: 24, duration: .45, ease: "power2.out", stagger: .06, overwrite: true, onStart: () => hint(true, batch), onComplete: () => hint(false, batch) })) as (batch: Element[]) => void;
-      const cards = root.querySelectorAll(".landing-reveal");
-      // Parse the transforms once here, so starting a batch mid-scroll never forces a style and layout read.
-      gsap.set(cards, { y: 0 });
-      ScrollTrigger.batch(cards, { start: "top 88%", once: true, onEnter: (batch) => reveal(batch) });
-      // M3: CSS-sticky stage (no GSAP pin). Doors part, the image settles, the heading lines rise; text is never hidden.
+      const process = one(".landing-process"), wide = one(".landing-process-wide img"), close = one(".landing-process-close img");
+      if (desktop && process && wide && close) {
+        scene(process, [wide, close], "top 85%", "bottom 35%")
+          .fromTo(wide, { x: -16 }, { x: 0, duration: .7, ease: "none" }, 0)
+          .fromTo(close, { x: 16 }, { x: 0, duration: .5, ease: "none" }, .2);
+      }
+      // Only the first initial row receives a crop settle; category/vehicle changes never replay it.
+      const grid = root.querySelector<HTMLElement>(".landing-panel .landing-grid");
+      if (!phone && grid && !rowPlayed.current) {
+        const photos = [...grid.children].slice(0, desktop ? 3 : 2).flatMap((card) => [...card.querySelectorAll(".landing-photo img")]);
+        if (photos.length) {
+          const reveal = context.add("firstRow", () => {
+            if (rowPlayed.current) return;
+            rowPlayed.current = true;
+            const animation = gsap.fromTo(photos, { y: -12 }, { y: 0, duration: .45, stagger: .06, ease: "power2.out", onStart: () => hint(true, photos), onComplete: () => hint(false, photos) });
+            owned.push({ scene: grid, animation, elements: photos });
+          }) as () => void;
+          ScrollTrigger.create({ trigger: grid, start: "top 80%", once: true, onEnter: reveal });
+        }
+      }
+      const coatings = one(".landing-coatings-editorial"), coating = one(".landing-coating-photo img"), edge = one(".landing-coating-edge");
+      if (desktop && coatings && coating && edge) {
+        scene(coatings, [coating, edge], "top 85%", "top 20%")
+          .fromTo(coating, { scale: 1.04 }, { scale: 1, duration: 1, ease: "none" }, 0)
+          .fromTo(edge, { x: -16 }, { x: 0, duration: .25, ease: "none" }, 0);
+      }
       const band = one(".landing-band");
-      if (band) {
-        const doors = band.querySelectorAll(".landing-door"), image = band.querySelector("img"), lines = band.querySelectorAll(".landing-band-line");
-        // The image settles from 1.12 on desktop only; at 767 px and below it stays at 1 (UI/UX 2026-11-15).
-        const settles = image && !phone ? image : null;
-        const els = [...doors, ...(settles ? [settles] : []), ...lines]; scrubbed.push(...(els as HTMLElement[]));
-        const timeline = gsap.timeline({ scrollTrigger: { trigger: band, start: "top top", end: "bottom bottom", scrub: 0.6, onToggle: (self) => hint(self.isActive, els) } });
-        // CSS parks the doors off-stage for no-JS; x: 0 drops that parsed offset so only xPercent moves them.
-        timeline.fromTo(doors[0], { x: 0, xPercent: 0 }, { xPercent: -101, ease: "none" }, 0).fromTo(doors[1], { x: 0, xPercent: 0 }, { xPercent: 101, ease: "none" }, 0);
-        if (settles) timeline.fromTo(settles, { scale: 1.12 }, { scale: 1, ease: "none" }, 0);
-        timeline.fromTo(lines, { y: 40 }, { y: 0, stagger: .15, ease: "none" }, 0);
+      if (band && bandScrolls({ phone, short })) {
+        const doors = [...band.querySelectorAll<HTMLElement>(".landing-door")], image = band.querySelector("img");
+        const elements = [...doors, ...(image ? [image] : [])];
+        if (doors.length === 2) {
+          const timeline = scene(band, elements, "top top", "bottom bottom", .35);
+          // Each door covers <=20% of the frame at entry: the central aperture already exposes >=60%.
+          timeline.fromTo(doors[0], { x: 0, xPercent: -61 }, { xPercent: -101, duration: .45, ease: "none" }, 0)
+            .fromTo(doors[1], { x: 0, xPercent: 61 }, { xPercent: 101, duration: .45, ease: "none" }, 0);
+          if (image) timeline.fromTo(image, { scale: 1.04 }, { scale: 1, duration: .55, ease: "none" }, .1);
+          // Hold the completed image for the final 35%; copy never participates in this timeline.
+          timeline.to({}, { duration: .35 }, .65);
+        }
       }
-      root.querySelectorAll(".landing-section h2").forEach((heading) => gsap.from(heading, { y: 12, duration: .45, ease: "power2.out", scrollTrigger: { trigger: heading, start: "top 90%", once: true } }));
-      return () => hint(false, [...scrubbed, ...cards]);
+      const focus = (event: FocusEvent) => {
+        if (!(event.target instanceof Node)) return;
+        for (const item of owned) if (item.scene.contains(event.target)) {
+          item.animation.scrollTrigger?.disable(false);
+          item.animation.progress(1).pause(); hint(false, item.elements);
+        }
+      };
+      root.addEventListener("focusin", focus);
+      return () => { root.removeEventListener("focusin", focus); for (const item of owned) hint(false, item.elements); };
     });
-    // One refresh once fonts and the hero poster have settled the layout.
+    // Refresh after reserved media/font layout settles, and after real content-height changes only.
     let live = true, settle = () => {};
     const poster = one(".landing-media img") as HTMLImageElement | null;
     const loaded = new Promise<void>((done) => { settle = done; if (!poster || poster.complete) done(); else { poster.addEventListener("load", settle); poster.addEventListener("error", settle); } });
     Promise.all([document.fonts.ready, loaded]).then(() => { if (live) ScrollTrigger.refresh(); });
-    // Tab enhancement after hydration, tab changes and the estimate result change the page height; re-measure the triggers.
     const main = root.querySelector("main"), watch = new ResizeObserver(() => ScrollTrigger.refresh());
     if (main) watch.observe(main);
     return () => { live = false; watch.disconnect(); poster?.removeEventListener("load", settle); poster?.removeEventListener("error", settle); media.revert(); };

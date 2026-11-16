@@ -5,7 +5,10 @@ export const money = (centavos: number) => new Intl.NumberFormat("en-PH", { styl
 export function servicePrice(service: ServicePackage, size?: VehicleCategory, body?: VehicleBodyType): string {
   const offers = size ? service.offers.filter((o) => o.vehicleCategoryId === size.id) : service.offers;
   if (!size) {
-    const prices = offers.filter((o) => o.onlineBooking === "PRICED").flatMap((o) => o.state === "OFFERED" ? [o.unitPriceCentavos, ...(o.pickupPriceCentavos !== undefined ? [o.pickupPriceCentavos] : [])] : []);
+    const priced = offers.filter((o) => o.onlineBooking === "PRICED" && o.state === "OFFERED");
+    // CEO rule A (P1-89): "from" the lowest size misleads when sizes cost different amounts; a pickup surcharge is a body variant, not a size.
+    if (new Set(priced.map((o) => o.unitPriceCentavos)).size > 1) return "Price depends on size";
+    const prices = priced.flatMap((o) => o.state === "OFFERED" ? [o.unitPriceCentavos, ...(o.pickupPriceCentavos !== undefined ? [o.pickupPriceCentavos] : [])] : []);
     return prices.length ? `from ${money(Math.min(...prices))}` : "Price on inspection";
   }
   const offer = offers[0];
@@ -17,6 +20,8 @@ export function servicePrice(service: ServicePackage, size?: VehicleCategory, bo
   if ((size.code === "L" || size.code === "XL") && !body) return `from ${money(Math.min(amount, offer.pickupPriceCentavos ?? amount))}${unit}`;
   return money(amount) + unit;
 }
+// CEO option a (P1-89): the closing band scrolls (sticky stage, doors) only on laptop-width, laptop-height screens.
+export const bandScrolls = ({ phone, short }: { phone: boolean; short: boolean }) => !phone && !short;
 export function bookingHref(catalog: Pick<BookingCatalog, "services">, size: VehicleCategory | undefined, lines: CatalogSelection["lines"]): string {
   const line = lines[0], service = catalog.services.find((s) => s.id === line?.serviceId);
   const eligible = lines.length === 1 && service?.type === "BASE" && service.unit === "VEHICLE" && line.quantity === 1 && size && ["MOTOR", "S", "M"].includes(size.code) && service.offers.some((o) => o.vehicleCategoryId === size.id && o.onlineBooking === "PRICED");
