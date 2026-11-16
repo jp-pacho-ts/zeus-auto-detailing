@@ -167,7 +167,7 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
 .landing-band-copy a{scroll-margin-bottom:calc(100svh - 360px)}
 .landing-hairline{display:block;width:48px;height:1px;background:var(--gold);margin-bottom:24px}
 .landing-band-media{position:relative;flex:1;min-height:0;overflow:clip;background:var(--muted)}
-.landing-band-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 25%}
+.landing-band-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 40%}
 .landing-door{position:absolute;z-index:1;top:0;bottom:0;width:50.5%;background:var(--bg)}
 .landing-door-left{left:0;transform:translateX(-101%)}
 .landing-door-right{right:0;transform:translateX(101%)}
@@ -253,7 +253,7 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
   .landing-band-stage{padding-top:64px}
   /* Keep the tool and hands in the frame while reserving room for stationary copy and actions. */
   .landing-band-media{width:100%;-webkit-mask-image:none;mask-image:none}
-  /* UI/UX F1: wide screens frame the face and both hands (25%); the tall phone frame keeps its own crop. */
+  /* UI/UX F1: wide screens frame the face and both hands (40%); the tall phone frame keeps its own crop. */
   .landing-band-media img{object-position:center 65%}
   .landing-band-copy{padding-top:24px}
   .landing-band-copy a{scroll-margin-bottom:120px}
