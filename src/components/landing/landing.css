@@ -340,3 +340,5 @@ html:has([data-landing-preview]){scroll-behavior:auto}
 .landing-actions>a:not([class]){margin-block:-12px}
 .landing-desktop-nav a,.landing-footer-links a{padding-inline:8px;margin-inline:-8px}
 .landing-header>a:first-child{display:flex;align-items:center;min-height:44px}
+/* P1-90: short words (FAQ, Kenzo) still get a 44 px wide target. */
+.landing-desktop-nav a,.landing-step-links a{min-width:44px;justify-content:center}
