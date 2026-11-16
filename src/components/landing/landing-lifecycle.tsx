@@ -8,59 +8,59 @@ import { bandScrolls } from "./landing-model";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
-// One motion owner. Only images and framing move; text, prices and actions stay put.
+// One motion owner (P1-90 identity 9). Only image layers, masks and the decorative word move; text, prices and controls stay put.
+// Phones (767 px and below) get no scroll-linked motion: the method-b gate failed with motion there (P1-89).
 export function LandingLifecycle() {
   const marker = useRef<HTMLSpanElement>(null);
-  const rowPlayed = useRef(false);
   useGSAP(() => {
     const root = marker.current?.closest<HTMLElement>("[data-landing-preview]");
     if (!root) return;
     const one = (selector: string) => root.querySelector<HTMLElement>(selector);
     ScrollTrigger.config({ ignoreMobileResize: true });
     const media = gsap.matchMedia();
-    media.add({ motion: "(prefers-reduced-motion: no-preference)", desktop: "(min-width: 1200px)", phone: "(max-width: 767px)", short: "(max-height: 700px)" }, (context) => {
-      const { motion, desktop, phone, short } = context.conditions as { motion: boolean; desktop: boolean; phone: boolean; short: boolean };
+    media.add({ motion: "(prefers-reduced-motion: no-preference)", wide: "(min-width: 768px)", stage: "(min-width: 1024px) and (min-height: 700px)", phone: "(max-width: 767px)", short: "(max-height: 700px)" }, (context) => {
+      const { motion, wide, stage, phone, short } = context.conditions as Record<"motion" | "wide" | "stage" | "phone" | "short", boolean>;
       if (!motion) return;
       const owned: { scene: Element; animation: gsap.core.Animation; elements: Element[] }[] = [];
-      const hint = (active: boolean, elements: Element[]) => elements.forEach((el) => { (el as HTMLElement).style.willChange = active ? "transform" : ""; });
-      const scene = (element: HTMLElement, elements: Element[], start: string, end: string, scrub = .3) => {
+      const hint = (active: boolean, elements: Element[]) => elements.forEach((el) => { (el as HTMLElement).style.willChange = active ? "transform, clip-path" : ""; });
+      const scene = (element: HTMLElement, elements: Element[], start: string, end: string, scrub = .4) => {
         const timeline = gsap.timeline({ scrollTrigger: { trigger: element, start, end, scrub, invalidateOnRefresh: true, onToggle: (self) => hint(self.isActive, elements) } });
         owned.push({ scene: element, animation: timeline, elements });
         return timeline;
       };
-      const hero = one(".landing-hero"), frame = one(".landing-media-frame"), layer = one(".landing-media-layer");
-      // M1 is off on phones and stacked tablets. Fixed scrim and copy never move.
-      if (desktop && hero && frame && layer) {
-        // Keep the optional outlined word static: hero + two process images stay within the three-layer cap.
-        scene(hero, [layer], "top top", "bottom top", .35)
-          .fromTo(layer, { y: 0 }, { y: () => frame.offsetHeight * .06, duration: 1, ease: "none" }, 0);
+      // H1: the footage settles and the outlined word drifts up as the hero leaves.
+      const hero = one(".landing-hero"), layer = one(".landing-media-layer"), word = one(".landing-word");
+      if (wide && hero && layer && word) {
+        scene(hero, [layer, word], "top top", "bottom top")
+          .fromTo(layer, { scale: 1.08 }, { scale: 1, ease: "none" }, 0)
+          .fromTo(word, { yPercent: 0 }, { yPercent: -35, ease: "none" }, 0);
       }
-      const process = one(".landing-process"), wide = one(".landing-process-wide img"), close = one(".landing-process-close img");
-      if (desktop && process && wide && close) {
-        scene(process, [wide, close], "top 85%", "bottom 35%")
-          .fromTo(wide, { x: -16 }, { x: 0, duration: .7, ease: "none" }, 0)
-          .fromTo(close, { x: 16 }, { x: 0, duration: .5, ease: "none" }, .2);
-      }
-      // Only the first initial row receives a crop settle; category/vehicle changes never replay it.
-      const grid = root.querySelector<HTMLElement>(".landing-panel .landing-grid");
-      if (!phone && grid && !rowPlayed.current) {
-        const photos = [...grid.children].slice(0, desktop ? 3 : 2).flatMap((card) => [...card.querySelectorAll(".landing-photo img")]);
-        if (photos.length) {
-          const reveal = context.add("firstRow", () => {
-            if (rowPlayed.current) return;
-            rowPlayed.current = true;
-            const animation = gsap.fromTo(photos, { y: -12 }, { y: 0, duration: .45, stagger: .06, ease: "power2.out", onStart: () => hint(true, photos), onComplete: () => hint(false, photos) });
-            owned.push({ scene: grid, animation, elements: photos });
-          }) as () => void;
-          ScrollTrigger.create({ trigger: grid, start: "top 80%", once: true, onEnter: reveal });
+      // P1: each work photo opens from an inset mask while its image counter-moves; the step whose photo crosses 55% lights up.
+      const work = one(".landing-stage");
+      if (stage && work) {
+        const steps = [...work.querySelectorAll<HTMLElement>(".landing-step")];
+        const light = (step: string) => steps.forEach((el) => el.classList.toggle("is-on", el.dataset.step === step));
+        work.classList.add("is-live"); light(steps[0]?.dataset.step ?? "");
+        for (const photo of work.querySelectorAll<HTMLElement>(".landing-stage-photo")) {
+          const image = photo.querySelector("img");
+          scene(photo, [photo], "top 95%", "center 55%").fromTo(photo, { clipPath: "inset(12% 8% 12% 8% round 28px)" }, { clipPath: "inset(0% 0% 0% 0% round 20px)", ease: "none" });
+          if (image) scene(photo, [image], "top bottom", "bottom top").fromTo(image, { yPercent: -10 }, { yPercent: 0, ease: "none" });
+          ScrollTrigger.create({ trigger: photo, start: "top 55%", end: "bottom 55%", onToggle: (self) => { if (self.isActive) light(photo.dataset.step ?? ""); } });
         }
+        context.add(() => () => { work.classList.remove("is-live"); steps.forEach((el) => el.classList.remove("is-on")); });
       }
-      const coatings = one(".landing-coatings-editorial"), coating = one(".landing-coating-photo img"), edge = one(".landing-coating-edge");
-      if (desktop && coatings && coating && edge) {
-        scene(coatings, [coating, edge], "top 85%", "top 20%")
-          .fromTo(coating, { scale: 1.04 }, { scale: 1, duration: 1, ease: "none" }, 0)
-          .fromTo(edge, { x: -16 }, { x: 0, duration: .25, ease: "none" }, 0);
+      // C1: the framed coating photo opens to full bleed as it enters, and its image settles.
+      const bleed = one(".landing-bleed"), bleedMedia = one(".landing-bleed-media"), bleedImage = one(".landing-bleed-media img");
+      if (stage && bleed && bleedMedia && bleedImage) {
+        const edge = () => `inset(6% ${Math.max(32, (innerWidth - 1200) / 2)}px 6% ${Math.max(32, (innerWidth - 1200) / 2)}px round 24px)`;
+        scene(bleed, [bleedMedia, bleedImage], "top 90%", "top 10%")
+          .fromTo(bleedMedia, { clipPath: edge }, { clipPath: "inset(0% 0px 0% 0px round 0px)", ease: "none" }, 0)
+          .fromTo(bleedImage, { scale: 1.12 }, { scale: 1, ease: "none" }, 0);
       }
+      // G1: the smaller gallery frame drifts into line.
+      const small = one(".landing-gallery-small");
+      if (stage && small) scene(small, [small], "top 80%", "top 30%").fromTo(small, { y: 24 }, { y: 0, ease: "none" });
+      // M3: the closing band's doors part and its image settles (unchanged from P1-89).
       const band = one(".landing-band");
       if (band && bandScrolls({ phone, short })) {
         const doors = [...band.querySelectorAll<HTMLElement>(".landing-door")], image = band.querySelector("img");
@@ -77,7 +77,7 @@ export function LandingLifecycle() {
       }
       const focus = (event: FocusEvent) => {
         if (!(event.target instanceof Node)) return;
-        for (const item of owned) if (item.scene.contains(event.target)) {
+        for (const item of owned) if (item.scene.contains(event.target) || item.scene.parentElement?.contains(event.target)) {
           item.animation.scrollTrigger?.disable(false);
           item.animation.progress(1).pause(); hint(false, item.elements);
         }

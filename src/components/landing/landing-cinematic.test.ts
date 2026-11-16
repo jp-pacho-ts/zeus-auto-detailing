@@ -16,7 +16,8 @@ test("cinematic hero is a poster-first, nonlooping pass without a playback contr
 
 test("cinematic flow uses approved process photos and a distinct meaningful closing photo", () => {
   const markup = html();
-  assert.match(markup, /class="landing-process/);
+  // P1-90: the "What we do" stage replaced the P1-89 process pair; the same approved work photos lead it.
+  assert.match(markup, /id="work"/);
   assert.match(markup, /url=%2Fmedia%2Flanding%2Fexterior-detailing\.webp/);
   assert.match(markup, /url=%2Fmedia%2Flanding%2Fsignature-wash\.webp/);
   const band = markup.slice(markup.indexOf('class="landing-band"'));
