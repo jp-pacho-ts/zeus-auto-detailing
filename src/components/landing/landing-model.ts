@@ -5,7 +5,10 @@ export const money = (centavos: number) => new Intl.NumberFormat("en-PH", { styl
 export function servicePrice(service: ServicePackage, size?: VehicleCategory, body?: VehicleBodyType): string {
   const offers = size ? service.offers.filter((o) => o.vehicleCategoryId === size.id) : service.offers;
   if (!size) {
-    const prices = offers.filter((o) => o.onlineBooking === "PRICED").flatMap((o) => o.state === "OFFERED" ? [o.unitPriceCentavos, ...(o.pickupPriceCentavos !== undefined ? [o.pickupPriceCentavos] : [])] : []);
+    const priced = offers.filter((o) => o.onlineBooking === "PRICED" && o.state === "OFFERED");
+    // CEO rule A (P1-89): "from" the lowest size misleads when sizes cost different amounts; a pickup surcharge is a body variant, not a size.
+    if (new Set(priced.map((o) => o.unitPriceCentavos)).size > 1) return "Price depends on size";
+    const prices = priced.flatMap((o) => [o.unitPriceCentavos, ...(o.pickupPriceCentavos !== undefined ? [o.pickupPriceCentavos] : [])]);
     return prices.length ? `from ${money(Math.min(...prices))}` : "Price on inspection";
   }
   const offer = offers[0];

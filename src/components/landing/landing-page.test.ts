@@ -108,3 +108,11 @@ test("coatings summaries use the same arrow icon as the cards, never a text glyp
   const coatings = html.slice(html.indexOf('id="coatings"'), html.indexOf('id="gallery"'));
   assert.match(coatings, /class="landing-arrow" href="[^"]+" aria-label="Book Graphene Coat"><svg[^>]*aria-hidden="true"/);
 });
+
+test("CEO rule A on the page: services cards and coatings summaries say 'Price depends on size' before a size is chosen", () => {
+  const sized = { ...service("eclipse", "Eclipse", "GRAPHENE"), offers: [{ ...offer, vehicleCategoryId: "s", unitPriceCentavos: 1170000 }, { ...offer, vehicleCategoryId: "m", unitPriceCentavos: 1215000 }] } as unknown as ServicePackage;
+  const html = renderToStaticMarkup(createElement(LandingPage, { catalog: { ...catalog, vehicleCategories: [{ id: "s", code: "S", name: "Small" }, { id: "m", code: "M", name: "Medium" }], services: [sized] } as unknown as BookingCatalog, status: "OPEN" }));
+  // Graphene tab card and the Coatings summary.
+  assert.equal(html.match(/<p class="landing-price"[^>]*>Price depends on size<\/p>/g)?.length, 2);
+  assert.doesNotMatch(text(html), /from ₱11,700/);
+});
