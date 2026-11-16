@@ -4,6 +4,8 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
+import { bandScrolls } from "./landing-model";
+
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 // One motion owner. Only images and framing move; text, prices and actions stay put.
@@ -60,15 +62,15 @@ export function LandingLifecycle() {
           .fromTo(edge, { x: -16 }, { x: 0, duration: .25, ease: "none" }, 0);
       }
       const band = one(".landing-band");
-      if (band && !short) {
+      if (band && bandScrolls({ phone, short })) {
         const doors = [...band.querySelectorAll<HTMLElement>(".landing-door")], image = band.querySelector("img");
-        const elements = [...doors, ...(!phone && image ? [image] : [])];
+        const elements = [...doors, ...(image ? [image] : [])];
         if (doors.length === 2) {
           const timeline = scene(band, elements, "top top", "bottom bottom", .35);
           // Each door covers <=20% of the frame at entry: the central aperture already exposes >=60%.
-          timeline.fromTo(doors[0], { x: 0, xPercent: phone ? -85 : -61 }, { xPercent: -101, duration: .45, ease: "none" }, 0)
-            .fromTo(doors[1], { x: 0, xPercent: phone ? 85 : 61 }, { xPercent: 101, duration: .45, ease: "none" }, 0);
-          if (!phone && image) timeline.fromTo(image, { scale: 1.04 }, { scale: 1, duration: .55, ease: "none" }, .1);
+          timeline.fromTo(doors[0], { x: 0, xPercent: -61 }, { xPercent: -101, duration: .45, ease: "none" }, 0)
+            .fromTo(doors[1], { x: 0, xPercent: 61 }, { xPercent: 101, duration: .45, ease: "none" }, 0);
+          if (image) timeline.fromTo(image, { scale: 1.04 }, { scale: 1, duration: .55, ease: "none" }, .1);
           // Hold the completed image for the final 35%; copy never participates in this timeline.
           timeline.to({}, { duration: .35 }, .65);
         }

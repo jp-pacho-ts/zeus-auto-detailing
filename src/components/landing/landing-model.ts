@@ -20,6 +20,8 @@ export function servicePrice(service: ServicePackage, size?: VehicleCategory, bo
   if ((size.code === "L" || size.code === "XL") && !body) return `from ${money(Math.min(amount, offer.pickupPriceCentavos ?? amount))}${unit}`;
   return money(amount) + unit;
 }
+// CEO option a (P1-89): the closing band scrolls (sticky stage, doors) only on laptop-width, laptop-height screens.
+export const bandScrolls = ({ phone, short }: { phone: boolean; short: boolean }) => !phone && !short;
 export function bookingHref(catalog: Pick<BookingCatalog, "services">, size: VehicleCategory | undefined, lines: CatalogSelection["lines"]): string {
   const line = lines[0], service = catalog.services.find((s) => s.id === line?.serviceId);
   const eligible = lines.length === 1 && service?.type === "BASE" && service.unit === "VEHICLE" && line.quantity === 1 && size && ["MOTOR", "S", "M"].includes(size.code) && service.offers.some((o) => o.vehicleCategoryId === size.id && o.onlineBooking === "PRICED");

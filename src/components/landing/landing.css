@@ -249,14 +249,16 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
   .landing-estimate-result li span:last-child{text-align:left}
   .landing-total{flex-direction:column;gap:4px}
   .landing-total strong{text-align:left}
-  .landing-band{height:150vh}
-  .landing-band-stage{padding-top:64px}
+  /* CEO option a (P1-89): phones get the static natural-height band (no sticky stage, no doors), the same layout as reduced motion. */
+  .landing-band{height:auto}
+  .landing-band-stage{position:relative;height:auto;padding-top:0}
+  .landing-door{display:none}
   /* Keep the tool and hands in the frame while reserving room for stationary copy and actions. */
-  .landing-band-media{width:100%;-webkit-mask-image:none;mask-image:none}
+  .landing-band-media{flex:none;width:100%;height:auto;aspect-ratio:4/5;-webkit-mask-image:none;mask-image:none}
   /* UI/UX F1: wide screens frame the face and both hands (40%); the tall phone frame keeps its own crop. */
   .landing-band-media img{object-position:center 65%}
   .landing-band-copy{padding-top:24px}
-  .landing-band-copy a{scroll-margin-bottom:120px}
+  .landing-band-copy a{scroll-margin-bottom:0}
   .landing-phone-bar{position:fixed;bottom:0;left:0;right:0;z-index:28;display:flex;gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}
   .landing-phone-bar .landing-gold{flex:1;min-width:0;font-size:15px}
   .landing-call{min-width:48px;padding-inline:16px}
