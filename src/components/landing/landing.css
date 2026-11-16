@@ -1,4 +1,6 @@
 /* P1-88 draft 3 (17.7): only the brand tokens /book uses (--brand-*, set from brand.ts by RootLayout; the admin light theme never reaches them). Gold per 17.7.1 only. */
+/* Long native focus/anchor jumps must not leave the focused CTA offscreen during the site's global smooth scroll. */
+html:has([data-landing-preview]){scroll-behavior:auto}
 @font-face{font-family:LandingDisplay;src:url('/fonts/home/BarlowCondensed-ExtraBold.ttf') format('truetype');font-weight:800;font-display:swap}
 @font-face{font-family:LandingBody;src:url('/fonts/home/DMSans.ttf') format('truetype');font-weight:100 900;font-display:swap}
 .landing{--bg:rgb(var(--brand-background));--fg:rgb(var(--brand-foreground));--card:rgb(var(--brand-card));--muted:rgb(var(--brand-muted));--mfg:rgb(var(--brand-muted-foreground));--line:rgb(var(--brand-border));--gold:rgb(var(--brand-primary));--gold-ink:rgb(var(--brand-primary-foreground));--gold-hover:rgb(var(--brand-primary-hover));--ring:rgb(var(--brand-ring));--edge:max(32px,calc((100% - 1200px) / 2));background:var(--bg);color:var(--fg);font:16px/1.6 LandingBody,Arial,sans-serif;min-height:100vh;color-scheme:dark}
@@ -52,9 +54,8 @@
 .landing-word{position:relative;z-index:0;display:block;text-align:center;font:800 24vw/.8 LandingDisplay,Impact,sans-serif;letter-spacing:.01em;color:transparent;-webkit-text-stroke:1.5px #52525b;margin-bottom:-.45em;pointer-events:none;user-select:none}
 .landing-media{position:relative;z-index:1}
 .landing-media-frame{position:relative;width:100%;aspect-ratio:21/9;max-height:max(240px,calc(100svh - 560px));overflow:clip;background:var(--bg);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 40%);mask-image:linear-gradient(to bottom,transparent 0,#000 40%)}
-.landing-media-layer{position:absolute;left:0;right:0;top:-15%;height:115%}
+.landing-media-layer{position:absolute;left:0;right:0;top:-6%;height:112%}
 .landing-media-layer img,.landing-media-layer video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 60%}
-.landing-video-toggle{position:absolute;z-index:2;right:var(--edge);bottom:20px;min-height:44px;padding:8px 18px;background:var(--bg)}
 .landing-hero-copy{position:relative;z-index:2;background:var(--bg);display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);column-gap:64px;align-items:end;padding-top:32px;padding-bottom:0}
 .landing-hero-copy h1{grid-column:1;grid-row:1/span 2;align-self:end}
 .landing-lede{grid-column:2;grid-row:1;font-size:18px;color:var(--mfg);margin:0!important}
@@ -62,6 +63,29 @@
 .landing-status,.landing-hero-address{grid-column:1/-1}
 .landing-status{border-left:3px solid var(--fg);padding-left:16px;margin:24px 0 0!important;color:var(--fg)}
 .landing-hero-address{margin:24px 0 0!important;color:var(--mfg);font-size:15px}
+.landing-hero h1{text-wrap:balance}
+
+/* The process pair moves inside fixed editorial frames, never carrying copy or prices. */
+.landing-process{display:grid;grid-template-columns:1.5fr 1fr;gap:24px;align-items:start;padding-top:96px}
+.landing-process-wide,.landing-process-close{overflow:clip;border-radius:16px;background:var(--muted)}
+.landing-process-wide{aspect-ratio:3/2}
+.landing-process-close{aspect-ratio:4/3;margin-top:72px}
+.landing-process img{display:block;width:100%;height:100%;object-fit:cover}
+.landing-process-copy{grid-column:1/-1;display:grid;grid-template-columns:1.5fr 1fr;gap:24px}
+.landing-process-copy h2{font-size:24px}
+.landing-process-copy p{font-size:16px}
+.landing-coatings-editorial{display:grid;grid-template-columns:1.2fr 1fr;gap:32px;margin-block:32px}
+.landing-coating-frame{position:relative;overflow:clip;border-radius:16px;min-height:460px;background:var(--muted)}
+.landing-coating-photo{height:100%}
+.landing-coating-photo img{display:block;width:100%;height:100%;object-fit:cover;object-position:65% center}
+.landing-coating-edge{position:absolute;inset:0 auto 0 0;width:16px;background:var(--bg);pointer-events:none}
+.landing-coating-summaries{display:grid;align-content:start;gap:16px}
+.landing-gallery{padding-top:48px}
+.landing-gallery-slots{display:grid;grid-template-columns:1.5fr 1fr;gap:24px;margin-top:24px}
+.landing-gallery-slots>*{display:flex;align-items:flex-end;min-height:200px;padding:24px;background:var(--muted);border-radius:16px;color:var(--mfg);margin:0!important}
+.landing-gallery-slots>div{min-height:150px;margin-top:50px!important}
+.landing-feedback{margin-top:32px;padding:24px;background:var(--muted);border-radius:16px}
+.landing-feedback p{margin:0}
 
 /* Sections */
 .landing-section{padding-block:96px}
@@ -142,8 +166,8 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
 /* Tab into the band: scroll far enough that the sticky stage is engaged, so the focused link is on screen (17.11.4). */
 .landing-band-copy a{scroll-margin-bottom:calc(100svh - 360px)}
 .landing-hairline{display:block;width:48px;height:1px;background:var(--gold);margin-bottom:24px}
-.landing-band-media{position:relative;flex:1;min-height:0;overflow:clip;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 30%);mask-image:linear-gradient(to bottom,transparent 0,#000 30%)}
-.landing-band-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 15%}
+.landing-band-media{position:relative;flex:1;min-height:0;overflow:clip;background:var(--muted)}
+.landing-band-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 65%}
 .landing-door{position:absolute;z-index:1;top:0;bottom:0;width:50.5%;background:var(--bg)}
 .landing-door-left{left:0;transform:translateX(-101%)}
 .landing-door-right{right:0;transform:translateX(101%)}
@@ -161,6 +185,20 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
 .landing-footer-links a:hover{color:var(--fg);text-decoration:underline}
 .landing-copyright{margin:32px 0 0!important;color:var(--mfg);font-size:14px}
 .landing-phone-bar{display:none}
+
+/* Approved desktop overlay: fixed neutral scrim keeps every frame readable; short screens grow naturally. */
+@media(min-width:1200px){
+  .landing-hero{min-height:max(640px,75svh);display:flex;align-items:center;padding-block:64px}
+  .landing-hero .landing-media{position:absolute;inset:0}
+  .landing-hero .landing-media-frame{height:100%;max-height:none;aspect-ratio:auto;mask-image:none;-webkit-mask-image:none}
+  .landing-hero::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,rgb(9 9 11 / .96) 0%,rgb(9 9 11 / .91) 48%,rgb(9 9 11 / .12) 100%)}
+  .landing-word{position:absolute;z-index:2;right:24px;top:24px;font-size:18vw;margin:0;opacity:.45}
+  .landing-hero-copy{display:block;align-self:center;background:none;padding-block:0;width:100%;z-index:3}
+  .landing-hero-copy h1{max-width:18ch;font-size:clamp(52px,4.6vw,68px)}
+  .landing-hero-copy .landing-lede{max-width:48ch;margin-top:24px!important;color:var(--fg)}
+  .landing-hero-copy>.landing-actions{max-width:650px}
+  .landing-hero-address{max-width:60ch!important;color:var(--fg)}
+}
 
 @media(max-width:1199px){
   .landing-desktop-nav{display:none}
@@ -186,11 +224,20 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
   .landing-menu-toggle{margin-left:auto}
   .landing-word{font-size:42vw}
   .landing-media-frame{aspect-ratio:16/10}
-  .landing-video-toggle{bottom:12px;font-size:14px}
   .landing-hero-copy>.landing-actions{display:grid}
   .landing-hero-copy .landing-pill{width:100%}
   .landing-lede{font-size:17px}
   .landing-section{padding-block:64px}
+  .landing-process{padding-top:48px;gap:12px;grid-template-columns:1.4fr 1fr}
+  .landing-process-close{margin-top:32px}
+  .landing-process-copy{gap:12px;grid-template-columns:minmax(0,1fr)}
+  .landing-process-copy h2{font-size:22px}
+  .landing-coatings-editorial{grid-template-columns:minmax(0,1fr);gap:24px}
+  .landing-coating-frame{min-height:0;aspect-ratio:4/3}
+  .landing-coating-edge{display:none}
+  .landing-gallery-slots{gap:12px}
+  .landing-gallery-slots>*{padding:16px;min-height:140px}
+  .landing-gallery-slots>div{min-height:100px;margin-top:40px!important}
   .landing-filter-selects,.landing-select{width:100%}
   .landing-select select{flex:1}
   .landing-tab-step{display:inline-flex}
@@ -204,7 +251,7 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
   .landing-total strong{text-align:left}
   .landing-band{height:150vh}
   .landing-band-stage{flex-direction:column-reverse;justify-content:flex-end;padding-top:64px}
-  /* 4:5 when it fits; shorter phones crop it, so the heading, line and CTA (which start 40 px low in M3) stay inside the 100svh stage. */
+  /* Keep the tool and hands in the frame while reserving room for stationary copy and actions. */
   .landing-band-media{flex:none;width:100%;height:min(125vw,calc(100svh - 420px));-webkit-mask-image:none;mask-image:none}
   .landing-band-copy{padding-top:24px}
   .landing-band-copy a{scroll-margin-bottom:120px}
@@ -224,4 +271,5 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
   .landing-band-copy a{scroll-margin-bottom:0}
 }
 @media(prefers-reduced-motion:reduce) and (max-width:767px){.landing-band-stage{padding-top:0}.landing-band-media{height:auto;aspect-ratio:4/5}}
+@media(max-height:700px){.landing-band{height:auto}.landing-band-stage{position:relative;height:auto;padding-top:0}.landing-band-media{flex:none;height:auto;aspect-ratio:4/3}.landing-band-copy{padding-block:32px}.landing-door{display:none}}
 .landing-photo img{width:100%;height:100%;object-fit:cover}

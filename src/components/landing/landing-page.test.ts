@@ -14,12 +14,15 @@ const catalog = { catalogReleaseId: "release", catalogVersion: 1, vehicleCategor
 const page = (status: "OPEN" | "PAUSED" | "UNKNOWN") => renderToStaticMarkup(createElement(LandingPage, { catalog, status }));
 const text = (html: string) => html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ");
 
-test("draft 3 page: deck H1, no Gallery or Reviews, no dashes or 'coming soon' filler", () => {
+test("approved cinematic page: deck H1, generic gallery/feedback only, no dashes or 'coming soon' filler", () => {
   const html = page("OPEN"), words = text(html);
   assert.equal(html.match(/<h1[\s>]/g)?.length, 1);
   assert.match(html, /<h1>Car and motorcycle detailing in Tacloban City<\/h1>/);
   assert.match(html, /class="landing-word" aria-hidden="true">ZEUS</);
-  assert.doesNotMatch(html, /id="gallery"|id="reviews"|>Gallery<|>Reviews</);
+  assert.match(html, /id="gallery"/);
+  assert.match(words, /Gallery photos will appear here\./);
+  assert.match(words, /Customer feedback will appear here\./);
+  assert.doesNotMatch(html, /<blockquote|aggregateRating|reviewCount|design dependency/);
   assert.doesNotMatch(words, /[—–]|!/);
   assert.deepEqual(words.match(/coming soon/gi)?.length, words.match(/Photo coming soon/g)?.length);
   assert.doesNotMatch(html, /quoteToken|catalogReleaseId|"release"/);
@@ -46,7 +49,8 @@ test("booking states reach every pill and card arrow; PAUSED arrows call the sho
 test("no JS: the toggles are buttons, disabled until hydration; the band image is in the HTML with doors marked decorative", () => {
   const html = page("OPEN");
   assert.match(html, /<button type="button" class="landing-toggle" aria-pressed="false" disabled="">/);
-  assert.match(html, /class="landing-band-media"><img src="\/media\/home\/hero-poster\.jpg"/);
+  assert.match(html, /class="landing-band-media"><img src="\/media\/landing\/full-detailing\.webp"/);
+  assert.match(html, /alt="Detailer machine-polishing the hood of a white pickup"/);
   assert.equal(html.match(/class="landing-door [^"]+" aria-hidden="true"/g)?.length, 2);
 });
 
@@ -54,9 +58,10 @@ test("photos (17.13): a photo only on its own service, lazy next/image with size
   const services = [service("s1", "Basic Wash", "WASH"), service("s2", "Premium Wash", "WASH"), service("s3", "Kenzo", "GRAPHENE"), service("s4", "Regular Tint", "TINT")];
   ["basic-wash", "premium-wash", "kenzo-graphene", "regular-tint"].forEach((slug, i) => { services[i].slug = slug; });
   const html = renderToStaticMarkup(createElement(LandingPage, { catalog: { ...catalog, services } as unknown as BookingCatalog, status: "OPEN" }));
-  const imgs = html.match(/<img [^>]*url=%2Fmedia%2Flanding%2F[^>]+>/g) ?? [];
-  // Basic Wash once (Wash tab); Kenzo twice (Graphene tab and Coatings); Premium Wash shares a category, not a photo.
-  assert.deepEqual(imgs.map((img) => img.match(/url=%2Fmedia%2Flanding%2F([a-z-]+)\.webp/)?.[1]).sort(), ["basic-wash", "kenzo", "kenzo"]);
+  // Editorial process/coating images are separate from slug-bound catalog cards (P1-89 D4).
+  const servicesHtml = html.slice(html.indexOf('id="services"'), html.indexOf('id="coatings"'));
+  const imgs = servicesHtml.match(/<img [^>]*url=%2Fmedia%2Flanding%2F[^>]+>/g) ?? [];
+  assert.deepEqual(imgs.map((img) => img.match(/url=%2Fmedia%2Flanding%2F([a-z-]+)\.webp/)?.[1]).sort(), ["basic-wash", "kenzo"]);
   for (const img of imgs) {
     assert.match(img, /loading="lazy"/);
     assert.doesNotMatch(img, /fetchPriority|fetchpriority/);
@@ -92,7 +97,7 @@ test("photos: a slug that names an Object prototype key gets the labelled frame,
   const services = [service("p1", "Odd Wash", "WASH"), service("p2", "Odd Coat", "GRAPHENE")];
   services[0].slug = "constructor"; services[1].slug = "__proto__";
   const html = renderToStaticMarkup(createElement(LandingPage, { catalog: { ...catalog, services } as unknown as BookingCatalog, status: "OPEN" }));
-  assert.doesNotMatch(html, /url=%2Fmedia%2Flanding%2F/);
-  // Wash tab once; the graphene card twice (Graphene tab and Coatings).
-  assert.equal(html.match(/Photo coming soon/g)?.length, 3);
+  const servicesHtml = html.slice(html.indexOf('id="services"'), html.indexOf('id="coatings"'));
+  assert.doesNotMatch(servicesHtml, /url=%2Fmedia%2Flanding%2F/);
+  assert.equal(servicesHtml.match(/Photo coming soon/g)?.length, 2);
 });
