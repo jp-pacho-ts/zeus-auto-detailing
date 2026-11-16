@@ -274,7 +274,8 @@ html:has([data-landing-preview]){scroll-behavior:auto}
   .landing-menu-toggle{margin-left:auto}
   /* Phone hero (Lead fix, identity 5.3): the whole-car still photo fills the top 56 %; the copy starts over its darkened edge. */
   .landing-hero{display:block;min-height:0;padding:0 0 32px}
-  .landing-hero .landing-media{position:relative;inset:auto;height:56svh}
+  /* Capped by width too, so the booking actions stay in the first screen on short, narrow phones. */
+  .landing-hero .landing-media{position:relative;inset:auto;height:min(56svh,125vw)}
   .landing-hero::after{display:none}
   .landing-media-frame::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,var(--bg) 0%,rgb(9 9 11 / .6) 30%,transparent 62%)}
   .landing-media-layer img{object-position:52% 74%}
