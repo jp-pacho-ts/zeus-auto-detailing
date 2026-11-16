@@ -66,7 +66,7 @@ test("photos (17.13): a photo only on its own service, lazy next/image with size
     assert.match(img, /loading="lazy"/);
     assert.doesNotMatch(img, /fetchPriority|fetchpriority/);
     assert.match(img, /width="1600" height="1200"/);
-    assert.match(img, /sizes="\(max-width: 767px\) 100vw, \(max-width: 1199px\) 50vw, 400px"/);
+    assert.match(img, /sizes="\(max-width: 767px\) 100vw, \(max-width: 1023px\) 50vw, 400px"/);
   }
   assert.match(html, /alt="Kenzo coating kit: base and top bottles, Strip panel-prep spray, applicator and card"/);
   assert.equal(html.match(/Photo coming soon/g)?.length, 2);

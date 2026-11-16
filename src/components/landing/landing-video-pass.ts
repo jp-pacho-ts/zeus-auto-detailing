@@ -13,7 +13,8 @@ export function attachLandingPass(video: HTMLVideoElement, pass: { consumed: boo
   };
   const update = () => {
     if (finished) return;
-    const allowed = chooseHeroVideo({ width: innerWidth, reducedMotion: motion.matches, saveData: !!connection?.saveData, effectiveType: connection?.effectiveType });
+    // P1-90: phones show the whole-car still photo instead; the pass ends on a close-up that does not show the car at 390.
+    const allowed = innerWidth > 767 && chooseHeroVideo({ width: innerWidth, reducedMotion: motion.matches, saveData: !!connection?.saveData, effectiveType: connection?.effectiveType });
     if (!allowed || document.hidden || (started && !visible)) { finish(); return; }
     if (started || !visible || document.readyState !== "complete") return;
     if (!video.canPlayType('video/webm; codecs="vp9"')) { finish(); return; }

@@ -42,3 +42,28 @@ test("one hero pass cannot restart after visibility, re-entry, preference change
     clean(); for (const [key, descriptor] of original) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }
   }
 });
+
+test("phones (767 px and below) never start the pass: the whole-car still photo is the hero (P1-90)", () => {
+  const original = new Map<string, PropertyDescriptor | undefined>();
+  const documentEvents = Object.assign(new EventTarget(), { hidden: false, readyState: "complete" });
+  class Video extends EventTarget {
+    style = { opacity: "0" }; src = ""; plays = 0;
+    canPlayType() { return "probably"; } closest() { return this; }
+    play() { this.plays++; return Promise.resolve(); } pause() {}
+  }
+  for (const [key, value] of Object.entries({ window: new EventTarget(), document: documentEvents, innerWidth: 390, navigator: {}, matchMedia: () => Object.assign(new EventTarget(), { matches: false }),
+    IntersectionObserver: class { constructor(private callback: (e: { isIntersecting: boolean }[]) => void) {} observe() { this.callback([{ isIntersecting: true }]); } disconnect() {} },
+  })) { original.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { value, configurable: true }); }
+  let clean = () => {};
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { attachLandingPass } = require("./landing-video-pass") as typeof import("./landing-video-pass");
+    const video = new Video(), pass = { consumed: false };
+    clean = attachLandingPass(video as unknown as HTMLVideoElement, pass);
+    assert.equal(video.plays, 0);
+    assert.equal(video.src, "");
+    assert.equal(pass.consumed, true);
+  } finally {
+    clean(); for (const [key, descriptor] of original) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }
+  }
+});

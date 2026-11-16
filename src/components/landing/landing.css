@@ -1,9 +1,9 @@
-/* P1-88 draft 3 (17.7): only the brand tokens /book uses (--brand-*, set from brand.ts by RootLayout; the admin light theme never reaches them). Gold per 17.7.1 only. */
+/* P1-88 draft 3 (17.7) and P1-90 identity: only the brand tokens /book uses (--brand-*, set from brand.ts by RootLayout). Gold per 17.7.1 only. */
 /* Long native focus/anchor jumps must not leave the focused CTA offscreen during the site's global smooth scroll. */
 html:has([data-landing-preview]){scroll-behavior:auto}
 @font-face{font-family:LandingDisplay;src:url('/fonts/home/BarlowCondensed-ExtraBold.ttf') format('truetype');font-weight:800;font-display:swap}
 @font-face{font-family:LandingBody;src:url('/fonts/home/DMSans.ttf') format('truetype');font-weight:100 900;font-display:swap}
-.landing{--bg:rgb(var(--brand-background));--fg:rgb(var(--brand-foreground));--card:rgb(var(--brand-card));--muted:rgb(var(--brand-muted));--mfg:rgb(var(--brand-muted-foreground));--line:rgb(var(--brand-border));--gold:rgb(var(--brand-primary));--gold-ink:rgb(var(--brand-primary-foreground));--gold-hover:rgb(var(--brand-primary-hover));--ring:rgb(var(--brand-ring));--edge:max(32px,calc((100% - 1200px) / 2));background:var(--bg);color:var(--fg);font:16px/1.6 LandingBody,Arial,sans-serif;min-height:100vh;color-scheme:dark}
+.landing{--bg:rgb(var(--brand-background));--fg:rgb(var(--brand-foreground));--card:rgb(var(--brand-card));--muted:rgb(var(--brand-muted));--mfg:rgb(var(--brand-muted-foreground));--line:rgb(var(--brand-border));--gold:rgb(var(--brand-primary));--gold-ink:rgb(var(--brand-primary-foreground));--gold-hover:rgb(var(--brand-primary-hover));--ring:rgb(var(--brand-ring));--edge:max(32px,calc((100% - 1200px) / 2));--header-h:74px;background:var(--bg);color:var(--fg);font:16px/1.6 LandingBody,Arial,sans-serif;min-height:100vh;color-scheme:dark}
 .landing *{box-sizing:border-box}
 .landing [hidden]{display:none!important}
 .landing button,.landing input,.landing select{font:inherit;color:inherit}
@@ -14,27 +14,33 @@ html:has([data-landing-preview]){scroll-behavior:auto}
 .landing [id]{scroll-margin-top:96px}
 .landing p{margin:0 0 16px;max-width:72ch}
 .landing h1,.landing h2,.landing h3,.landing h4{font-weight:600;letter-spacing:-.02em;margin:0}
-.landing h1{font-size:clamp(40px,5vw,72px);line-height:1.05}
-.landing h2{font-size:clamp(32px,3.5vw,48px);line-height:1.1;margin-bottom:12px}
+.landing h1{font-size:clamp(40px,5vw,72px);line-height:1.05;text-wrap:balance}
+.landing h2{font-size:clamp(32px,3.5vw,48px);line-height:1.1;margin-bottom:12px;text-wrap:balance}
 .landing h3{font-size:22px;line-height:1.3;margin-bottom:16px}
 .landing h4{font-size:20px;line-height:1.3}
 .landing ul{margin:0}
 .landing-wrap{padding-inline:var(--edge)}
 .landing-muted{color:var(--mfg)}
 .landing-small{font-size:14px}
+.landing-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
 .landing-preview-note{background:var(--muted);color:var(--mfg);font-size:12px;text-align:center;padding:8px 16px}
 .landing-skip{position:absolute;left:16px;top:-100px;z-index:100;background:var(--bg);padding:12px}
 .landing-skip:focus{top:12px}
+/* Display L (P1-90 UI/UX ruling): DM Sans, short words only. Barlow Condensed is the outlined ZEUS word's alone (CEO). */
+.landing .landing-step-name,.landing .landing-bleed-copy h2,.landing .landing-visit-address{font-family:LandingBody,Arial,sans-serif;font-weight:600;font-size:clamp(40px,5.5vw,88px);line-height:1;letter-spacing:-.03em;text-wrap:balance}
+/* One photo grade for every shop photo (identity 2.4). Static: never animated or transitioned. */
+.landing-media-layer img,.landing-media-layer video,.landing-photo img,.landing-step-photo img,.landing-stage-photo img,.landing-bleed-media img,.landing-band-media img{filter:contrast(1.06) saturate(.86) brightness(.9)}
 
 /* One pill pair: gold primary (17.7.1 budget), neutral outline; plus the neutral solid "Get estimate". */
-.landing-pill{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:12px 24px;border:1px solid transparent;border-radius:999px;font-weight:600;line-height:1.2;text-align:center;text-decoration:none!important;cursor:pointer;transition:background-color .15s,border-color .15s,color .15s,transform .15s}
+.landing-pill{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:12px 24px;border:1px solid transparent;border-radius:999px;font-weight:600;line-height:1.2;text-align:center;text-decoration:none!important;cursor:pointer;transition:background-color .18s,border-color .18s,color .18s,transform .1s}
 .landing-pill svg{width:18px;height:18px;flex:none}
-.landing-pill:active:not(:disabled){transform:translateY(1px)}
+.landing-pill:active:not(:disabled){transform:scale(.98)}
 .landing-gold{background:var(--gold);border-color:var(--gold);color:var(--gold-ink)!important}
 .landing-gold:hover{background:var(--gold-hover);border-color:var(--gold-hover)}
 .landing-outline{background:transparent;border-color:var(--mfg);color:var(--fg)!important}
-.landing-outline:hover:not(:disabled){border-color:var(--fg)}
+.landing-outline:hover:not(:disabled){border-color:var(--fg);background:var(--card)}
 .landing .landing-solid{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+.landing .landing-solid:hover:not(:disabled){background:#e7e5e4}
 .landing button:disabled{opacity:.6;cursor:not-allowed}
 .landing-actions{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:24px}
 
@@ -49,52 +55,45 @@ html:has([data-landing-preview]){scroll-behavior:auto}
 .landing-mobile-menu{position:absolute;z-index:29;top:100%;left:0;right:0;max-height:calc(100svh - 90px);overflow-y:auto;background:var(--bg);padding:16px var(--edge) 24px;border-bottom:1px solid var(--line)}
 .landing-mobile-menu .landing-pill{margin-top:12px;width:100%}
 
-/* Hero (17.3): the outlined word sits under the media; the media top fades into the page; text never sits on the video. */
-.landing-hero{position:relative;overflow:clip;padding-top:24px}
-.landing-word{position:relative;z-index:0;display:block;text-align:center;font:800 24vw/.8 LandingDisplay,Impact,sans-serif;letter-spacing:.01em;color:transparent;-webkit-text-stroke:1.5px #52525b;margin-bottom:-.45em;pointer-events:none;user-select:none}
-.landing-media{position:relative;z-index:1}
-.landing-media-frame{position:relative;width:100%;aspect-ratio:21/9;max-height:max(240px,calc(100svh - 560px));overflow:clip;background:var(--bg);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 40%);mask-image:linear-gradient(to bottom,transparent 0,#000 40%)}
-.landing-media-layer{position:absolute;left:0;right:0;top:-6%;height:112%}
+/* Hero (identity 6.1): full-bleed footage, copy over a scrim of at least 72 % ground, the outlined word above the H1 on the dark side. */
+.landing-hero{position:relative;overflow:clip;min-height:82svh;display:flex;flex-direction:column;justify-content:flex-end;padding:96px 0 48px}
+.landing-media{position:absolute;inset:0}
+.landing-media-frame{position:absolute;inset:0;overflow:clip;background:var(--bg)}
+.landing-media-layer{position:absolute;inset:0}
 .landing-media-layer img,.landing-media-layer video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 60%}
-.landing-hero-copy{position:relative;z-index:2;background:var(--bg);display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);column-gap:64px;align-items:end;padding-top:32px;padding-bottom:0}
-.landing-hero-copy h1{grid-column:1;grid-row:1/span 2;align-self:end}
-.landing-lede{grid-column:2;grid-row:1;font-size:18px;color:var(--mfg);margin:0!important}
-.landing-hero-copy>.landing-actions{grid-column:2;grid-row:2}
-.landing-status,.landing-hero-address{grid-column:1/-1}
-.landing-status{border-left:3px solid var(--fg);padding-left:16px;margin:24px 0 0!important;color:var(--fg)}
-.landing-hero-address{margin:24px 0 0!important;color:var(--mfg);font-size:15px}
-.landing-hero h1{text-wrap:balance}
+.landing-hero::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,rgb(9 9 11 / .95) 0%,rgb(9 9 11 / .86) 45%,rgb(9 9 11 / .12) 100%),linear-gradient(0deg,var(--bg) 0%,transparent 28%)}
+.landing-hero-copy{position:relative;z-index:3}
+.landing-word{display:block;font:800 min(21vw,22svh)/.8 LandingDisplay,Impact,sans-serif;letter-spacing:.01em;color:rgb(245 245 244 / .06);-webkit-text-stroke:2px rgb(245 245 244 / .55);margin:0 0 28px -.03em;pointer-events:none;user-select:none}
+.landing-hero-copy h1{max-width:18ch}
+.landing-lede{font-size:18px;max-width:52ch;margin:20px 0 0!important}
+.landing-status{display:flex;gap:10px;align-items:flex-start;margin:24px 0 0!important}
+.landing-status svg,.landing-error svg{flex:none;width:20px;height:20px;margin-top:2px}
+.landing-hero-address{margin:24px 0 0!important;font-size:15px}
 
-/* The process pair moves inside fixed editorial frames, never carrying copy or prices. */
-.landing-process{display:grid;grid-template-columns:1.5fr 1fr;gap:24px;align-items:start;padding-top:96px}
-.landing-process-wide,.landing-process-close{overflow:clip;border-radius:16px;background:var(--muted)}
-.landing-process-wide{aspect-ratio:3/2}
-.landing-process-close{aspect-ratio:4/3;margin-top:72px}
-.landing-process img{display:block;width:100%;height:100%;object-fit:cover}
-.landing-process-copy{grid-column:1/-1;display:grid;grid-template-columns:1.5fr 1fr;gap:24px}
-.landing-process-copy h2{font-size:24px}
-.landing-process-copy p{font-size:16px}
-.landing-coatings-editorial{display:grid;grid-template-columns:1.2fr 1fr;gap:32px;margin-block:32px}
-.landing-coating-frame{position:relative;overflow:clip;border-radius:16px;min-height:460px;background:var(--muted)}
-.landing-coating-photo{height:100%}
-.landing-coating-photo img{display:block;width:100%;height:100%;object-fit:cover;object-position:65% center}
-.landing-coating-edge{position:absolute;inset:0 auto 0 0;width:16px;background:var(--bg);pointer-events:none}
-.landing-coating-summaries{display:grid;align-content:start;gap:16px}
-.landing-gallery{padding-top:48px}
-.landing-gallery-slots{display:grid;grid-template-columns:1.5fr 1fr;gap:24px;margin-top:24px}
-.landing-gallery-slots>*{display:flex;align-items:flex-end;min-height:200px;padding:24px;background:var(--muted);border-radius:16px;color:var(--mfg);margin:0!important}
-.landing-gallery-slots>div{min-height:150px;margin-top:50px!important}
-.landing-feedback{margin-top:32px;padding:24px;background:var(--muted);border-radius:16px}
-.landing-feedback p{margin:0}
+/* What we do (identity 6.2): the step names dim, never the links; from 1024 px the names stick while the photos pass. */
+.landing-stage-grid{display:grid;gap:56px;margin-top:40px}
+.landing-step{display:grid;gap:16px;align-content:start}
+.landing-step-name{margin:0;transition:opacity .3s}
+.landing-step-links{display:flex;flex-wrap:wrap;gap:0 24px;list-style:none;padding:0}
+.landing-step-links a,.landing-step-prices{display:inline-flex;align-items:center;min-height:44px}
+.landing-step-prices{justify-self:start;font-weight:600}
+.landing-step-photo,.landing-stage-photo{overflow:clip;border-radius:20px;aspect-ratio:4/5;background:var(--card)}
+.landing-step-photo img,.landing-stage-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.landing-stage-photos{display:none}
 
-/* Sections */
-.landing-section{padding-block:96px}
-.landing-filter-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;margin-bottom:24px}
+/* Sections and grounds (identity 2.2): dark stage, quiet room, dark stage. */
+.landing-section{padding-block:120px}
+.landing-ground-muted{background:var(--muted)}
+.landing-estimate-section{padding-top:0}
+.landing-filter-head{margin-bottom:24px}
 .landing-filter-head p{margin:0}
+/* P1-90 option P1: sticky inside #services only, so it never follows the visitor out of the prices. */
+.landing-size-bar{position:sticky;top:var(--header-h);z-index:20;background:var(--muted);padding:12px 0;margin:0 0 16px}
+#services [id]{scroll-margin-top:calc(var(--header-h) + 96px)}
 .landing-filter-selects{display:flex;gap:12px;flex-wrap:wrap;max-width:100%}
-.landing-select{max-width:100%;display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 8px 0 20px;border:1px solid var(--mfg);border-radius:999px;font-size:14px;color:var(--mfg)}
+.landing-select{max-width:100%;display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 8px 0 20px;border:1.5px solid var(--mfg);border-radius:999px;background:var(--card);font-size:14px;color:var(--mfg)}
 .landing-select span{white-space:nowrap}
-.landing-select select{min-width:0;min-height:46px;border:0;background:transparent;color:var(--fg);font-size:15px;padding:0 8px;max-width:100%;cursor:pointer}
+.landing-select select{min-width:0;min-height:46px;border:0;background:transparent;color:var(--fg);font-size:16px;padding:0 8px;max-width:100%;cursor:pointer}
 .landing-select select option{background:var(--card);color:var(--fg)}
 .landing-select:focus-within{outline:3px solid var(--ring);outline-offset:3px}
 .landing-select select:focus-visible{outline:0}
@@ -103,32 +102,38 @@ html:has([data-landing-preview]){scroll-behavior:auto}
 .landing-tab-step svg{width:18px;height:18px}
 .landing-tabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:thin;padding:4px;margin-inline:-4px;min-width:0}
 .landing-tabs a{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:10px 20px;border:1px solid var(--line);border-radius:999px;white-space:nowrap;text-decoration:none;font-weight:500}
-.landing-tabs a:hover{border-color:var(--mfg)}
+.landing-tabs a:hover{border-color:var(--fg)}
 .landing-tabs a[aria-selected=true]{background:var(--gold);border-color:var(--gold);color:var(--gold-ink)}
 .landing-tabs a svg{width:16px;height:16px}
 .landing-panel>h3{font-size:20px}
-.landing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:24px}
+.landing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-bottom:24px}
 
-/* One card style (17.4, 17.12.1): radius 16, card token, 1 px border, no shadow. */
-.landing-card{display:flex;flex-direction:column;gap:12px;min-width:0;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow-wrap:anywhere;transition:transform .2s,border-color .2s}
+/* One card style (identity 6.4): radius 20, card token, 1 px border, no shadow; service photos 4:5 with chips on 88 % ground. */
+.landing-card{display:flex;flex-direction:column;gap:12px;min-width:0;padding:20px;background:var(--card);border:1px solid var(--line);border-radius:20px;overflow-wrap:anywhere;transition:transform .18s,border-color .18s}
 .landing-card p{margin:0}
-article.landing-card:hover{transform:translateY(-2px);border-color:rgb(var(--brand-muted-foreground) / .45)}
+.landing-service-card{padding:0;gap:0;overflow:clip}
 .landing-chips{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.landing-chip{display:inline-flex;align-items:center;min-height:28px;padding:4px 12px;border-radius:999px;background:var(--line);color:var(--mfg);font-size:13px;font-weight:500}
-.landing-photo{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;aspect-ratio:4/3;border-radius:12px;background:var(--muted);color:var(--mfg);font-size:14px;overflow:clip}
-.landing-photo>*{transition:transform .2s}
-article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
+.landing-chip{display:inline-flex;align-items:center;min-height:28px;padding:4px 12px;border-radius:999px;background:var(--line);color:var(--mfg);font-size:14px;font-weight:500}
+.landing-photo{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;aspect-ratio:4/5;background:var(--muted);color:var(--mfg);font-size:14px;overflow:clip}
+.landing-photo img{display:block;width:100%;height:100%;object-fit:cover;object-position:50% 40%;transition:transform .3s}
+.landing-photo::after{content:"";position:absolute;inset:auto 0 0;height:30%;background:linear-gradient(0deg,var(--card),transparent);pointer-events:none}
+.landing-photo-contain{background:#0b0b0c}
+.landing-photo-contain img{object-fit:contain}
+.landing-photo .landing-chips{position:absolute;z-index:1;top:12px;left:12px;right:12px}
+.landing-photo .landing-chip{background:rgb(9 9 11 / .88);color:var(--fg)}
 .landing-photo svg{width:40px;height:40px}
-.landing-card h3,.landing-card h4{margin:4px 0 0;font-size:20px}
+.landing-card-body{display:flex;flex-direction:column;gap:12px;flex:1;padding:16px 24px 24px}
+.landing-card h3,.landing-card h4{margin:0;font-size:20px}
 .landing-price{font-weight:600;font-size:18px;font-variant-numeric:tabular-nums}
-.landing-card-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.landing-toggle{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:8px 18px;border:1px solid var(--mfg);border-radius:999px;background:transparent;font-weight:500;cursor:pointer}
+.landing-card-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto}
+.landing-toggle{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:8px 18px;border:1px solid var(--mfg);border-radius:999px;background:transparent;font-weight:500;cursor:pointer;transition:background-color .2s,border-color .2s,color .2s}
 .landing-toggle svg{width:16px;height:16px}
 .landing-toggle[aria-pressed=true]{background:var(--fg);border-color:var(--fg);color:var(--bg)}
 .landing-toggle:hover:not(:disabled){border-color:var(--fg)}
-.landing-arrow{display:inline-flex;flex:none;margin-left:auto;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid var(--mfg);border-radius:999px;transition:background-color .15s,color .15s}
-.landing-arrow svg{width:20px;height:20px}
+.landing-arrow{display:inline-flex;flex:none;margin-left:auto;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid var(--mfg);border-radius:999px;transition:background-color .18s,color .18s}
+.landing-arrow svg{width:20px;height:20px;transition:transform .18s}
 .landing-arrow:hover{background:var(--fg);color:var(--bg)!important}
+.landing-arrow:active{transform:scale(.96)}
 .landing-card-text{color:var(--mfg);font-size:15px}
 .landing details{font-size:15px;color:var(--mfg)}
 .landing summary{cursor:pointer;min-height:44px;display:list-item;padding-block:10px;color:var(--fg)}
@@ -144,18 +149,60 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
 .landing-estimate-result li span:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .landing-total{display:flex;justify-content:space-between;gap:24px;margin-top:16px!important}
 .landing-total strong{font-size:20px;text-align:right;font-variant-numeric:tabular-nums}
-.landing-error,.landing-stale{border-left:3px solid var(--fg);padding:12px 16px;background:var(--muted);margin-top:20px!important;color:var(--fg)}
+/* Notes and errors (identity 6.6): an icon and a full 1 px box, never a side rule; the text stays foreground. */
+.landing-error,.landing-stale{display:flex;gap:10px;align-items:flex-start;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--muted);margin-top:20px!important;color:var(--fg)}
+.landing-error svg{color:rgb(239 68 68)}
 .landing-card .landing-error,.landing-estimate-result .landing-stale{background:var(--bg)}
 
-/* Coatings, Visit */
+/* Coatings (identity 9.3, C1): the full-bleed moment, then the comparison on the dark ground. */
+.landing-coatings{padding-bottom:120px}
+.landing-bleed{position:relative;min-height:88svh;display:flex;align-items:flex-end;overflow:clip}
+.landing-bleed-media{position:absolute;inset:0}
+.landing-bleed-media img{display:block;width:100%;height:100%;object-fit:cover;object-position:40% 35%}
+.landing-bleed::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(0deg,rgb(9 9 11 / .94) 0%,rgb(9 9 11 / .8) 34%,rgb(9 9 11 / .1) 78%)}
+.landing-bleed-copy{position:relative;z-index:1;width:100%;padding-bottom:12svh}
+.landing-bleed-copy h2{margin:0 0 16px}
+.landing-bleed-copy p{font-size:18px;margin:0}
+.landing-compare{padding-top:64px}
+.landing-compare-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px 24px;margin-bottom:24px}
+.landing-compare-head h3,.landing-compare-head p{margin:0}
+.landing-compare-scroll{overflow-x:auto;margin-bottom:48px}
+.landing-compare-table{width:100%;border-collapse:collapse;font-size:16px;font-variant-numeric:tabular-nums}
+.landing-compare-table th,.landing-compare-table td{padding:14px 16px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}
+.landing-compare-table th[scope=row]{text-align:left;font-weight:500}
+.landing-compare-table thead th{font-size:20px;font-weight:600}
+.landing-compare-table td svg{display:block;width:20px;height:20px;margin-inline:auto}
+.landing-compare-table td .landing-arrow{margin:0 auto}
+.landing-compare-blocks{display:none}
+.landing-check-list{list-style:none;padding:0;display:grid;gap:8px}
+.landing-check-list li{display:flex;gap:8px;align-items:flex-start}
+.landing-check-list svg{flex:none;width:20px;height:20px;margin-top:2px}
 .landing-chip-list{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0 0 24px!important}
-.landing-visit{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:24px}
+
+/* Gallery (labelled frames kept), FAQ, Visit */
+.landing-gallery-slots{display:grid;grid-template-columns:7fr 5fr;gap:24px;margin-top:40px;align-items:start}
+.landing-gallery-slots>*{display:flex;align-items:flex-end;min-height:360px;padding:24px;background:var(--muted);border-radius:20px;color:var(--mfg);margin:0!important}
+.landing-gallery-small{min-height:260px!important;margin-top:96px!important}
+.landing-faq{max-width:880px;margin-top:40px;border-top:1px solid var(--line)}
+.landing-faq-item{border-bottom:1px solid var(--line)}
+.landing-faq-item h3{margin:0;font-size:20px}
+.landing-faq-question{display:flex;width:100%;justify-content:space-between;align-items:center;gap:16px;min-height:56px;padding:12px 0;background:none;border:0;text-align:left;font-weight:600;cursor:pointer}
+.landing-faq-question:disabled{opacity:1!important;cursor:default!important}
+.landing-faq-question svg{flex:none;width:20px;height:20px}
+.landing-faq-answer{display:grid;grid-template-rows:1fr;transition:grid-template-rows .2s,visibility .2s}
+.landing-faq-answer[data-open=false]{grid-template-rows:0fr;visibility:hidden}
+.landing-faq-answer>div{overflow:hidden}
+.landing-faq-answer p{margin:0 0 20px}
+.landing-visit-address{margin:24px 0 40px!important;max-width:16ch!important}
+.landing-visit{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:1fr;gap:24px}
 .landing-visit-card{padding:24px}
 .landing-visit-card h3{margin:0}
 .landing address{font-style:normal}
 .landing-link-list{list-style:none;padding:0}
 .landing-link-list a{display:inline-flex;align-items:center;min-height:44px}
 .landing-visit-card .landing-pill{align-self:flex-start;margin-top:auto}
+.landing-feedback{margin-top:24px;padding:24px;background:var(--card);border:1px solid var(--line);border-radius:20px}
+.landing-feedback p{margin:0}
 
 /* Closing band (M3): CSS sticky, no GSAP pin. Without JS the doors are already off-stage. */
 .landing-band{position:relative;height:200vh}
@@ -186,74 +233,83 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
 .landing-copyright{margin:32px 0 0!important;color:var(--mfg);font-size:14px}
 .landing-phone-bar{display:none}
 
-/* Approved desktop overlay: fixed neutral scrim keeps every frame readable; short screens grow naturally. */
-@media(min-width:1200px){
-  .landing-hero{min-height:max(640px,75svh);display:flex;align-items:center;padding-block:64px}
-  .landing-hero .landing-media{position:absolute;inset:0}
-  .landing-hero .landing-media-frame{height:100%;max-height:none;aspect-ratio:auto;mask-image:none;-webkit-mask-image:none}
-  .landing-hero::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,rgb(9 9 11 / .96) 0%,rgb(9 9 11 / .91) 48%,rgb(9 9 11 / .12) 100%)}
-  .landing-word{position:absolute;z-index:2;right:24px;top:24px;font-size:18vw;margin:0;opacity:.45}
-  .landing-hero-copy{display:block;align-self:center;background:none;padding-block:0;width:100%;z-index:3}
-  .landing-hero-copy h1{max-width:18ch;font-size:clamp(52px,4.6vw,68px)}
-  .landing-hero-copy .landing-lede{max-width:48ch;margin-top:24px!important;color:var(--fg)}
-  .landing-hero-copy>.landing-actions{max-width:650px}
-  .landing-hero-address{max-width:60ch!important;color:var(--fg)}
+/* Hover layer (identity 10): pointer devices only; lift 2 px, photo zoom 1.03 inside its frame, the arrow nudges. */
+@media(hover:hover) and (pointer:fine){
+  article.landing-service-card:hover{transform:translateY(-2px);border-color:rgb(var(--brand-muted-foreground) / .45)}
+  article.landing-service-card:hover .landing-photo img{transform:scale(1.03)}
+  .landing-arrow:hover svg{transform:translate(2px,-2px)}
+  .landing-faq-question:hover{text-decoration:underline;text-underline-offset:4px}
+}
+
+/* Sticky process stage, 1024 px and up with room to stand (identity 6.2). */
+@media(min-width:1024px) and (min-height:700px){
+  .landing-stage-grid{grid-template-columns:5fr 7fr;gap:64px;align-items:start}
+  .landing-stage-names{position:sticky;top:var(--header-h);min-height:calc(100svh - var(--header-h));display:flex;flex-direction:column;justify-content:center;gap:40px}
+  .landing-step-photo{display:none}
+  .landing-stage-photos{display:flex;flex-direction:column;gap:16svh;padding-block:12svh}
+  .landing-stage.is-live .landing-step:not(.is-on) .landing-step-name{opacity:.55}
+  /* Overscan for the counter-move inside the mask; the image never shows an edge. */
+  .landing-stage-photo img{height:112%}
 }
 
 @media(max-width:1199px){
   .landing-desktop-nav{display:none}
   .landing-menu-toggle{display:inline-flex}
   .landing-header-cta{margin-left:auto}
-  .landing-word{font-size:26vw}
-  .landing-media-frame{aspect-ratio:16/9}
-  .landing-hero-copy{grid-template-columns:minmax(0,1fr)}
-  .landing-hero-copy h1,.landing-lede,.landing-hero-copy>.landing-actions{grid-column:1;grid-row:auto}
-  .landing-lede{margin-top:16px!important}
-  .landing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  /* Copy spans the width here, so the scrim rises from the bottom instead of the left; text still sits on at least 72 % ground. */
+  .landing-hero::after{background:linear-gradient(0deg,rgb(9 9 11 / .95) 0%,rgb(9 9 11 / .88) 58%,rgb(9 9 11 / .25) 100%)}
   .landing-estimate{gap:32px;padding:32px}
-  .landing-visit{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .landing-visit-card:last-child{grid-column:1/-1}
+}
+@media(max-width:1023px){
+  .landing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .landing-step-photo{max-width:560px}
 }
 @media(max-width:767px){
-  .landing{--edge:16px;padding-bottom:88px}
+  .landing{--edge:16px;--header-h:63px;padding-bottom:88px}
   .landing [id]{scroll-margin-top:80px}
   .landing-preview-note{font-size:11px}
   .landing-header{padding-block:10px;gap:12px}
   .landing-header img{width:105px;height:42px}
   .landing-header-cta{display:none}
   .landing-menu-toggle{margin-left:auto}
-  .landing-word{font-size:42vw}
-  .landing-media-frame{aspect-ratio:16/10}
+  /* Phone hero (Lead fix, identity 5.3): the whole-car still photo fills the top 56 %; the copy starts over its darkened edge. */
+  .landing-hero{display:block;min-height:0;padding:0 0 32px}
+  .landing-hero .landing-media{position:relative;inset:auto;height:56svh}
+  .landing-hero::after{display:none}
+  .landing-media-frame::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,var(--bg) 0%,rgb(9 9 11 / .6) 30%,transparent 62%)}
+  .landing-media-layer img{object-position:52% 74%}
+  .landing-hero-copy{margin-top:-20svh}
+  .landing-word{font-size:34vw;-webkit-text-stroke:1.5px rgb(245 245 244 / .6);margin-bottom:20px}
   .landing-hero-copy>.landing-actions{display:grid}
   .landing-hero-copy .landing-pill{width:100%}
   .landing-lede{font-size:17px}
   .landing-section{padding-block:64px}
-  .landing-process{padding-top:48px;gap:12px;grid-template-columns:1.4fr 1fr}
-  .landing-process-close{margin-top:32px}
-  .landing-process-copy{gap:12px;grid-template-columns:minmax(0,1fr)}
-  .landing-process-copy h2{font-size:22px}
-  .landing-coatings-editorial{grid-template-columns:minmax(0,1fr);gap:24px}
-  .landing-coating-frame{min-height:0;aspect-ratio:4/3}
-  .landing-coating-edge{display:none}
-  .landing-gallery-slots{gap:12px}
-  .landing-gallery-slots>*{padding:16px;min-height:140px}
-  .landing-gallery-slots>div{min-height:100px;margin-top:40px!important}
+  .landing-estimate-section{padding-top:0}
+  .landing-stage-grid{gap:48px;margin-top:24px}
   .landing-filter-selects,.landing-select{width:100%}
   .landing-select select{flex:1}
   .landing-tab-step{display:inline-flex}
   .landing-tabs{flex:1}
-  .landing-grid,.landing-visit{grid-template-columns:minmax(0,1fr)}
+  .landing-grid,.landing-visit,.landing-gallery-slots{grid-template-columns:minmax(0,1fr)}
+  .landing-gallery-slots>*{min-height:220px}
+  .landing-gallery-small{min-height:160px!important;margin-top:0!important}
   .landing-estimate{grid-template-columns:minmax(0,1fr);padding:20px 16px}
-  .landing-estimate-result{padding:20px 16px}
+  .landing-estimate-result{padding:20px 16px;min-height:0}
   .landing-estimate-result li{display:grid;gap:4px}
   .landing-estimate-result li span:last-child{text-align:left}
   .landing-total{flex-direction:column;gap:4px}
   .landing-total strong{text-align:left}
+  .landing-bleed{min-height:80svh}
+  .landing-coatings{padding-bottom:64px}
+  .landing-compare{padding-top:48px}
+  /* Stacked blocks instead of a wide table (ui-ux-pro-max "Table Handling"). */
+  .landing-compare-scroll{display:none}
+  .landing-compare-blocks{display:grid;gap:16px;margin-bottom:32px}
+  .landing-compare-blocks .landing-arrow{margin-left:0}
   /* CEO option a (P1-89): phones get the static natural-height band (no sticky stage, no doors), the same layout as reduced motion. */
   .landing-band{height:auto}
   .landing-band-stage{position:relative;height:auto;padding-top:0}
   .landing-door{display:none}
-  /* Keep the tool and hands in the frame while reserving room for stationary copy and actions. */
   .landing-band-media{flex:none;width:100%;height:auto;aspect-ratio:4/5;-webkit-mask-image:none;mask-image:none}
   /* UI/UX F1: wide screens frame the face and both hands (40%); the tall phone frame keeps its own crop. */
   .landing-band-media img{object-position:center 65%}
@@ -262,22 +318,14 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
   .landing-phone-bar{position:fixed;bottom:0;left:0;right:0;z-index:28;display:flex;gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}
   .landing-phone-bar .landing-gold{flex:1;min-width:0;font-size:15px}
   .landing-call{min-width:48px;padding-inline:16px}
-}
-/* P1-89 (CEO): phones and tablets follow the laptop hero, with the copy over the footage. The scrim sits under the copy block itself, so contrast holds however tall the copy grows. */
-@media(max-width:1199px){
-  .landing-hero{min-height:calc(100svh - 64px);display:flex;flex-direction:column;justify-content:flex-end;padding:0 0 32px}
-  .landing-hero .landing-media{position:absolute;inset:0}
-  .landing-hero .landing-media-frame{height:100%;max-height:none;aspect-ratio:auto;-webkit-mask-image:none;mask-image:none}
-  .landing-word{position:absolute;z-index:2;left:0;right:0;top:16px;margin:0;opacity:.45}
-  .landing-hero-copy{background:none;padding-top:0;width:100%;z-index:3}
-  .landing-hero-copy::before{content:"";position:absolute;z-index:-1;inset:-120px 0 -32px;pointer-events:none;background:linear-gradient(to top,rgb(9 9 11 / .94) 0%,rgb(9 9 11 / .94) calc(100% - 120px),rgb(9 9 11 / 0) 100%)}
-  .landing-hero-copy .landing-lede,.landing-hero-address{color:var(--fg)}
+  /* The fixed phone bar must not cover a focused control or an anchor target (WCAG 2.4.11). */
+  html:has([data-landing-preview]){scroll-padding-bottom:88px}
 }
 /* Section 12 / 17.11.1: nothing moves; the band has its natural height, no sticky stage and no doors. */
 @media(prefers-reduced-motion:reduce){
   .landing *{scroll-behavior:auto!important;transition:none!important}
-  .landing-pill:active:not(:disabled){transform:none}
-  article.landing-card:hover,article.landing-card:hover .landing-photo>*{transform:none}
+  .landing-pill:active:not(:disabled),.landing-arrow:active{transform:none}
+  article.landing-service-card:hover,article.landing-service-card:hover .landing-photo img,.landing-arrow:hover svg{transform:none}
   .landing-band{height:auto}
   .landing-band-stage{position:relative;height:auto}
   .landing-band-media{flex:none;aspect-ratio:21/9}
@@ -286,15 +334,8 @@ article.landing-card:hover .landing-photo>*{transform:scale(1.02)}
 }
 @media(prefers-reduced-motion:reduce) and (max-width:767px){.landing-band-stage{padding-top:0}.landing-band-media{height:auto;aspect-ratio:4/5}}
 @media(max-height:700px){.landing-band{height:auto}.landing-band-stage{position:relative;height:auto;padding-top:0}.landing-band-media{flex:none;height:auto;aspect-ratio:4/3}.landing-band-copy{padding-block:32px}.landing-door{display:none}}
-.landing-photo img{width:100%;height:100%;object-fit:cover}
 /* P1-89 phone review: 44 px hit areas without moving anything. Vertical padding on an inline link does not change its line box; on a flex item and in the nav, negative margins cancel the padding. */
 .landing p>a:not([class]),.landing-actions>a:not([class]){padding-block:12px}
 .landing-actions>a:not([class]){margin-block:-12px}
 .landing-desktop-nav a,.landing-footer-links a{padding-inline:8px;margin-inline:-8px}
 .landing-header>a:first-child{display:flex;align-items:center;min-height:44px}
-@media(max-width:767px){
-  /* The fixed phone bar must not cover a focused control or an anchor target (WCAG 2.4.11). */
-  html:has([data-landing-preview]){scroll-padding-bottom:88px}
-  /* One column: no side-by-side form to align with, so the empty estimate takes its natural height. */
-  .landing-estimate-result{min-height:0}
-}
