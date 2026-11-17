@@ -404,3 +404,5 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
 .landing-header-manage{padding-inline:4px}
 @media(max-width:767px){.landing-hero-title{max-width:16ch}.landing-care-card{padding:24px}.landing-care-card>svg{margin-bottom:24px}.landing-hero-copy .landing-actions{gap:16px}.landing-hero-copy .landing-gold{min-width:144px}.landing-hero-manage{font-size:12px;gap:8px}}
 @media(max-width:359px){.landing-hero-copy .landing-actions{gap:12px}.landing-hero-manage{font-size:11px}.landing-hero-manage svg{width:14px;height:14px}}
+/* Word-level choreography keeps the original reading order and natural wrapping. */
+.landing-reveal-word{transform-origin:50% 100%;will-change:auto}

@@ -4,6 +4,7 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
+import { mountTextChoreography } from "./landing-text-choreography";
 import { mountCareScene } from "./landing-work-scene";
 import "lenis/dist/lenis.css";
 gsap.registerPlugin(useGSAP, ScrollTrigger);
@@ -76,6 +77,8 @@ export function LandingLifecycle() {
       hero.addEventListener("pointermove", move); hero.addEventListener("pointerleave", reset); hero.addEventListener("focusin", reset);
       return () => { hero.removeEventListener("pointermove", move); hero.removeEventListener("pointerleave", reset); hero.removeEventListener("focusin", reset); };
     });
+    media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => mountTextChoreography(root, true));
+    media.add("(max-width: 767px) and (prefers-reduced-motion: no-preference)", () => mountTextChoreography(root, false));
     let live = true, scheduled = 0;
     document.fonts.ready.then(() => { if (live) ScrollTrigger.refresh(); });
     const watch = new ResizeObserver(() => { cancelAnimationFrame(scheduled); scheduled = requestAnimationFrame(() => ScrollTrigger.refresh()); });
