@@ -389,3 +389,7 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
 .landing-about{padding-block:80px}
 .landing-about-copy .landing-eyebrow{letter-spacing:.08em}
 @media(max-width:767px){.landing-about{padding-block:56px}.landing-hero-copy .landing-gold{min-height:50px;min-width:154px;font-size:14px;padding:12px 18px;gap:18px}.landing-hero-copy .landing-pill-icon{width:18px;height:18px}}
+/* A clear neutral header action, subordinate to the gold hero booking action. */
+.landing .landing-header-cta{min-height:44px;min-width:124px;padding:11px 16px;gap:18px;background:var(--fg);border-color:var(--fg);color:var(--bg)!important;border-radius:6px;font-size:13px;font-weight:600}
+.landing .landing-header-cta svg{width:15px;height:15px}
+.landing .landing-header-cta:hover{background:var(--mfg);border-color:var(--mfg)}

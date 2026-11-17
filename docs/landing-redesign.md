@@ -139,3 +139,6 @@ LE requests better text placement and removes the paused message from the openin
 
 ## Squared controls and simpler hero transition
 LE rejects pill-shaped controls and the repeated three-column facts strip. Use 6px button corners, a clearer 52px desktop / 50px phone hero action and an unframed arrow. Remove the redundant vehicle/location/pricing strip entirely. Lead directly into the real workshop photo with a factual service introduction, replacing the pride/drive slogan and promotional filler. Location and pricing remain available in their relevant sections.
+
+## Header booking action
+LE asks to correct the header Book now styling. Replace its low-contrast outline with a compact off-white rectangular surface, dark text and a small directional arrow. Preserve 6px corners and 44px target height, neutral color hierarchy, /book destination and existing phone-menu behavior.
