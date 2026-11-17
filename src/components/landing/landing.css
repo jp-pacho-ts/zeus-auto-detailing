@@ -382,3 +382,10 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
 .landing-hero-manage:hover{text-decoration:underline}
 .landing-hero-copy .landing-scroll-cue{margin-top:24px}
 @media(max-width:767px){.landing-hero-copy{padding-bottom:28px}.landing-hero-copy h1{font-size:clamp(36px,9vw,48px)}.landing-hero-title{max-width:16ch;margin:0}.landing-hero-copy .landing-actions{gap:20px;margin-top:24px}.landing-hero-manage{font-size:12px;gap:8px}}
+/* Restrained button geometry and a direct transition into the shop. */
+.landing-pill{border-radius:6px}
+.landing-hero-copy .landing-gold{min-height:52px;min-width:184px;padding:12px 22px;font-size:15px;gap:28px}
+.landing-pill-icon{border-radius:0;background:transparent;width:20px;height:20px}
+.landing-about{padding-block:80px}
+.landing-about-copy .landing-eyebrow{letter-spacing:.08em}
+@media(max-width:767px){.landing-about{padding-block:56px}.landing-hero-copy .landing-gold{min-height:50px;min-width:154px;font-size:14px;padding:12px 18px;gap:18px}.landing-hero-copy .landing-pill-icon{width:18px;height:18px}}

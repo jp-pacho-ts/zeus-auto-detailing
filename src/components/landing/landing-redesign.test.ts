@@ -67,9 +67,15 @@ test("minimal hero keeps the headline and booking actions without decorative loc
 test("hero keeps direct booking actions without availability notices in all states", () => {
   for (const state of ["OPEN", "PAUSED", "UNKNOWN"] as const) {
     const html = render(state);
-    const hero = html.slice(html.indexOf('id="top"'), html.indexOf('class="landing-facts'));
+    const hero = html.slice(html.indexOf('id="top"'), html.indexOf('id="about"'));
     assert.doesNotMatch(hero, /Online booking is paused|We could not check online booking|landing-status/);
     assert.match(hero, /href="\/book"/);
     assert.match(hero, /class="landing-hero-manage" href="\/book\/manage"/);
   }
+});
+
+test("opening leads directly into the shop introduction without a repeated facts strip", () => {
+  const html = render();
+  assert.doesNotMatch(html, /Zeus at a glance|Built around your vehicle|A clearer starting point|For the pride/);
+  assert.match(html, /Care for your vehicle/);
 });

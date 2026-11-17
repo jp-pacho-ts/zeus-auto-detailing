@@ -136,3 +136,6 @@ LE requests a full-screen video at the top. The original workshop footage now co
 
 ## Hero text and CTA placement
 LE requests better text placement and removes the paused message from the opening. Move the headline to the lower-left, constrain its measure into two lines, and align the actions below it. Keep Book now as the single gold button; Manage booking becomes a plain secondary link. Remove hero availability notices for all states; booking routes, FAQ and later availability guidance remain authoritative. No availability setting is changed.
+
+## Squared controls and simpler hero transition
+LE rejects pill-shaped controls and the repeated three-column facts strip. Use 6px button corners, a clearer 52px desktop / 50px phone hero action and an unframed arrow. Remove the redundant vehicle/location/pricing strip entirely. Lead directly into the real workshop photo with a factual service introduction, replacing the pride/drive slogan and promotional filler. Location and pricing remain available in their relevant sections.
