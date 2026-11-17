@@ -153,3 +153,12 @@ LE asks for more visible text animation and distinct professional choreography. 
 References reviewed online: [Longbow](https://longbowmotors.com/) for distinct photographic chapters, [Jimbo Wash](https://atlas-studio.eu/work/jimbo-wash) for service-focused interactions and [Glosswerk](https://coreconcepts.design/projects/glosswerk-car-detailing-studio-website/) for hands-on category exploration. The latter two are studio case studies, not independently verified conversion results. No reference assets or invented before/after results imported.
 
 Use fluid desktop gutters (4vw, bounded 24–88px) so the layout occupies wide screens. Enlarge workshop photo panels to 42vw (380–680px), moderate their perspective and add explicit Wash/Detailing/Graphene scene controls with active states. Controls seek the native scroll position and settle the existing Lenis instance. No extra animation loop. Reduced/compact/no-JS keep normal category content; scene buttons are only displayed with the enhanced scene. Place compact customer experiences directly after workshop and before prices: left heading, right manual carousel, indexed position, disabled boundary arrows and labelled owner review slots. Retain keyboard/swipe/drag and no fabricated testimony. Existing React Bits headline/CTA and GSAP text choreography stay active.
+
+
+## Natural workshop proportions, button-free auto-scrolling feedback, About and concerns sections
+LE feedback: workshop photos were overly stretched with unnecessary scene buttons, customer feedback should drift automatically without buttons, and the landing page needs a distinct About section and a vehicle-care problems section.
+- Workshop: Photos restored to natural 4:3 proportions (spect-ratio: 4/3, width clamp(300px, 30vw, 440px)), removed redundant scene buttons while keeping direct catalog service links and price links.
+- Customer feedback: Converted to a continuous, button-free auto-scrolling drifting ribbon (48s linear infinite loop) with hover/focus/active pause and clean grid fallback under prefers-reduced-motion: reduce. Retains honest, clearly labelled preview slots without fabricated proof.
+- About section: Dedicated section highlighting Zeus in Tacloban City, vehicle care approach, and direct consultation CTA.
+- Everyday concerns section: Editorial breakdown of real vehicle problems (dirt/mud/grime, neglected interior, paint finish protection) directly linked to relevant care categories.
+- Navigation: Header updated with 5 section links including About.

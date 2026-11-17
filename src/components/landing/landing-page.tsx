@@ -67,7 +67,15 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           <a className="landing-scroll-cue" href="#about" aria-label="Discover the Zeus approach"><span>Discover Zeus</span><ArrowDown aria-hidden="true" /></a>
         </div>
       </section>
-      <section id="about" className="landing-section landing-wrap landing-about" aria-labelledby="landing-about-title"><div className="landing-editorial-photo">{photo("full-detailing", "(max-width: 767px) 100vw, 50vw")}</div><div className="landing-about-copy"><p className="landing-eyebrow">Zeus Auto Detailing</p><h2 id="landing-about-title">Care for your vehicle<span className="landing-gold-dot">.</span></h2><p>Washing, detailing and surface protection for cars and motorcycles in Tacloban City.</p><a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Talk to us about your vehicle<ArrowUpRight aria-hidden="true" /></a></div></section>
+      <section id="about" className="landing-section landing-wrap landing-about" aria-labelledby="landing-about-title"><div className="landing-editorial-photo">{photo("full-detailing", "(max-width: 767px) 100vw, 50vw")}</div><div className="landing-about-copy"><p className="landing-eyebrow">About Zeus</p><h2 id="landing-about-title">Care for your vehicle<span className="landing-gold-dot">.</span></h2><p className="landing-about-lead">Car care, here in Tacloban.</p><p>We wash, detail and protect cars and motorcycles. From a regular wash to interior detailing or a graphene coating, explore the care that fits your vehicle.</p><p>Not sure where to start? Tell us what you drive and what needs attention.</p><a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Talk to us about your vehicle<ArrowUpRight aria-hidden="true" /></a></div></section>
+      <section id="concerns" className="landing-section landing-wrap landing-concerns" aria-labelledby="landing-concerns-title">
+        <div className="landing-concerns-heading"><h2 id="landing-concerns-title">Everyday use<br />leaves its mark.</h2><p>Start with what needs attention. Then find the right level of care.</p></div>
+        <div className="landing-concern-list">{[
+          { title: "Dust, mud and road grime", text: "For the buildup from everyday driving, start with a wash.", href: "WASH", link: "Explore washing" },
+          { title: "An interior that needs attention", text: "For dirt and buildup inside your vehicle, look through the detailing options and their inclusions.", href: "DETAILING", link: "Explore detailing" },
+          { title: "A finish you want to protect", text: "Considering protection beyond a wash? Compare the available graphene coating packages.", href: "GRAPHENE", link: "Explore coatings" },
+        ].map((item) => <article className="landing-concern" key={item.href}><h3>{item.title}</h3><div><p>{item.text}</p><a className="landing-text-link" href={display ? `#services-${item.href}` : "#services"}>{item.link}<ArrowUpRight aria-hidden="true" /></a></div></article>)}</div>
+      </section>
       <section id="care" className="landing-section landing-wrap landing-care" aria-labelledby="landing-care-title"><div className="landing-section-heading"><div><p className="landing-eyebrow">Services</p><LandingScrollFloat id="landing-care-title" text="Choose your service." /></div><p className="landing-muted">Choose a wash, detailing service or graphene coating. Compare options and prices below.</p></div><div className="landing-care-grid">{[
         { icon: Waves, title: "Wash", text: "Regular cleaning for cars and motorcycles.", link: "WASH", cta: "View wash options" },
         { icon: Sparkles, title: "Detailing", text: "Interior and exterior detailing, with service inclusions listed.", link: "DETAILING", cta: "View detailing options" },
@@ -77,20 +85,20 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
         <div className="landing-stage-viewport">
         <span className="landing-stage-wipe" aria-hidden="true" />
         <span className="landing-stage-backdrop" aria-hidden="true">IN THE DETAILS</span>
-        <div className="landing-section-heading"><div><p className="landing-eyebrow">03 / Inside the workshop</p><h2 id="landing-work-title">What we do in the shop</h2></div><p className="landing-muted">Real work, photographed at Zeus. A closer look at the care behind the finish.</p></div>
+        <div className="landing-section-heading"><div><h2 id="landing-work-title">What we do in the shop</h2></div><p className="landing-muted">Real work, photographed at Zeus. A closer look at the care behind the finish.</p></div>
         <div className="landing-stage-grid">
           <div className="landing-stage-names">{STAGES.map((stage) => {
             const names = display?.services.filter((s) => s.category === stage.category && s.type === "BASE") ?? [];
             return <div key={stage.category} className="landing-step" data-step={stage.category}>
               <h3 className="landing-step-name">{stage.name}</h3>
               {/* One responsive photograph per category, shared by desktop and phone. */}
-              <div className="landing-step-photo">{photo(stage.photo, "(max-width: 767px) 100vw, 60vw")}</div>
+              <div className="landing-step-photo">{photo(stage.photo, "(max-width: 767px) 100vw, 440px")}</div>
               {names.length > 0 && <ul className="landing-step-links">{names.map((s) => <li key={s.id}><a href={`#service-${s.slug}`}>{s.name}</a></li>)}</ul>}
               <a className="landing-step-prices" href={display ? `#services-${stage.category}` : "#services"}>See {stage.name.toLowerCase()} prices<ArrowUpRight aria-hidden="true" /></a>
             </div>;
           })}</div>
         </div>
-        <div className="landing-stage-navigation" role="group" aria-label="Explore workshop services">{STAGES.map((stage, index) => <button key={stage.category} type="button" data-care-jump={index} aria-pressed={index === 0}>{stage.name}<ArrowUpRight aria-hidden="true" /></button>)}</div>
+
         <div className="landing-stage-progress" aria-hidden="true"><span><i /></span><p>Wash <b /> Detailing <b /> Graphene</p></div>
         </div>
       </section>
@@ -148,7 +156,7 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
         <div><Image src={brandConfig.logoUrl} alt="Zeus Auto Detailing" width="132" height="52" /><p className="landing-muted">{brandConfig.address}</p>
           <div className="landing-icons"><a href={tel} aria-label="Call Zeus"><Phone aria-hidden="true" /></a><a href={brandConfig.facebookMessengerUrl} aria-label="Zeus on Messenger"><MessageCircle aria-hidden="true" /></a><a href={brandConfig.instagram} aria-label="Zeus on Instagram"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" /></svg></a></div>
         </div>
-        <nav aria-label="Footer"><ul className="landing-footer-links"><li><a href="#services">Services</a></li><li><a href="#estimate">Prices</a></li><li><a href="#reviews">Reviews</a></li><li><a href="#visit">Visit</a></li><li><a href="/book/manage">Manage booking</a></li><li><a href="/admin/login">Staff login</a></li><li><a href="#top">Back to top</a></li></ul></nav>
+        <nav aria-label="Footer"><ul className="landing-footer-links"><li><a href="#about">About</a></li><li><a href="#services">Services</a></li><li><a href="#estimate">Prices</a></li><li><a href="#reviews">Reviews</a></li><li><a href="#visit">Visit</a></li><li><a href="/book/manage">Manage booking</a></li><li><a href="/admin/login">Staff login</a></li><li><a href="#top">Back to top</a></li></ul></nav>
       </div>
       <p className="landing-copyright">© {new Date().getFullYear()} {brandConfig.businessName}</p>
     </div></footer>

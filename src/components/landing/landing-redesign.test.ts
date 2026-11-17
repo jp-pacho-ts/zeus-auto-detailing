@@ -80,19 +80,20 @@ test("opening leads directly into the shop introduction without a repeated facts
   assert.match(html, /Care for your vehicle/);
 });
 
-test("service choices use familiar names and header has four clear section destinations", () => {
+test("service choices use familiar names and header has clear section destinations", () => {
   const html = render();
   const care = html.slice(html.indexOf('id="care"'), html.indexOf('id="work"'));
   for (const name of ["Wash", "Detailing", "Graphene coating"]) assert.ok(care.includes(`<h3>${name}</h3>`), name);
   assert.doesNotMatch(care, /<h3>Refresh|<h3>Restore|more considered reset/);
   const nav = html.slice(html.indexOf('class="landing-desktop-nav"'), html.indexOf('</nav>'));
-  assert.equal(nav.match(/<a /g)?.length, 4);
-  for (const target of ["#services", "#work", "#faq", "#visit"]) assert.ok(nav.includes(`href="${target}"`), target);
+  assert.equal(nav.match(/<a /g)?.length, 5);
+  for (const target of ["#about", "#services", "#work", "#faq", "#visit"]) assert.ok(nav.includes(`href="${target}"`), target);
 });
 
-test("workshop has three explicit scene destinations and feedback follows the real shop work", () => {
+test("workshop has natural proportions without buttons and feedback follows the real shop work", () => {
   const html = render();
-  assert.equal(html.match(/data-care-jump="[012]"/g)?.length, 3);
+  const work = html.slice(html.indexOf('id="work"'), html.indexOf('id="reviews"'));
+  assert.doesNotMatch(work, /data-care-jump|<button/);
   assert.ok(html.indexOf('id="reviews"') > html.indexOf('id="work"'));
   assert.ok(html.indexOf('id="reviews"') < html.indexOf('id="services"'));
 });
