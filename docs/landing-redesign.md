@@ -130,3 +130,6 @@ Remove the decorative location and Precision / Protection / Pride annotations, t
 ## LE refinement: uninterrupted footage and direct copy
 
 LE explicitly removes the visible Pause video control. The original muted loop remains, with automatic offscreen/hidden-tab pause and reduced-motion/data-saver poster fallback. Removed manual playback UI and its local state/listeners. Hero headline now names the actual service: Car & motorcycle detailing. Removed the repeated service line beneath it. This supersedes the earlier visible playback control direction; later content is unchanged.
+
+## Full-screen video opening
+LE requests a full-screen video at the top. The original workshop footage now covers the entire first viewport, with the transparent sticky header and booking copy layered over it. Remove the preview strip from view and suppress the decorative ZEUS lettering/beam behind the footage. Remove edge masks; use a restrained dark overlay for navigation and text contrast. Keep small-screen minimum height, native loop and reduced-motion poster policy.
