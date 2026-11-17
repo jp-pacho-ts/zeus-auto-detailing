@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ArrowDown, ArrowUpRight, Check, CircleAlert, Info, MapPin, MessageCircle, Phone, ShieldCheck, Sparkles, Waves } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Check, CircleAlert, Info, MessageCircle, Phone, ShieldCheck, Sparkles, Waves } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import type { LandingStatus } from "@/server/landing/status";
