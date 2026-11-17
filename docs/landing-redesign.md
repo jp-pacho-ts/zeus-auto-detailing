@@ -126,3 +126,7 @@ Implementation: isolate care-scene choreography and pure centering/focus calcula
 LE asks for a transparent header at the top and less hero information. The header starts transparent with no visible bottom divider, gains the existing dark surface after 16px of scrolling, and stays opaque while the mobile menu is open. Returning to the top restores transparency. The passive listener is removed on unmount; reduced motion disables the surface transition.
 
 Remove the decorative location and Precision / Protection / Pride annotations, the hero eyebrow and the second promotional sentence. Keep the headline, one service line (Car & motorcycle detailing), original looping footage and both booking actions. The preview label is shortened to Website preview. Shop location stays available in the page's substantive content and accessible heading; booking-state notices remain accurate. Scope is the opening only, preserving later scenes and services.
+
+## LE refinement: uninterrupted footage and direct copy
+
+LE explicitly removes the visible Pause video control. The original muted loop remains, with automatic offscreen/hidden-tab pause and reduced-motion/data-saver poster fallback. Removed manual playback UI and its local state/listeners. Hero headline now names the actual service: Car & motorcycle detailing. Removed the repeated service line beneath it. This supersedes the earlier visible playback control direction; later content is unchanged.

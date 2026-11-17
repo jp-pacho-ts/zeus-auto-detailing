@@ -17,7 +17,7 @@ const text = (html: string) => html.replace(/<style[\s\S]*?<\/style>|<script[\s\
 test("LuxAuto page: one local service H1, genuine workshop photos and labelled proof slots", () => {
   const html = page("OPEN"), words = text(html);
   assert.equal(html.match(/<h1[\s>]/g)?.length, 1);
-  assert.match(html, /<h1[^>]*>.*Care beyond the surface.*Car and motorcycle detailing in Tacloban City.*<\/h1>/);
+  assert.match(html, /<h1[^>]*>.*Car &amp; motorcycle detailing.*Car and motorcycle detailing in Tacloban City.*<\/h1>/);
   assert.equal([...html.matchAll(/class="landing-letter">([^<]+)</g)].map((m) => m[1]).join(""), "ZEUS");
   assert.match(html, /id="gallery"/);
   assert.match(words, /Gallery photos will appear here\./);

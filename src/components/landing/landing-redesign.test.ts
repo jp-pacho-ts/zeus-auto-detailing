@@ -11,7 +11,7 @@ const render = (status: "OPEN" | "PAUSED" | "UNKNOWN" = "OPEN") => renderToStati
 test("LuxAuto redesign connects the brand, care journey, genuine shop work and feedback", () => {
   const html = render();
   for (const id of ["top", "about", "care", "work", "services", "estimate", "coatings", "gallery", "reviews", "faq", "visit"]) assert.ok(html.includes(`id="${id}"`), id);
-  assert.match(html, /Care beyond the surface/);
+  assert.match(html, /Car &amp; motorcycle detailing/);
   assert.equal(html.match(/<h1[ >]/g)?.length, 1);
   assert.match(html, /Car and motorcycle detailing in Tacloban City/);
   assert.match(html, /Review awaiting owner approval/);
@@ -60,6 +60,6 @@ test("minimal hero keeps the headline and booking actions without decorative loc
   const html = render();
   const hero = html.slice(html.indexOf('id="top"'), html.indexOf('id="about"'));
   assert.doesNotMatch(hero, /landing-hero-side|landing-hero-location|Precision\. Protection\. Pride\.|Tacloban City, PH|The art of considered car care|From the everyday refresh/);
-  assert.match(hero, /class="landing-lede">Car &amp; motorcycle detailing\.<\/p>/);
+  assert.doesNotMatch(hero, /landing-video-control|Pause video|landing-lede/);
   assert.match(html, /<header class="landing-header" data-scrolled="false"/);
 });

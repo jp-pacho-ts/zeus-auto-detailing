@@ -61,8 +61,8 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           <div className="landing-hero-photo"><LandingVideo /></div>
         </div>
         <div className="landing-wrap landing-hero-copy">
-          <h1 id="landing-hero-title"><span className="landing-hero-title">Care beyond the surface<span className="landing-gold-dot">.</span></span><span className="landing-sr"> Car and motorcycle detailing in Tacloban City</span></h1>
-          <p className="landing-lede">Car &amp; motorcycle detailing.</p>
+          <h1 id="landing-hero-title"><span className="landing-hero-title">Car &amp; motorcycle detailing<span className="landing-gold-dot">.</span></span><span className="landing-sr"> Car and motorcycle detailing in Tacloban City</span></h1>
+
           <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-pill landing-outline" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a></div>
           {status === "PAUSED" && <p className="landing-status"><Info aria-hidden="true" /><span>{pausedLine}</span></p>}
           {status === "UNKNOWN" && <p className="landing-status"><Info aria-hidden="true" /><span>{unknownLine}</span></p>}
