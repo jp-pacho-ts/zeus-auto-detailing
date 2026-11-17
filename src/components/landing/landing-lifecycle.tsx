@@ -35,7 +35,7 @@ export function LandingLifecycle() {
       lenis.on("scroll", ScrollTrigger.update); gsap.ticker.add(tick);
       const sequence = gsap.timeline({ scrollTrigger: { trigger: root.querySelector(".landing-hero"), start: "top top", end: "bottom top", scrub: .65 } });
       sequence.to(root.querySelector(".landing-word"), { yPercent: -48, scale: 1.18, opacity: .08, ease: "none" }, 0)
-        .to(root.querySelector(".landing-hero-photo"), { xPercent: 16, yPercent: 34, rotation: -7, scale: 1.14, ease: "none" }, 0);
+        .to(root.querySelector(".landing-hero-photo"), { xPercent: 16, yPercent: -16, rotation: -7, scale: 1.14, ease: "none" }, 0);
       const about = root.querySelector(".landing-editorial-photo");
       if (about) gsap.fromTo(about, { clipPath: "inset(10% 12% 10% 12%)", rotation: -4, x: -65 }, { clipPath: "inset(0% 0% 0% 0%)", rotation: 0, x: 0, ease: "power3.out", scrollTrigger: { trigger: about, start: "top 95%", end: "top 35%", scrub: .6 } });
       gsap.from(root.querySelectorAll(".landing-care-card"), { y: 64, rotationY: 18, transformPerspective: 1000, stagger: .13, duration: .95, ease: "power3.out", scrollTrigger: { trigger: root.querySelector(".landing-care-grid"), start: "top 90%", once: true } });
