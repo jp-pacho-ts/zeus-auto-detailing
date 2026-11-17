@@ -89,3 +89,10 @@ test("service choices use familiar names and header has four clear section desti
   assert.equal(nav.match(/<a /g)?.length, 4);
   for (const target of ["#services", "#work", "#faq", "#visit"]) assert.ok(nav.includes(`href="${target}"`), target);
 });
+
+test("workshop has three explicit scene destinations and feedback follows the real shop work", () => {
+  const html = render();
+  assert.equal(html.match(/data-care-jump="[012]"/g)?.length, 3);
+  assert.ok(html.indexOf('id="reviews"') > html.indexOf('id="work"'));
+  assert.ok(html.indexOf('id="reviews"') < html.indexOf('id="services"'));
+});

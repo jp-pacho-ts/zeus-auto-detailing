@@ -406,3 +406,32 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
 @media(max-width:359px){.landing-hero-copy .landing-actions{gap:12px}.landing-hero-manage{font-size:11px}.landing-hero-manage svg{width:14px;height:14px}}
 /* Word-level choreography keeps the original reading order and natural wrapping. */
 .landing-reveal-word{transform-origin:50% 100%;will-change:auto}
+/* Fluid editorial width with larger workshop photography and explicit scene navigation. */
+.landing{--edge:clamp(24px,4vw,88px)}
+.landing-stage-navigation{display:none}
+.is-motion-scene .landing-stage-navigation{display:flex;gap:8px;position:relative;z-index:3;flex:none;justify-content:center;margin-top:12px}
+.landing-stage-navigation button{display:flex;align-items:center;justify-content:space-between;gap:28px;min-height:48px;min-width:154px;padding:10px 16px;border:1px solid var(--line);border-radius:6px;background:var(--bg);font-size:13px;cursor:pointer}
+.landing-stage-navigation button[aria-pressed=true]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.landing-stage-navigation button:hover{border-color:var(--fg)}
+.landing-stage-navigation svg{width:15px;height:15px}
+.is-motion-scene .landing-step{width:clamp(380px,42vw,680px);padding:18px;gap:10px;border-radius:8px}
+.is-motion-scene .landing-step-photo{height:clamp(160px,27svh,300px)}
+.is-motion-scene .landing-stage-names{gap:clamp(32px,5vw,96px)}
+.is-motion-scene .landing-stage-viewport{padding-block:24px 16px}
+.is-motion-scene .landing-stage-progress{padding-top:12px}
+.is-motion-scene .landing-stage-progress p{display:none}
+.is-motion-scene .landing-section-heading h2{font-size:clamp(36px,3.4vw,64px)}
+.landing-reviews{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(32px,7vw,120px);padding-block:72px;border-block:1px solid var(--line)}
+.landing-review-head{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:24px}
+.landing-review-head h2{font-size:clamp(32px,3.2vw,52px);max-width:14ch}
+.landing-review-intro p{max-width:32ch;margin:0}
+.landing-review-window{min-width:0}
+.landing-review-track{padding:8px;gap:24px;scroll-padding-inline:8px;scroll-snap-type:x mandatory}
+.landing-review-card{flex-basis:100%;min-width:0;padding:28px;border-radius:8px;transform:none!important}
+.landing-review-card h3{font-size:24px}
+.landing-review-card-top{margin-bottom:16px}
+.landing-review-card-bottom{margin-top:24px}
+.landing-review-controls button{border-radius:6px;width:48px;height:48px}
+.landing-review-controls button:disabled{opacity:.3;cursor:default}
+.landing .landing-review-disclaimer{margin:16px 8px 0;font-size:11px;max-width:55ch}
+@media(max-width:767px){.landing{--edge:20px}.landing-reviews{grid-template-columns:1fr;gap:24px;padding-block:48px}.landing-review-head{gap:16px}.landing-review-head h2{max-width:none;font-size:34px}.landing-review-intro{margin-top:0;width:100%;display:flex;gap:20px;justify-content:space-between;align-items:center}.landing-review-intro p{font-size:13px;max-width:25ch}.landing-review-controls{margin-top:0;gap:8px;flex-wrap:wrap;flex-shrink:0}.landing-review-controls>span{width:100%;margin:0;text-align:center}.landing-review-card{padding:22px}.landing-review-track{padding-block:8px}}

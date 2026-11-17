@@ -45,14 +45,14 @@ export function LandingLifecycle() {
       const bleed = root.querySelector(".landing-bleed");
       if (bleed) gsap.fromTo(bleed.querySelector(".landing-bleed-media"), { clipPath: "inset(10% 8% 10% 8% round 20px)", scale: .92 }, { clipPath: "inset(0% 0% 0% 0% round 0px)", scale: 1, ease: "none", scrollTrigger: { trigger: bleed, start: "top 95%", end: "top 20%", scrub: .7 } });
       root.querySelectorAll(".landing-gallery-grid figure").forEach((frame, i) => gsap.fromTo(frame, { y: i ? 100 : 0 }, { y: i ? -50 : 30, ease: "none", scrollTrigger: { trigger: frame.parentElement, start: "top bottom", end: "bottom top", scrub: .7 } }));
-      gsap.from(root.querySelectorAll(".landing-review-card"), { y: 90, rotation: (i) => i % 2 ? 7 : -7, stagger: .13, duration: .9, ease: "power3.out", scrollTrigger: { trigger: root.querySelector(".landing-review-track"), start: "top 92%", once: true } });
+      gsap.from(root.querySelectorAll(".landing-review-card"), { y: 24, rotation: 0, stagger: .13, duration: .9, ease: "power3.out", scrollTrigger: { trigger: root.querySelector(".landing-review-track"), start: "top 92%", once: true } });
       const close = root.querySelector(".landing-band-media img");
       if (close) gsap.fromTo(close, { scale: 1.2 }, { scale: 1, ease: "none", scrollTrigger: { trigger: close.parentElement, start: "top bottom", end: "bottom bottom", scrub: .6 } });
       const progress = root.querySelector(".landing-progress");
       if (progress) gsap.fromTo(progress, { scaleX: 0 }, { scaleX: 1, ease: "none", scrollTrigger: { trigger: root, start: "top top", end: "bottom bottom", scrub: true } });
       const settle = () => lenis.scrollTo(window.scrollY, { immediate: true, force: true });
-      root.addEventListener("focusin", settle); window.addEventListener("hashchange", settle);
-      return () => { root.removeEventListener("focusin", settle); window.removeEventListener("hashchange", settle); gsap.ticker.remove(tick); lenis.destroy(); };
+      root.addEventListener("landing-scene-seek", settle); root.addEventListener("focusin", settle); window.addEventListener("hashchange", settle);
+      return () => { root.removeEventListener("landing-scene-seek", settle); root.removeEventListener("focusin", settle); window.removeEventListener("hashchange", settle); gsap.ticker.remove(tick); lenis.destroy(); };
     });
     media.add("(min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference)", () => {
       const stage = root.querySelector<HTMLElement>(".landing-stage");

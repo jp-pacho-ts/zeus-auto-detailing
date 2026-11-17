@@ -90,9 +90,11 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
             </div>;
           })}</div>
         </div>
+        <div className="landing-stage-navigation" role="group" aria-label="Explore workshop services">{STAGES.map((stage, index) => <button key={stage.category} type="button" data-care-jump={index} aria-pressed={index === 0}>{stage.name}<ArrowUpRight aria-hidden="true" /></button>)}</div>
         <div className="landing-stage-progress" aria-hidden="true"><span><i /></span><p>Wash <b /> Detailing <b /> Graphene</p></div>
         </div>
       </section>
+      <LandingReviews />
       {display ? <LandingServices catalog={display} phone={phone} messenger={brandConfig.facebookMessengerUrl} status={status} /> : <>
         <section id="services" className="landing-section landing-wrap landing-ground-muted"><p className="landing-eyebrow">04 / Care, made clear</p><h2>Services and prices</h2><p className="landing-muted">Choose care that fits your vehicle. Prices and package options will appear when the catalog is available.</p>{unavailable}<div id="estimate" className="landing-unavailable-estimate"><h3>Estimate your price</h3><p>Tell us your vehicle and the care you have in mind.</p><a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Ask for an estimate<ArrowUpRight aria-hidden="true" /></a></div></section>
         <section id="coatings" className="landing-coatings"><CoatingsBleed /><div className="landing-wrap landing-compare"><p><a href={brandConfig.facebookMessengerUrl}>Ask about coatings on Messenger</a></p></div></section>
@@ -101,7 +103,6 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
         <div className="landing-section-heading"><div><p className="landing-eyebrow">A closer look</p><h2 id="landing-gallery-title">The details tell the story<span className="landing-gold-dot">.</span></h2></div><p className="landing-muted">A glimpse of our process, from the final wipe to the care beneath a coating.</p></div>
         <div className="landing-gallery-grid"><figure>{photo("signature-wash", "(max-width: 767px) 100vw, 60vw")}<figcaption>The finishing touch <span>Signature wash</span></figcaption></figure><figure>{photo("eclipse-graphene", "(max-width: 767px) 100vw, 40vw")}<figcaption>Beyond the shine <span>Coating application</span></figcaption></figure></div><div className="landing-gallery-slots"><p>Finished-results gallery <span>Gallery photos will appear here.</span></p></div>
       </section>
-      <LandingReviews />
       <LandingFaq items={faq} />
       <section id="visit" className="landing-section landing-wrap landing-ground-muted">
         <p className="landing-eyebrow">06 / Come find us</p>

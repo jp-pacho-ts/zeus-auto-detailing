@@ -9,14 +9,15 @@ export function mountCareScene(stage: HTMLElement) {
   const cards = [...stage.querySelectorAll<HTMLElement>(".landing-step")];
   if (!viewport || !track || cards.length < 2) return () => {};
   stage.classList.add("is-motion-scene");
+  const buttons = [...stage.querySelectorAll<HTMLButtonElement>("[data-care-jump]")];
   const range = () => careTrackRange(viewport.clientWidth, cards[0].offsetWidth, track.offsetWidth);
-  const scene = gsap.timeline({ scrollTrigger: { trigger: stage, start: "top 74px", end: "bottom bottom", scrub: .6, invalidateOnRefresh: true } });
+  const scene = gsap.timeline({ scrollTrigger: { trigger: stage, start: "top 74px", end: "bottom bottom", scrub: .6, invalidateOnRefresh: true, onUpdate: (self) => { const active = Math.round(self.progress * (cards.length - 1)); buttons.forEach((button, i) => button.setAttribute("aria-pressed", String(i === active))); } } });
   scene.fromTo(track, { x: () => range().start }, { x: () => range().end, duration: 1, ease: "none" }, 0);
   cards.forEach((card, index) => {
     const direction = index % 2 ? 1 : -1;
     scene.fromTo(card,
-      { y: direction * 42, rotation: direction * 7, rotationY: 24, z: -90, transformPerspective: 1000, transformOrigin: "50% 50%" },
-      { y: -direction * 42, rotation: -direction * 5, rotationY: -24, z: -35, duration: 1, ease: "none" }, 0);
+      { y: direction * 24, rotation: direction * 3, rotationY: 12, z: -90, transformPerspective: 1000, transformOrigin: "50% 50%" },
+      { y: -direction * 24, rotation: -direction * 3, rotationY: -12, z: -35, duration: 1, ease: "none" }, 0);
   });
   const backdrop = stage.querySelector(".landing-stage-backdrop");
   if (backdrop) scene.fromTo(backdrop, { xPercent: 6 }, { xPercent: -18, duration: 1, ease: "none" }, 0);
@@ -35,9 +36,22 @@ export function mountCareScene(stage: HTMLElement) {
     trigger.getTween()?.progress(1);
     scene.progress(progress);
   };
+  const jump = (event: Event) => {
+    const button = (event.target as Element).closest<HTMLButtonElement>("[data-care-jump]");
+    const trigger = scene.scrollTrigger;
+    if (!button || !trigger) return;
+    const progress = careFocusProgress(Number(button.dataset.careJump), cards.length);
+    window.scrollTo({ top: trigger.start + (trigger.end - trigger.start) * progress, behavior: "instant" });
+    stage.dispatchEvent(new Event("landing-scene-seek", { bubbles: true }));
+    ScrollTrigger.update(); trigger.getTween()?.progress(1); scene.progress(progress);
+    buttons.forEach((item, i) => item.setAttribute("aria-pressed", String(i === Number(button.dataset.careJump))));
+  };
+  stage.querySelector(".landing-stage-navigation")?.addEventListener("click", jump);
   stage.addEventListener("focusin", focus);
   return () => {
     stage.removeEventListener("focusin", focus);
+    stage.querySelector(".landing-stage-navigation")?.removeEventListener("click", jump);
+    buttons.forEach((button, i) => button.setAttribute("aria-pressed", String(i === 0)));
     stage.classList.remove("is-motion-scene");
     const active = document.activeElement;
     if (active instanceof HTMLElement && stage.contains(active)) requestAnimationFrame(() => { if (active.isConnected) active.scrollIntoView({ block: "center", behavior: "instant" }); });
