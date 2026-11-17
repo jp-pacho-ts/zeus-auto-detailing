@@ -3,9 +3,16 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 export function LandingHeader({ logo, label, href }: { logo: string; label: string; href: string }) {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [pastHero, setPastHero] = useState(false);
   const [goldInView, setGoldInView] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const update = () => setScrolled(window.scrollY > 16);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
   useEffect(() => {
     if (!open) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setOpen(false); button.current?.focus(); } };
@@ -27,5 +34,5 @@ export function LandingHeader({ logo, label, href }: { logo: string; label: stri
     return () => { observer.disconnect(); gold.disconnect(); };
   }, []);
   const links = <><a href="#about">Our approach</a><a href="#services">Services</a><a href="#work">Our work</a><a href="#reviews">Reviews</a><a href="#faq">FAQ</a><a href="#visit">Visit</a></>;
-  return <><header className="landing-header"><a href="#top" aria-label="Zeus Auto Detailing, back to top"><Image src={logo} alt="Zeus Auto Detailing" width="132" height="52" /></a><nav className="landing-desktop-nav" aria-label="Site">{links}</nav><a className="landing-header-manage" href="/book/manage">Manage booking</a><a className="landing-pill landing-outline landing-header-cta" href={href}>{label}</a><button ref={button} className="landing-pill landing-outline landing-menu-toggle" type="button" aria-expanded={open} aria-controls="landing-mobile-menu" onClick={() => setOpen(!open)}>{open ? "Close menu" : "Menu"}</button><nav id="landing-mobile-menu" className="landing-mobile-menu" hidden={!open} aria-label="Site" onClick={(e) => { if ((e.target as Element).closest("a")) setOpen(false); }} onKeyDown={(e) => { if (e.key === "Escape") { setOpen(false); button.current?.focus(); } }}>{links}<a href="/book/manage">Manage booking</a><a className="landing-pill landing-outline" href={href}>{label}</a></nav></header><div className="landing-phone-bar" hidden={!pastHero || open || goldInView}><a className="landing-pill landing-gold" href={href}>{label}</a><a className="landing-pill landing-outline landing-manage" href="/book/manage">Manage booking</a></div></>;
+  return <><header className="landing-header" data-scrolled={scrolled || open}><a href="#top" aria-label="Zeus Auto Detailing, back to top"><Image src={logo} alt="Zeus Auto Detailing" width="132" height="52" /></a><nav className="landing-desktop-nav" aria-label="Site">{links}</nav><a className="landing-header-manage" href="/book/manage">Manage booking</a><a className="landing-pill landing-outline landing-header-cta" href={href}>{label}</a><button ref={button} className="landing-pill landing-outline landing-menu-toggle" type="button" aria-expanded={open} aria-controls="landing-mobile-menu" onClick={() => setOpen(!open)}>{open ? "Close menu" : "Menu"}</button><nav id="landing-mobile-menu" className="landing-mobile-menu" hidden={!open} aria-label="Site" onClick={(e) => { if ((e.target as Element).closest("a")) setOpen(false); }} onKeyDown={(e) => { if (e.key === "Escape") { setOpen(false); button.current?.focus(); } }}>{links}<a href="/book/manage">Manage booking</a><a className="landing-pill landing-outline" href={href}>{label}</a></nav></header><div className="landing-phone-bar" hidden={!pastHero || open || goldInView}><a className="landing-pill landing-gold" href={href}>{label}</a><a className="landing-pill landing-outline landing-manage" href="/book/manage">Manage booking</a></div></>;
 }

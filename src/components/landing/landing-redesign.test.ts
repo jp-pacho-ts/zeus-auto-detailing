@@ -55,3 +55,11 @@ test("reference motion scene keeps all care choices and working destinations ava
   assert.equal(work.match(/href="#services"/g)?.length, 3);
   assert.doesNotMatch(work, /is-motion-scene|aria-hidden="true"[^>]*>Wash/);
 });
+
+test("minimal hero keeps the headline and booking actions without decorative location copy", () => {
+  const html = render();
+  const hero = html.slice(html.indexOf('id="top"'), html.indexOf('id="about"'));
+  assert.doesNotMatch(hero, /landing-hero-side|landing-hero-location|Precision\. Protection\. Pride\.|Tacloban City, PH|The art of considered car care|From the everyday refresh/);
+  assert.match(hero, /class="landing-lede">Car &amp; motorcycle detailing\.<\/p>/);
+  assert.match(html, /<header class="landing-header" data-scrolled="false"/);
+});

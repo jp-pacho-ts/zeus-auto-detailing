@@ -50,7 +50,7 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
   ];
   return <div className="landing" data-landing-preview>
     <a className="landing-skip" href="#landing-main">Skip to content</a>
-    <div className="landing-preview-note">Website preview <span aria-hidden="true">/</span> Zeus Auto Detailing, Tacloban City</div>
+    <div className="landing-preview-note">Website preview</div>
     <div className="landing-progress" aria-hidden="true" />
     <LandingHeader logo={brandConfig.logoUrl} label={booking.label} href={booking.href} />
     <main id="landing-main">
@@ -59,13 +59,10 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           <span className="landing-word" aria-hidden="true">{"ZEUS".split("").map((letter, index) => <span className="landing-letter-mask" key={index}><span className="landing-letter">{letter}</span></span>)}</span>
           <div className="landing-hero-beam" aria-hidden="true" />
           <div className="landing-hero-photo"><LandingVideo /></div>
-          <span className="landing-hero-side">Precision. Protection. Pride.</span>
-          <span className="landing-hero-location"><MapPin aria-hidden="true" /> Tacloban City, PH</span>
         </div>
         <div className="landing-wrap landing-hero-copy">
-          <p className="landing-eyebrow">The art of considered car care</p>
           <h1 id="landing-hero-title"><span className="landing-hero-title">Care beyond the surface<span className="landing-gold-dot">.</span></span><span className="landing-sr"> Car and motorcycle detailing in Tacloban City</span></h1>
-          <p className="landing-lede">Car and motorcycle detailing in Tacloban City.<br />From the everyday refresh to a finish worth protecting.</p>
+          <p className="landing-lede">Car &amp; motorcycle detailing.</p>
           <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-pill landing-outline" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a></div>
           {status === "PAUSED" && <p className="landing-status"><Info aria-hidden="true" /><span>{pausedLine}</span></p>}
           {status === "UNKNOWN" && <p className="landing-status"><Info aria-hidden="true" /><span>{unknownLine}</span></p>}
