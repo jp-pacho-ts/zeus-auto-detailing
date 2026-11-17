@@ -44,3 +44,14 @@ test("cinematic car asset supplies real alpha transparency at a bounded source s
   assert.equal(png[25], 6, "RGBA format preserves the car silhouette");
   assert.ok(png.length < 2 * 1024 * 1024);
 });
+
+test("reference motion scene keeps all care choices and working destinations available before enhancement", () => {
+  const html = render();
+  const work = html.slice(html.indexOf('id="work"'), html.indexOf('id="services"'));
+  assert.match(work, /class="landing-stage-viewport"/);
+  assert.match(work, /class="landing-stage-backdrop" aria-hidden="true"/);
+  assert.match(work, /class="landing-stage-progress" aria-hidden="true"/);
+  assert.equal(work.match(/class="landing-step"/g)?.length, 3);
+  assert.equal(work.match(/href="#services"/g)?.length, 3);
+  assert.doesNotMatch(work, /is-motion-scene|aria-hidden="true"[^>]*>Wash/);
+});

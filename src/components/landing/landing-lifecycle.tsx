@@ -4,6 +4,7 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
+import { mountCareScene } from "./landing-work-scene";
 import "lenis/dist/lenis.css";
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -39,7 +40,6 @@ export function LandingLifecycle() {
       const about = root.querySelector(".landing-editorial-photo");
       if (about) gsap.fromTo(about, { clipPath: "inset(10% 12% 10% 12%)", rotation: -4, x: -65 }, { clipPath: "inset(0% 0% 0% 0%)", rotation: 0, x: 0, ease: "power3.out", scrollTrigger: { trigger: about, start: "top 95%", end: "top 35%", scrub: .6 } });
       gsap.from(root.querySelectorAll(".landing-care-card"), { y: 64, rotationY: 18, transformPerspective: 1000, stagger: .13, duration: .95, ease: "power3.out", scrollTrigger: { trigger: root.querySelector(".landing-care-grid"), start: "top 90%", once: true } });
-      gsap.from(root.querySelectorAll(".landing-step-photo"), { y: 100, rotation: (i) => i % 2 ? 4 : -4, scale: .9, stagger: .16, duration: 1.1, ease: "power3.out", scrollTrigger: { trigger: root.querySelector(".landing-stage-grid"), start: "top 88%", once: true } });
       const bleed = root.querySelector(".landing-bleed");
       if (bleed) gsap.fromTo(bleed.querySelector(".landing-bleed-media"), { clipPath: "inset(10% 8% 10% 8% round 20px)", scale: .92 }, { clipPath: "inset(0% 0% 0% 0% round 0px)", scale: 1, ease: "none", scrollTrigger: { trigger: bleed, start: "top 95%", end: "top 20%", scrub: .7 } });
       root.querySelectorAll(".landing-gallery-grid figure").forEach((frame, i) => gsap.fromTo(frame, { y: i ? 100 : 0 }, { y: i ? -50 : 30, ease: "none", scrollTrigger: { trigger: frame.parentElement, start: "top bottom", end: "bottom top", scrub: .7 } }));
@@ -51,6 +51,29 @@ export function LandingLifecycle() {
       const settle = () => lenis.scrollTo(window.scrollY, { immediate: true, force: true });
       root.addEventListener("focusin", settle); window.addEventListener("hashchange", settle);
       return () => { root.removeEventListener("focusin", settle); window.removeEventListener("hashchange", settle); gsap.ticker.remove(tick); lenis.destroy(); };
+    });
+    media.add("(min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference)", () => {
+      const stage = root.querySelector<HTMLElement>(".landing-stage");
+      return stage ? mountCareScene(stage) : undefined;
+    });
+    media.add("(min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)", () => {
+      const hero = root.querySelector<HTMLElement>(".landing-hero-art"), plane = root.querySelector(".landing-hero-car");
+      if (!hero || !plane) return;
+      gsap.set(plane, { transformPerspective: 1200 });
+      const x = gsap.quickTo(plane, "x", { duration: .75, ease: "power3.out" });
+      const y = gsap.quickTo(plane, "y", { duration: .75, ease: "power3.out" });
+      const turn = gsap.quickTo(plane, "rotationY", { duration: .75, ease: "power3.out" });
+      const tilt = gsap.quickTo(plane, "rotationX", { duration: .75, ease: "power3.out" });
+      const reset = () => { x(0); y(0); turn(0); tilt(0); };
+      const move = (event: PointerEvent) => {
+        if (event.pointerType === "touch" || hero.contains(document.activeElement)) return;
+        const rect = hero.getBoundingClientRect();
+        const dx = Math.max(-1, Math.min(1, (event.clientX - rect.left) / rect.width * 2 - 1));
+        const dy = Math.max(-1, Math.min(1, (event.clientY - rect.top) / rect.height * 2 - 1));
+        x(dx * 10); y(dy * 7); turn(dx * 2.5); tilt(-dy * 1.5);
+      };
+      hero.addEventListener("pointermove", move); hero.addEventListener("pointerleave", reset); hero.addEventListener("focusin", reset);
+      return () => { hero.removeEventListener("pointermove", move); hero.removeEventListener("pointerleave", reset); hero.removeEventListener("focusin", reset); };
     });
     let live = true, scheduled = 0;
     document.fonts.ready.then(() => { if (live) ScrollTrigger.refresh(); });

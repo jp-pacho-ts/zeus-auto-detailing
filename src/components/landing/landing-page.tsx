@@ -80,6 +80,9 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
         { icon: ShieldCheck, title: "Protect", text: "Plan the next step for your finish. Compare graphene packages and their inclusions.", link: "GRAPHENE", cta: "Explore protection" },
       ].map(({ icon: Icon, title, text, link, cta }) => <a className="landing-care-card" href={display ? `#services-${link}` : "#services"} key={title}><Icon aria-hidden="true" /><h3>{title}</h3><p>{text}</p><span>{cta}<ArrowUpRight aria-hidden="true" /></span></a>)}</div></section>
       <section id="work" className="landing-section landing-wrap landing-stage" aria-labelledby="landing-work-title">
+        <div className="landing-stage-viewport">
+        <span className="landing-stage-wipe" aria-hidden="true" />
+        <span className="landing-stage-backdrop" aria-hidden="true">IN THE DETAILS</span>
         <div className="landing-section-heading"><div><p className="landing-eyebrow">03 / Inside the workshop</p><h2 id="landing-work-title">What we do in the shop</h2></div><p className="landing-muted">Real work, photographed at Zeus. A closer look at the care behind the finish.</p></div>
         <div className="landing-stage-grid">
           <div className="landing-stage-names">{STAGES.map((stage) => {
@@ -92,6 +95,8 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
               <a className="landing-step-prices" href={display ? `#services-${stage.category}` : "#services"}>See {stage.name.toLowerCase()} prices<ArrowUpRight aria-hidden="true" /></a>
             </div>;
           })}</div>
+        </div>
+        <div className="landing-stage-progress" aria-hidden="true"><span><i /></span><p>Wash <b /> Detailing <b /> Graphene</p></div>
         </div>
       </section>
       {display ? <LandingServices catalog={display} phone={phone} messenger={brandConfig.facebookMessengerUrl} status={status} /> : <>

@@ -113,6 +113,8 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
 .landing-care-card>span{display:flex;align-items:center;justify-content:space-between;font-size:13px;margin-top:auto}
 .landing-care-card>span svg{width:18px;height:18px}
 .landing-stage-grid{display:block}
+.landing-stage-viewport{position:relative}
+.landing-stage-wipe,.landing-stage-backdrop,.landing-stage-progress{display:none}
 .landing-stage-names{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
 .landing-step{display:flex;flex-direction:column;gap:18px;min-width:0}
 .landing-step h3{font-size:25px;margin:0;order:1}
@@ -123,6 +125,25 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
 .landing-step-prices{order:3;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;font-size:14px;text-decoration:none;border-top:1px solid var(--line);padding-top:8px}
 .landing-step-prices svg{width:18px;height:18px}
 .landing-stage-photos{display:none}
+/* Enhanced only after JS mounts; native stacked/grid content remains the fallback. */
+.landing-stage.is-motion-scene{height:230svh;padding-block:0}
+.is-motion-scene .landing-stage-viewport{position:sticky;top:74px;height:calc(100svh - 74px);display:flex;flex-direction:column;overflow:clip;padding-block:36px 24px;isolation:isolate}
+.is-motion-scene .landing-section-heading{position:relative;z-index:2;margin-bottom:12px;flex:none}
+.is-motion-scene .landing-section-heading h2{font-size:clamp(32px,3.2vw,48px)}
+.is-motion-scene .landing-stage-grid{display:flex;align-items:center;flex:1;min-height:0;position:relative;z-index:2}
+.is-motion-scene .landing-stage-names{display:flex;gap:80px;width:max-content;flex:none;perspective:1400px}
+.is-motion-scene .landing-step{width:clamp(280px,26vw,360px);flex:none;padding:18px;gap:12px;background:var(--card);border:1px solid var(--line);border-top-color:var(--gold);border-radius:14px;transform-style:preserve-3d}
+.is-motion-scene .landing-step:focus-within{transform:none!important}
+.is-motion-scene .landing-step-photo{height:clamp(150px,25svh,250px);aspect-ratio:auto;flex:none}
+.is-motion-scene .landing-step h3{font-size:30px}
+.is-motion-scene .landing-step-links{gap:0 12px}
+.is-motion-scene .landing-stage-backdrop{display:block;position:absolute;top:22%;left:0;font-size:clamp(100px,13vw,200px);font-weight:800;line-height:.9;letter-spacing:-.065em;white-space:nowrap;color:rgb(var(--brand-primary)/.11);pointer-events:none;z-index:0}
+.is-motion-scene .landing-stage-wipe{display:block;position:absolute;top:0;left:-15%;width:130%;height:140%;background:var(--muted);border-top:1px solid var(--gold);pointer-events:none;z-index:-1}
+.is-motion-scene .landing-stage-progress{display:block;position:relative;z-index:2;flex:none;padding-top:20px}
+.landing-stage-progress>span{display:block;height:2px;background:var(--line);position:relative;overflow:hidden}
+.landing-stage-progress i{position:absolute;inset:0;background:var(--gold);transform:scaleX(0);transform-origin:left}
+.landing-stage-progress p{display:flex;justify-content:center;align-items:center;gap:16px;max-width:none;margin:12px 0 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mfg)}
+.landing-stage-progress b{width:3px;height:3px;border-radius:50%;background:var(--gold)}
 .landing-ground-muted{background:var(--muted)}
 .landing-estimate-section{padding-top:0}
 .landing-filter-head{margin-bottom:24px}
