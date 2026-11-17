@@ -7,11 +7,13 @@ require.extensions[".css"] = () => {};
 const { LandingPage } = require("./landing-page") as typeof import("./landing-page");
 const html = () => renderToStaticMarkup(createElement(LandingPage, { catalog: null, status: "OPEN" }));
 
-test("Cinematic hero uses the isolated car image without video downloads or playback controls", () => {
+test("LE correction: hero loops original workshop footage with a poster-first no-JS fallback", () => {
   const markup = html();
-  assert.doesNotMatch(markup, /\bloop=""|Pause video|Play video/);
-  assert.match(markup, /zeus-car\.png/);
-  assert.doesNotMatch(markup, /<video/, "the new hero must not download or start video");
+  assert.match(markup, /<video[^>]*loop=""[^>]*playsInline=""[^>]*preload="none"/);
+  assert.match(markup, /src="\/media\/home\/hero-poster\.jpg"/);
+  assert.match(markup, /srcSet="\/media\/home\/hero-poster-720\.jpg"/);
+  assert.doesNotMatch(markup, /<video[^>]+src=/, "no-JS must not download video");
+  assert.doesNotMatch(markup, /zeus-car\.png/);
 });
 
 test("cinematic flow uses approved process photos and a distinct meaningful closing photo", () => {

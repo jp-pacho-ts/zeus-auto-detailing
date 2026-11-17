@@ -18,7 +18,7 @@ export function LandingLifecycle() {
       const car = root.querySelector(".landing-hero-car"), image = car?.querySelector("img");
       const opening = gsap.timeline({ paused: true, defaults: { ease: "power4.out" } });
       opening.fromTo(root.querySelectorAll(".landing-letter"), { yPercent: 110, rotationX: -75, opacity: .2 }, { yPercent: 0, rotationX: 0, opacity: 1, duration: 1.15, stagger: .085 }, 0);
-      if (car) opening.fromTo(car, { xPercent: 9, y: 65, rotation: -3, scale: 1.12, opacity: .2 }, { xPercent: 0, y: 0, rotation: 0, scale: 1, opacity: 1, duration: 1.65 }, .12);
+      if (car) opening.fromTo(car, { scale: 1.035, opacity: .4 }, { scale: 1, opacity: 1, duration: 1.1 }, .12);
       const beam = root.querySelector(".landing-hero-beam");
       if (beam) opening.fromTo(beam, { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: .8, duration: .6 }, .25).to(beam, { opacity: 0, duration: .8 }, .85);
       const launch = () => { opening.play(); };
@@ -35,7 +35,7 @@ export function LandingLifecycle() {
       lenis.on("scroll", ScrollTrigger.update); gsap.ticker.add(tick);
       const sequence = gsap.timeline({ scrollTrigger: { trigger: root.querySelector(".landing-hero"), start: "top top", end: "bottom top", scrub: .65 } });
       sequence.to(root.querySelector(".landing-word"), { yPercent: -48, scale: 1.18, opacity: .08, ease: "none" }, 0)
-        .to(root.querySelector(".landing-hero-photo"), { xPercent: 16, yPercent: -16, rotation: -7, scale: 1.14, ease: "none" }, 0);
+        .to(root.querySelector(".landing-hero-photo"), { yPercent: -8, scale: 1.04, ease: "none" }, 0);
       const about = root.querySelector(".landing-editorial-photo");
       if (about) gsap.fromTo(about, { clipPath: "inset(10% 12% 10% 12%)", rotation: -4, x: -65 }, { clipPath: "inset(0% 0% 0% 0%)", rotation: 0, x: 0, ease: "power3.out", scrollTrigger: { trigger: about, start: "top 95%", end: "top 35%", scrub: .6 } });
       gsap.from(root.querySelectorAll(".landing-care-card"), { y: 64, rotationY: 18, transformPerspective: 1000, stagger: .13, duration: .95, ease: "power3.out", scrollTrigger: { trigger: root.querySelector(".landing-care-grid"), start: "top 90%", once: true } });

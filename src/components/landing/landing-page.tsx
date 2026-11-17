@@ -6,6 +6,7 @@ import type { LandingStatus } from "@/server/landing/status";
 import { LandingHeader } from "./landing-header";
 import { LandingHeroAction } from "./landing-hero-action";
 import { LandingReviews } from "./landing-reviews";
+import { LandingVideo } from "./landing-video";
 import { LandingScrollFloat } from "./landing-scroll-float";
 import { LandingLifecycle } from "./landing-lifecycle";
 import { CoatingsBleed, LandingServices, type DisplayCatalog } from "./landing-services";
@@ -57,14 +58,14 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
         <div className="landing-hero-art">
           <span className="landing-word" aria-hidden="true">{"ZEUS".split("").map((letter, index) => <span className="landing-letter-mask" key={index}><span className="landing-letter">{letter}</span></span>)}</span>
           <div className="landing-hero-beam" aria-hidden="true" />
-          <div className="landing-hero-photo"><div className="landing-hero-car"><Image src="/media/landing-hero/zeus-car.png" width={1536} height={1024} alt="White car with geometric workshop-light reflections, isolated from the Zeus shop photo" sizes="(max-width: 767px) 94vw, (max-width: 1100px) 75vw, 850px" priority /></div></div>
+          <div className="landing-hero-photo"><LandingVideo /></div>
           <span className="landing-hero-side">Precision. Protection. Pride.</span>
           <span className="landing-hero-location"><MapPin aria-hidden="true" /> Tacloban City, PH</span>
         </div>
         <div className="landing-wrap landing-hero-copy">
-          <p className="landing-eyebrow">Tacloban City / Auto &amp; motorcycle detailing</p>
+          <p className="landing-eyebrow">The art of considered car care</p>
           <h1 id="landing-hero-title"><span className="landing-hero-title">Care beyond the surface<span className="landing-gold-dot">.</span></span><span className="landing-sr"> Car and motorcycle detailing in Tacloban City</span></h1>
-          <p className="landing-lede">From the everyday refresh to a finish worth protecting.</p>
+          <p className="landing-lede">Car and motorcycle detailing in Tacloban City.<br />From the everyday refresh to a finish worth protecting.</p>
           <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-pill landing-outline" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a></div>
           {status === "PAUSED" && <p className="landing-status"><Info aria-hidden="true" /><span>{pausedLine}</span></p>}
           {status === "UNKNOWN" && <p className="landing-status"><Info aria-hidden="true" /><span>{unknownLine}</span></p>}

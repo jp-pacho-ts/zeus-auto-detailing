@@ -33,7 +33,7 @@ test("LE revision: Book now and Manage booking are first-screen actions in every
     assert.match(hero, /href="\/book"[^>]*>Book now/);
     assert.match(hero, /href="\/book\/manage"[^>]*>Manage booking/);
     assert.doesNotMatch(hero, />Call to book<|>Book an appointment</);
-    assert.match(hero, /zeus-car\.png/);
+    assert.match(hero, /<video[^>]*loop=""/);
   }
 });
 
