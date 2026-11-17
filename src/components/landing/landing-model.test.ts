@@ -38,9 +38,7 @@ test("quote failures map to fixed public messages; a non-JSON body never shows p
   for (const status of [400, 409, 429, 500, 502, 503]) assert.doesNotMatch(quoteFailure(status, null, null).message, /call the shop|unexpected token|json/i);
 });
 test("every booking state gives one label and target, on pills and per-service arrows", () => {
-  assert.deepEqual(bookingAction("OPEN", "+630"), { label: "Book an appointment", href: "/book" });
-  assert.deepEqual(bookingAction("PAUSED", "+630"), { label: "Call to book", href: "tel:+630" });
-  assert.deepEqual(bookingAction("UNKNOWN", "+630"), { label: "Check online booking", href: "/book" });
+  assert.deepEqual(bookingAction(), { label: "Book now", href: "/book" });
   assert.deepEqual(serviceArrow(catalog, size, service, "OPEN", "+630"), { label: "Book Wash", href: "/book?service=wash&vehicle=S" });
   assert.deepEqual(serviceArrow(catalog, undefined, service, "OPEN", "+630"), { label: "Book Wash", href: "/book" });
   assert.deepEqual(serviceArrow(catalog, { ...size, code: "XL" }, service, "OPEN", "+630"), { label: "Book Wash", href: "/book" });

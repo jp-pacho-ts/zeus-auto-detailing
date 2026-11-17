@@ -18,7 +18,7 @@ test("LuxAuto page: one local service H1, genuine workshop photos and labelled p
   const html = page("OPEN"), words = text(html);
   assert.equal(html.match(/<h1[\s>]/g)?.length, 1);
   assert.match(html, /<h1[^>]*>.*Care beyond the surface.*Car and motorcycle detailing in Tacloban City.*<\/h1>/);
-  assert.match(html, /class="landing-word" aria-hidden="true">ZEUS</);
+  assert.equal([...html.matchAll(/class="landing-letter">([^<]+)</g)].map((m) => m[1]).join(""), "ZEUS");
   assert.match(html, /id="gallery"/);
   assert.match(words, /Gallery photos will appear here\./);
   assert.match(words, /Customer feedback will appear here\./);
@@ -30,7 +30,7 @@ test("LuxAuto page: one local service H1, genuine workshop photos and labelled p
 
 test("gold budget: header CTA is neutral; gold only on hero, band and phone-bar pills; the band has one hairline", () => {
   const html = page("OPEN");
-  assert.match(html, /class="landing-pill landing-outline landing-header-cta" href="\/book">Book an appointment</);
+  assert.match(html, /class="landing-pill landing-outline landing-header-cta" href="\/book">Book now</);
   assert.equal(html.match(/landing-pill landing-gold/g)?.length, 3);
   assert.equal(html.match(/landing-hairline/g)?.length, 1);
 });

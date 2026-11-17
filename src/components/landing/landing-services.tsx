@@ -31,7 +31,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
   const tabs = useRef<HTMLDivElement>(null);
   const revision = useRef(0);
   const [version, setVersion] = useState(0);
-  const booking = bookingAction(status, phone);
+  const booking = bookingAction();
   const size = catalog.vehicleCategories.find((s) => s.id === sizeId);
   const bodies = size ? BODY_TYPES_BY_SIZE[size.code] : undefined;
   const key = selectionKey(sizeId, body, lines);

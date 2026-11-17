@@ -8,5 +8,5 @@ const subscribe = (notify: () => void) => { const media = matchMedia(query); med
 export function LandingHeroAction({ href, label }: { href: string; label: string }) {
   const enabled = useSyncExternalStore(subscribe, () => matchMedia(query).matches, () => false);
   const [focused, setFocused] = useState(false);
-  return <Magnet disabled={!enabled || focused} padding={24} magnetStrength={12} maxOffset={5} wrapperClassName="landing-magnet" onFocusCapture={() => setFocused(true)} onBlurCapture={() => setFocused(false)}><a className="landing-pill landing-gold" href={href}>{label}<ArrowUpRight aria-hidden="true" /></a></Magnet>;
+  return <Magnet disabled={!enabled || focused} padding={32} magnetStrength={4} maxOffset={9} tilt={3} scale={1.025} wrapperClassName="landing-magnet" onFocusCapture={() => setFocused(true)} onBlurCapture={() => setFocused(false)}><a className="landing-pill landing-gold" href={href}>{label}<span className="landing-pill-icon"><ArrowUpRight aria-hidden="true" /></span></a></Magnet>;
 }

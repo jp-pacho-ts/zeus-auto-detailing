@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
 require.extensions[".css"] = () => {};
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { LandingPage } = require("./landing-page") as typeof import("./landing-page");
@@ -23,4 +24,23 @@ test("new closing CTA stays honest in every booking state", () => {
   assert.doesNotMatch(render("PAUSED"), /Book online, or call/);
   assert.match(render("UNKNOWN"), /We could not check online booking just now/);
   assert.match(render(), /href="\/book"/);
+});
+
+test("LE revision: Book now and Manage booking are first-screen actions in every booking state", () => {
+  for (const status of ["OPEN", "PAUSED", "UNKNOWN"] as const) {
+    const html = render(status);
+    const hero = html.slice(html.indexOf('id="top"'), html.indexOf('id="about"'));
+    assert.match(hero, /href="\/book"[^>]*>Book now/);
+    assert.match(hero, /href="\/book\/manage"[^>]*>Manage booking/);
+    assert.doesNotMatch(hero, />Call to book<|>Book an appointment</);
+    assert.match(hero, /zeus-car\.png/);
+  }
+});
+
+test("cinematic car asset supplies real alpha transparency at a bounded source size", () => {
+  const png = readFileSync("public/media/landing-hero/zeus-car.png");
+  assert.equal(png.toString("hex", 0, 8), "89504e470d0a1a0a");
+  assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [1536, 1024]);
+  assert.equal(png[25], 6, "RGBA format preserves the car silhouette");
+  assert.ok(png.length < 2 * 1024 * 1024);
 });

@@ -6,6 +6,7 @@ import type { LandingStatus } from "@/server/landing/status";
 import { LandingHeader } from "./landing-header";
 import { LandingHeroAction } from "./landing-hero-action";
 import { LandingReviews } from "./landing-reviews";
+import { LandingScrollFloat } from "./landing-scroll-float";
 import { LandingLifecycle } from "./landing-lifecycle";
 import { CoatingsBleed, LandingServices, type DisplayCatalog } from "./landing-services";
 import { LandingFaq } from "./landing-faq";
@@ -24,7 +25,7 @@ const STAGES = [
 export function LandingPage({ catalog, status }: { catalog: BookingCatalog | null; status: LandingStatus }) {
   const phone = brandConfig.contactPhone.replace(/\s/g, "");
   const tel = `tel:${phone}`;
-  const booking = bookingAction(status, phone);
+  const booking = bookingAction();
   // Explicit public display projection; release identifiers never cross into the client component props.
   const display: DisplayCatalog | null = catalog ? { vehicleCategories: catalog.vehicleCategories, services: catalog.services.map((service) => ({ ...service, productName: null, hardness: null, warrantyMonths: null })), addOnCompatibility: catalog.addOnCompatibility } : null;
   const directions = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(brandConfig.address)}`;
@@ -50,28 +51,29 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
     <a className="landing-skip" href="#landing-main">Skip to content</a>
     <div className="landing-preview-note">Website preview <span aria-hidden="true">/</span> Zeus Auto Detailing, Tacloban City</div>
     <div className="landing-progress" aria-hidden="true" />
-    <LandingHeader logo={brandConfig.logoUrl} label={booking.label} href={booking.href} phone={phone} />
+    <LandingHeader logo={brandConfig.logoUrl} label={booking.label} href={booking.href} />
     <main id="landing-main">
       <section id="top" className="landing-hero" aria-labelledby="landing-hero-title">
         <div className="landing-hero-art">
-          <span className="landing-word" aria-hidden="true">ZEUS</span>
-          <div className="landing-hero-photo"><picture><source media="(max-width: 767px)" srcSet="/media/home/hero-poster-720.jpg" /><img src="/media/home/hero-poster.jpg" width="1920" height="1080" alt="White car inside the Zeus detailing shop, with workshop lights reflected across its finish" fetchPriority="high" /></picture></div>
+          <span className="landing-word" aria-hidden="true">{"ZEUS".split("").map((letter, index) => <span className="landing-letter-mask" key={index}><span className="landing-letter">{letter}</span></span>)}</span>
+          <div className="landing-hero-beam" aria-hidden="true" />
+          <div className="landing-hero-photo"><div className="landing-hero-car"><Image src="/media/landing-hero/zeus-car.png" width={1536} height={1024} alt="White car with geometric workshop-light reflections, isolated from the Zeus shop photo" sizes="(max-width: 767px) 94vw, (max-width: 1100px) 75vw, 850px" priority /></div></div>
           <span className="landing-hero-side">Precision. Protection. Pride.</span>
           <span className="landing-hero-location"><MapPin aria-hidden="true" /> Tacloban City, PH</span>
         </div>
         <div className="landing-wrap landing-hero-copy">
-          <p className="landing-eyebrow">The art of considered car care</p>
+          <p className="landing-eyebrow">Tacloban City / Auto &amp; motorcycle detailing</p>
           <h1 id="landing-hero-title"><span className="landing-hero-title">Care beyond the surface<span className="landing-gold-dot">.</span></span><span className="landing-sr"> Car and motorcycle detailing in Tacloban City</span></h1>
-          <p className="landing-lede">Car and motorcycle detailing in Tacloban City.<br />From the everyday refresh to a finish worth protecting.</p>
-          <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-text-link" href="#services">Explore our services<ArrowUpRight aria-hidden="true" /></a></div>
+          <p className="landing-lede">From the everyday refresh to a finish worth protecting.</p>
+          <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-pill landing-outline" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a></div>
           {status === "PAUSED" && <p className="landing-status"><Info aria-hidden="true" /><span>{pausedLine}</span></p>}
           {status === "UNKNOWN" && <p className="landing-status"><Info aria-hidden="true" /><span>{unknownLine}</span></p>}
-          <a className="landing-scroll-cue" href="#about" aria-label="Discover the Zeus approach"><ArrowDown aria-hidden="true" /></a>
+          <a className="landing-scroll-cue" href="#about" aria-label="Discover the Zeus approach"><span>Discover Zeus</span><ArrowDown aria-hidden="true" /></a>
         </div>
       </section>
       <div className="landing-facts landing-wrap" aria-label="Zeus at a glance"><div><span>Built around your vehicle</span><strong>Cars &amp; motorcycles</strong></div><div><span>Your local detailing shop</span><strong>Tacloban City</strong></div><div><span>A clearer starting point</span><strong>Size-specific pricing</strong></div></div>
       <section id="about" className="landing-section landing-wrap landing-about" aria-labelledby="landing-about-title"><div className="landing-editorial-photo">{photo("full-detailing", "(max-width: 767px) 100vw, 50vw")}<span className="landing-photo-caption">In the shop. In the details.</span></div><div className="landing-about-copy"><p className="landing-eyebrow">01 / The Zeus approach</p><h2 id="landing-about-title">For the pride<br />in every drive<span className="landing-gold-dot">.</span></h2><p>Your vehicle is part of your everyday life. Looking after it should feel just as considered.</p><p className="landing-muted">At Zeus, car and motorcycle care brings together washing, detailing and surface protection in one Tacloban shop. Start with what your vehicle needs today. We&apos;ll help you understand the next step.</p><a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Talk to us about your vehicle<ArrowUpRight aria-hidden="true" /></a></div></section>
-      <section id="care" className="landing-section landing-wrap landing-care" aria-labelledby="landing-care-title"><div className="landing-section-heading"><div><p className="landing-eyebrow">02 / Find your care</p><h2 id="landing-care-title">Different needs.<br />The same attention<span className="landing-gold-dot">.</span></h2></div><p className="landing-muted">A regular clean, a deeper reset or the next layer of protection. Choose your starting point.</p></div><div className="landing-care-grid">{[
+      <section id="care" className="landing-section landing-wrap landing-care" aria-labelledby="landing-care-title"><div className="landing-section-heading"><div><p className="landing-eyebrow">02 / Find your care</p><LandingScrollFloat id="landing-care-title" text="Different needs. The same attention." /></div><p className="landing-muted">A regular clean, a deeper reset or the next layer of protection. Choose your starting point.</p></div><div className="landing-care-grid">{[
         { icon: Waves, title: "Refresh", text: "For the everyday drive. Explore washes for your car or motorcycle.", link: "WASH", cta: "Explore washes" },
         { icon: Sparkles, title: "Restore", text: "Go beyond the wash. Find detailing options for a more considered reset.", link: "DETAILING", cta: "Explore detailing" },
         { icon: ShieldCheck, title: "Protect", text: "Plan the next step for your finish. Compare graphene packages and their inclusions.", link: "GRAPHENE", cta: "Explore protection" },

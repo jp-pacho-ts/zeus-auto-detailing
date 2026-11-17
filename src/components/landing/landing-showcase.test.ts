@@ -69,10 +69,10 @@ test("FAQ: only the confirmed questions, as buttons; answers follow the booking 
   assert.doesNotMatch(open, /How long does a coating last|deposit|How can I pay|wait at the shop/, "owner items stay out");
 });
 
-test("Hero: responsive genuine car photographs replace video; booking status remains visibly identified", () => {
+test("Hero: responsive isolated car image replaces video; booking status remains visibly identified", () => {
   const html = page("PAUSED");
-  assert.match(html, /<source media="\(max-width: 767px\)" srcSet="\/media\/home\/hero-poster-720\.jpg"/);
-  assert.match(html, /src="\/media\/home\/hero-poster\.jpg"/);
+  assert.match(html, /sizes="\(max-width: 767px\) 94vw/);
+  assert.match(html, /zeus-car\.png/);
   assert.doesNotMatch(html, /<video/);
   assert.match(html, /class="landing-status"><svg[^>]*lucide-info/);
   const css = readFileSync("src/components/landing/landing.css", "utf8");

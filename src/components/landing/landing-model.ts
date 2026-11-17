@@ -41,10 +41,9 @@ export function quoteFailure(status: number, answer: QuoteAnswer, retryAfter: st
   if (status === 503 || !answer) return { message: "Prices are unavailable right now." };
   return { message: answer.error?.message ?? "Could not get an estimate. Try again later." };
 }
-// Section 5.2: one label and target per booking state, shared by every gold pill.
-export function bookingAction(status: LandingStatus, phone: string): { label: string; href: string } {
-  if (status === "PAUSED") return { label: "Call to book", href: `tel:${phone}` };
-  return { label: status === "OPEN" ? "Book an appointment" : "Check online booking", href: "/book" };
+// LE revision: the landing action always opens booking. The booking route owns availability.
+export function bookingAction(): { label: string; href: string } {
+  return { label: "Book now", href: "/book" };
 }
 // 17.4: the card arrow books that one service; it never depends on the estimate selection.
 export function serviceArrow(catalog: Pick<BookingCatalog, "services">, size: VehicleCategory | undefined, service: Pick<ServicePackage, "id" | "name">, status: LandingStatus, phone: string): { label: string; href: string } {
