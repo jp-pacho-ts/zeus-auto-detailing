@@ -1,10 +1,11 @@
 import Image from "next/image";
-import { CircleAlert, Info, MessageCircle, Phone } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Check, CircleAlert, Info, MapPin, MessageCircle, Phone, ShieldCheck, Sparkles, Waves } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import type { LandingStatus } from "@/server/landing/status";
 import { LandingHeader } from "./landing-header";
-import { LandingVideo } from "./landing-video";
+import { LandingHeroAction } from "./landing-hero-action";
+import { LandingReviews } from "./landing-reviews";
 import { LandingLifecycle } from "./landing-lifecycle";
 import { CoatingsBleed, LandingServices, type DisplayCatalog } from "./landing-services";
 import { LandingFaq } from "./landing-faq";
@@ -12,14 +13,14 @@ import { landingPhoto } from "./landing-photos";
 import { bookingAction } from "./landing-model";
 import "./landing.css";
 
-// P1-90 "What we do": one step per category, its own work photo (identity 5.3), no numbering (P1-89: not a fixed sequence).
+// Each care category uses its own approved work photo; these are alternatives, not a fixed process.
 const STAGES = [
   { category: "WASH", name: "Wash", photo: "signature-wash" },
   { category: "DETAILING", name: "Detailing", photo: "exterior-detailing" },
   { category: "GRAPHENE", name: "Graphene", photo: "arcane-graphene" },
 ] as const;
 
-// Copy: the P1-88 17.12.3 deck, the P1-89 approved strings and the P1-90 strategy 9.1/9.2 strings; {values} come from brandConfig or the catalog.
+// Contact and pricing facts come from brandConfig and the current catalog.
 export function LandingPage({ catalog, status }: { catalog: BookingCatalog | null; status: LandingStatus }) {
   const phone = brandConfig.contactPhone.replace(/\s/g, "");
   const tel = `tel:${phone}`;
@@ -47,47 +48,61 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
   ];
   return <div className="landing" data-landing-preview>
     <a className="landing-skip" href="#landing-main">Skip to content</a>
-    <div className="landing-preview-note">Website preview. Some sections are not finished yet.</div>
+    <div className="landing-preview-note">Website preview <span aria-hidden="true">/</span> Zeus Auto Detailing, Tacloban City</div>
+    <div className="landing-progress" aria-hidden="true" />
     <LandingHeader logo={brandConfig.logoUrl} label={booking.label} href={booking.href} phone={phone} />
     <main id="landing-main">
-      <section id="top" className="landing-hero">
-        <LandingVideo />
-        <div className="landing-wrap landing-hero-copy">
+      <section id="top" className="landing-hero" aria-labelledby="landing-hero-title">
+        <div className="landing-hero-art">
           <span className="landing-word" aria-hidden="true">ZEUS</span>
-          <h1>Car and motorcycle detailing in Tacloban City</h1>
-          <p className="landing-lede">Washes, detailing, graphene coating, window tint, paint protection film and panel repaint.</p>
-          <div id="landing-hero-actions" className="landing-actions">{gold()}<a className="landing-pill landing-outline" href="#services">See services and prices</a></div>
+          <div className="landing-hero-photo"><picture><source media="(max-width: 767px)" srcSet="/media/home/hero-poster-720.jpg" /><img src="/media/home/hero-poster.jpg" width="1920" height="1080" alt="White car inside the Zeus detailing shop, with workshop lights reflected across its finish" fetchPriority="high" /></picture></div>
+          <span className="landing-hero-side">Precision. Protection. Pride.</span>
+          <span className="landing-hero-location"><MapPin aria-hidden="true" /> Tacloban City, PH</span>
+        </div>
+        <div className="landing-wrap landing-hero-copy">
+          <p className="landing-eyebrow">The art of considered car care</p>
+          <h1 id="landing-hero-title"><span className="landing-hero-title">Care beyond the surface<span className="landing-gold-dot">.</span></span><span className="landing-sr"> Car and motorcycle detailing in Tacloban City</span></h1>
+          <p className="landing-lede">Car and motorcycle detailing in Tacloban City.<br />From the everyday refresh to a finish worth protecting.</p>
+          <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-text-link" href="#services">Explore our services<ArrowUpRight aria-hidden="true" /></a></div>
           {status === "PAUSED" && <p className="landing-status"><Info aria-hidden="true" /><span>{pausedLine}</span></p>}
           {status === "UNKNOWN" && <p className="landing-status"><Info aria-hidden="true" /><span>{unknownLine}</span></p>}
-          <p className="landing-hero-address">{brandConfig.location} · <a href={tel}>Call {brandConfig.displayPhone} to confirm hours</a></p>
+          <a className="landing-scroll-cue" href="#about" aria-label="Discover the Zeus approach"><ArrowDown aria-hidden="true" /></a>
         </div>
       </section>
+      <div className="landing-facts landing-wrap" aria-label="Zeus at a glance"><div><span>Built around your vehicle</span><strong>Cars &amp; motorcycles</strong></div><div><span>Your local detailing shop</span><strong>Tacloban City</strong></div><div><span>A clearer starting point</span><strong>Size-specific pricing</strong></div></div>
+      <section id="about" className="landing-section landing-wrap landing-about" aria-labelledby="landing-about-title"><div className="landing-editorial-photo">{photo("full-detailing", "(max-width: 767px) 100vw, 50vw")}<span className="landing-photo-caption">In the shop. In the details.</span></div><div className="landing-about-copy"><p className="landing-eyebrow">01 / The Zeus approach</p><h2 id="landing-about-title">For the pride<br />in every drive<span className="landing-gold-dot">.</span></h2><p>Your vehicle is part of your everyday life. Looking after it should feel just as considered.</p><p className="landing-muted">At Zeus, car and motorcycle care brings together washing, detailing and surface protection in one Tacloban shop. Start with what your vehicle needs today. We&apos;ll help you understand the next step.</p><a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Talk to us about your vehicle<ArrowUpRight aria-hidden="true" /></a></div></section>
+      <section id="care" className="landing-section landing-wrap landing-care" aria-labelledby="landing-care-title"><div className="landing-section-heading"><div><p className="landing-eyebrow">02 / Find your care</p><h2 id="landing-care-title">Different needs.<br />The same attention<span className="landing-gold-dot">.</span></h2></div><p className="landing-muted">A regular clean, a deeper reset or the next layer of protection. Choose your starting point.</p></div><div className="landing-care-grid">{[
+        { icon: Waves, title: "Refresh", text: "For the everyday drive. Explore washes for your car or motorcycle.", link: "WASH", cta: "Explore washes" },
+        { icon: Sparkles, title: "Restore", text: "Go beyond the wash. Find detailing options for a more considered reset.", link: "DETAILING", cta: "Explore detailing" },
+        { icon: ShieldCheck, title: "Protect", text: "Plan the next step for your finish. Compare graphene packages and their inclusions.", link: "GRAPHENE", cta: "Explore protection" },
+      ].map(({ icon: Icon, title, text, link, cta }) => <a className="landing-care-card" href={display ? `#services-${link}` : "#services"} key={title}><Icon aria-hidden="true" /><h3>{title}</h3><p>{text}</p><span>{cta}<ArrowUpRight aria-hidden="true" /></span></a>)}</div></section>
       <section id="work" className="landing-section landing-wrap landing-stage" aria-labelledby="landing-work-title">
-        <h2 id="landing-work-title">What we do in the shop</h2>
+        <div className="landing-section-heading"><div><p className="landing-eyebrow">03 / Inside the workshop</p><h2 id="landing-work-title">What we do in the shop</h2></div><p className="landing-muted">Real work, photographed at Zeus. A closer look at the care behind the finish.</p></div>
         <div className="landing-stage-grid">
           <div className="landing-stage-names">{STAGES.map((stage) => {
             const names = display?.services.filter((s) => s.category === stage.category && s.type === "BASE") ?? [];
             return <div key={stage.category} className="landing-step" data-step={stage.category}>
               <h3 className="landing-step-name">{stage.name}</h3>
-              {/* Below 1024 px the photo sits with its step; from 1024 px the photos pass in their own column. Only one copy is displayed at any width. */}
+              {/* One responsive photograph per category, shared by desktop and phone. */}
               <div className="landing-step-photo">{photo(stage.photo, "(max-width: 767px) 100vw, 60vw")}</div>
               {names.length > 0 && <ul className="landing-step-links">{names.map((s) => <li key={s.id}><a href={`#service-${s.slug}`}>{s.name}</a></li>)}</ul>}
-              <a className="landing-step-prices" href={`#services-${stage.category}`}>See {stage.name.toLowerCase()} prices</a>
+              <a className="landing-step-prices" href={display ? `#services-${stage.category}` : "#services"}>See {stage.name.toLowerCase()} prices<ArrowUpRight aria-hidden="true" /></a>
             </div>;
           })}</div>
-          <div className="landing-stage-photos">{STAGES.map((stage) => <div key={stage.category} className="landing-stage-photo" data-step={stage.category}>{photo(stage.photo, "(min-width: 1024px) 700px, 100vw")}</div>)}</div>
         </div>
       </section>
       {display ? <LandingServices catalog={display} phone={phone} messenger={brandConfig.facebookMessengerUrl} status={status} /> : <>
-        <section id="services" className="landing-section landing-wrap landing-ground-muted"><h2>Services and prices</h2>{unavailable}<div id="estimate"><h2>Estimate your price</h2>{unavailable}</div></section>
+        <section id="services" className="landing-section landing-wrap landing-ground-muted"><p className="landing-eyebrow">04 / Care, made clear</p><h2>Services and prices</h2><p className="landing-muted">Choose care that fits your vehicle. Prices and package options will appear when the catalog is available.</p>{unavailable}<div id="estimate" className="landing-unavailable-estimate"><h3>Estimate your price</h3><p>Tell us your vehicle and the care you have in mind.</p><a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Ask for an estimate<ArrowUpRight aria-hidden="true" /></a></div></section>
         <section id="coatings" className="landing-coatings"><CoatingsBleed /><div className="landing-wrap landing-compare"><p><a href={brandConfig.facebookMessengerUrl}>Ask about coatings on Messenger</a></p></div></section>
       </>}
       <section id="gallery" className="landing-section landing-wrap landing-gallery" aria-labelledby="landing-gallery-title">
-        <h2 id="landing-gallery-title">Gallery</h2>
-        <div className="landing-gallery-slots"><p>Gallery photos will appear here.</p><div className="landing-gallery-small" aria-hidden="true" /></div>
+        <div className="landing-section-heading"><div><p className="landing-eyebrow">A closer look</p><h2 id="landing-gallery-title">The details tell the story<span className="landing-gold-dot">.</span></h2></div><p className="landing-muted">A glimpse of our process, from the final wipe to the care beneath a coating.</p></div>
+        <div className="landing-gallery-grid"><figure>{photo("signature-wash", "(max-width: 767px) 100vw, 60vw")}<figcaption>The finishing touch <span>Signature wash</span></figcaption></figure><figure>{photo("eclipse-graphene", "(max-width: 767px) 100vw, 40vw")}<figcaption>Beyond the shine <span>Coating application</span></figcaption></figure></div><div className="landing-gallery-slots"><p>Finished-results gallery <span>Gallery photos will appear here.</span></p></div>
       </section>
+      <LandingReviews />
       <LandingFaq items={faq} />
       <section id="visit" className="landing-section landing-wrap landing-ground-muted">
+        <p className="landing-eyebrow">06 / Come find us</p>
         <h2>Visit the shop</h2>
         <p className="landing-visit-address">{brandConfig.location}</p>
         <div className="landing-visit">
@@ -107,21 +122,20 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
             <p>{brandConfig.businessName} details cars and motorcycles at {brandConfig.location}.</p>
           </div>
         </div>
-        <aside className="landing-feedback"><h3>Customer feedback</h3><p className="landing-muted">Customer feedback will appear here.</p></aside>
+        <p className="landing-visit-note"><Check aria-hidden="true" /> Not sure which service fits? Call or message us before your visit.</p>
       </section>
       <section className="landing-band" aria-labelledby="landing-band-title">
         <div className="landing-band-stage">
           <div className="landing-wrap landing-band-copy">
             <span className="landing-hairline" aria-hidden="true" />
-            <h2 id="landing-band-title" className="landing-band-line">Book your visit</h2>
-            <p className="landing-band-line landing-muted">{status === "PAUSED" ? pausedLine : `Book online, or call ${brandConfig.displayPhone} to ask about hours and prices.`}</p>
+            <p className="landing-eyebrow">Your next drive starts here</p><h2 id="landing-band-title" className="landing-band-line">Give your vehicle<br />the attention it deserves<span className="landing-gold-dot">.</span></h2>
+            <p className="landing-band-line landing-muted">{status === "PAUSED" ? pausedLine : status === "UNKNOWN" ? unknownLine : `Planning a visit? Book online, or call ${brandConfig.displayPhone} to ask about hours and prices.`}</p>
             <div id="landing-closing-cta" className="landing-actions landing-band-line">{gold()}<a href={tel}>Call {brandConfig.displayPhone}</a></div>
           </div>
           <div className="landing-band-media">
-            {/* Approved DSC00749 derivative: hands, polisher and hood remain visible through the decorative aperture. */}
+            {/* Approved workshop derivative; the closing CTA stays readable over a static scrim. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/media/landing/full-detailing.webp" alt="Detailer machine-polishing the hood of a white pickup" width="1600" height="1200" loading="lazy" decoding="async" />
-            <span className="landing-door landing-door-left" aria-hidden="true" /><span className="landing-door landing-door-right" aria-hidden="true" />
           </div>
         </div>
       </section>

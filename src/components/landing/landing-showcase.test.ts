@@ -69,10 +69,11 @@ test("FAQ: only the confirmed questions, as buttons; answers follow the booking 
   assert.doesNotMatch(open, /How long does a coating last|deposit|How can I pay|wait at the shop/, "owner items stay out");
 });
 
-test("Hero: phones get the whole-car still photo; desktop keeps the terminal poster; the status line carries an icon, not a rule", () => {
+test("Hero: responsive genuine car photographs replace video; booking status remains visibly identified", () => {
   const html = page("PAUSED");
   assert.match(html, /<source media="\(max-width: 767px\)" srcSet="\/media\/home\/hero-poster-720\.jpg"/);
-  assert.match(html, /src="\/media\/preview\/hero-terminal\.webp"/);
+  assert.match(html, /src="\/media\/home\/hero-poster\.jpg"/);
+  assert.doesNotMatch(html, /<video/);
   assert.match(html, /class="landing-status"><svg[^>]*lucide-info/);
   const css = readFileSync("src/components/landing/landing.css", "utf8");
   assert.doesNotMatch(css, /border-left:3px/, "no side-tab rules (impeccable detect, landing.css:64 and :147)");
@@ -85,18 +86,20 @@ test("Cards: chips sit on the photo, each card has its service anchor, and Kenzo
   assert.match(services, /class="landing-photo landing-photo-contain"/);
 });
 
-test("Visit: the address stands large above equal cards, and the feedback slot sits in Visit; the header lists FAQ", () => {
+test("Visit: address, contact and guidance remain prominent; feedback has its own navigation destination", () => {
   const html = page(), visit = section(html, "visit");
   assert.match(visit, /<p class="landing-visit-address">Brgy 95 Caibaan, Tacloban City<\/p>/);
-  assert.match(visit, /Customer feedback will appear here\./);
+  assert.match(visit, /Not sure which service fits\?/);
+  assert.match(section(html, "reviews"), /Customer feedback will appear here\./);
+  assert.match(html, /href="#reviews"[^>]*>Reviews</);
   assert.match(html, /<nav class="landing-desktop-nav"[^>]*>.*href="#faq"[^>]*>FAQ</);
 });
 
-test("Barlow Condensed is used for the outlined ZEUS word only (CEO, P1-90)", () => {
+test("LuxAuto identity uses local DM Sans throughout, including the monumental Zeus word", () => {
   const css = readFileSync("src/components/landing/landing.css", "utf8").replace(/\s+/g, "");
-  const rules = [...css.matchAll(/([^{}]+)\{[^}]*LandingDisplay[^}]*\}/g)].map((m) => m[1]).filter((s) => !s.includes("@font-face"));
-  assert.ok(rules.length > 0);
-  for (const selector of rules) assert.match(selector, /^\.landing-word$/, selector);
+  assert.match(css, /@font-face\{font-family:LandingBody;src:url\('\/fonts\/home\/DMSans.ttf'\)/);
+  assert.match(css, /\.landing-word\{[^}]*LandingBody/);
+  assert.doesNotMatch(css, /LandingDisplay|BarlowCondensed/);
 });
 
 test("UI/UX F1: a graphene package with no catalog inclusions is left out of the comparison; under two packages, no comparison", () => {

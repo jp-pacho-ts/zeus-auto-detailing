@@ -123,7 +123,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
   const step = (by: number) => { const i = CATEGORIES.indexOf(category as typeof CATEGORIES[number]); chooseTab(CATEGORIES[(i + by + 6) % 6]); focusTab(i + by); };
   return <>
     <section id="services" className="landing-section landing-wrap landing-ground-muted">
-      <div className="landing-filter-head"><h2>Services and prices</h2><p className="landing-muted">Choose your vehicle size to see its price.</p></div>
+      <div className="landing-filter-head"><p className="landing-eyebrow">04 / Care, made clear</p><h2>Services and prices</h2><p className="landing-muted">Choose your vehicle size to see its price.</p></div>
       {/* P1-90 option P1: the size control sticks under the header while Services is on screen, so "Price depends on size" has its control at hand. */}
       <div className="landing-size-bar"><div className="landing-filter-selects">
           <label className="landing-select" htmlFor="landing-size"><span>Vehicle size</span><select id="landing-size" value={sizeId} onChange={(e) => setVehicle(e.target.value)}><option value="">Choose a size</option>{catalog.vehicleCategories.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>

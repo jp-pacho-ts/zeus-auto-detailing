@@ -14,10 +14,10 @@ const catalog = { catalogReleaseId: "release", catalogVersion: 1, vehicleCategor
 const page = (status: "OPEN" | "PAUSED" | "UNKNOWN") => renderToStaticMarkup(createElement(LandingPage, { catalog, status }));
 const text = (html: string) => html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ");
 
-test("approved cinematic page: deck H1, generic gallery/feedback only, no dashes or 'coming soon' filler", () => {
+test("LuxAuto page: one local service H1, genuine workshop photos and labelled proof slots", () => {
   const html = page("OPEN"), words = text(html);
   assert.equal(html.match(/<h1[\s>]/g)?.length, 1);
-  assert.match(html, /<h1>Car and motorcycle detailing in Tacloban City<\/h1>/);
+  assert.match(html, /<h1[^>]*>.*Care beyond the surface.*Car and motorcycle detailing in Tacloban City.*<\/h1>/);
   assert.match(html, /class="landing-word" aria-hidden="true">ZEUS</);
   assert.match(html, /id="gallery"/);
   assert.match(words, /Gallery photos will appear here\./);
@@ -46,12 +46,12 @@ test("booking states reach every pill and card arrow; PAUSED arrows call the sho
   assert.match(unknown, /aria-label="Book Basic Wash"/);
 });
 
-test("no JS: the toggles are buttons, disabled until hydration; the band image is in the HTML with doors marked decorative", () => {
+test("no JS: toggles remain disabled until hydration and the closing workshop image is visible without doors", () => {
   const html = page("OPEN");
   assert.match(html, /<button type="button" class="landing-toggle" aria-pressed="false" disabled="">/);
   assert.match(html, /class="landing-band-media"><img src="\/media\/landing\/full-detailing\.webp"/);
   assert.match(html, /alt="Detailer machine-polishing the hood of a white pickup"/);
-  assert.equal(html.match(/class="landing-door [^"]+" aria-hidden="true"/g)?.length, 2);
+  assert.doesNotMatch(html, /class="landing-door/);
 });
 
 test("photos (17.13): a photo only on its own service, lazy next/image with size and alt; other cards keep the labelled frame", () => {
