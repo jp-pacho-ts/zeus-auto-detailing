@@ -69,12 +69,12 @@ test("FAQ: only the confirmed questions, as buttons; answers follow the booking 
   assert.doesNotMatch(open, /How long does a coating last|deposit|How can I pay|wait at the shop/, "owner items stay out");
 });
 
-test("Hero: original responsive posters support looping workshop video; booking status stays visible", () => {
+test("Hero: original responsive posters support looping workshop video; availability remains available outside the hero", () => {
   const html = page("PAUSED");
   assert.match(html, /srcSet="\/media\/home\/hero-poster-720\.jpg"/);
   assert.match(html, /src="\/media\/home\/hero-poster\.jpg"/);
   assert.match(html, /<video[^>]*loop=""/);
-  assert.match(html, /class="landing-status"><svg[^>]*lucide-info/);
+  assert.match(html, /Online booking is paused\. Call or message us to book\./);
   const css = readFileSync("src/components/landing/landing.css", "utf8");
   assert.doesNotMatch(css, /border-left:3px/, "no side-tab rules (impeccable detect, landing.css:64 and :147)");
 });

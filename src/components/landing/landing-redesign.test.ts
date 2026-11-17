@@ -63,3 +63,13 @@ test("minimal hero keeps the headline and booking actions without decorative loc
   assert.doesNotMatch(hero, /landing-video-control|Pause video|landing-lede/);
   assert.match(html, /<header class="landing-header" data-scrolled="false"/);
 });
+
+test("hero keeps direct booking actions without availability notices in all states", () => {
+  for (const state of ["OPEN", "PAUSED", "UNKNOWN"] as const) {
+    const html = render(state);
+    const hero = html.slice(html.indexOf('id="top"'), html.indexOf('class="landing-facts'));
+    assert.doesNotMatch(hero, /Online booking is paused|We could not check online booking|landing-status/);
+    assert.match(hero, /href="\/book"/);
+    assert.match(hero, /class="landing-hero-manage" href="\/book\/manage"/);
+  }
+});

@@ -372,3 +372,13 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
 .landing-hero-copy h1{font-size:clamp(36px,4.2vw,62px)}
 .landing-desktop-nav a,.landing-header-manage{color:var(--fg)!important}
 @media(max-width:767px){.landing-header{height:61px;margin-bottom:-61px}.landing-hero{height:100svh;min-height:500px;max-height:none}.landing-hero-copy{padding-bottom:20px}.landing-hero-copy h1{font-size:34px}.landing-video-frame img,.landing-video-frame video{object-position:55% 50%}}
+/* Place the service headline beside the footage, with one dominant action. */
+.landing-hero-copy{text-align:left;padding-bottom:64px}
+.landing-hero-copy h1{font-size:clamp(42px,5.4vw,78px);line-height:1.04}
+.landing-hero-title{max-width:18ch;margin:0;text-wrap:balance}
+.landing-hero-copy .landing-actions{justify-content:flex-start;gap:28px;margin-top:28px}
+.landing-hero-manage{display:inline-flex;align-items:center;gap:12px;min-height:48px;font-size:13px;text-decoration:none;color:var(--fg)}
+.landing-hero-manage svg{width:16px;height:16px}
+.landing-hero-manage:hover{text-decoration:underline}
+.landing-hero-copy .landing-scroll-cue{margin-top:24px}
+@media(max-width:767px){.landing-hero-copy{padding-bottom:28px}.landing-hero-copy h1{font-size:clamp(36px,9vw,48px)}.landing-hero-title{max-width:16ch;margin:0}.landing-hero-copy .landing-actions{gap:20px;margin-top:24px}.landing-hero-manage{font-size:12px;gap:8px}}

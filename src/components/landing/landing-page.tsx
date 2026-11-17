@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ArrowDown, ArrowUpRight, Check, CircleAlert, Info, MessageCircle, Phone, ShieldCheck, Sparkles, Waves } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Check, CircleAlert, MessageCircle, Phone, ShieldCheck, Sparkles, Waves } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import type { LandingStatus } from "@/server/landing/status";
@@ -63,9 +63,7 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
         <div className="landing-wrap landing-hero-copy">
           <h1 id="landing-hero-title"><span className="landing-hero-title">Car &amp; motorcycle detailing<span className="landing-gold-dot">.</span></span><span className="landing-sr"> Car and motorcycle detailing in Tacloban City</span></h1>
 
-          <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-pill landing-outline" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a></div>
-          {status === "PAUSED" && <p className="landing-status"><Info aria-hidden="true" /><span>{pausedLine}</span></p>}
-          {status === "UNKNOWN" && <p className="landing-status"><Info aria-hidden="true" /><span>{unknownLine}</span></p>}
+          <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-hero-manage" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a></div>
           <a className="landing-scroll-cue" href="#about" aria-label="Discover the Zeus approach"><span>Discover Zeus</span><ArrowDown aria-hidden="true" /></a>
         </div>
       </section>
