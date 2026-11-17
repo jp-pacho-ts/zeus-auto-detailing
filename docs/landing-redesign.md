@@ -142,3 +142,6 @@ LE rejects pill-shaped controls and the repeated three-column facts strip. Use 6
 
 ## Header booking action
 LE asks to correct the header Book now styling. Replace its low-contrast outline with a compact off-white rectangular surface, dark text and a small directional arrow. Preserve 6px corners and 44px target height, neutral color hierarchy, /book destination and existing phone-menu behavior.
+
+## HCI and motion refinement
+LE asks for specialist refinement using UI/UX Pro Max, Superpowers and the existing React Bits/GSAP/Lenis stack. Use direct service-category labels and four section navigation links. Keep Book now primary, Manage booking secondary, consistent corners and stable touch targets. Bound the desktop headline measure, prevent phone action-label wrapping and group care content with its destination. Retain the full-screen loop and scroll-held workshop scene. Reduce magnetic translation to 5px with no tilt and make Lenis wheel response quicker (.85s); retain native touch, focus and reduced-motion exemptions. Add a small headline settle and reduce care-card entrance displacement. These changes apply familiar-label recognition, choice reduction, proximity and pointing-effort principles; customer testing remains necessary to establish usability or conversion outcomes.

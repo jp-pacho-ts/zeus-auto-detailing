@@ -79,3 +79,13 @@ test("opening leads directly into the shop introduction without a repeated facts
   assert.doesNotMatch(html, /Zeus at a glance|Built around your vehicle|A clearer starting point|For the pride/);
   assert.match(html, /Care for your vehicle/);
 });
+
+test("service choices use familiar names and header has four clear section destinations", () => {
+  const html = render();
+  const care = html.slice(html.indexOf('id="care"'), html.indexOf('id="work"'));
+  for (const name of ["Wash", "Detailing", "Graphene coating"]) assert.ok(care.includes(`<h3>${name}</h3>`), name);
+  assert.doesNotMatch(care, /<h3>Refresh|<h3>Restore|more considered reset/);
+  const nav = html.slice(html.indexOf('class="landing-desktop-nav"'), html.indexOf('</nav>'));
+  assert.equal(nav.match(/<a /g)?.length, 4);
+  for (const target of ["#services", "#work", "#faq", "#visit"]) assert.ok(nav.includes(`href="${target}"`), target);
+});

@@ -22,6 +22,7 @@ export function LandingLifecycle() {
       if (car) opening.fromTo(car, { scale: 1.035, opacity: .4 }, { scale: 1, opacity: 1, duration: 1.1 }, .12);
       const beam = root.querySelector(".landing-hero-beam");
       if (beam) opening.fromTo(beam, { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: .8, duration: .6 }, .25).to(beam, { opacity: 0, duration: .8 }, .85);
+      opening.from(root.querySelector(".landing-hero-copy h1"), { y: 20, opacity: .7, duration: .7, ease: "power3.out" }, .2);
       const launch = () => { opening.play(); };
       if (!image || image.complete) launch();
       else { image.addEventListener("load", launch, { once: true }); image.addEventListener("error", launch, { once: true }); }
@@ -31,7 +32,7 @@ export function LandingLifecycle() {
     });
     // Desktop scenes use native scroll geometry; touch has no scroll-linked effects.
     media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => {
-      const lenis = new Lenis({ duration: 1.05, smoothWheel: true, syncTouch: false, autoRaf: false, prevent: (node) => !!node.closest(".landing-review-track, .landing-mobile-menu, select") });
+      const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, autoRaf: false, prevent: (node) => !!node.closest(".landing-review-track, .landing-mobile-menu, select") });
       const tick = (seconds: number) => lenis.raf(seconds * 1000);
       lenis.on("scroll", ScrollTrigger.update); gsap.ticker.add(tick);
       const sequence = gsap.timeline({ scrollTrigger: { trigger: root.querySelector(".landing-hero"), start: "top top", end: "bottom top", scrub: .65 } });
@@ -39,7 +40,7 @@ export function LandingLifecycle() {
         .to(root.querySelector(".landing-hero-photo"), { yPercent: 0, scale: 1.08, ease: "none" }, 0);
       const about = root.querySelector(".landing-editorial-photo");
       if (about) gsap.fromTo(about, { clipPath: "inset(10% 12% 10% 12%)", rotation: -4, x: -65 }, { clipPath: "inset(0% 0% 0% 0%)", rotation: 0, x: 0, ease: "power3.out", scrollTrigger: { trigger: about, start: "top 95%", end: "top 35%", scrub: .6 } });
-      gsap.from(root.querySelectorAll(".landing-care-card"), { y: 64, rotationY: 18, transformPerspective: 1000, stagger: .13, duration: .95, ease: "power3.out", scrollTrigger: { trigger: root.querySelector(".landing-care-grid"), start: "top 90%", once: true } });
+      gsap.from(root.querySelectorAll(".landing-care-card"), { y: 40, rotationY: 8, transformPerspective: 1000, stagger: .1, duration: .65, ease: "power3.out", scrollTrigger: { trigger: root.querySelector(".landing-care-grid"), start: "top 90%", once: true } });
       const bleed = root.querySelector(".landing-bleed");
       if (bleed) gsap.fromTo(bleed.querySelector(".landing-bleed-media"), { clipPath: "inset(10% 8% 10% 8% round 20px)", scale: .92 }, { clipPath: "inset(0% 0% 0% 0% round 0px)", scale: 1, ease: "none", scrollTrigger: { trigger: bleed, start: "top 95%", end: "top 20%", scrub: .7 } });
       root.querySelectorAll(".landing-gallery-grid figure").forEach((frame, i) => gsap.fromTo(frame, { y: i ? 100 : 0 }, { y: i ? -50 : 30, ease: "none", scrollTrigger: { trigger: frame.parentElement, start: "top bottom", end: "bottom top", scrub: .7 } }));
