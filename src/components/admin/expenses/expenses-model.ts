@@ -2,8 +2,8 @@
 import type { AdminExpense, AdminExpenseEvent, AdminExpenseMonth } from "@/types/admin-contracts";
 import { formatPesos } from "@/lib/commission";
 
-export const EXPENSES_INTRO = "What the shop spent. Stock bought and commissions paid are added for you, so never type those in.";
-export const EXPENSES_EMPTY = "No expenses typed in for this month.";
+export const EXPENSES_INTRO = "What the shop spent. Service costs, stock bought and commissions paid are added for you. Record each cost only once.";
+export const EXPENSES_EMPTY = "No expenses recorded for this month.";
 export const EXPENSES_NO_MATCH = "No expenses match your search.";
 export const REMOVE_TEXT = "It will be hidden and kept in history. You can bring it back.";
 export const NOT_ADMIN_TEXT = "Only an admin can see expenses.";

@@ -17,6 +17,11 @@ const setPickupPrices = (tx: StaffTx, actor: StaffActor, serviceId: string, offe
   tx.$executeRawUnsafe("SELECT admin_service_set_pickup_prices($1, $2, $3::jsonb)", actor.staffId, serviceId,
     JSON.stringify(offers.map((o) => ({ sizeCode: o.sizeCode, pickupPriceCentavos: o.pickupPriceCentavos }))));
 
+const setExpenseDeduction = async (tx: StaffTx, actor: StaffActor, serviceId: string, amount: number | undefined) => {
+  if (amount === undefined) return;
+  await tx.$executeRawUnsafe("SELECT admin_service_set_expense_deduction($1, $2, $3::integer)", actor.staffId, serviceId, amount);
+};
+
 // Same transaction: the per-size commission. Left alone when the request does not mention it.
 const setSizeCommissions = async (tx: StaffTx, actor: StaffActor, serviceId: string,
   input: { commissionMode?: "SIZE_PERCENT" | "SIZE_FIXED" | null; sizeCommissions?: { sizeCode: string; rateBp?: number | null; fixedCentavos?: number | null }[] }) => {
@@ -72,6 +77,7 @@ export async function updateAdminService(
         );
         await setPickupPrices(tx, actor, serviceId, input.offers);
         await setSizeCommissions(tx, actor, serviceId, input);
+        await setExpenseDeduction(tx, actor, serviceId, input.expenseDeductionCentavos);
         return { ok: true, serviceId };
       } catch (error) {
         const text = error instanceof Error ? error.message : "";
@@ -115,6 +121,7 @@ export async function createAdminService(
         if (!serviceId) throw new AdminServiceError("INTERNAL_ERROR", "Failed to create service");
         await setPickupPrices(tx, actor, serviceId, input.offers);
         await setSizeCommissions(tx, actor, serviceId, input);
+        await setExpenseDeduction(tx, actor, serviceId, input.expenseDeductionCentavos ?? 0);
         return { ok: true, serviceId };
       } catch (error) {
         const text = error instanceof Error ? error.message : "";

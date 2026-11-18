@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { ServiceExpenseField } from "./service-expense-field";
+import { expensePesosToCentavos } from "@/lib/expenses";
 import {
   Sparkles,
   Plus,
@@ -231,6 +233,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
     promoPricePhp: string;
     pickupPricePhp?: string; // L and XL only
   }>>({});
+  const [editExpenseEnabled, setEditExpenseEnabled] = React.useState(false);
+  const [editExpenseAmount, setEditExpenseAmount] = React.useState("1500");
   const [editCommissionMode, setEditCommissionMode] = React.useState<CommissionMode>("DEFAULT");
   const [editCommissionRate, setEditCommissionRate] = React.useState<string>("");
   const [editSizes, setEditSizes] = React.useState<SizeValues>({});
@@ -242,6 +246,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
   const [createName, setCreateName] = React.useState("");
   const [createDesc, setCreateDesc] = React.useState("");
   const [createCategory, setCreateCategory] = React.useState<CatalogServiceKind>("WASH");
+  const [createExpenseEnabled, setCreateExpenseEnabled] = React.useState(false);
+  const [createExpenseAmount, setCreateExpenseAmount] = React.useState("1500");
   const [createCommissionMode, setCreateCommissionMode] = React.useState<CommissionMode>("NONE");
   const [createCommissionRate, setCreateCommissionRate] = React.useState<string>("");
   const [createSizes, setCreateSizes] = React.useState<SizeValues>({});
@@ -262,6 +268,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
 
   const initEditModal = (svc: AdminServiceItem) => {
     setEditService(svc);
+    setEditExpenseEnabled((svc.expenseDeductionCentavos ?? 0) > 0);
+    setEditExpenseAmount(String((svc.expenseDeductionCentavos ?? 0) / 100 || 1500));
     setEditName(svc.name);
     setEditDesc(svc.description ?? "");
     setEditCategory(svc.category);
@@ -319,6 +327,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setCreateName("");
     setCreateDesc("");
     setCreateCategory("WASH");
+    setCreateExpenseEnabled(false);
+    setCreateExpenseAmount("1500");
     setCreateCommissionMode("NONE"); // new services start with no commission (LE 2026-11-12)
     setCreateCommissionRate("0");
     setCreateSizes({});
@@ -393,6 +403,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           description: editDesc || null,
           category: editCategory,
           ...commissionBody(editCommissionMode, editCommissionRate, editSizes),
+          expenseDeductionCentavos: editExpenseEnabled ? expensePesosToCentavos(editExpenseAmount) : 0,
           offers: offersPayload,
         },
       });
@@ -465,6 +476,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           type: createType,
           unit: createUnit,
           ...commissionBody(createCommissionMode, createCommissionRate, createSizes),
+          expenseDeductionCentavos: createExpenseEnabled ? expensePesosToCentavos(createExpenseAmount) : 0,
           offers: offersPayload,
         },
       });
@@ -960,11 +972,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     sizes={editSizes} onSizes={setEditSizes} prices={sizePrices(editOffers)} />
                 </div>
               </div>
-              {editCategory === "GRAPHENE" && (
-                <div className="rounded border border-purple-500/30 bg-purple-500/10 p-2.5 text-xs text-purple-300">
-                  <span className="font-semibold">Coating Rule:</span> ₱1,500 chemical/product cost is automatically deducted from the base price before technician commission is calculated.
-                </div>
-              )}
+              <ServiceExpenseField enabled={editExpenseEnabled} onEnabled={setEditExpenseEnabled}
+                amount={editExpenseAmount} onAmount={setEditExpenseAmount} />
 
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground">Description</label>
@@ -1237,11 +1246,8 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     sizes={createSizes} onSizes={setCreateSizes} prices={sizePrices(createOffers)} />
                 </div>
               </div>
-              {createCategory === "GRAPHENE" && (
-                <div className="rounded border border-purple-500/30 bg-purple-500/10 p-2.5 text-xs text-purple-300">
-                  <span className="font-semibold">Coating Rule:</span> ₱1,500 chemical/product cost is automatically deducted from the base price before technician commission is calculated.
-                </div>
-              )}
+              <ServiceExpenseField enabled={createExpenseEnabled} onEnabled={setCreateExpenseEnabled}
+                amount={createExpenseAmount} onAmount={setCreateExpenseAmount} />
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>

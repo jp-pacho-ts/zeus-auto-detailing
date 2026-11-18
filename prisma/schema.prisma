@@ -59,6 +59,7 @@ model VehicleCategory {
 }
 
 model Service {
+  expenseDeductionCentavos Int @default(0)
   id                  String                  @id @default(uuid())
   name                String
   slug                String                  @unique
@@ -1232,7 +1233,27 @@ enum ExpenseCategoryEventKind {
   SHOWN
 }
 
+model ServiceCostSnapshot {
+  id String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  seq BigInt @unique @default(autoincrement())
+  lineId String @unique
+  bookingId String
+  bookingReference String
+  serviceName String
+  amountCentavos Int
+  expenseDate DateTime @db.Date
+  categoryId String?
+  category ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  recorded Boolean
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId], map: "service_cost_snapshots_booking_idx")
+  @@index([expenseDate, seq], map: "service_cost_snapshots_date_idx")
+  @@map("service_cost_snapshots")
+}
+
 model ExpenseCategory {
+  serviceCosts ServiceCostSnapshot[]
   id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
   name      String
   nameKey   String    @unique

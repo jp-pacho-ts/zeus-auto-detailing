@@ -7,12 +7,12 @@ import { authorize, parse, type AdminOptions, type StaffActor } from "./context"
 // equals the Expenses page. Stock bought and commissions paid are read from where they live (no copied rows), so nothing can be counted twice.
 // `from` and `to` are inclusive Manila days. The day of each kind: expenseDate; the Manila day of a movement's createdAt; the Manila day of paidAt.
 export interface ExpenseTotals {
-  /** manual + stockBought + commissionsPaid. commissionsOwed is NOT part of it. */
+  /** Recorded rows (manual and automatic service costs) + stockBought + commissionsPaid. */
   total: bigint;
   manual: bigint;
   stockBought: bigint;
   commissionsPaid: bigint;
-  /** Manual only, removed rows excluded, name order. The two derived kinds are their own fields. */
+  /** Recorded manual rows and service costs, removed rows excluded, name order. */
   byCategory: { categoryId: string; name: string; total: bigint }[];
   /** Still unpaid today, among entries and adjustments created up to the end of `to`. Not what was owed on that day: one paid since is not counted. */
   commissionsOwed: bigint;
@@ -30,7 +30,7 @@ export async function totalsIn(tx: StaffTx, from: string, to: string): Promise<E
     WITH r AS (SELECT (${from}::date)::timestamp AT TIME ZONE 'Asia/Manila' AS a, (${to}::date + 1)::timestamp AT TIME ZONE 'Asia/Manila' AS b),
     stock AS (SELECT m.delta::bigint AS delta, m."unitCostCentavos"::bigint AS cost FROM supply_movements m, r WHERE m.kind = 'RECEIVE' AND m."createdAt" >= r.a AND m."createdAt" < r.b)
     SELECT
-      (SELECT COALESCE(sum(e."amountCentavos"), 0)::bigint FROM expenses e WHERE e."voidedAt" IS NULL AND e."expenseDate" BETWEEN ${from}::date AND ${to}::date) AS manual,
+      (SELECT COALESCE(sum(e."amountCentavos"), 0)::bigint FROM expense_rows e WHERE e."voidedAt" IS NULL AND e."expenseDate" BETWEEN ${from}::date AND ${to}::date) AS manual,
       (SELECT COALESCE(sum(delta * cost), 0)::bigint FROM stock WHERE cost IS NOT NULL) AS "stockBought",
       (SELECT count(*) FROM stock WHERE cost IS NOT NULL) AS "pricedStockIns",
       (SELECT count(*) FROM stock WHERE cost IS NULL) AS "unpricedStockIns",
@@ -42,7 +42,7 @@ export async function totalsIn(tx: StaffTx, from: string, to: string): Promise<E
          UNION ALL SELECT d."amountCentavos" FROM commission_adjustments d, r WHERE d."paidAt" IS NULL AND d."createdAt" < r.b) o) AS "commissionsOwed"`;
   const byCategory = await tx.$queryRaw<{ categoryId: string; name: string; total: bigint }[]>`
     SELECT c.id AS "categoryId", c.name, sum(e."amountCentavos")::bigint AS total
-    FROM expenses e JOIN expense_categories c ON c.id = e."categoryId"
+    FROM expense_rows e JOIN expense_categories c ON c.id = e."categoryId"
     WHERE e."voidedAt" IS NULL AND e."expenseDate" BETWEEN ${from}::date AND ${to}::date
     GROUP BY c.id, c.name, c."nameKey" ORDER BY c."nameKey"`;
   return {

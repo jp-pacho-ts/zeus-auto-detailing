@@ -209,6 +209,14 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Service costs are optional on historical schemas used by migration repair tooling.
+DO $$ BEGIN
+  IF to_regclass('public.service_cost_snapshots') IS NOT NULL THEN
+    GRANT SELECT ON public.expense_rows TO zeus_app;
+    GRANT EXECUTE ON FUNCTION public.admin_service_set_expense_deduction(text,text,integer) TO zeus_app;
+  END IF;
+END $$;
+
 -- No privileges at all: _prisma_migrations, catalog_publishers, catalog_publication_events,
 -- catalog_hold_segments, booking_assignments, slot_capacity_overrides, commission_payouts,
 -- inventory_items, inventory_transactions, service_recipes, booking_delete_tokens (P1-29, written only

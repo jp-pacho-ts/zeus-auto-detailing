@@ -471,6 +471,7 @@ const SizeCommissionSchema = z.object({
   fixedCentavos: z.number().int().min(0).max(100_000_000).nullable().optional(),
 }).strict();
 const SizeCommissionFields = {
+  expenseDeductionCentavos: z.number().int().min(0).max(100_000_000).optional(),
   commissionMode: z.enum(["SIZE_PERCENT", "SIZE_FIXED"]).nullable().optional(),
   sizeCommissions: z.array(SizeCommissionSchema).max(5).optional(),
 };

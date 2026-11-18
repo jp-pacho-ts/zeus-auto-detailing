@@ -110,6 +110,41 @@ const shiftDay = (day: string, n: number) => new Date(Date.parse(day + "T00:00:0
 const aroundToday = () => ({ from: shiftDay(manilaDay(new Date()), -1), to: shiftDay(manilaDay(new Date()), 1) });
 const count = async (table: string, where = "TRUE") => Number((await db.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*) AS n FROM ${table} WHERE ${where}`))[0].n);
 
+test("service expense: existing coating defaults are editable 1500 and arbitrary service costs accrue once at completion", { skip }, async () => {
+  const list = await s.listAdminServices(ADMIN, opts());
+  const coating = list.services.find((v) => v.slug === "eclipse-graphene")!;
+  assert.equal((coating as typeof coating & { expenseDeductionCentavos: number }).expenseDeductionCentavos, 150_000);
+  const tint = list.services.find((v) => v.slug === "regular-tint")!;
+  const save = (amount: number) => s.updateAdminService(ADMIN, tint.id, {
+    name: tint.name, description: tint.description, category: tint.category, offers: [], expenseDeductionCentavos: amount,
+  }, opts());
+  try {
+    await save(25_050);
+    const before = await s.expenseTotals(ADMIN, aroundToday(), opts());
+    const job = await inProgress([], 100_000);
+    assert.equal(await count("service_cost_snapshots", `"bookingId" = ${lit(job.id)}`), 0);
+    await finish(job);
+    assert.equal((await header(job.id))!.serviceTotalCentavos, 74_950);
+    const after = await s.expenseTotals(ADMIN, aroundToday(), opts());
+    assert.equal(after.total - before.total, BigInt(25_050));
+    const month = manilaDay(new Date()).slice(0, 7);
+    const expenses = await s.getExpenseMonth(ADMIN, { month }, opts());
+    const row = expenses.expenses.find((e) => e.note?.includes(job.reference));
+    assert.equal(row?.amountCentavos, 25_050);
+    assert.equal((row as typeof row & { automatic: boolean }).automatic, true);
+    await refused(s.updateExpense(ADMIN, row!.id, { expectedRevision: 1, date: manilaDay(new Date()), categoryId: row!.categoryId, amountPesos: "1" }, opts()), "NOT_FOUND", "automatic cost cannot be edited as a manual expense");
+    await save(0);
+    await db.$executeRawUnsafe('SELECT commission_accrue($1)', job.id);
+    assert.equal((await header(job.id))!.serviceTotalCentavos, 74_950, "recorded cost is retained after editing the default");
+    assert.equal((await s.expenseTotals(ADMIN, aroundToday(), opts())).total, after.total, "retry cannot duplicate a cost");
+    const zero = await completed([], 100_000);
+    assert.equal((await header(zero.id))!.serviceTotalCentavos, 100_000);
+    assert.equal((await s.expenseTotals(ADMIN, aroundToday(), opts())).total, after.total, "disabled service creates no expense");
+    await assert.rejects(app.$executeRawUnsafe('SELECT admin_service_set_expense_deduction($1,$2,$3::integer)', "missing-actor", tint.id, 1));
+    await assert.rejects(app.$executeRawUnsafe('UPDATE service_cost_snapshots SET "amountCentavos" = 1 WHERE "bookingId" = $1', job.id));
+  } finally { await save(0); }
+});
+
 async function refused(p: Promise<unknown>, code: string, label: string, check?: (e: AdminServiceError) => void) {
   await assert.rejects(p, (e: unknown) => {
     const err = e as AdminServiceError;
