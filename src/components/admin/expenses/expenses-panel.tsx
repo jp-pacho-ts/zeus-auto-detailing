@@ -18,20 +18,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatPesos } from "@/lib/commission";
-import { addMonths } from "@/lib/expenses";
 import type { AdminExpense, AdminExpenseCategory, AdminExpenseMonth } from "@/types/admin-contracts";
 import { adminRequest, AdminRequestError } from "../bookings/client";
 import { fieldClass } from "../bookings/use-admin-resource";
 import { describeError } from "../team/team-panel";
+import type { AnalyticsPeriod } from "../analytics/analytics-model";
 import { ExpenseAnalytics } from "./expense-analytics";
 import { CategoriesDialog, ExpenseFormDialog, ExpenseHistoryDialog } from "./expense-dialogs";
 import {
-  COMMISSIONS_HINT,
   EXPENSES_EMPTY,
   EXPENSES_NO_MATCH,
-  formatTotal,
   matchesExpenseSearch,
-  monthLabel,
   owedNote,
   REMOVE_TEXT,
   unpricedNote,
@@ -39,10 +36,11 @@ import {
 
 export function ExpensesPanel({
   data,
+  period,
+  setPeriod,
   categories,
   query,
   thisMonth,
-  setMonth,
   categoryId,
   setCategoryId,
   includeRemoved,
@@ -51,6 +49,8 @@ export function ExpensesPanel({
   reloadCategories,
 }: {
   data: AdminExpenseMonth;
+  period: AnalyticsPeriod;
+  setPeriod: (period: AnalyticsPeriod) => void;
   categories: AdminExpenseCategory[];
   query: string;
   thisMonth: string;
@@ -163,13 +163,6 @@ export function ExpensesPanel({
       return "The expense is back.";
     });
 
-  const go = (delta: number) => {
-    setNotice(null);
-    setError(null);
-    setCurrentPage(1);
-    setMonth(addMonths(data.month, delta));
-  };
-
   const notes = [unpricedNote(data.unpricedStockIns), owedNote(data.totals.commissionsOwed)].filter(Boolean);
 
   // Pagination calculations
@@ -215,62 +208,7 @@ export function ExpensesPanel({
         </div>
       </div>
 
-      {/* Monthly Total & Sparkline Chart Card */}
-      <div className="rounded-xl border border-border bg-panel p-5 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-5">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-raised text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
-              aria-label="Previous month"
-              onClick={() => go(-1)}
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <div>
-              <p data-testid="expenses-month" className="text-sm font-bold text-foreground">
-                {monthLabel(data.month)}
-              </p>
-              <p className="text-xs text-muted-foreground">Expense list and summary</p>
-            </div>
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-raised text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40"
-              aria-label="Next month"
-              disabled={data.month >= thisMonth}
-              onClick={() => go(1)}
-            >
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-
-          <div className="sm:text-right">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Total spent
-            </p>
-            <p data-testid="expenses-total" className="text-2xl font-black text-primary tracking-tight mt-0.5">
-              {formatTotal(data.totals.total)}
-            </p>
-          </div>
-        </div>
-
-        <dl className="grid grid-cols-1 gap-4 pt-4 sm:grid-cols-3">
-          <div>
-            <dt className="text-xs text-muted-foreground">Typed-in expenses</dt>
-            <dd className="mt-1 text-lg font-semibold tabular-nums text-foreground">{formatTotal(data.totals.manual)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Stock bought</dt>
-            <dd data-testid="expenses-stock" className="mt-1 text-lg font-semibold tabular-nums text-foreground">{formatTotal(data.totals.stockBought)}</dd>
-            <p className="mt-1 text-xs text-muted-foreground">From recorded inventory purchases.</p>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Commissions paid</dt>
-            <dd data-testid="expenses-commissions" className="mt-1 text-lg font-semibold tabular-nums text-foreground">{formatTotal(data.totals.commissionsPaid)}</dd>
-            <p className="mt-1 text-xs text-muted-foreground">{COMMISSIONS_HINT}</p>
-          </div>
-        </dl>
-      </div>
+      <ExpenseAnalytics refresh={data} period={period} onPeriodChange={setPeriod} />
 
       {/* Advisory Notes */}
       {notes.length > 0 && (
@@ -557,16 +495,6 @@ export function ExpensesPanel({
           </div>
         )}
       </div>
-
-      <details className="group rounded-xl border border-border bg-panel">
-        <summary className="cursor-pointer rounded-xl p-5 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-          Spending insights
-          <span className="ml-2 text-xs font-normal text-muted-foreground">Trends, categories, and custom date ranges</span>
-        </summary>
-        <div className="border-t border-border">
-          <ExpenseAnalytics refresh={data} />
-        </div>
-      </details>
 
       {/* Edit / Add Modal */}
       {editing && (

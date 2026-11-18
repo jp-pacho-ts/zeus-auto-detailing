@@ -17,10 +17,10 @@ const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:rin
 const KIND_COLOURS = ["bg-primary", "bg-emerald-400", "bg-amber-400"];
 
 // Expense analytics in the Sales & Analytics style: the same period pills, day/week/month chart and rules. Only an admin reaches this panel.
-export function ExpenseAnalytics({ refresh }: { refresh: object }) {
+export function ExpenseAnalytics({ refresh, period, onPeriodChange }: { refresh: object; period: AnalyticsPeriod; onPeriodChange: (period: AnalyticsPeriod) => void }) {
   const [today] = React.useState(() => manilaToday(new Date()));
   const [preset, setPreset] = React.useState<AnalyticsPreset | "CUSTOM">("THIS_MONTH");
-  const [period, setPeriod] = React.useState<AnalyticsPeriod>(() => periodRange("THIS_MONTH", today));
+  const setPeriod = onPeriodChange;
   const [draft, setDraft] = React.useState<AnalyticsPeriod>(period);
   const [asTable, setAsTable] = React.useState(false);
   const figures = useKeptResource<AdminExpenseAnalytics>(`/api/admin/expenses/analytics?from=${period.from}&to=${period.to}`);
@@ -48,9 +48,9 @@ export function ExpenseAnalytics({ refresh }: { refresh: object }) {
   const categories = (data?.byCategory ?? []).map((c) => ({ key: c.categoryId, label: c.name, centavos: Number(c.total) })).sort((a, b) => b.centavos - a.centavos);
 
   return (
-    <section aria-labelledby="expense-analytics-heading" className="space-y-4 p-5">
+    <section aria-labelledby="expense-analytics-heading" className="space-y-4 rounded-xl border border-border bg-panel p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 id="expense-analytics-heading" className="text-sm font-bold text-foreground">Spending insights</h3>
+        <h3 id="expense-analytics-heading" className="text-sm font-bold text-foreground">Expense overview</h3>
         <div role="group" aria-label="Expense period" className="flex flex-wrap gap-1 rounded-lg border border-border/80 bg-stone-100 p-1 dark:bg-panel">
           {PRESETS.map(([id, label]) => (
             <button
@@ -70,6 +70,21 @@ export function ExpenseAnalytics({ refresh }: { refresh: object }) {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">Browse month</span>
+        {([-1, 1] as const).map((direction) => <button key={direction} type="button" aria-label={direction < 0 ? "Previous month" : "Next month"} className="min-h-[44px] rounded-md border border-border px-3 text-xs text-foreground focus-visible:ring-2 focus-visible:ring-primary" onClick={() => {
+          const date = new Date(period.from + "T00:00:00Z");
+          date.setUTCMonth(date.getUTCMonth() + direction, 1);
+          const range = periodRange("THIS_MONTH", date.toISOString().slice(0, 10));
+          setPreset("CUSTOM"); setPeriod(range); setDraft(range);
+        }}>{direction < 0 ? "Previous" : "Next"}</button>)}
+        <input aria-label="Choose month and year" type="month" min="2020-01" max={today.slice(0, 7)} value={period.from.slice(0, 7)} className={fieldClass} onChange={(e) => {
+          if (!e.target.value) return;
+          setPreset("CUSTOM");
+          const range = periodRange("THIS_MONTH", e.target.value + "-01");
+          setPeriod(range); setDraft(range);
+        }} />
+      </div>
       {preset === "CUSTOM" && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/80 bg-stone-50 p-3 text-xs text-muted-foreground dark:bg-panel">
           <Calendar className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -82,13 +97,13 @@ export function ExpenseAnalytics({ refresh }: { refresh: object }) {
       <LoadState loading={figures.loading && data === null} error={figures.error} retry={figures.reload} />
 
       {data && (
-        <div className={`space-y-5 ${figures.loading ? "opacity-60" : ""}`} aria-busy={figures.loading}>
-          <div>
+        <div className={`grid grid-cols-1 gap-4 sm:grid-cols-4 ${figures.loading ? "opacity-60" : ""}`} aria-busy={figures.loading}>
+          <div className="rounded-lg border border-border bg-raised p-4">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total spent · {periodLabel(data.from, data.to)}</p>
             <p data-testid="expense-analytics-total" className="mt-1 font-mono text-3xl font-bold tracking-tight text-foreground">{formatTotal(data.totals.total)}</p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="contents">
             {shares.map((s, i) => (
               <div key={s.label} className="rounded-lg border border-border bg-raised p-3">
                 <p className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
@@ -100,7 +115,7 @@ export function ExpenseAnalytics({ refresh }: { refresh: object }) {
             ))}
           </div>
 
-          <div>
+          <div className="sm:col-span-4">
             <div className="flex items-center justify-between gap-3">
               <h4 className="text-xs font-semibold text-muted-foreground">Spending by {data.unit.toLowerCase()}</h4>
               <button type="button" onClick={() => setAsTable((t) => !t)} className={`min-h-[40px] rounded-md border border-border px-3 text-xs font-semibold text-muted-foreground hover:text-foreground ${FOCUS}`}>
@@ -123,7 +138,7 @@ export function ExpenseAnalytics({ refresh }: { refresh: object }) {
             )}
           </div>
 
-          <div>
+          <div className="sm:col-span-4">
             <h4 className="text-xs font-semibold text-muted-foreground">Typed-in expenses by category</h4>
             {data.byCategory.some((c) => BigInt(c.total) > BigInt(Number.MAX_SAFE_INTEGER)) ? <ul>{data.byCategory.map((c) => <li key={c.categoryId}>{c.name}: {formatTotal(c.total)}</li>)}</ul> : <RankedBars rows={categories} empty="No typed-in expenses in this period." />}
           </div>

@@ -355,11 +355,13 @@ export const ExpenseRestoreSchema = z.object({ expectedRevision: Revision }).str
 export const ExpenseMonthSchema = z
   .object({
     month: z.string().regex(/^20[0-9]{2}-(0[1-9]|1[0-2])$/, "Use a month like 2026-11."),
+    from: LocalDateSchema.optional(),
+    to: LocalDateSchema.optional(),
     categoryId: Id.optional(),
     includeRemoved: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
     cursor: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{1,18}$/).refine((c) => LocalDateSchema.safeParse(c.split("_")[0]).success).optional(),
   })
-  .strict();
+  .strict().refine((v) => (!v.from && !v.to) || Boolean(v.from && v.to && v.from <= v.to && Date.parse(v.to) - Date.parse(v.from) <= 365 * 86400000), "Choose a complete date range of one year or less.");
 export const ExpenseTotalsSchema = z.object({ from: LocalDateSchema, to: LocalDateSchema }).strict().refine((v) => v.from <= v.to, "The first day must not be after the last day.");
 const ExpenseCategoryName = z.string().trim().min(1, "Enter a name.").max(40, "Use 40 characters or fewer.").refine((v) => !isReservedCategoryName(v), "That name is used by the automatic lines. Choose another.");
 export const ExpenseCategoryCreateSchema = z.object({ id: Id, name: ExpenseCategoryName }).strict();

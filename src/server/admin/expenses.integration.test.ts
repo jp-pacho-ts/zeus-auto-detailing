@@ -396,3 +396,13 @@ test("EX15 expense analytics: buckets add up to the range total, which equals ex
   await refused(s.getExpenseAnalytics(ADMIN, { from: "2026-05-31", to: "2026-05-01" }, opts()), "VALIDATION_ERROR", "reversed range");
   await refused(s.getExpenseAnalytics(ADMIN, { from: "2025-01-01", to: "2026-05-01" }, opts()), "VALIDATION_ERROR", "over a year");
 });
+
+
+test("EX16 expense list range crosses months and matches the selected range totals", { skip }, async () => {
+  const result = await s.getExpenseMonth(ADMIN, { month: "2026-05", from: "2026-05-04", to: "2026-07-31" }, opts());
+  assert.ok(result.expenses.length > 0);
+  assert.ok(result.expenses.every((e) => e.expenseDate >= "2026-05-04" && e.expenseDate <= "2026-07-31"));
+  assert.ok(result.expenses.some((e) => e.expenseDate.startsWith("2026-07")), "includes later-month expenses");
+  assert.equal(result.totals.total, String((await totals("2026-05-04", "2026-07-31")).total));
+  await refused(s.getExpenseMonth(STAFF, { month: "2026-05", from: "2026-05-04", to: "2026-07-31" }, opts()), "FORBIDDEN", "range is admin only");
+});
