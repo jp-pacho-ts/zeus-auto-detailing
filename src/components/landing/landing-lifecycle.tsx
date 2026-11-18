@@ -31,6 +31,19 @@ export function LandingLifecycle() {
       root.querySelector(".landing-hero")?.addEventListener("focusin", focus);
       return () => { image?.removeEventListener("load", launch); image?.removeEventListener("error", launch); root.querySelector(".landing-hero")?.removeEventListener("focusin", focus); };
     });
+    media.add("(prefers-reduced-motion: no-preference)", () => {
+      const frame = root.querySelector(".landing-editorial-photo");
+      const photo = frame?.querySelector("img");
+      if (!photo) return;
+
+      // Move the image inside the fixed feathered frame so the hero transition stays seamless.
+      gsap.fromTo(photo, { scale: 1.13, yPercent: 3 }, {
+        scale: 1,
+        yPercent: 0,
+        ease: "none",
+        scrollTrigger: { trigger: frame, start: "top 94%", end: "top 30%", scrub: .45 },
+      });
+    });
     // Desktop scenes use native scroll geometry; touch has no scroll-linked effects.
     media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => {
       const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, autoRaf: false, prevent: (node) => !!node.closest(".landing-mobile-menu, select") });

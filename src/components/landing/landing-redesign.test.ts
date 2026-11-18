@@ -77,7 +77,7 @@ test("hero keeps direct booking actions without availability notices in all stat
 test("opening leads directly into the shop introduction without a repeated facts strip", () => {
   const html = render();
   assert.doesNotMatch(html, /Zeus at a glance|Built around your vehicle|A clearer starting point|For the pride/);
-  assert.match(html, /Care for your vehicle/);
+  assert.match(html, /Professional care for your vehicle/);
 });
 
 test("service choices use familiar names and header has clear section destinations", () => {

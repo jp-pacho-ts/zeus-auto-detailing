@@ -67,7 +67,17 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           <a className="landing-scroll-cue" href="#about" aria-label="Discover the Zeus approach"><span>Discover Zeus</span><ArrowDown aria-hidden="true" /></a>
         </div>
       </section>
-      <section id="about" className="landing-section landing-wrap landing-about" aria-labelledby="landing-about-title"><div className="landing-editorial-photo">{photo("full-detailing", "(max-width: 767px) 100vw, 50vw")}</div><div className="landing-about-copy"><p className="landing-eyebrow">About Zeus</p><h2 id="landing-about-title">Care for your vehicle<span className="landing-gold-dot">.</span></h2><p className="landing-about-lead">Car care, here in Tacloban.</p><p>We wash, detail and protect cars and motorcycles. From a regular wash to interior detailing or a graphene coating, explore the care that fits your vehicle.</p><p>Not sure where to start? Tell us what you drive and what needs attention.</p><a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Talk to us about your vehicle<ArrowUpRight aria-hidden="true" /></a></div></section>
+      <section id="about" className="landing-section landing-wrap landing-about" aria-labelledby="landing-about-title">
+        <div className="landing-editorial-photo">{photo("full-detailing", "(max-width: 767px) 100vw, 50vw")}</div>
+        <div className="landing-about-copy">
+          <p className="landing-eyebrow">About Zeus</p>
+          <h2 id="landing-about-title">Professional care for your vehicle<span className="landing-gold-dot">.</span></h2>
+          <p className="landing-about-lead">Car and motorcycle detailing in Tacloban City.</p>
+          <p>We handle everything from routine washes to interior and exterior detailing. For owners looking to protect their paint, we also offer graphene coating packages.</p>
+          <p>Tell us what you drive and what you want to improve. We can recommend a service based on the condition of your vehicle and how you use it.</p>
+          <a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Ask us about detailing<ArrowUpRight aria-hidden="true" /></a>
+        </div>
+      </section>
       <section id="concerns" className="landing-section landing-wrap landing-concerns" aria-labelledby="landing-concerns-title">
         <div className="landing-concerns-heading"><h2 id="landing-concerns-title">Everyday use<br />leaves its mark.</h2><p>Start with what needs attention. Then find the right level of care.</p></div>
         <div className="landing-concern-list">{[
