@@ -191,6 +191,21 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
  overflow:clip;
  background:var(--bg);
 }
+.is-motion-scene .landing-stage-track::after{
+ content:"";
+ position:absolute;
+ inset:0 0 auto;
+ z-index:1;
+ height:clamp(66px,11svh,112px);
+ pointer-events:none;
+ background:linear-gradient(
+  to bottom,
+  var(--bg),
+  rgb(var(--brand-background) / .7) 25%,
+  rgb(var(--brand-background) / .25) 65%,
+  rgb(var(--brand-background) / 0)
+ );
+}
 .is-motion-scene .landing-stage-names{
  position:absolute;
  inset:0;
