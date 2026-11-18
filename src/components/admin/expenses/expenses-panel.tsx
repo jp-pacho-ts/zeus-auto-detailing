@@ -25,6 +25,7 @@ import type { AdminExpense, AdminExpenseCategory, AdminExpenseMonth } from "@/ty
 import { adminRequest, AdminRequestError } from "../bookings/client";
 import { fieldClass } from "../bookings/use-admin-resource";
 import { describeError } from "../team/team-panel";
+import { ExpenseAnalytics } from "./expense-analytics";
 import { CategoriesDialog, ExpenseFormDialog, ExpenseHistoryDialog } from "./expense-dialogs";
 import {
   COMMISSIONS_HINT,
@@ -339,6 +340,8 @@ export function ExpensesPanel({
           </div>
         </div>
       </div>
+
+      <ExpenseAnalytics refresh={data} />
 
       {/* Advisory Notes */}
       {notes.length > 0 && (
