@@ -32,11 +32,11 @@ export function LandingLifecycle() {
       return () => { image?.removeEventListener("load", launch); image?.removeEventListener("error", launch); root.querySelector(".landing-hero")?.removeEventListener("focusin", focus); };
     });
     media.add("(prefers-reduced-motion: no-preference)", () => {
-      const frame = root.querySelector(".landing-editorial-photo");
+      const frame = root.querySelector(".landing-about-frame");
       const photo = frame?.querySelector("img");
       if (!photo) return;
 
-      // Move the image inside the fixed feathered frame so the hero transition stays seamless.
+      // Keep the frame and its gradient fixed while the photograph pulls back.
       gsap.fromTo(photo, { scale: 1.13, yPercent: 3 }, {
         scale: 1,
         yPercent: 0,

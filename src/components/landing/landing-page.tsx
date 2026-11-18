@@ -67,11 +67,15 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           <a className="landing-scroll-cue" href="#about" aria-label="Discover the Zeus approach"><span>Discover Zeus</span><ArrowDown aria-hidden="true" /></a>
         </div>
       </section>
-      <section id="about" className="landing-section landing-wrap landing-about" aria-labelledby="landing-about-title">
-        <div className="landing-editorial-photo">{photo("full-detailing", "(max-width: 767px) 100vw, 50vw")}</div>
-        <div className="landing-about-copy">
-          <p className="landing-eyebrow">About Zeus</p>
-          <h2 id="landing-about-title">Professional care for your vehicle<span className="landing-gold-dot">.</span></h2>
+      <section id="about" className="landing-about" aria-labelledby="landing-about-title">
+        <div className="landing-about-frame">
+          <div className="landing-about-photo">{photo("full-detailing", "100vw")}</div>
+          <div className="landing-wrap landing-about-heading">
+            <p className="landing-eyebrow">About Zeus</p>
+            <h2 id="landing-about-title">Professional care for your vehicle<span className="landing-gold-dot">.</span></h2>
+          </div>
+        </div>
+        <div className="landing-wrap landing-about-copy">
           <p className="landing-about-lead">Car and motorcycle detailing in Tacloban City.</p>
           <p>We handle everything from routine washes to interior and exterior detailing. For owners looking to protect their paint, we also offer graphene coating packages.</p>
           <p>Tell us what you drive and what you want to improve. We can recommend a service based on the condition of your vehicle and how you use it.</p>
