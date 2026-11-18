@@ -25,6 +25,6 @@ export { expenseTotals, type ExpenseTotals } from "./expenses-read";
 export { getAnalytics } from "./analytics";
 export { getShopSettings, setShopSettings, setEmailSwitch } from "./shop-settings";
 export { listUsers, createUser, updateUser, resetUserPassword } from "./users";
-export { listAdminServices, updateAdminService, createAdminService, toggleAdminService } from "./services";
+export { listAdminServices, updateAdminService, createAdminService, toggleAdminService, deleteAdminService } from "./services";
 export { getWeeklyPayroll, savePayrollAdjustment, setPayrollPaid } from "./payroll";
 export { getAdminNotifications } from "./notifications";

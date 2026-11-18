@@ -155,3 +155,25 @@ export async function toggleAdminService(
     { access: "write", db: options.db, signal: options.signal },
   );
 }
+
+export async function deleteAdminService(
+  actor: StaffActor,
+  rawServiceId: unknown,
+  options: AdminOptions = {},
+): Promise<{ ok: true }> {
+  authorize(actor, "SETTINGS_WRITE");
+  const serviceId = parse(AdminIdSchema, rawServiceId);
+  return withStaffDb("STAFF_MUTATION", async (tx: StaffTx) => {
+    try {
+      await tx.$executeRawUnsafe("SELECT admin_service_delete($1, $2)", actor.staffId, serviceId);
+      return { ok: true };
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "";
+      if (text.includes("ZT004")) throw new AdminServiceError("FORBIDDEN");
+      if (text.includes("ZT001")) throw new AdminServiceError("NOT_FOUND", "This service has already been deleted. Refresh the list.");
+      if (text.includes("ZT003")) throw new AdminServiceError("NOT_ALLOWED", "This service has bookings or other linked records. Deactivate it instead to keep that history.");
+      if (text.includes("ZT006")) throw new AdminServiceError("VALIDATION_ERROR");
+      throw error;
+    }
+  }, { access: "write", db: options.db, signal: options.signal });
+}

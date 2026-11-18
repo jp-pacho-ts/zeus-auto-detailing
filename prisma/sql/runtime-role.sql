@@ -131,6 +131,12 @@ BEGIN
       RAISE EXCEPTION '% is missing: run this after prisma migrate deploy completes', fn;
     END IF;
   END LOOP;
+  -- Optional during staged upgrades: the service-delete migration may not have run yet.
+  -- The migration grants this too when zeus_app already exists.
+  IF to_regprocedure('public.admin_service_delete(text,text)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION public.admin_service_delete(text,text) FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.admin_service_delete(text,text) TO zeus_app;
+  END IF;
   FOREACH g SLICE 1 IN ARRAY ARRAY[
     -- Catalog and schedule: read (schedule writes follow).
     ['catalog_releases', 'SELECT'], ['catalog_head', 'SELECT'], ['catalog_service_versions', 'SELECT'],

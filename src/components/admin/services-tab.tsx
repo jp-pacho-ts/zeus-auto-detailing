@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  Trash2,
 } from "lucide-react";
 import type {
   AdminServiceList,
@@ -26,6 +27,7 @@ import type { UserRole } from "@/types/contracts";
 import type { CatalogServiceKind, PriceUnit } from "@/types/catalog-contracts";
 import { adminRequest, AdminRequestError } from "./bookings/client";
 import { useAdminResource } from "./bookings/use-admin-resource";
+import { DeleteServiceDialog } from "./delete-service-dialog";
 
 interface ServicesTabProps {
   role: UserRole;
@@ -206,7 +208,10 @@ function CommissionField({ mode, onMode, rate, onRate, sizes, onSizes, prices }:
 }
 
 export function ServicesTab({ role }: ServicesTabProps) {
-  void role;
+  const canDelete = role === "ADMIN";
+  const [deleteService, setDeleteService] = React.useState<AdminServiceItem | null>(null);
+  const [deleteNotice, setDeleteNotice] = React.useState<string | null>(null);
+  const addButton = React.useRef<HTMLButtonElement>(null);
   const resource = useAdminResource<AdminServiceList>("/api/admin/services");
   const data = resource.data;
   const services = data?.services ?? [];
@@ -533,6 +538,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
         </div>
         <button
           type="button"
+          ref={addButton}
           onClick={initCreateModal}
           className="inline-flex min-h-[40px] items-center gap-2 rounded bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary-hover shadow-sm transition-colors"
         >
@@ -745,7 +751,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                 </div>
 
                 {/* Card Action Buttons */}
-                <div className="flex items-center gap-2 self-start pt-1 sm:pt-0">
+                <div className="flex flex-wrap items-center gap-2 self-start pt-1 sm:pt-0">
                   <button
                     type="button"
                     onClick={() => initEditModal(svc)}
@@ -768,6 +774,16 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     <Power className="h-3.5 w-3.5" />
                     <span>{svc.isActive ? "Deactivate" : "Activate"}</span>
                   </button>
+                  {canDelete && <button
+                    type="button"
+                    disabled={togglingId === svc.id}
+                    onClick={() => { setDeleteNotice(null); setDeleteService(svc); }}
+                    aria-label={`Delete ${svc.name}`}
+                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-rose-500/30 px-3 py-1 text-xs font-semibold text-rose-400 transition-colors hover:border-rose-500/60 hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-50"
+                  >
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                    <span>Delete</span>
+                  </button>}
                 </div>
               </div>
 
@@ -899,6 +915,18 @@ export function ServicesTab({ role }: ServicesTabProps) {
           </div>
         </div>
       )}
+
+      {deleteNotice && <p role="status" className="text-sm text-emerald-400">{deleteNotice}</p>}
+      {deleteService && <DeleteServiceDialog
+        service={deleteService}
+        onClose={() => setDeleteService(null)}
+        onDeleted={() => {
+          setDeleteNotice(`${deleteService.name} was deleted.`);
+          setDeleteService(null);
+          addButton.current?.focus();
+          resource.reload();
+        }}
+      />}
 
       {/* Edit Service & Pricing Modal */}
       {editService && (
