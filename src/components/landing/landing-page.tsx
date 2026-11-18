@@ -79,12 +79,22 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
         </div>
       </section>
       <section id="concerns" className="landing-section landing-wrap landing-concerns" aria-labelledby="landing-concerns-title">
-        <div className="landing-concerns-heading"><h2 id="landing-concerns-title">Everyday use<br />leaves its mark.</h2><p>Start with what needs attention. Then find the right level of care.</p></div>
+        <div className="landing-concerns-heading">
+          <h2 id="landing-concerns-title">Everyday use leaves its mark<span className="landing-gold-dot">.</span></h2>
+          <div className="landing-concerns-photo">{photo("basic-wash", "(max-width: 767px) 100vw, 46vw")}</div>
+        </div>
         <div className="landing-concern-list">{[
-          { title: "Dust, mud and road grime", text: "For the buildup from everyday driving, start with a wash.", href: "WASH", link: "Explore washing" },
-          { title: "An interior that needs attention", text: "For dirt and buildup inside your vehicle, look through the detailing options and their inclusions.", href: "DETAILING", link: "Explore detailing" },
-          { title: "A finish you want to protect", text: "Considering protection beyond a wash? Compare the available graphene coating packages.", href: "GRAPHENE", link: "Explore coatings" },
-        ].map((item) => <article className="landing-concern" key={item.href}><h3>{item.title}</h3><div><p>{item.text}</p><a className="landing-text-link" href={display ? `#services-${item.href}` : "#services"}>{item.link}<ArrowUpRight aria-hidden="true" /></a></div></article>)}</div>
+          { title: "Road grime and buildup", text: "Clear away dust, mud and the buildup of everyday driving.", href: "WASH", link: "Wash" },
+          { title: "A cabin due for a deep clean", text: "Explore interior detailing for seats, carpets and other surfaces that see daily use.", href: "DETAILING", link: "Detailing" },
+          { title: "Paint worth protecting", text: "Compare graphene coating packages for added paint protection.", href: "GRAPHENE", link: "Graphene coating" },
+        ].map((item) => (
+          <article className="landing-concern" key={item.href}>
+            <h3><a href={display ? `#services-${item.href}` : "#services"}>
+              <span>{item.link}</span>{item.title}<ArrowUpRight aria-hidden="true" />
+            </a></h3>
+            <p>{item.text}</p>
+          </article>
+        ))}</div>
       </section>
       <section id="care" className="landing-section landing-wrap landing-care" aria-labelledby="landing-care-title"><div className="landing-section-heading"><div><p className="landing-eyebrow">Services</p><LandingScrollFloat id="landing-care-title" text="Choose your service." /></div><p className="landing-muted">Choose a wash, detailing service or graphene coating. Compare options and prices below.</p></div><div className="landing-care-grid">{[
         { icon: Waves, title: "Wash", text: "Regular cleaning for cars and motorcycles.", link: "WASH", cta: "View wash options" },

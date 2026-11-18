@@ -419,16 +419,76 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
 .landing-about-copy h2{margin-bottom:24px}
 .landing .landing-about-lead{font-size:clamp(22px,2.2vw,30px);line-height:1.3;color:var(--fg)}
 .landing-about-copy>p{max-width:48ch;margin-bottom:20px}
-/* Problems and the relevant care: one editorial list, without another card grid. */
-.landing-concerns{display:grid;grid-template-columns:1fr 1.2fr;gap:clamp(40px,8vw,140px);border-block:1px solid var(--line)}
-.landing-concerns-heading h2{font-size:clamp(36px,4vw,64px);max-width:14ch;margin-bottom:24px}
-.landing-concerns-heading p{max-width:32ch;color:var(--mfg)}
-.landing-concern{padding-block:28px;border-bottom:1px solid var(--line)}
-.landing-concern:first-child{padding-top:0}
-.landing-concern:last-child{padding-bottom:0;border:0}
-.landing-concern h3{font-size:clamp(22px,2vw,28px);margin-bottom:12px}
-.landing-concern p{max-width:52ch;font-size:16px;color:var(--mfg);margin-bottom:10px}
-.landing-concern .landing-text-link{min-height:44px;font-size:14px}
+/* Pair the service index with an editorial photograph from the shop. */
+.landing-concerns {
+ display:grid;
+ grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);
+ gap:clamp(36px,7vw,112px);
+ align-items:end;
+ border-block:1px solid var(--line);
+}
+.landing-concerns-heading h2 {
+ font-size:clamp(38px,4.5vw,70px);
+ max-width:15ch;
+ margin-bottom:32px;
+ line-height:1.03;
+ letter-spacing:-.04em;
+}
+.landing-concerns-photo {
+ aspect-ratio:16/9;
+ overflow:hidden;
+ border-radius:3px;
+}
+.landing-concerns-photo img {
+ display:block;
+ width:100%;
+ height:100%;
+ object-fit:cover;
+ filter:saturate(.82);
+}
+.landing-concern-list {border-top:1px solid var(--line)}
+.landing-concern {
+ position:relative;
+ padding:clamp(20px,2.3vw,34px) 48px clamp(20px,2.3vw,34px) 0;
+ border-bottom:1px solid var(--line);
+}
+.landing-concern h3 {
+ font-size:clamp(22px,2.15vw,32px);
+ margin:0 0 8px;
+ text-wrap:pretty;
+}
+.landing-concern h3 a {display:block;color:var(--fg);text-decoration:none}
+.landing-concern h3 a::after {content:"";position:absolute;inset:0}
+.landing-concern h3 span {
+ display:block;
+ margin-bottom:9px;
+ color:var(--gold-hover);
+ font-size:13px;
+ letter-spacing:.04em;
+ font-weight:600;
+}
+.landing-concern h3 svg {
+ position:absolute;
+ right:2px;
+ top:50%;
+ width:20px;
+ height:20px;
+ color:var(--mfg);
+ transform:translateY(-50%);
+ transition:color .2s,transform .2s;
+}
+.landing-concern:has(a:hover,a:focus-visible) h3 svg {
+ color:var(--gold-hover);
+ transform:translate(2px,calc(-50% - 2px));
+}
+.landing-concern:has(a:focus-visible) {outline:2px solid var(--ring);outline-offset:4px}
+.landing-concern h3 a:focus-visible {outline:none}
+.landing .landing-concern p {
+ max-width:44ch;
+ font-size:15px;
+ color:var(--mfg);
+ margin:0;
+}
 /* A seamless, button-free feedback ribbon; focus, hover and reduced motion stop it. */
 .landing-reviews{display:block;padding-block:72px;border-block:1px solid var(--line)}
 .landing-review-head{display:flex;justify-content:space-between;align-items:flex-end;gap:32px;margin-bottom:32px}
