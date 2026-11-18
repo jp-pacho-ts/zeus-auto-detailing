@@ -78,12 +78,14 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           <a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Ask us about detailing<ArrowUpRight aria-hidden="true" /></a>
         </div>
       </section>
-      <section id="concerns" className="landing-section landing-wrap landing-concerns" aria-labelledby="landing-concerns-title">
-        <div className="landing-concerns-heading">
-          <h2 id="landing-concerns-title">Everyday use leaves its mark<span className="landing-gold-dot">.</span></h2>
-          <div className="landing-concerns-photo">{photo("basic-wash", "(max-width: 767px) 100vw, 46vw")}</div>
+      <section id="concerns" className="landing-concerns" aria-labelledby="landing-concerns-title">
+        <div className="landing-concerns-frame">
+          <div className="landing-concerns-photo">{photo("signature-wash", "100vw")}</div>
+          <div className="landing-wrap landing-concerns-heading">
+            <h2 id="landing-concerns-title">Everyday use leaves its mark<span className="landing-gold-dot">.</span></h2>
+          </div>
         </div>
-        <div className="landing-concern-list">{[
+        <div className="landing-wrap landing-concern-list">{[
           { title: "Road grime and buildup", text: "Clear away dust, mud and the buildup of everyday driving.", href: "WASH", link: "Wash" },
           { title: "A cabin due for a deep clean", text: "Explore interior detailing for seats, carpets and other surfaces that see daily use.", href: "DETAILING", link: "Detailing" },
           { title: "Paint worth protecting", text: "Compare graphene coating packages for added paint protection.", href: "GRAPHENE", link: "Graphene coating" },

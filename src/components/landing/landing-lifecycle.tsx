@@ -44,6 +44,17 @@ export function LandingLifecycle() {
         scrollTrigger: { trigger: frame, start: "top 94%", end: "top 30%", scrub: .45 },
       });
     });
+    media.add("(prefers-reduced-motion: no-preference)", () => {
+      const frame = root.querySelector(".landing-concerns-frame");
+      const photo = frame?.querySelector("img");
+      if (!frame || !photo) return;
+
+      gsap.fromTo(photo, { scale: 1.16 }, {
+        scale: 1,
+        ease: "none",
+        scrollTrigger: { trigger: frame, start: "top bottom", end: "bottom 55%", scrub: .45 },
+      });
+    });
     // Desktop scenes use native scroll geometry; touch has no scroll-linked effects.
     media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => {
       const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, autoRaf: false, prevent: (node) => !!node.closest(".landing-mobile-menu, select") });
