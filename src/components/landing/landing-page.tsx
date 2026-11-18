@@ -131,7 +131,7 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
             <div className="landing-stage-names">{STAGES.map((stage) => {
               const names = display?.services.filter((service) => service.category === stage.category && service.type === "BASE") ?? [];
               return <article key={stage.category} className="landing-step" data-step={stage.category}>
-                <div className="landing-step-photo">{photo(stage.photo, "(max-width: 767px) 100vw, 63vw")}</div>
+                <div className="landing-step-photo">{photo(stage.photo, "(min-width: 1024px) 100vw, (max-width: 767px) 100vw, 63vw")}</div>
                 <div className="landing-step-copy">
                   <h3 className="landing-step-name">{stage.name}</h3>
                   {names.length > 0 && <ul className="landing-step-links">{names.map((service) => <li key={service.id}><a href={`#service-${service.slug}`}>{service.name}</a></li>)}</ul>}

@@ -1,16 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { careTrackRange, careFocusProgress, careShotWindow } from "./landing-scene-model";
+import { careShotIndexAtProgress, careFocusProgress, careShotWindow } from "./landing-scene-model";
 
-test("horizontal care journey centers its first and last cards at different viewport widths", () => {
-  for (const viewport of [960, 1200, 1500]) {
-    const card = 340, gap = 80, track = card * 3 + gap * 2;
-    const range = careTrackRange(viewport, card, track);
-    assert.equal(range.start + card / 2, viewport / 2);
-    assert.equal(range.end + (card + gap) * 2 + card / 2, viewport / 2);
-    const middle = range.start + (range.end - range.start) * careFocusProgress(1, 3);
-    assert.equal(middle + card + gap + card / 2, viewport / 2);
-  }
+test("the workshop counter switches at the midpoint of each wipe", () => {
+  const at = (progress: number) => careShotIndexAtProgress(progress, 3);
+  assert.deepEqual([-.1, .249, .25, .749, .75, 1.1].map(at), [0, 0, 1, 1, 2, 2]);
+  assert.equal(careShotIndexAtProgress(.5, 1), 0);
 });
 
 test("keyboard scene positions are bounded and a single care choice never divides by zero", () => {
