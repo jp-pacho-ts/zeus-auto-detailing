@@ -127,18 +127,23 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
             <div><h2 id="landing-work-title">What we do in the shop</h2></div>
             <p className="landing-muted">From the first wash to the final coat. Photographed at Zeus.</p>
           </div>
-          <div className="landing-stage-names">{STAGES.map((stage) => {
-            const names = display?.services.filter((service) => service.category === stage.category && service.type === "BASE") ?? [];
-            return <article key={stage.category} className="landing-step" data-step={stage.category}>
-              <div className="landing-step-photo">{photo(stage.photo, "(max-width: 767px) 100vw, 63vw")}</div>
-              <div className="landing-step-copy">
-                <h3 className="landing-step-name">{stage.name}</h3>
-                {names.length > 0 && <ul className="landing-step-links">{names.map((service) => <li key={service.id}><a href={`#service-${service.slug}`}>{service.name}</a></li>)}</ul>}
-                <a className="landing-step-prices" href={display ? `#services-${stage.category}` : "#services"}>See {stage.name.toLowerCase()} prices<ArrowUpRight aria-hidden="true" /></a>
-              </div>
-            </article>;
-          })}</div>
-          <div className="landing-stage-progress" aria-hidden="true"><i /></div>
+          <div className="landing-stage-track">
+            <div className="landing-stage-names">{STAGES.map((stage) => {
+              const names = display?.services.filter((service) => service.category === stage.category && service.type === "BASE") ?? [];
+              return <article key={stage.category} className="landing-step" data-step={stage.category}>
+                <div className="landing-step-photo">{photo(stage.photo, "(max-width: 767px) 100vw, 63vw")}</div>
+                <div className="landing-step-copy">
+                  <h3 className="landing-step-name">{stage.name}</h3>
+                  {names.length > 0 && <ul className="landing-step-links">{names.map((service) => <li key={service.id}><a href={`#service-${service.slug}`}>{service.name}</a></li>)}</ul>}
+                  <a className="landing-step-prices" href={display ? `#services-${stage.category}` : "#services"}>See {stage.name.toLowerCase()} prices<ArrowUpRight aria-hidden="true" /></a>
+                </div>
+              </article>;
+            })}</div>
+          </div>
+          <div className="landing-stage-progress" aria-hidden="true">
+            <span className="landing-stage-progress-line"><i /></span>
+            <span className="landing-stage-counter"><b data-workshop-shot>01</b><span>/</span>{String(STAGES.length).padStart(2, "0")}</span>
+          </div>
         </div>
       </section>
       <LandingReviews />

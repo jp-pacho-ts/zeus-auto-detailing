@@ -172,13 +172,18 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
  height:calc(100svh - 74px);
  display:grid;
  grid-template-columns:minmax(0,1fr);
- grid-template-rows:auto minmax(0,1fr) 2px;
+ grid-template-rows:auto minmax(0,1fr) auto;
  align-items:center;
  overflow:clip;
  padding-block:20px;
 }
 .is-motion-scene .landing-section-heading{margin-bottom:4px}
 .is-motion-scene .landing-section-heading h2{font-size:clamp(32px,3.6vw,54px);max-width:none;margin:0}
+.is-motion-scene .landing-stage-track{
+ --rim:clamp(16px,4vw,60px);
+ mask-image:linear-gradient(to right,transparent,#000 var(--rim),#000 calc(100% - var(--rim)),transparent);
+ padding-block:6px;
+}
 .is-motion-scene .landing-stage-names{display:flex;align-items:start;width:max-content;gap:clamp(16px,2.8vw,46px)}
 .is-motion-scene .landing-step{
  display:grid;
@@ -186,7 +191,7 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
  gap:0;
  position:relative;
  isolation:isolate;
- width:clamp(360px,min(51vw,calc((100svh - 245px)*1.85)),760px);
+ width:clamp(360px,min(58vw,calc((100svh - 270px)*1.85)),860px);
  padding:0;
  border:1px solid var(--line);
  border-radius:4px;
@@ -208,8 +213,11 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
 .is-motion-scene .landing-step h3{font-size:clamp(32px,4vw,60px);margin:0 0 4px;line-height:1.05}
 .is-motion-scene .landing-step-links{color:var(--fg)}
 .is-motion-scene .landing-step-prices{border-bottom-color:rgb(255 255 255 / .26)}
-.is-motion-scene .landing-stage-progress{display:block;width:100%;height:2px;background:var(--line)}
+.is-motion-scene .landing-stage-progress{display:flex;align-items:center;gap:20px;width:100%}
+.landing-stage-progress-line{flex:1;height:2px;background:var(--line)}
 .landing-stage-progress i{display:block;width:100%;height:100%;background:var(--gold);transform-origin:left}
+.landing-stage-counter{display:flex;align-items:center;gap:8px;color:var(--mfg);font-size:13px;font-variant-numeric:tabular-nums}
+.landing-stage-counter b{color:var(--gold-hover);font-weight:600}
 .landing-ground-muted{background:var(--muted)}
 .landing-estimate-section{padding-top:0}
 .landing-filter-head{margin-bottom:24px}
