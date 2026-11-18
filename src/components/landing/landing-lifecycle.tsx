@@ -83,7 +83,7 @@ export function LandingLifecycle() {
       root.addEventListener("focusin", settle); window.addEventListener("hashchange", settle);
       return () => { root.removeEventListener("focusin", settle); window.removeEventListener("hashchange", settle); gsap.ticker.remove(tick); lenis.destroy(); };
     });
-    media.add("(min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference)", () => {
+    media.add("(prefers-reduced-motion: no-preference)", () => {
       const stage = root.querySelector<HTMLElement>(".landing-stage");
       return stage ? mountCareScene(stage) : undefined;
     });

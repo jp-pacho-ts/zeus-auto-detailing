@@ -122,25 +122,21 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
         ))}</div>
       </section>
       <section id="work" className="landing-section landing-wrap landing-stage" aria-labelledby="landing-work-title">
-        <div className="landing-stage-viewport">
-        <span className="landing-stage-wipe" aria-hidden="true" />
-        <span className="landing-stage-backdrop" aria-hidden="true">IN THE DETAILS</span>
-        <div className="landing-section-heading"><div><h2 id="landing-work-title">What we do in the shop</h2></div><p className="landing-muted">Real work, photographed at Zeus. A closer look at the care behind the finish.</p></div>
-        <div className="landing-stage-grid">
-          <div className="landing-stage-names">{STAGES.map((stage) => {
-            const names = display?.services.filter((s) => s.category === stage.category && s.type === "BASE") ?? [];
-            return <div key={stage.category} className="landing-step" data-step={stage.category}>
+        <div className="landing-section-heading">
+          <div><h2 id="landing-work-title">What we do in the shop</h2></div>
+          <p className="landing-muted">From the first wash to the final coat. Photographed at Zeus.</p>
+        </div>
+        <div className="landing-stage-names">{STAGES.map((stage) => {
+          const names = display?.services.filter((service) => service.category === stage.category && service.type === "BASE") ?? [];
+          return <article key={stage.category} className="landing-step" data-step={stage.category}>
+            <div className="landing-step-photo">{photo(stage.photo, "(max-width: 767px) 100vw, 63vw")}</div>
+            <div className="landing-step-copy">
               <h3 className="landing-step-name">{stage.name}</h3>
-              {/* One responsive photograph per category, shared by desktop and phone. */}
-              <div className="landing-step-photo">{photo(stage.photo, "(max-width: 767px) 100vw, 440px")}</div>
-              {names.length > 0 && <ul className="landing-step-links">{names.map((s) => <li key={s.id}><a href={`#service-${s.slug}`}>{s.name}</a></li>)}</ul>}
+              {names.length > 0 && <ul className="landing-step-links">{names.map((service) => <li key={service.id}><a href={`#service-${service.slug}`}>{service.name}</a></li>)}</ul>}
               <a className="landing-step-prices" href={display ? `#services-${stage.category}` : "#services"}>See {stage.name.toLowerCase()} prices<ArrowUpRight aria-hidden="true" /></a>
-            </div>;
-          })}</div>
-        </div>
-
-        <div className="landing-stage-progress" aria-hidden="true"><span><i /></span><p>Wash <b /> Detailing <b /> Graphene</p></div>
-        </div>
+            </div>
+          </article>;
+        })}</div>
       </section>
       <LandingReviews />
       {display ? <LandingServices catalog={display} phone={phone} messenger={brandConfig.facebookMessengerUrl} status={status} /> : <>
