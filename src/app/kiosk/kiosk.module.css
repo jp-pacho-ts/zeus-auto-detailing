@@ -1,42 +1,46 @@
-﻿.welcome {
+.welcome {
+  display: grid;
+  min-height: 100dvh;
+  grid-template-rows: minmax(220px, 1fr) auto;
+}
+
+.media {
   position: relative;
-  isolation: isolate;
+  grid-row: 1;
   overflow: hidden;
-  color: white;
   background: #0b0b0c;
 }
 
-.welcome :global(.zeus-hero-media),
-.welcome :global(.zeus-hero-poster),
-.welcome :global(.zeus-hero-video),
-.welcome::before {
+.media :global(.zeus-hero-media),
+.media :global(.zeus-hero-poster),
+.media :global(.zeus-hero-video) {
   position: absolute;
   inset: 0;
 }
 
-.welcome :global(.zeus-hero-poster),
-.welcome :global(.zeus-hero-video) {
+.media :global(.zeus-hero-poster),
+.media :global(.zeus-hero-video) {
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: 62% center;
 }
 
-.welcome :global(.zeus-hero-video) {
+.media :global(.zeus-hero-video) {
   opacity: 0;
 }
 
-.welcome :global(.zeus-hero-video[data-ready="true"]) {
+.media :global(.zeus-hero-video[data-ready="true"]) {
   opacity: 1;
 }
 
-.welcome::before {
-  z-index: 1;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(0deg, rgb(0 0 0 / 94%), rgb(0 0 0 / 24%) 65%, rgb(0 0 0 / 60%));
-}
+@media (orientation: landscape) {
+  .welcome {
+    grid-template-columns: minmax(290px, 2fr) minmax(0, 3fr);
+    grid-template-rows: 1fr;
+  }
 
-.welcome > div:last-child {
-  z-index: 2;
+  .media {
+    grid-column: 2;
+  }
 }

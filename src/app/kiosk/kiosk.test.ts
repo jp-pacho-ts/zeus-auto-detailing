@@ -15,3 +15,10 @@ test("the kiosk starts its own standalone app and reuses the public booking wiza
   assert.match(wizard, /autoComplete=\{kioskOnExit \? "off"/);
   assert.match(wizard, /Next customer/);
 });
+
+test("the kiosk uses a horizontal step header and a persistent action bar", () => {
+  const wizard = readFileSync("src/components/booking/booking-wizard.tsx", "utf8");
+  assert.match(wizard, /kioskOnExit && <ol aria-label="Booking steps"/);
+  assert.match(wizard, /data-layout=\{kioskOnExit \? "kiosk"/);
+  assert.match(wizard, /kioskOnExit \? "sm:px-8" : "lg:hidden"/);
+});

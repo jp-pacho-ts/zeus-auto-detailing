@@ -35,11 +35,10 @@ export function Kiosk() {
 
   return (
     <main className={styles.welcome}>
-      <HomeVideo />
-      <div className="relative flex min-h-[100dvh] max-w-4xl flex-col items-start justify-between gap-12 px-6 py-8 sm:px-12 sm:py-12">
+      <div className="flex flex-col items-start justify-center gap-8 border-t border-primary/50 bg-muted px-6 py-8 sm:px-10 landscape:border-r landscape:border-t-0">
         <Logo priority />
         <div>
-          <h1 className="max-w-[12ch] text-balance text-5xl font-extrabold leading-none tracking-tight sm:text-7xl">
+          <h1 className="max-w-[13ch] text-balance text-4xl font-extrabold leading-none tracking-tight sm:text-5xl xl:text-6xl">
             Book your detailing service
           </h1>
           <button
@@ -52,6 +51,7 @@ export function Kiosk() {
           </button>
         </div>
       </div>
+      <div className={styles.media}><HomeVideo /></div>
     </main>
   );
 }

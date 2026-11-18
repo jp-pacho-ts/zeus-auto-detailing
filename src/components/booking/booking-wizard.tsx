@@ -720,7 +720,9 @@ export function BookingWizard({
 
   // Phones, services and day steps: what is chosen so far, above the choices.
   const renderMobileSummaryTray = () => (
-    <div className="mb-6 rounded-xl border border-border bg-muted p-4 text-sm lg:hidden">
+    <div className={kioskOnExit
+      ? "mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 rounded-xl border border-border bg-muted px-5 py-2 text-sm [&>p]:col-start-1 [&>button]:col-start-2 [&>button]:row-start-1 [&>button]:row-span-2"
+      : "mb-6 rounded-xl border border-border bg-muted p-4 text-sm lg:hidden"}>
       <p className="font-bold text-foreground">{vehicle?.name}</p>
       <p className="break-words text-muted-foreground">{servicesSummary || "No service chosen yet"}</p>
       {step === 3 && chosenDay && <p className="text-muted-foreground">{dateLabel(chosenDay)}</p>}
@@ -748,15 +750,15 @@ export function BookingWizard({
     const extras = nested ? [] : addOnsUnder(s);
     return (
       <li key={s.id} className={nested ? undefined : kioskOnExit ? "md:contents" : "lg:contents"}>
-        <label className={optionCard(Boolean(pick)) + (kioskOnExit && !nested ? " min-h-[112px]" : " min-h-[80px]")}>
-          <div className="flex items-start gap-3.5">
+        <label className={optionCard(Boolean(pick)) + (kioskOnExit && !nested ? " min-h-[132px] items-start" : " min-h-[80px]")}>
+          <div className={kioskOnExit && !nested ? "grid gap-3" : "flex items-start gap-3.5"}>
             {!nested && (
               <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted">
                 <Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
               </div>
             )}
             <div>
-              <span className="block font-bold text-foreground">{s.name}</span>
+              <span className={kioskOnExit && !nested ? "block text-lg font-bold text-foreground" : "block font-bold text-foreground"}>{s.name}</span>
               {detail && <span className="mt-1 block text-sm text-muted-foreground">{detail}</span>}
               <span className="mt-2 block text-sm font-semibold text-foreground">
                 {"compareAtText" in offer && offer.compareAtText && (
@@ -1017,7 +1019,7 @@ export function BookingWizard({
     ) : null;
 
   return (
-    <div className="wizard-root min-h-screen bg-background text-foreground">
+    <div className="wizard-root min-h-screen bg-background text-foreground" data-layout={kioskOnExit ? "kiosk" : undefined}>
       <style>{printCss}</style>
       {kioskOnExit && kioskWarning && !pending && step < 5 && (
         <aside className="fixed inset-x-4 top-4 z-50 mx-auto flex max-w-xl flex-wrap items-center justify-between gap-3 rounded-xl border border-warning bg-card p-4 shadow-xl">
@@ -1029,20 +1031,32 @@ export function BookingWizard({
       )}
 
       {step < 5 && (
-        <div className="lg:grid lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)]">
+        <div className={kioskOnExit ? "" : "lg:grid lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)]"}>
           {/* P1-52 (LE 2026-11-06, mock C): the side panel. Desktop: logo, step, title, the build sheet, the big total and the
               actions, kept in view. Phone: the same panel is the header (logo, segmented progress, step, title); the total
               and the action sit in the bar at the bottom. */}
           <div
             data-part="panel"
-            className="no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-[clamp(14px,3vh,32px)] lg:pt-[clamp(14px,2.6vh,28px)]"
+            className={kioskOnExit ? "no-print" : "no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-[clamp(14px,3vh,32px)] lg:pt-[clamp(14px,2.6vh,28px)]"}
           >
-            <div className="flex items-center justify-between gap-3">
-              {kioskOnExit ? <Logo /> : <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <div className={kioskOnExit
+              ? "grid grid-cols-2 items-center gap-3 border-b border-border bg-muted px-4 py-3 sm:grid-cols-[1fr_auto_1fr] sm:px-8"
+              : "flex items-center justify-between gap-3"}>
+              {kioskOnExit ? <Logo className="col-start-1 row-start-1" /> : <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <Logo />
               </Link>}
+              {kioskOnExit && <ol aria-label="Booking steps" className="col-span-2 col-start-1 row-start-2 grid grid-cols-4 gap-2 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:gap-3">
+                {STEP_LABELS.map((label, index) => (
+                  <li key={label} aria-current={index + 1 === step ? "step" : undefined}
+                    className={"flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 text-center text-xs font-semibold sm:px-3 sm:text-sm " +
+                      (index + 1 === step ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+                    {index + 1 < step && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}
+                    {label}
+                  </li>
+                ))}
+              </ol>}
               {kioskOnExit && !pending && (
-                <button type="button" onClick={kioskOnExit} className={pillLink + " px-4"}>
+                <button type="button" onClick={kioskOnExit} className={pillLink + " col-start-2 row-start-1 justify-self-end px-4 sm:col-start-3"}>
                   End session
                 </button>
               )}
@@ -1052,7 +1066,7 @@ export function BookingWizard({
                 </Link>
               )}
             </div>
-            <div
+            {!kioskOnExit && <div
               role="progressbar"
               aria-label="Booking progress"
               aria-valuemin={1}
@@ -1071,18 +1085,23 @@ export function BookingWizard({
                   }
                 />
               ))}
-            </div>
-            <p className="mt-4 text-sm text-muted-foreground lg:mt-[clamp(10px,4.5vh,56px)]">
+            </div>}
+            <div className={kioskOnExit ? "mx-auto max-w-5xl px-4 pb-1 pt-7 text-center sm:px-8 sm:pt-10" : undefined}>
+            {!kioskOnExit && <p className="mt-4 text-sm text-muted-foreground lg:mt-[clamp(10px,4.5vh,56px)]">
               <strong className="font-bold text-primary">Step {step} of 4</strong> · {stepLabel}
-            </p>
+            </p>}
             <h1
               id="wizard-step-title"
               tabIndex={-1}
-              className="mt-1 scroll-mt-28 text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none lg:text-[clamp(28px,3.6vh,32px)] lg:leading-[1.1]"
+              className={kioskOnExit
+                ? "text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none sm:text-5xl"
+                : "mt-1 scroll-mt-28 text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none lg:text-[clamp(28px,3.6vh,32px)] lg:leading-[1.1]"}
             >
               {HEADINGS[step - 1]}
             </h1>
             {intro && <p className="mt-2 text-base text-muted-foreground lg:max-w-none lg:text-[clamp(14px,1.9vh,16px)]">{intro}</p>}
+            </div>
+            {!kioskOnExit && <>
             <div className="hidden lg:block">{renderSheet()}</div>
             <div className="hidden flex-1 lg:block" />
             <div className="hidden lg:block lg:pt-[clamp(8px,2vh,32px)]">
@@ -1095,10 +1114,11 @@ export function BookingWizard({
               )}
               {renderReason()}
             </div>
+            </>}
           </div>
 
           <main
-            className={
+            className={kioskOnExit ? "mx-auto w-full px-4 pb-48 pt-6 sm:px-8 sm:pt-8" :
               "min-w-0 px-4 pb-40 pt-4 sm:px-6 lg:px-[clamp(24px,3.5vw,56px)] lg:pb-[clamp(16px,4vh,64px)] lg:pt-[clamp(16px,5vh,56px)]" +
               (step === 1 ? " lg:flex lg:min-h-[100dvh] lg:flex-col lg:justify-center" : "")
             }
@@ -1653,7 +1673,7 @@ export function BookingWizard({
       {step < 5 && (
         <div
           id="wizard-action-bar"
-          className="wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur lg:hidden"
+          className={"wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur " + (kioskOnExit ? "sm:px-8" : "lg:hidden")}
         >
           {/* One row: Back, total, action. On phones (below 480 px): total and Back, then the action full width, so the
               total is never squeezed out. */}
