@@ -491,7 +491,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
       if (svc.isActive) {
         await adminRequest(`/api/admin/services/${svc.id}`, { method: "DELETE" });
       } else {
-        await adminRequest(`/api/admin/services/${svc.id}`, { method: "POST" });
+        await adminRequest(`/api/admin/services/${svc.id}`, { method: "POST", body: {} });
       }
       resource.reload();
     } catch (err) {
