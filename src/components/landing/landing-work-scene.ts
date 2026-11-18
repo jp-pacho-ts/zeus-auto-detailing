@@ -1,16 +1,61 @@
 import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { careFocusProgress, careTrackRange } from "./landing-scene-model";
 
-// Photos move inside their frames. The links and document scroll keep their natural positions.
+// Only desktop gets the horizontal scene. The normal document flow is the fallback.
 export function mountCareScene(stage: HTMLElement) {
-  stage.querySelectorAll(".landing-step-photo").forEach((frame) => {
-    const photo = frame.querySelector("img");
+  const viewport = stage.querySelector<HTMLElement>(".landing-stage-viewport");
+  const track = stage.querySelector<HTMLElement>(".landing-stage-names");
+  const progress = stage.querySelector(".landing-stage-progress i");
+  const cards = [...stage.querySelectorAll<HTMLElement>(".landing-step")];
+  if (!viewport || !track || !progress || cards.length < 2) return;
+
+  stage.classList.add("is-motion-scene");
+  const range = () => careTrackRange(viewport.clientWidth, cards[0].offsetWidth, track.offsetWidth);
+  const scene = gsap.timeline({
+    scrollTrigger: {
+      trigger: stage,
+      start: "top 74px",
+      end: "bottom bottom",
+      scrub: .28,
+      invalidateOnRefresh: true,
+    },
+  });
+  scene.fromTo(track, { x: () => range().start }, { x: () => range().end, duration: 1, ease: "none" }, 0);
+  scene.fromTo(progress, { scaleX: 0 }, { scaleX: 1, duration: 1, ease: "none" }, 0);
+  cards.forEach((card, index) => {
+    const photo = card.querySelector("img");
     if (!photo) return;
 
-    gsap.fromTo(photo, { scale: 1.12, yPercent: 3 }, {
-      scale: 1,
-      yPercent: 0,
-      ease: "none",
-      scrollTrigger: { trigger: frame, start: "top bottom", end: "top 32%", scrub: .4 },
-    });
+    const arrival = careFocusProgress(index, cards.length);
+    if (arrival > 0) {
+      scene.fromTo(photo, { scale: 1.07 }, { scale: 1, duration: arrival, ease: "sine.out" }, 0);
+    }
+    if (arrival < 1) {
+      scene.to(photo, { scale: 1.07, duration: 1 - arrival, ease: "sine.in" }, arrival);
+    }
   });
+
+  const revealFocusedCard = (event: FocusEvent) => {
+    const target = event.target;
+    const trigger = scene.scrollTrigger;
+    if (!(target instanceof HTMLElement) || !target.matches(":focus-visible") || !trigger) return;
+    const index = cards.findIndex((card) => card.contains(target));
+    if (index < 0) return;
+
+    const position = careFocusProgress(index, cards.length);
+    window.scrollTo({ top: trigger.start + (trigger.end - trigger.start) * position, behavior: "instant" });
+    ScrollTrigger.update();
+    trigger.getTween()?.progress(1);
+    scene.progress(position);
+  };
+  stage.addEventListener("focusin", revealFocusedCard);
+  return () => {
+    stage.removeEventListener("focusin", revealFocusedCard);
+    stage.classList.remove("is-motion-scene");
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && stage.contains(active)) {
+      requestAnimationFrame(() => { if (active.isConnected) active.scrollIntoView({ block: "center", behavior: "instant" }); });
+    }
+  };
 }

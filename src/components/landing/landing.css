@@ -164,6 +164,33 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
 }
 .landing a.landing-step-prices:hover{border-color:var(--gold-hover)}
 .landing-step-prices svg{width:16px;height:16px}
+.landing-stage-progress{display:none}
+.landing-stage.is-motion-scene{height:190svh;padding-block:0}
+.is-motion-scene .landing-stage-viewport{
+ position:sticky;
+ top:74px;
+ height:calc(100svh - 74px);
+ display:grid;
+ grid-template-columns:minmax(0,1fr);
+ grid-template-rows:auto minmax(0,1fr) 2px;
+ align-items:center;
+ overflow:clip;
+ padding-block:20px;
+}
+.is-motion-scene .landing-section-heading{margin-bottom:4px}
+.is-motion-scene .landing-section-heading h2{font-size:clamp(32px,3.6vw,54px);max-width:none;margin:0}
+.is-motion-scene .landing-stage-names{display:flex;align-items:start;width:max-content;gap:clamp(16px,2.8vw,46px)}
+.is-motion-scene .landing-step{
+ display:block;
+ width:clamp(330px,min(43vw,calc((100svh - 345px)*1.7)),650px);
+ padding:0;
+ border:0;
+}
+.is-motion-scene .landing-step-photo{aspect-ratio:1.7}
+.is-motion-scene .landing-step-copy{padding:15px 0 0}
+.is-motion-scene .landing-step h3{font-size:clamp(24px,2.3vw,36px);margin:0 0 2px}
+.is-motion-scene .landing-stage-progress{display:block;width:100%;height:2px;background:var(--line)}
+.landing-stage-progress i{display:block;width:100%;height:100%;background:var(--gold);transform-origin:left}
 .landing-ground-muted{background:var(--muted)}
 .landing-estimate-section{padding-top:0}
 .landing-filter-head{margin-bottom:24px}

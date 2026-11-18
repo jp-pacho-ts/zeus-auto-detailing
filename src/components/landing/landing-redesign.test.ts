@@ -45,11 +45,12 @@ test("cinematic car asset supplies real alpha transparency at a bounded source s
   assert.ok(png.length < 2 * 1024 * 1024);
 });
 
-test("workshop keeps all three photographs and price links in the normal document flow", () => {
+test("workshop keeps all three photographs and price links available before motion starts", () => {
   const html = render();
   const work = html.slice(html.indexOf('id="work"'), html.indexOf('id="services"'));
   assert.equal(work.match(/class="landing-step-photo"/g)?.length, 3);
-  assert.doesNotMatch(work, /landing-stage-(viewport|backdrop|progress)/);
+  assert.match(work, /class="landing-stage-progress" aria-hidden="true"/);
+  assert.doesNotMatch(work, /landing-stage-backdrop|landing-stage-wipe/);
   assert.equal(work.match(/class="landing-step"/g)?.length, 3);
   assert.equal(work.match(/href="#services"/g)?.length, 3);
   assert.doesNotMatch(work, /is-motion-scene|aria-hidden="true"[^>]*>Wash/);
