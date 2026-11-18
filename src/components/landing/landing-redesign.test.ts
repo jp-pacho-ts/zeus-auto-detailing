@@ -19,11 +19,12 @@ test("LuxAuto redesign connects the brand, care journey, genuine shop work and f
   assert.match(html, /Prices are unavailable right now/);
 });
 
-test("the feedback strip shows workshop photos with a single review status and a hidden loop copy", () => {
+test("the feedback strip labels every sample and hides the repeated group from assistive technology", () => {
   const html = render();
   const reviews = html.slice(html.indexOf('id="reviews"'), html.indexOf('id="services"'));
   assert.equal(reviews.match(/Customer feedback will appear here\./g)?.length, 1);
   assert.equal(reviews.match(/class="landing-review-frame"/g)?.length, 8);
+  assert.equal(reviews.match(/class="landing-review-sample">Sample review<\/span>/g)?.length, 8);
   assert.match(reviews, /class="landing-review-group" aria-hidden="true" inert=""/);
   assert.doesNotMatch(reviews, /<button|<blockquote|Preview slot/);
 });

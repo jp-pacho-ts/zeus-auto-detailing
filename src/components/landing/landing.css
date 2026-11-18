@@ -597,7 +597,7 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
  color:var(--mfg);
  margin:0;
 }
-/* Approved shop photography occupies the review space until feedback is ready. */
+/* Sample quotes pair with approved shop photography for the review preview. */
 .landing-reviews{
  padding-block:clamp(48px,6vw,96px);
  border-block:1px solid var(--line);
@@ -624,21 +624,51 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
 .landing-review-group{display:flex;gap:14px;padding-inline-end:14px;flex:none}
 .landing-review-frame{
  position:relative;
- flex:0 0 max(260px,25vw);
+ display:grid;
+ isolation:isolate;
+ flex:0 0 max(280px,25vw);
+ min-height:clamp(300px,24vw,414px);
  margin:0;
  overflow:hidden;
- aspect-ratio:1.7;
  background:var(--muted);
 }
-.landing-review-frame img{display:block;width:100%;height:100%;object-fit:cover;filter:saturate(.78)}
-.landing-review-frame figcaption{
+.landing-review-frame img{
  position:absolute;
- inset:auto 0 0;
- padding:32px clamp(14px,1.6vw,24px) 14px;
- background:linear-gradient(to top,rgb(9 9 11 / .94),transparent);
- font-size:14px;
- color:var(--fg);
+ inset:0;
+ z-index:-2;
+ display:block;
+ width:100%;
+ height:100%;
+ object-fit:cover;
+ filter:saturate(.8);
 }
+.landing-review-frame figcaption{
+ display:flex;
+ flex-direction:column;
+ align-items:flex-start;
+ justify-content:space-between;
+ gap:70px;
+ padding:clamp(18px,2vw,30px);
+ background:
+  linear-gradient(to top,rgb(9 9 11 / .98),rgb(9 9 11 / .86) 28%,rgb(9 9 11 / .28) 60%,transparent 80%),
+  linear-gradient(180deg,rgb(9 9 11 / .70),transparent 36%);
+}
+.landing-review-sample{
+ color:var(--fg);
+ padding:4px 9px;
+ border:1px solid rgb(255 255 255 / .35);
+ background:rgb(9 9 11 / .75);
+ font-size:12px;
+}
+.landing .landing-review-copy p{
+ font-size:clamp(21px,1.65vw,28px);
+ line-height:1.28;
+ letter-spacing:-.024em;
+ text-wrap:pretty;
+ color:var(--fg);
+ margin:0 0 12px;
+}
+.landing-review-copy>span{font-size:13px;color:var(--gold-hover)}
 .landing-review-window:is(:hover,:focus-within,:active) .landing-review-track{animation-play-state:paused}
 @keyframes landing-feedback-drift{to{transform:translateX(-50%)}}
 @media(max-width:767px){
@@ -648,7 +678,7 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
  .landing-concerns-heading{padding-bottom:24px}
  .landing-concerns-heading h2{font-size:clamp(38px,9.4vw,58px)}
  .landing-concern-list{grid-template-columns:1fr}
- .landing-review-frame{flex-basis:clamp(230px,72vw,360px)}
+ .landing-review-frame{flex-basis:clamp(280px,79vw,380px)}
 }
 @media(prefers-reduced-motion:reduce){
  .landing-review-window{overflow:visible;padding-inline:var(--edge)}
@@ -656,9 +686,11 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
  .landing-review-group{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0;width:100%}
  .landing-review-group[aria-hidden=true]{display:none}
 }
-@media(prefers-reduced-motion:reduce) and (max-width:900px){
+@media(prefers-reduced-motion:reduce) and (max-width:1120px){
  .landing-review-group{grid-template-columns:repeat(2,minmax(0,1fr))}
- .landing-review-frame{aspect-ratio:1.3}
+}
+@media(prefers-reduced-motion:reduce) and (max-width:620px){
+ .landing-review-group{grid-template-columns:1fr}
 }
 /* Hero hierarchy: a readable copy column over the moving footage. */
 .landing-hero-copy{padding-bottom:clamp(48px,7vh,80px)}
