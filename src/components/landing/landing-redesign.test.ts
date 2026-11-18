@@ -19,6 +19,15 @@ test("LuxAuto redesign connects the brand, care journey, genuine shop work and f
   assert.match(html, /Prices are unavailable right now/);
 });
 
+test("unavailable prices provide an estimate request and a direct phone link", () => {
+  const html = render();
+  const pricing = html.slice(html.indexOf('id="services"'), html.indexOf('id="coatings"'));
+  assert.match(pricing, /Prices are unavailable right now\./);
+  assert.match(pricing, /id="estimate"/);
+  assert.match(pricing, /href="https:\/\/m\.me\/[^"]+"[^>]*>Message for an estimate/);
+  assert.match(pricing, /href="tel:[^"]+"/);
+});
+
 test("the feedback strip labels every sample and hides the repeated group from assistive technology", () => {
   const html = render();
   const reviews = html.slice(html.indexOf('id="reviews"'), html.indexOf('id="services"'));

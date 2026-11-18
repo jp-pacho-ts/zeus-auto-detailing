@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ArrowDown, ArrowUpRight, Check, CircleAlert, MessageCircle, Phone } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Check, MessageCircle, Phone } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import type { LandingStatus } from "@/server/landing/status";
@@ -34,7 +34,6 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
   const pausedLine = "Online booking is paused. Call or message us to book.";
   const unknownLine = <>We could not check online booking just now. <a href={tel}>Call the shop</a></>;
   const photo = (slug: string, sizes: string) => { const p = landingPhoto(slug)!; return <Image src={p.src} alt={p.alt} width={1600} height={1200} sizes={sizes} style={p.position ? { objectPosition: p.position } : undefined} />; };
-  const unavailable = <p className="landing-error"><CircleAlert aria-hidden="true" /><span>Prices are unavailable right now. <a href={tel}>Call {brandConfig.displayPhone}</a></span></p>;
   // FAQ 1 to 8 (strategy 9.2): an item ships only when its answer is a fact the page holds.
   const multiDayCoating = !!display?.services.some((s) => s.category === "GRAPHENE" && s.offers.some((o) => o.duration.kind === "MULTI_DAY"));
   const motorcycles = !!display?.vehicleCategories.some((s) => s.code === "MOTOR");
@@ -148,7 +147,20 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
       </section>
       <LandingReviews />
       {display ? <LandingServices catalog={display} phone={phone} messenger={brandConfig.facebookMessengerUrl} status={status} /> : <>
-        <section id="services" className="landing-section landing-wrap landing-ground-muted"><p className="landing-eyebrow">04 / Care, made clear</p><h2>Services and prices</h2><p className="landing-muted">Choose care that fits your vehicle. Prices and package options will appear when the catalog is available.</p>{unavailable}<div id="estimate" className="landing-unavailable-estimate"><h3>Estimate your price</h3><p>Tell us your vehicle and the care you have in mind.</p><a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Ask for an estimate<ArrowUpRight aria-hidden="true" /></a></div></section>
+        <section id="services" className="landing-price-preview" aria-labelledby="landing-price-preview-title">
+          <div className="landing-price-preview-photo">{photo("arcane-graphene", "(max-width: 767px) 100vw, 66vw")}</div>
+          <div className="landing-wrap landing-price-preview-copy">
+            <h2 id="landing-price-preview-title">Services and prices<span className="landing-gold-dot">.</span></h2>
+            <div id="estimate" className="landing-price-preview-estimate">
+              <p className="landing-price-preview-status">Prices are unavailable right now.</p>
+              <p>Tell us what you drive and which service you have in mind for an estimate.</p>
+              <div className="landing-price-preview-actions">
+                <a className="landing-pill landing-gold" href={brandConfig.facebookMessengerUrl}>Message for an estimate<ArrowUpRight aria-hidden="true" /></a>
+                <a className="landing-text-link" href={tel}><Phone aria-hidden="true" />Call {brandConfig.displayPhone}</a>
+              </div>
+            </div>
+          </div>
+        </section>
         <section id="coatings" className="landing-coatings"><CoatingsBleed /><div className="landing-wrap landing-compare"><p><a href={brandConfig.facebookMessengerUrl}>Ask about coatings on Messenger</a></p></div></section>
       </>}
       <section id="gallery" className="landing-section landing-wrap landing-gallery" aria-labelledby="landing-gallery-title">
