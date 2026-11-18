@@ -14,9 +14,18 @@ test("LuxAuto redesign connects the brand, care journey, genuine shop work and f
   assert.match(html, /Car &amp; motorcycle detailing/);
   assert.equal(html.match(/<h1[ >]/g)?.length, 1);
   assert.match(html, /Car and motorcycle detailing in Tacloban City/);
-  assert.match(html, /Review awaiting owner approval/);
+  assert.match(html, /Customer feedback will appear here\./);
   assert.doesNotMatch(html, /aggregateRating|reviewCount|Five out of five|★★★★★|Jordan L\./);
   assert.match(html, /Prices are unavailable right now/);
+});
+
+test("the feedback strip shows workshop photos with a single review status and a hidden loop copy", () => {
+  const html = render();
+  const reviews = html.slice(html.indexOf('id="reviews"'), html.indexOf('id="services"'));
+  assert.equal(reviews.match(/Customer feedback will appear here\./g)?.length, 1);
+  assert.equal(reviews.match(/class="landing-review-frame"/g)?.length, 8);
+  assert.match(reviews, /class="landing-review-group" aria-hidden="true" inert=""/);
+  assert.doesNotMatch(reviews, /<button|<blockquote|Preview slot/);
 });
 
 test("new closing CTA stays honest in every booking state", () => {

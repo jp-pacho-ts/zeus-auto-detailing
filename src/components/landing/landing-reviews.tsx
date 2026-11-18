@@ -1,24 +1,45 @@
-import { MessageSquareQuote } from "lucide-react";
+import Image from "next/image";
+import { LANDING_PHOTOS } from "./landing-photos";
 
-// No approved quotes yet: repeated visual slots are explicitly labelled, never social proof.
-function ReviewSlots() {
-  return <>{["The everyday refresh", "A finish worth caring for", "The next chapter"].map((title) =>
-    <article className="landing-review-card" key={title}>
-      <div className="landing-review-card-top"><MessageSquareQuote aria-hidden="true" /><span>Preview slot</span></div>
-      <span className="landing-review-pending">Review awaiting owner approval</span>
-      <h3>{title}</h3><p>Customer feedback will appear here.</p>
-    </article>)}</>;
+const WORKSHOP_FRAMES = [
+  { photo: "basic-wash", caption: "Drying by hand" },
+  { photo: "exterior-detailing", caption: "Machine polishing" },
+  { photo: "eclipse-graphene", caption: "Graphene application" },
+  { photo: "signature-wash", caption: "The final wipe" },
+] as const;
+
+function WorkshopFrames() {
+  return WORKSHOP_FRAMES.map(({ photo, caption }) => {
+    const image = LANDING_PHOTOS[photo];
+    return (
+      <figure className="landing-review-frame" key={photo}>
+        <Image
+          src={image.src}
+          alt={image.alt}
+          width={1600}
+          height={1200}
+          sizes="(max-width: 767px) 72vw, (max-width: 1040px) 260px, 25vw"
+          style={{ objectPosition: image.position }}
+        />
+        <figcaption>{caption}</figcaption>
+      </figure>
+    );
+  });
 }
 
 export function LandingReviews() {
-  return <section id="reviews" className="landing-section landing-reviews" aria-labelledby="landing-reviews-title">
-    <div className="landing-wrap landing-review-head"><h2 id="landing-reviews-title">Customer experiences.</h2><p>Space for the stories behind the cars.<br />Approved customer feedback will appear here.</p></div>
-    <div className="landing-review-window" tabIndex={0} aria-label="Preview feedback slots. Focus or hover to stop scrolling. No published reviews yet.">
-      <div className="landing-review-track">
-        <div className="landing-review-group"><ReviewSlots /></div>
-        <div className="landing-review-group" aria-hidden="true" inert><ReviewSlots /></div>
+  return (
+    <section id="reviews" className="landing-section landing-reviews" aria-labelledby="landing-reviews-title">
+      <div className="landing-wrap landing-review-head">
+        <h2 id="landing-reviews-title">Customer experiences<span className="landing-gold-dot">.</span></h2>
+        <p>Customer feedback will appear here.</p>
       </div>
-    </div>
-    <p className="landing-wrap landing-review-disclaimer">Preview content slots. No ratings or customer testimonials are claimed.</p>
-  </section>;
+      <div className="landing-review-window" role="group" tabIndex={0} aria-label="Workshop photos. Focus or hover to pause the strip.">
+        <div className="landing-review-track">
+          <div className="landing-review-group"><WorkshopFrames /></div>
+          <div className="landing-review-group" aria-hidden="true" inert><WorkshopFrames /></div>
+        </div>
+      </div>
+    </section>
+  );
 }
