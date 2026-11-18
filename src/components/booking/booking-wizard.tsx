@@ -126,9 +126,11 @@ const NARROW_QUERY = "(max-width: 359px)";
 export function BookingWizard({
   initialServiceId,
   initialVehicleName,
+  kioskOnExit,
 }: {
   initialServiceId?: string;
   initialVehicleName?: string;
+  kioskOnExit?: () => void;
 }) {
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
   const [step, setStep] = React.useState(1);
@@ -166,6 +168,8 @@ export function BookingWizard({
   const [message, setMessage] = React.useState("");
   const [pending, setPending] = React.useState(false);
   const [uncertain, setUncertain] = React.useState(false);
+  const [kioskWarning, setKioskWarning] = React.useState(false);
+  const kioskKeepBooking = React.useRef<(() => void) | null>(null);
   // The management code stays in memory only (ADR-002): never in the URL or browser storage.
   const [booking, setBooking] = React.useState<{ view: DayBookingView; access: ManagementAccessGrant | null; vehicleModel: string; vehiclePlate: string | null; customerName: string; customerPhone: string; multiDay: boolean } | null>(null);
 
@@ -174,6 +178,45 @@ export function BookingWizard({
   const errorSummary = React.useRef<HTMLDivElement>(null);
   const deepLinkHandled = React.useRef(false);
   const shownStep = React.useRef(step);
+
+  React.useEffect(() => {
+    if (!kioskOnExit || pending) return;
+    if (step === 5) {
+      const timer = window.setTimeout(kioskOnExit, 45_000);
+      return () => window.clearTimeout(timer);
+    }
+
+    let warning: number;
+    let expiration: number;
+    let warned = false;
+    const renew = () => {
+      warned = false;
+      setKioskWarning(false);
+      window.clearTimeout(warning);
+      window.clearTimeout(expiration);
+      warning = window.setTimeout(() => {
+        warned = true;
+        setKioskWarning(true);
+      }, 120_000);
+      expiration = window.setTimeout(kioskOnExit, 150_000);
+    };
+    const onActivity = () => {
+      if (!warned) renew();
+    };
+    kioskKeepBooking.current = renew;
+    renew();
+    window.addEventListener("pointerdown", onActivity);
+    window.addEventListener("keydown", onActivity);
+    window.addEventListener("input", onActivity);
+    return () => {
+      window.clearTimeout(warning);
+      window.clearTimeout(expiration);
+      window.removeEventListener("pointerdown", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("input", onActivity);
+      kioskKeepBooking.current = null;
+    };
+  }, [kioskOnExit, pending, step]);
   // L9 / QA F2: below 360 px the security check is compact. It follows the window as it resizes,
   // not only when something else happens to re-render the form.
   const [narrow, setNarrow] = React.useState(
@@ -456,6 +499,7 @@ export function BookingWizard({
         headers: BOOKING_HEADERS,
         body: JSON.stringify(attempt.current),
         cache: "no-store",
+        signal: kioskOnExit ? AbortSignal.timeout(30_000) : undefined,
       });
       const result: DayBookingResponse = await response.json();
       if (result.ok) {
@@ -703,8 +747,8 @@ export function BookingWizard({
     const detail = serviceDetail(s);
     const extras = nested ? [] : addOnsUnder(s);
     return (
-      <li key={s.id} className={nested ? undefined : "lg:contents"}>
-        <label className={optionCard(Boolean(pick)) + " min-h-[80px]"}>
+      <li key={s.id} className={nested ? undefined : kioskOnExit ? "md:contents" : "lg:contents"}>
+        <label className={optionCard(Boolean(pick)) + (kioskOnExit && !nested ? " min-h-[112px]" : " min-h-[80px]")}>
           <div className="flex items-start gap-3.5">
             {!nested && (
               <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted">
@@ -743,7 +787,7 @@ export function BookingWizard({
           />
         </label>
         {pick && s.unit === "PANEL" && (
-          <div className="mt-2 rounded-xl border border-border bg-muted p-4 lg:col-span-3">
+          <div className={`mt-2 rounded-xl border border-border bg-muted p-4 lg:col-span-3 ${kioskOnExit ? "md:col-span-full" : ""}`}>
             <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
               Number of panels for {s.name}
             </label>
@@ -779,7 +823,7 @@ export function BookingWizard({
           </div>
         )}
         {extras.length > 0 && (
-          <fieldset className="ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4 lg:col-span-3">
+          <fieldset className={`ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4 lg:col-span-3 ${kioskOnExit ? "md:col-span-full" : ""}`}>
             <legend className="mb-2 text-sm font-semibold text-foreground">Extras for {s.name}</legend>
             <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{extras.map((a) => renderService(a, true))}</ul>
           </fieldset>
@@ -829,7 +873,13 @@ export function BookingWizard({
                 </button>
               </h2>
               <div id={regionId} role="region" aria-label={CATEGORY_NAMES[category]} hidden={!open} className="border-t border-border p-3 sm:p-4">
-                {open && <ul className="space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0">{services.map((s) => renderService(s))}</ul>}
+                {open && (
+                  <ul className={kioskOnExit
+                    ? "space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 lg:grid-cols-3"
+                    : "space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0"}>
+                    {services.map((s) => renderService(s))}
+                  </ul>
+                )}
               </div>
             </section>
           );
@@ -969,6 +1019,14 @@ export function BookingWizard({
   return (
     <div className="wizard-root min-h-screen bg-background text-foreground">
       <style>{printCss}</style>
+      {kioskOnExit && kioskWarning && !pending && step < 5 && (
+        <aside className="fixed inset-x-4 top-4 z-50 mx-auto flex max-w-xl flex-wrap items-center justify-between gap-3 rounded-xl border border-warning bg-card p-4 shadow-xl">
+          <p role="alert">This session will end soon.</p>
+          <button type="button" onClick={() => kioskKeepBooking.current?.()} className={outlineButton + " " + actionHeight}>
+            Keep booking
+          </button>
+        </aside>
+      )}
 
       {step < 5 && (
         <div className="lg:grid lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)]">
@@ -980,10 +1038,15 @@ export function BookingWizard({
             className="no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-[clamp(14px,3vh,32px)] lg:pt-[clamp(14px,2.6vh,28px)]"
           >
             <div className="flex items-center justify-between gap-3">
-              <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              {kioskOnExit ? <Logo /> : <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <Logo />
-              </Link>
-              {!locked && (
+              </Link>}
+              {kioskOnExit && !pending && (
+                <button type="button" onClick={kioskOnExit} className={pillLink + " px-4"}>
+                  End session
+                </button>
+              )}
+              {!kioskOnExit && !locked && (
                 <Link href="/" aria-label="Cancel and return to home" className={pillLink + " h-11 w-11"}>
                   <X aria-hidden="true" className="h-5 w-5" />
                 </Link>
@@ -1192,6 +1255,7 @@ export function BookingWizard({
                   {step === 4 && (
                     <form
                       id="booking-details"
+                      autoComplete={kioskOnExit ? "off" : undefined}
                       noValidate
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -1223,7 +1287,7 @@ export function BookingWizard({
                                   id="customerFirstName"
                                   name="customerFirstName"
                                   type="text"
-                                  autoComplete="given-name"
+                                  autoComplete={kioskOnExit ? "off" : "given-name"}
                                   enterKeyHint="next"
                                   maxLength={50}
                                   value={form.customerFirstName}
@@ -1250,7 +1314,7 @@ export function BookingWizard({
                                   id="customerLastName"
                                   name="customerLastName"
                                   type="text"
-                                  autoComplete="family-name"
+                                  autoComplete={kioskOnExit ? "off" : "family-name"}
                                   enterKeyHint="next"
                                   maxLength={50}
                                   value={form.customerLastName}
@@ -1280,7 +1344,7 @@ export function BookingWizard({
                                 name="customerPhone"
                                 type="tel"
                                 inputMode="tel"
-                                autoComplete="tel"
+                                autoComplete={kioskOnExit ? "off" : "tel"}
                                 enterKeyHint="next"
                                 maxLength={32}
                                 value={form.customerPhone}
@@ -1309,7 +1373,7 @@ export function BookingWizard({
                                 name="customerEmail"
                                 type="email"
                                 inputMode="email"
-                                autoComplete="email"
+                                autoComplete={kioskOnExit ? "off" : "email"}
                                 enterKeyHint="next"
                                 maxLength={254}
                                 value={form.customerEmail}
@@ -1518,9 +1582,9 @@ export function BookingWizard({
       {step === 5 && ticket && booking && (
         <div className="mx-auto max-w-3xl px-4 pb-14 pt-3 sm:px-6">
           <header className="no-print flex items-center justify-between gap-3">
-            <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {kioskOnExit ? <Logo /> : <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <Logo />
-            </Link>
+            </Link>}
           </header>
           <div className="mt-6 flex items-center gap-4">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
@@ -1534,13 +1598,13 @@ export function BookingWizard({
             <BookingTicket
               booking={ticket}
               copied={copied}
-              onCopy={copyReference}
-              onPrint={() => {
+              onCopy={kioskOnExit ? undefined : copyReference}
+              onPrint={kioskOnExit ? undefined : () => {
                 if (typeof window !== "undefined") window.print();
               }}
             />
 
-            <ManagementCode referenceCode={booking.view.referenceCode} bookingDate={booking.view.bookingDate} access={booking.access} />
+            {!kioskOnExit && <ManagementCode referenceCode={booking.view.referenceCode} bookingDate={booking.view.bookingDate} access={booking.access} />}
 
             <details className={`${panel} no-print`}>
               <summary className="flex min-h-[44px] cursor-pointer items-center text-base font-bold text-foreground">
@@ -1551,7 +1615,7 @@ export function BookingWizard({
               </div>
             </details>
 
-            <div className={`${panel} no-print`}>
+            {!kioskOnExit && <div className={`${panel} no-print`}>
               <h2 className="text-base font-bold text-foreground">Questions about this booking?</h2>
               <p className="mt-1 text-sm text-muted-foreground">{brandConfig.address}</p>
               <div className="mt-3 flex flex-wrap gap-3">
@@ -1572,11 +1636,15 @@ export function BookingWizard({
                   Message us on Messenger
                 </a>
               </div>
-            </div>
+            </div>}
 
-            <Link href="/" className={outlineButton + " min-h-[44px] no-print"}>
+            {kioskOnExit ? (
+              <button type="button" onClick={kioskOnExit} className={outlineButton + " " + actionHeight}>
+                Next customer
+              </button>
+            ) : <Link href="/" className={outlineButton + " min-h-[44px] no-print"}>
               Return to home
-            </Link>
+            </Link>}
           </div>
         </div>
       )}
