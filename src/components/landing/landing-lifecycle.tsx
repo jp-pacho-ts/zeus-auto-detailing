@@ -63,7 +63,15 @@ export function LandingLifecycle() {
       const sequence = gsap.timeline({ scrollTrigger: { trigger: root.querySelector(".landing-hero"), start: "top top", end: "bottom top", scrub: .65 } });
       sequence.to(root.querySelector(".landing-word"), { yPercent: -48, scale: 1.18, opacity: .08, ease: "none" }, 0)
         .to(root.querySelector(".landing-hero-photo"), { yPercent: 0, scale: 1.08, ease: "none" }, 0);
-      gsap.from(root.querySelectorAll(".landing-care-card"), { y: 40, rotationY: 8, transformPerspective: 1000, stagger: .1, duration: .65, ease: "power3.out", scrollTrigger: { trigger: root.querySelector(".landing-care-grid"), start: "top 90%", once: true } });
+      root.querySelectorAll(".landing-care-card").forEach((card) => {
+        const photo = card.querySelector(".landing-care-photo img");
+        if (!photo) return;
+        gsap.fromTo(photo, { scale: 1.12 }, {
+          scale: 1,
+          ease: "none",
+          scrollTrigger: { trigger: card, start: "top 96%", end: "top 46%", scrub: .4 },
+        });
+      });
       const bleed = root.querySelector(".landing-bleed");
       if (bleed) gsap.fromTo(bleed.querySelector(".landing-bleed-media"), { clipPath: "inset(10% 8% 10% 8% round 20px)", scale: .92 }, { clipPath: "inset(0% 0% 0% 0% round 0px)", scale: 1, ease: "none", scrollTrigger: { trigger: bleed, start: "top 95%", end: "top 20%", scrub: .7 } });
       root.querySelectorAll(".landing-gallery-grid figure").forEach((frame, i) => gsap.fromTo(frame, { y: i ? 100 : 0 }, { y: i ? -50 : 30, ease: "none", scrollTrigger: { trigger: frame.parentElement, start: "top bottom", end: "bottom top", scrub: .7 } }));

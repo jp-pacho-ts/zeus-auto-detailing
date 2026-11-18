@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ArrowDown, ArrowUpRight, Check, CircleAlert, MessageCircle, Phone, ShieldCheck, Sparkles, Waves } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Check, CircleAlert, MessageCircle, Phone } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import type { LandingStatus } from "@/server/landing/status";
@@ -102,11 +102,25 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           </article>
         ))}</div>
       </section>
-      <section id="care" className="landing-section landing-wrap landing-care" aria-labelledby="landing-care-title"><div className="landing-section-heading"><div><p className="landing-eyebrow">Services</p><LandingScrollFloat id="landing-care-title" text="Choose your service." /></div><p className="landing-muted">Choose a wash, detailing service or graphene coating. Compare options and prices below.</p></div><div className="landing-care-grid">{[
-        { icon: Waves, title: "Wash", text: "Regular cleaning for cars and motorcycles.", link: "WASH", cta: "View wash options" },
-        { icon: Sparkles, title: "Detailing", text: "Interior and exterior detailing, with service inclusions listed.", link: "DETAILING", cta: "View detailing options" },
-        { icon: ShieldCheck, title: "Graphene coating", text: "Compare coating packages and what each one includes.", link: "GRAPHENE", cta: "Compare coatings" },
-      ].map(({ icon: Icon, title, text, link, cta }) => <a className="landing-care-card" href={display ? `#services-${link}` : "#services"} key={title}><Icon aria-hidden="true" /><h3>{title}</h3><p>{text}</p><span>{cta}<ArrowUpRight aria-hidden="true" /></span></a>)}</div></section>
+      <section id="care" className="landing-section landing-wrap landing-care" aria-labelledby="landing-care-title">
+        <div className="landing-section-heading">
+          <LandingScrollFloat id="landing-care-title" text="Choose your service." />
+        </div>
+        <div className="landing-care-grid">{[
+          { title: "Wash", text: "Routine cleaning for cars and motorcycles.", category: "WASH", image: "basic-wash", cta: "View wash options" },
+          { title: "Detailing", text: "A deeper clean for the interior and exterior.", category: "DETAILING", image: "exterior-detailing", cta: "View detailing options" },
+          { title: "Graphene coating", text: "Added protection for your vehicle's paint.", category: "GRAPHENE", image: "eclipse-graphene", cta: "Compare coatings" },
+        ].map((service) => (
+          <a className="landing-care-card" href={display ? `#services-${service.category}` : "#services"} key={service.category}>
+            <div className="landing-care-photo">{photo(service.image, "(max-width: 767px) 100vw, 33vw")}</div>
+            <div className="landing-care-content">
+              <h3>{service.title}</h3>
+              <p>{service.text}</p>
+              <span>{service.cta}<ArrowUpRight aria-hidden="true" /></span>
+            </div>
+          </a>
+        ))}</div>
+      </section>
       <section id="work" className="landing-section landing-wrap landing-stage" aria-labelledby="landing-work-title">
         <div className="landing-stage-viewport">
         <span className="landing-stage-wipe" aria-hidden="true" />
