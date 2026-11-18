@@ -12,8 +12,6 @@ import {
   Trash2,
   RotateCcw,
   Receipt,
-  Boxes,
-  Coins,
   AlertTriangle,
   X,
 } from "lucide-react";
@@ -29,7 +27,6 @@ import { ExpenseAnalytics } from "./expense-analytics";
 import { CategoriesDialog, ExpenseFormDialog, ExpenseHistoryDialog } from "./expense-dialogs";
 import {
   COMMISSIONS_HINT,
-  commissionsLine,
   EXPENSES_EMPTY,
   EXPENSES_NO_MATCH,
   formatTotal,
@@ -37,8 +34,6 @@ import {
   monthLabel,
   owedNote,
   REMOVE_TEXT,
-  shortMonth,
-  stockLine,
   unpricedNote,
 } from "./expenses-model";
 
@@ -176,10 +171,6 @@ export function ExpensesPanel({
   };
 
   const notes = [unpricedNote(data.unpricedStockIns), owedNote(data.totals.commissionsOwed)].filter(Boolean);
-  const peak = data.series.reduce((max, m) => {
-    const v = BigInt(m.total);
-    return v > max ? v : max;
-  }, BigInt(0));
 
   // Pagination calculations
   const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
@@ -193,7 +184,7 @@ export function ExpensesPanel({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 id="expenses-heading" className="text-xl font-bold tracking-tight text-foreground">
-            Expense Tracking & Overview
+            Expenses
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Operational shop overheads, inventory stock purchases, and paid technician commissions.
@@ -240,7 +231,7 @@ export function ExpensesPanel({
               <p data-testid="expenses-month" className="text-sm font-bold text-foreground">
                 {monthLabel(data.month)}
               </p>
-              <p className="text-xs text-muted-foreground">Monthly accounting cycle</p>
+              <p className="text-xs text-muted-foreground">Expense list and summary</p>
             </div>
             <button
               type="button"
@@ -255,7 +246,7 @@ export function ExpensesPanel({
 
           <div className="sm:text-right">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Total Outflow ({monthLabel(data.month)})
+              Total spent
             </p>
             <p data-testid="expenses-total" className="text-2xl font-black text-primary tracking-tight mt-0.5">
               {formatTotal(data.totals.total)}
@@ -263,85 +254,23 @@ export function ExpensesPanel({
           </div>
         </div>
 
-        {/* 12-Month Sparkline Bars */}
-        <div className="pt-4">
-          <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 font-medium">
-            <span>12-Month Spending Trend</span>
-            <span>Peak: {formatTotal(peak.toString())}</span>
+        <dl className="grid grid-cols-1 gap-4 pt-4 sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-muted-foreground">Typed-in expenses</dt>
+            <dd className="mt-1 text-lg font-semibold tabular-nums text-foreground">{formatTotal(data.totals.manual)}</dd>
           </div>
-          <ol aria-label="The last 12 months" className="grid grid-cols-12 items-end gap-1.5 h-16 pt-2">
-            {data.series.map((m) => {
-              const v = BigInt(m.total);
-              const height = peak === BigInt(0) ? 0 : Number((v * BigInt(100)) / peak);
-              const isCurrent = m.month === data.month;
-              return (
-                <li
-                  key={m.month}
-                  title={`${monthLabel(m.month)}: ${formatTotal(m.total)}`}
-                  aria-label={`${monthLabel(m.month)}: ${formatTotal(m.total)}`}
-                  className="flex min-w-0 flex-col items-center gap-1.5 h-full justify-end group cursor-pointer"
-                  onClick={() => {
-                    if (m.month <= thisMonth) {
-                      setMonth(m.month);
-                    }
-                  }}
-                >
-                  <span className="flex h-10 w-full items-end">
-                    <span
-                      className={`block w-full rounded-t transition-all ${
-                        isCurrent
-                          ? "bg-primary ring-2 ring-primary/30"
-                          : "bg-zinc-700/60 group-hover:bg-zinc-500"
-                      }`}
-                      style={{ height: `${Math.max(height, v > BigInt(0) ? 6 : 0)}%` }}
-                    />
-                  </span>
-                  <span
-                    className={`text-xs font-medium transition-colors ${
-                      isCurrent ? "text-primary font-bold" : "text-muted-foreground"
-                    }`}
-                  >
-                    {shortMonth(m.month)}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Stock bought</dt>
+            <dd data-testid="expenses-stock" className="mt-1 text-lg font-semibold tabular-nums text-foreground">{formatTotal(data.totals.stockBought)}</dd>
+            <p className="mt-1 text-xs text-muted-foreground">From recorded inventory purchases.</p>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Commissions paid</dt>
+            <dd data-testid="expenses-commissions" className="mt-1 text-lg font-semibold tabular-nums text-foreground">{formatTotal(data.totals.commissionsPaid)}</dd>
+            <p className="mt-1 text-xs text-muted-foreground">{COMMISSIONS_HINT}</p>
+          </div>
+        </dl>
       </div>
-
-      {/* Auto-Aggregated Flow Tiles (Supplies & Commissions) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-raised text-emerald-400">
-            <Boxes className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-muted-foreground">Supplies Stock Inflow</p>
-            <p data-testid="expenses-stock" className="text-base font-bold text-foreground mt-0.5">
-              {stockLine(data)}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Automatically totaled from recorded Inventory restocking for this month.
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-raised text-amber-400">
-            <Coins className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-muted-foreground">Paid Commissions</p>
-            <p data-testid="expenses-commissions" className="text-base font-bold text-foreground mt-0.5">
-              {commissionsLine(data)}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">{COMMISSIONS_HINT}</p>
-          </div>
-        </div>
-      </div>
-
-      <ExpenseAnalytics refresh={data} />
 
       {/* Advisory Notes */}
       {notes.length > 0 && (
@@ -384,7 +313,7 @@ export function ExpensesPanel({
               type="search"
               value={search}
               onChange={handleSearchChange}
-              placeholder="Search payee, note, or amount..."
+              placeholder="Search payee or note..."
               autoComplete="off"
               className="w-full rounded-md border border-border bg-raised pl-9 pr-8 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />
@@ -628,6 +557,16 @@ export function ExpensesPanel({
           </div>
         )}
       </div>
+
+      <details className="group rounded-xl border border-border bg-panel">
+        <summary className="cursor-pointer rounded-xl p-5 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          Spending insights
+          <span className="ml-2 text-xs font-normal text-muted-foreground">Trends, categories, and custom date ranges</span>
+        </summary>
+        <div className="border-t border-border">
+          <ExpenseAnalytics refresh={data} />
+        </div>
+      </details>
 
       {/* Edit / Add Modal */}
       {editing && (

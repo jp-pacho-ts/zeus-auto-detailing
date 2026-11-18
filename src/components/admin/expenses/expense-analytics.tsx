@@ -48,9 +48,9 @@ export function ExpenseAnalytics({ refresh }: { refresh: object }) {
   const categories = (data?.byCategory ?? []).map((c) => ({ key: c.categoryId, label: c.name, centavos: Number(c.total) })).sort((a, b) => b.centavos - a.centavos);
 
   return (
-    <section aria-labelledby="expense-analytics-heading" className="space-y-4 rounded-xl border border-border bg-panel p-5 shadow-sm">
+    <section aria-labelledby="expense-analytics-heading" className="space-y-4 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 id="expense-analytics-heading" className="text-sm font-bold text-foreground">Expense analytics</h3>
+        <h3 id="expense-analytics-heading" className="text-sm font-bold text-foreground">Spending insights</h3>
         <div role="group" aria-label="Expense period" className="flex flex-wrap gap-1 rounded-lg border border-border/80 bg-stone-100 p-1 dark:bg-panel">
           {PRESETS.map(([id, label]) => (
             <button
