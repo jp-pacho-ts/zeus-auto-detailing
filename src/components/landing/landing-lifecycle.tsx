@@ -33,7 +33,7 @@ export function LandingLifecycle() {
     });
     // Desktop scenes use native scroll geometry; touch has no scroll-linked effects.
     media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => {
-      const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, autoRaf: false, prevent: (node) => !!node.closest(".landing-review-track, .landing-mobile-menu, select") });
+      const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, autoRaf: false, prevent: (node) => !!node.closest(".landing-mobile-menu, select") });
       const tick = (seconds: number) => lenis.raf(seconds * 1000);
       lenis.on("scroll", ScrollTrigger.update); gsap.ticker.add(tick);
       const sequence = gsap.timeline({ scrollTrigger: { trigger: root.querySelector(".landing-hero"), start: "top top", end: "bottom top", scrub: .65 } });

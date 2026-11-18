@@ -15,8 +15,8 @@ export function mountCareScene(stage: HTMLElement) {
   cards.forEach((card, index) => {
     const direction = index % 2 ? 1 : -1;
     scene.fromTo(card,
-      { y: direction * 24, rotation: direction * 3, rotationY: 12, z: -90, transformPerspective: 1000, transformOrigin: "50% 50%" },
-      { y: -direction * 24, rotation: -direction * 3, rotationY: -12, z: -35, duration: 1, ease: "none" }, 0);
+      { y: direction * 12, rotation: direction * 2, rotationY: 8, z: -50, transformPerspective: 1000, transformOrigin: "50% 50%" },
+      { y: -direction * 12, rotation: -direction * 2, rotationY: -8, z: -20, duration: 1, ease: "none" }, 0);
   });
   const backdrop = stage.querySelector(".landing-stage-backdrop");
   if (backdrop) scene.fromTo(backdrop, { xPercent: 6 }, { xPercent: -18, duration: 1, ease: "none" }, 0);
@@ -25,7 +25,8 @@ export function mountCareScene(stage: HTMLElement) {
   const wipe = stage.querySelector(".landing-stage-wipe");
   if (wipe) gsap.fromTo(wipe, { yPercent: 85, rotation: -8 }, { yPercent: -110, rotation: -8, ease: "none", scrollTrigger: { trigger: stage, start: "top bottom", end: "top top", scrub: .4 } });
   const focus = (event: FocusEvent) => {
-    if (!(event.target instanceof Node)) return;
+    // Pointer focus must not move a link between pointerdown and pointerup.
+    if (!(event.target instanceof HTMLElement) || !event.target.matches(":focus-visible")) return;
     const index = cards.findIndex((card) => card.contains(event.target as Node));
     const trigger = scene.scrollTrigger;
     if (index < 0 || !trigger) return;

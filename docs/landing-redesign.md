@@ -162,3 +162,6 @@ LE feedback: workshop photos were overly stretched with unnecessary scene button
 - About section: Dedicated section highlighting Zeus in Tacloban City, vehicle care approach, and direct consultation CTA.
 - Everyday concerns section: Editorial breakdown of real vehicle problems (dirt/mud/grime, neglected interior, paint finish protection) directly linked to relevant care categories.
 - Navigation: Header updated with 5 section links including About.
+
+## Section motion repair
+The follow-up preserves the current sections and fixes animation/layout faults. Workshop cards now size against screen height as well as width, with smaller perspective excursions so catalog links do not collide with the heading/progress on short desktop screens. Card centering and straightening apply to keyboard focus only; pointer focus no longer moves a link before the click completes. The automatic feedback ribbon uses the same Lenis page scrolling as its surrounding sections, removing the obsolete exception for the former manual carousel.

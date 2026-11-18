@@ -128,7 +128,7 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
 .is-motion-scene .landing-stage-grid{display:flex;align-items:center;flex:1;min-height:0;position:relative;z-index:2}
 .is-motion-scene .landing-stage-names{display:flex;gap:80px;width:max-content;flex:none;perspective:1400px}
 .is-motion-scene .landing-step{width:clamp(280px,26vw,360px);flex:none;padding:18px;gap:12px;background:var(--card);border:1px solid var(--line);border-top-color:var(--gold);border-radius:14px;transform-style:preserve-3d}
-.is-motion-scene .landing-step:focus-within{transform:none!important}
+.is-motion-scene .landing-step:has(:focus-visible){transform:none!important}
 .is-motion-scene .landing-step-photo{height:clamp(150px,25svh,250px);aspect-ratio:auto;flex:none}
 .is-motion-scene .landing-step h3{font-size:30px}
 .is-motion-scene .landing-step-links{gap:0 12px}
@@ -408,7 +408,7 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
 .landing-reveal-word{transform-origin:50% 100%;will-change:auto}
 /* Workshop photographs retain their natural 4:3 proportions. */
 .landing{--edge:clamp(24px,4vw,88px)}
-.is-motion-scene .landing-step{width:clamp(300px,30vw,440px);padding:16px;gap:12px;border-radius:8px}
+.is-motion-scene .landing-step{width:clamp(280px,min(30vw,calc((100svh - 440px)*1.3333)),440px);padding:16px;gap:12px;border-radius:8px}
 .is-motion-scene .landing-step-photo{height:auto;aspect-ratio:4/3}
 .is-motion-scene .landing-stage-names{gap:clamp(36px,6vw,100px)}
 .is-motion-scene .landing-stage-viewport{padding-block:28px 24px}
