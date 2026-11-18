@@ -463,3 +463,29 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
  .landing-review-card{width:auto}
 }
 @media(prefers-reduced-motion:reduce) and (max-width:900px){.landing-review-group{grid-template-columns:1fr}}
+/* Hero hierarchy: a readable copy column over the moving footage. */
+.landing-hero-copy{padding-bottom:clamp(48px,7vh,80px)}
+.landing-hero-copy h1{font-size:clamp(40px,4.8vw,68px);line-height:1.06;letter-spacing:-.04em}
+.landing-hero-title{max-width:13ch}
+.landing-hero-copy .landing-actions{margin-top:30px;gap:28px}
+.landing-hero-copy .landing-scroll-cue{margin-top:32px;font-size:10px}
+@media(max-width:767px){
+ .landing-hero-copy{padding-bottom:32px}
+ .landing-hero-copy h1{font-size:clamp(35px,9vw,46px);line-height:1.08}
+ .landing-hero-title{max-width:14ch}
+ .landing-hero-copy .landing-actions{margin-top:24px;gap:16px}
+ .landing-hero-copy .landing-scroll-cue{margin-top:20px}
+}
+/* Both images fade into the shared landing background at the section boundary. */
+.landing-hero-art:after{
+ background:
+  linear-gradient(to top,var(--bg) 4%,rgb(var(--brand-background) / .86) 13%,rgb(var(--brand-background) / .42) 30%,rgb(var(--brand-background) / 0) 57%),
+  linear-gradient(90deg,rgb(0 0 0 / .52),transparent 72%),
+  linear-gradient(180deg,rgb(0 0 0 / .46),transparent 28%);
+}
+.landing-about{padding-top:clamp(12px,2.8vw,44px)}
+.landing-editorial-photo{
+ border-radius:0;
+ mask-image:linear-gradient(to bottom,transparent,#000 19%,#000 84%,transparent),linear-gradient(to right,transparent,#000 7%,#000 93%,transparent);
+ mask-composite:intersect;
+}
