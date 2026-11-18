@@ -12,41 +12,35 @@ import {
   Trash2,
   RotateCcw,
   Receipt,
-  Boxes,
-  Coins,
   AlertTriangle,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatPesos } from "@/lib/commission";
-import { addMonths } from "@/lib/expenses";
 import type { AdminExpense, AdminExpenseCategory, AdminExpenseMonth } from "@/types/admin-contracts";
 import { adminRequest, AdminRequestError } from "../bookings/client";
 import { fieldClass } from "../bookings/use-admin-resource";
 import { describeError } from "../team/team-panel";
+import type { AnalyticsPeriod } from "../analytics/analytics-model";
+import { ExpenseAnalytics } from "./expense-analytics";
 import { CategoriesDialog, ExpenseFormDialog, ExpenseHistoryDialog } from "./expense-dialogs";
 import {
-  COMMISSIONS_HINT,
-  commissionsLine,
   EXPENSES_EMPTY,
   EXPENSES_NO_MATCH,
-  formatTotal,
   matchesExpenseSearch,
-  monthLabel,
   owedNote,
   REMOVE_TEXT,
-  shortMonth,
-  stockLine,
   unpricedNote,
 } from "./expenses-model";
 
 export function ExpensesPanel({
   data,
+  period,
+  setPeriod,
   categories,
   query,
   thisMonth,
-  setMonth,
   categoryId,
   setCategoryId,
   includeRemoved,
@@ -55,6 +49,8 @@ export function ExpensesPanel({
   reloadCategories,
 }: {
   data: AdminExpenseMonth;
+  period: AnalyticsPeriod;
+  setPeriod: (period: AnalyticsPeriod) => void;
   categories: AdminExpenseCategory[];
   query: string;
   thisMonth: string;
@@ -167,18 +163,7 @@ export function ExpensesPanel({
       return "The expense is back.";
     });
 
-  const go = (delta: number) => {
-    setNotice(null);
-    setError(null);
-    setCurrentPage(1);
-    setMonth(addMonths(data.month, delta));
-  };
-
   const notes = [unpricedNote(data.unpricedStockIns), owedNote(data.totals.commissionsOwed)].filter(Boolean);
-  const peak = data.series.reduce((max, m) => {
-    const v = BigInt(m.total);
-    return v > max ? v : max;
-  }, BigInt(0));
 
   // Pagination calculations
   const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
@@ -192,7 +177,7 @@ export function ExpensesPanel({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 id="expenses-heading" className="text-xl font-bold tracking-tight text-foreground">
-            Expense Tracking & Overview
+            Expenses
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Operational shop overheads, inventory stock purchases, and paid technician commissions.
@@ -223,122 +208,7 @@ export function ExpensesPanel({
         </div>
       </div>
 
-      {/* Monthly Total & Sparkline Chart Card */}
-      <div className="rounded-xl border border-border bg-panel p-5 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-5">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-raised text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
-              aria-label="Previous month"
-              onClick={() => go(-1)}
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <div>
-              <p data-testid="expenses-month" className="text-sm font-bold text-foreground">
-                {monthLabel(data.month)}
-              </p>
-              <p className="text-xs text-muted-foreground">Monthly accounting cycle</p>
-            </div>
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-raised text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40"
-              aria-label="Next month"
-              disabled={data.month >= thisMonth}
-              onClick={() => go(1)}
-            >
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-
-          <div className="sm:text-right">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Total Outflow ({monthLabel(data.month)})
-            </p>
-            <p data-testid="expenses-total" className="text-2xl font-black text-primary tracking-tight mt-0.5">
-              {formatTotal(data.totals.total)}
-            </p>
-          </div>
-        </div>
-
-        {/* 12-Month Sparkline Bars */}
-        <div className="pt-4">
-          <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 font-medium">
-            <span>12-Month Spending Trend</span>
-            <span>Peak: {formatTotal(peak.toString())}</span>
-          </div>
-          <ol aria-label="The last 12 months" className="grid grid-cols-12 items-end gap-1.5 h-16 pt-2">
-            {data.series.map((m) => {
-              const v = BigInt(m.total);
-              const height = peak === BigInt(0) ? 0 : Number((v * BigInt(100)) / peak);
-              const isCurrent = m.month === data.month;
-              return (
-                <li
-                  key={m.month}
-                  title={`${monthLabel(m.month)}: ${formatTotal(m.total)}`}
-                  aria-label={`${monthLabel(m.month)}: ${formatTotal(m.total)}`}
-                  className="flex min-w-0 flex-col items-center gap-1.5 h-full justify-end group cursor-pointer"
-                  onClick={() => {
-                    if (m.month <= thisMonth) {
-                      setMonth(m.month);
-                    }
-                  }}
-                >
-                  <span className="flex h-10 w-full items-end">
-                    <span
-                      className={`block w-full rounded-t transition-all ${
-                        isCurrent
-                          ? "bg-primary ring-2 ring-primary/30"
-                          : "bg-zinc-700/60 group-hover:bg-zinc-500"
-                      }`}
-                      style={{ height: `${Math.max(height, v > BigInt(0) ? 6 : 0)}%` }}
-                    />
-                  </span>
-                  <span
-                    className={`text-xs font-medium transition-colors ${
-                      isCurrent ? "text-primary font-bold" : "text-muted-foreground"
-                    }`}
-                  >
-                    {shortMonth(m.month)}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-      </div>
-
-      {/* Auto-Aggregated Flow Tiles (Supplies & Commissions) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-raised text-emerald-400">
-            <Boxes className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-muted-foreground">Supplies Stock Inflow</p>
-            <p data-testid="expenses-stock" className="text-base font-bold text-foreground mt-0.5">
-              {stockLine(data)}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Automatically totaled from recorded Inventory restocking for this month.
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-raised text-amber-400">
-            <Coins className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-muted-foreground">Paid Commissions</p>
-            <p data-testid="expenses-commissions" className="text-base font-bold text-foreground mt-0.5">
-              {commissionsLine(data)}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">{COMMISSIONS_HINT}</p>
-          </div>
-        </div>
-      </div>
+      <ExpenseAnalytics refresh={data} period={period} onPeriodChange={setPeriod} />
 
       {/* Advisory Notes */}
       {notes.length > 0 && (
@@ -381,7 +251,7 @@ export function ExpensesPanel({
               type="search"
               value={search}
               onChange={handleSearchChange}
-              placeholder="Search payee, note, or amount..."
+              placeholder="Search payee or note..."
               autoComplete="off"
               className="w-full rounded-md border border-border bg-raised pl-9 pr-8 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />

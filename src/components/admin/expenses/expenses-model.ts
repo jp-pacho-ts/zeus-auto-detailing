@@ -1,5 +1,5 @@
 // P1-39: the plain-language rules for the Expenses screen. No React, no network, so they are unit tested.
-import type { AdminExpense, AdminExpenseEvent, AdminExpenseMonth } from "@/types/admin-contracts";
+import type { AdminAnalyticsBucket, AdminExpense, AdminExpenseAnalytics, AdminExpenseEvent, AdminExpenseMonth } from "@/types/admin-contracts";
 import { formatPesos } from "@/lib/commission";
 
 export const EXPENSES_INTRO = "What the shop spent. Service costs, stock bought and commissions paid are added for you. Record each cost only once.";
@@ -40,4 +40,28 @@ const KIND = { CREATED: "Added", EDITED: "Changed", VOIDED: "Removed", RESTORED:
 /** One history row: what happened and the values as they were then. */
 export function historyLine(h: Pick<AdminExpenseEvent, "kind" | "amountCentavos" | "categoryName" | "expenseDate" | "payee" | "note" | "reason">): string {
   return [KIND[h.kind], formatPesos(h.amountCentavos), h.categoryName, h.expenseDate, h.payee, h.note, h.reason ? `Reason: ${h.reason}` : null].filter(Boolean).join(" · ");
+}
+
+/** One expense bar for the chart: a future bucket says so instead of a zero. */
+export const expenseBarText = (b: { future: boolean; revenueCentavos: number }): string => (b.future ? "Not yet" : b.revenueCentavos === 0 ? "No spending" : formatPesos(b.revenueCentavos));
+
+/** Exact table text also supports totals beyond JavaScript's safe integer range. */
+export const expenseBucketText = (b: { future: boolean; total: string }): string => (b.future ? "Not yet" : BigInt(b.total) === BigInt(0) ? "No spending" : formatTotal(b.total));
+
+/** The shared revenue chart supports nonnegative safe integers. Other amounts stay in an exact table. */
+export function expenseChartRows(buckets: AdminExpenseAnalytics["buckets"]): AdminAnalyticsBucket[] | null {
+  if (buckets.some((b) => BigInt(b.total) < BigInt(0) || BigInt(b.total) > BigInt(Number.MAX_SAFE_INTEGER))) return null;
+  return buckets.map((b) => ({ start: b.start, end: b.end, future: b.future, revenueCentavos: Number(b.total), jobs: 0 }));
+}
+
+/** Signed corrections are shown as amounts, without misleading shares of a net total. */
+export function kindShares(totals: AdminExpenseMonth["totals"]): { label: string; total: string; pct: number | null }[] {
+  const total = BigInt(totals.total);
+  const signed = [totals.manual, totals.stockBought, totals.commissionsPaid].some((v) => BigInt(v) < BigInt(0));
+  const pct = (v: string) => signed ? null : (total <= BigInt(0) ? 0 : Number((BigInt(v) * BigInt(100)) / total));
+  return [
+    { label: "Typed-in expenses", total: totals.manual, pct: pct(totals.manual) },
+    { label: "Stock bought", total: totals.stockBought, pct: pct(totals.stockBought) },
+    { label: "Commissions paid", total: totals.commissionsPaid, pct: pct(totals.commissionsPaid) },
+  ];
 }

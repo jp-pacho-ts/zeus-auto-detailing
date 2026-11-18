@@ -21,10 +21,10 @@ export { getCommissionSettings, setDefaultRate, listCommissions, setCommissionsP
 export { listSupplies, addSupply, updateSupply, recordStock, removeSupply, restoreSupply, listMovements } from "./supplies";
 export { listContainers, addContainer, updateContainer, removeContainer, moveBay } from "./containers";
 export { getExpenseMonth, addExpense, updateExpense, removeExpense, restoreExpense, listExpenseHistory, listExpenseCategories, addExpenseCategory, updateExpenseCategory } from "./expenses";
-export { expenseTotals, type ExpenseTotals } from "./expenses-read";
+export { expenseTotals, getExpenseAnalytics, type ExpenseTotals } from "./expenses-read";
 export { getAnalytics } from "./analytics";
 export { getShopSettings, setShopSettings, setEmailSwitch } from "./shop-settings";
 export { listUsers, createUser, updateUser, resetUserPassword } from "./users";
-export { listAdminServices, updateAdminService, createAdminService, toggleAdminService } from "./services";
+export { listAdminServices, updateAdminService, createAdminService, toggleAdminService, deleteAdminService } from "./services";
 export { getWeeklyPayroll, savePayrollAdjustment, setPayrollPaid } from "./payroll";
 export { getAdminNotifications } from "./notifications";

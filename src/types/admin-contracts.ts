@@ -531,6 +531,20 @@ export interface AdminExpenseMonth {
   series: { month: string; total: string; manual: string; stockBought: string; commissionsPaid: string }[];
 }
 
+/** Expense analytics for a period (ADMIN only). Same period limits and day/week/month buckets as Sales & Analytics. Centavos as decimal strings. */
+export interface AdminExpenseAnalytics {
+  from: LocalDate;
+  to: LocalDate;
+  today: LocalDate;
+  unit: AdminAnalyticsBucketUnit;
+  /** A future bucket holds no result: its figures are "0" and future is true. */
+  buckets: { start: LocalDate; end: LocalDate; future: boolean; total: string; manual: string; stockBought: string; commissionsPaid: string }[];
+  totals: AdminExpenseMonth["totals"];
+  byCategory: AdminExpenseMonth["byCategory"];
+  pricedStockIns: number;
+  unpricedStockIns: number;
+}
+
 // -----------------------------------------------------------------------------
 // P1-40 Sales & Analytics (ADMIN only, read-only). Money is integer centavos. No customer name, phone, email or plate.
 // -----------------------------------------------------------------------------

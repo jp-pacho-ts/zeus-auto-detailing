@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { withStaffDb, type StaffTx } from "@/server/auth/db-admission";
 import { authorize, parse, type AdminOptions, type StaffActor } from "./context";
 import { AdminServiceError } from "./errors";
@@ -161,4 +162,33 @@ export async function toggleAdminService(
     },
     { access: "write", db: options.db, signal: options.signal },
   );
+}
+
+// Prisma messages can contain minified source excerpts, including unrelated error
+// codes. Only the structured database SQLSTATE identifies the actual failure.
+export function serviceDeleteFailure(error: unknown): AdminServiceError | null {
+  const code = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2010"
+    ? error.meta?.code : null;
+  if (code === "ZT004") return new AdminServiceError("FORBIDDEN");
+  if (code === "ZT001") return new AdminServiceError("NOT_FOUND", "This service has already been deleted. Refresh the list.");
+  if (code === "ZT003") return new AdminServiceError("NOT_ALLOWED", "This service has bookings or other linked records. Deactivate it instead to keep that history.");
+  if (code === "ZT006") return new AdminServiceError("VALIDATION_ERROR");
+  return null;
+}
+
+export async function deleteAdminService(
+  actor: StaffActor,
+  rawServiceId: unknown,
+  options: AdminOptions = {},
+): Promise<{ ok: true }> {
+  authorize(actor, "SETTINGS_WRITE");
+  const serviceId = parse(AdminIdSchema, rawServiceId);
+  return withStaffDb("STAFF_MUTATION", async (tx: StaffTx) => {
+    try {
+      await tx.$executeRawUnsafe("SELECT admin_service_delete($1, $2)", actor.staffId, serviceId);
+      return { ok: true };
+    } catch (error) {
+      throw serviceDeleteFailure(error) ?? error;
+    }
+  }, { access: "write", db: options.db, signal: options.signal });
 }

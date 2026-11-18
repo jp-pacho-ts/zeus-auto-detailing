@@ -6,7 +6,7 @@ import { barText, bucketAxisLabel, bucketLabel, compactPesos, niceTicks } from "
 const LEFT = 48, RIGHT = 4, TOP = 18, BOTTOM = 24, MAX_BAR = 24;
 
 // One series, one colour, one axis. Plain SVG: the table beside it holds every value, and hover and keyboard show the same text.
-export function ColumnChart({ rows, unit }: { rows: AdminAnalyticsBucket[]; unit: AdminAnalyticsBucketUnit }) {
+export function ColumnChart({ rows, unit, name = "Revenue", text = barText }: { rows: AdminAnalyticsBucket[]; unit: AdminAnalyticsBucketUnit; name?: string; text?: (row: AdminAnalyticsBucket) => string }) {
   const wrap = React.useRef<HTMLDivElement>(null);
   const [width, setWidth] = React.useState(0);
   const [active, setActive] = React.useState<number | null>(null);
@@ -39,7 +39,7 @@ export function ColumnChart({ rows, unit }: { rows: AdminAnalyticsBucket[]; unit
   return (
     <div ref={wrap} className="relative w-full" style={{ height }}>
       {width > 0 && (
-        <svg width={width} height={height} role="group" aria-label="Revenue chart. Use the arrow keys to move between bars, or Show as table for every value." className="block">
+        <svg width={width} height={height} role="group" aria-label={`${name} chart. Use the arrow keys to move between bars, or Show as table for every value.`} className="block">
           {ticks.map((tick) => (
             <g key={tick}>
               <line x1={LEFT} x2={width - RIGHT} y1={y(tick)} y2={y(tick)} className="stroke-border" strokeWidth={1} />
@@ -54,7 +54,7 @@ export function ColumnChart({ rows, unit }: { rows: AdminAnalyticsBucket[]; unit
                 key={row.start}
                 data-bar={index}
                 role="img"
-                aria-label={`${bucketLabel(row, unit)}: ${barText(row)}`}
+                aria-label={`${bucketLabel(row, unit)}: ${text(row)}`}
                 tabIndex={index === focusable ? 0 : -1}
                 onPointerEnter={() => setActive(index)}
                 onPointerLeave={() => setActive(null)}
@@ -88,7 +88,7 @@ export function ColumnChart({ rows, unit }: { rows: AdminAnalyticsBucket[]; unit
           style={{ top: 0, ...(LEFT + active * band > width / 2 ? { right: width - (LEFT + active * band) } : { left: LEFT + (active + 1) * band }) }}
         >
           <b className="block">{bucketLabel(shown, unit)}</b>
-          {barText(shown)}
+          {text(shown)}
         </div>
       )}
     </div>
