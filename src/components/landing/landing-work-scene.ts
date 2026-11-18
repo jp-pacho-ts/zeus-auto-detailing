@@ -28,11 +28,18 @@ export function mountCareScene(stage: HTMLElement) {
     if (!photo) return;
 
     const arrival = careFocusProgress(index, cards.length);
+    const peripheral = { scale: 1.13, filter: "brightness(.56) saturate(.62)" };
+    const featured = { scale: 1, filter: "brightness(1) saturate(.94)" };
     if (arrival > 0) {
-      scene.fromTo(photo, { scale: 1.07 }, { scale: 1, duration: arrival, ease: "sine.out" }, 0);
+      scene.fromTo(photo, peripheral, { ...featured, duration: arrival, ease: "sine.in" }, 0);
     }
     if (arrival < 1) {
-      scene.to(photo, { scale: 1.07, duration: 1 - arrival, ease: "sine.in" }, arrival);
+      scene.fromTo(photo, featured, {
+        ...peripheral,
+        duration: 1 - arrival,
+        ease: "sine.out",
+        immediateRender: false,
+      }, arrival);
     }
   });
 
