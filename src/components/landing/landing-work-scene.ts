@@ -36,10 +36,17 @@ export function mountCareScene(stage: HTMLElement) {
     }
   });
 
+  let pointerLink: Element | null = null;
+  let resetPointer = 0;
+  const rememberPointerLink = (event: PointerEvent) => {
+    pointerLink = event.target instanceof Element ? event.target.closest("a") : null;
+    cancelAnimationFrame(resetPointer);
+    resetPointer = requestAnimationFrame(() => { pointerLink = null; });
+  };
   const revealFocusedCard = (event: FocusEvent) => {
     const target = event.target;
     const trigger = scene.scrollTrigger;
-    if (!(target instanceof HTMLElement) || !target.matches(":focus-visible") || !trigger) return;
+    if (!(target instanceof HTMLElement) || target === pointerLink || !trigger) return;
     const index = cards.findIndex((card) => card.contains(target));
     if (index < 0) return;
 
@@ -49,8 +56,11 @@ export function mountCareScene(stage: HTMLElement) {
     trigger.getTween()?.progress(1);
     scene.progress(position);
   };
+  stage.addEventListener("pointerdown", rememberPointerLink);
   stage.addEventListener("focusin", revealFocusedCard);
   return () => {
+    cancelAnimationFrame(resetPointer);
+    stage.removeEventListener("pointerdown", rememberPointerLink);
     stage.removeEventListener("focusin", revealFocusedCard);
     stage.classList.remove("is-motion-scene");
     const active = document.activeElement;
