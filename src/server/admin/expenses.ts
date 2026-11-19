@@ -36,15 +36,15 @@ function mapExpenseError(error: unknown): never {
   throw error;
 }
 
-interface ExpenseRow { id: string; seq: bigint; expenseDate: Date; categoryId: string; categoryName: string; amountCentavos: bigint; payee: string | null; note: string | null; revision: number; voidedAt: Date | null; createdAt: Date; automatic: boolean; bookingId: string | null }
+interface ExpenseRow { id: string; seq: bigint; expenseDate: Date; categoryId: string; categoryName: string; amountCentavos: bigint; payee: string | null; note: string | null; revision: number; voidedAt: Date | null; createdAt: Date }
 const toExpense = (r: ExpenseRow): AdminExpense => ({
   id: r.id, expenseDate: isoDay(r.expenseDate), categoryId: r.categoryId, categoryName: r.categoryName, amountCentavos: Number(r.amountCentavos), payee: r.payee, note: r.note,
-  automatic: r.automatic, bookingId: r.bookingId, revision: Number(r.revision), removed: r.voidedAt !== null, createdAt: r.createdAt.toISOString(),
+  revision: Number(r.revision), removed: r.voidedAt !== null, createdAt: r.createdAt.toISOString(),
 });
 async function expenseOrThrow(tx: StaffTx, id: string): Promise<AdminExpense> {
   const [r] = await tx.$queryRaw<ExpenseRow[]>`
-    SELECT e.id, e.seq, e."expenseDate", e."categoryId", c.name AS "categoryName", e."amountCentavos", e.payee, e.note, e.revision, e."voidedAt", e."createdAt", e.automatic, e."bookingId"
-    FROM expense_rows e JOIN expense_categories c ON c.id = e."categoryId" WHERE e.id = ${id}`;
+    SELECT e.id, e.seq, e."expenseDate", e."categoryId", c.name AS "categoryName", e."amountCentavos", e.payee, e.note, e.revision, e."voidedAt", e."createdAt"
+    FROM expenses e JOIN expense_categories c ON c.id = e."categoryId" WHERE e.id = ${id}`;
   if (!r) throw new AdminServiceError("NOT_FOUND");
   return toExpense(r);
 }
@@ -73,8 +73,8 @@ export async function getExpenseMonth(actor: StaffActor, input: unknown, options
       filters.push(Prisma.sql`(e."expenseDate", e.seq) < (${day}::date, ${seq}::bigint)`);
     }
     const rows = await tx.$queryRaw<ExpenseRow[]>`
-      SELECT e.id, e.seq, e."expenseDate", e."categoryId", c.name AS "categoryName", e."amountCentavos", e.payee, e.note, e.revision, e."voidedAt", e."createdAt", e.automatic, e."bookingId"
-      FROM expense_rows e JOIN expense_categories c ON c.id = e."categoryId"
+      SELECT e.id, e.seq, e."expenseDate", e."categoryId", c.name AS "categoryName", e."amountCentavos", e.payee, e.note, e.revision, e."voidedAt", e."createdAt"
+      FROM expenses e JOIN expense_categories c ON c.id = e."categoryId"
       WHERE ${Prisma.join(filters, " AND ")}
       ORDER BY e."expenseDate" DESC, e.seq DESC LIMIT ${PAGE + 1}`;
     const page = rows.slice(0, PAGE);
@@ -82,7 +82,7 @@ export async function getExpenseMonth(actor: StaffActor, input: unknown, options
     const series = await tx.$queryRaw<{ month: string; kind: "manual" | "stock" | "commissions"; total: bigint }[]>`
       WITH r AS (SELECT (${seriesFrom}::date)::timestamp AT TIME ZONE 'Asia/Manila' AS a, (${to}::date + 1)::timestamp AT TIME ZONE 'Asia/Manila' AS b),
       x AS (
-        SELECT to_char(e."expenseDate", 'YYYY-MM') AS month, 'manual' AS kind, e."amountCentavos" AS amount FROM expense_rows e WHERE e."voidedAt" IS NULL AND e."expenseDate" BETWEEN ${seriesFrom}::date AND ${to}::date
+        SELECT to_char(e."expenseDate", 'YYYY-MM') AS month, 'manual' AS kind, e."amountCentavos" AS amount FROM expenses e WHERE e."voidedAt" IS NULL AND e."expenseDate" BETWEEN ${seriesFrom}::date AND ${to}::date
         UNION ALL SELECT to_char(m."createdAt" AT TIME ZONE 'Asia/Manila', 'YYYY-MM'), 'stock', m.delta::bigint * m."unitCostCentavos"::bigint FROM supply_movements m, r WHERE m.kind = 'RECEIVE' AND m."unitCostCentavos" IS NOT NULL AND m."createdAt" >= r.a AND m."createdAt" < r.b
         UNION ALL SELECT to_char(c."paidAt" AT TIME ZONE 'Asia/Manila', 'YYYY-MM'), 'commissions', c."amountCentavos" FROM commission_entries c, r WHERE c."paidAt" >= r.a AND c."paidAt" < r.b
         UNION ALL SELECT to_char(d."paidAt" AT TIME ZONE 'Asia/Manila', 'YYYY-MM'), 'commissions', d."amountCentavos" FROM commission_adjustments d, r WHERE d."paidAt" >= r.a AND d."paidAt" < r.b)

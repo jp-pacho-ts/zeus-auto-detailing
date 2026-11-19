@@ -110,7 +110,7 @@ const shiftDay = (day: string, n: number) => new Date(Date.parse(day + "T00:00:0
 const aroundToday = () => ({ from: shiftDay(manilaDay(new Date()), -1), to: shiftDay(manilaDay(new Date()), 1) });
 const count = async (table: string, where = "TRUE") => Number((await db.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*) AS n FROM ${table} WHERE ${where}`))[0].n);
 
-test("service expense: existing coating defaults are editable 1500 and arbitrary service costs accrue once at completion", { skip }, async () => {
+test("service deduction: editable defaults reduce commissions without posting to Expenses", { skip }, async () => {
   const list = await s.listAdminServices(ADMIN, opts());
   const coating = list.services.find((v) => v.slug === "eclipse-graphene")!;
   assert.equal((coating as typeof coating & { expenseDeductionCentavos: number }).expenseDeductionCentavos, 150_000);
@@ -126,13 +126,11 @@ test("service expense: existing coating defaults are editable 1500 and arbitrary
     await finish(job);
     assert.equal((await header(job.id))!.serviceTotalCentavos, 74_950);
     const after = await s.expenseTotals(ADMIN, aroundToday(), opts());
-    assert.equal(after.total - before.total, BigInt(25_050));
+    assert.equal(after.total, before.total, "the deduction never changes expense totals");
     const month = manilaDay(new Date()).slice(0, 7);
     const expenses = await s.getExpenseMonth(ADMIN, { month }, opts());
-    const row = expenses.expenses.find((e) => e.note?.includes(job.reference));
-    assert.equal(row?.amountCentavos, 25_050);
-    assert.equal((row as typeof row & { automatic: boolean }).automatic, true);
-    await refused(s.updateExpense(ADMIN, row!.id, { expectedRevision: 1, date: manilaDay(new Date()), categoryId: row!.categoryId, amountPesos: "1" }, opts()), "NOT_FOUND", "automatic cost cannot be edited as a manual expense");
+    assert.equal(expenses.expenses.some((e) => e.note?.includes(job.reference)), false);
+    assert.equal(await count("service_cost_snapshots", `"bookingId" = ${lit(job.id)} AND recorded`), 0);
     await save(0);
     await db.$executeRawUnsafe('SELECT commission_accrue($1)', job.id);
     assert.equal((await header(job.id))!.serviceTotalCentavos, 74_950, "recorded cost is retained after editing the default");

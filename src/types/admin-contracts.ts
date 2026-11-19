@@ -490,9 +490,6 @@ export interface AdminExpenseCategory {
   revision: number;
 }
 export interface AdminExpense {
-  /** Automatically recorded service cost; cannot be edited as a manual expense. */
-  automatic?: boolean;
-  bookingId?: string | null;
   id: UUID;
   expenseDate: LocalDate;
   categoryId: UUID;
@@ -522,7 +519,7 @@ export interface AdminExpenseMonth {
   month: string;
   expenses: AdminExpense[];
   nextCursor: string | null;
-  /** total = manual (including recorded service costs) + stockBought + commissionsPaid. commissionsOwed is separate. */
+  /** total = manual + stockBought + commissionsPaid. commissionsOwed is separate. */
   totals: { total: string; manual: string; stockBought: string; commissionsPaid: string; commissionsOwed: string };
   byCategory: { categoryId: UUID; name: string; total: string }[];
   pricedStockIns: number;

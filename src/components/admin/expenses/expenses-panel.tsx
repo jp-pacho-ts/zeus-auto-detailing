@@ -346,7 +346,7 @@ export function ExpensesPanel({
                   <div className="col-span-3 min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="inline-flex items-center rounded border border-border bg-raised px-2 py-0.5 text-xs font-semibold text-foreground">
-                        {e.categoryName}{e.automatic ? " · Automatic" : ""}
+                        {e.categoryName}
                       </span>
                       {e.removed && (
                         <span className="inline-flex items-center rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-xs font-bold text-rose-400">
@@ -370,9 +370,6 @@ export function ExpensesPanel({
 
                   {/* Column 4: Actions */}
                   <div className="col-span-2 flex items-center justify-end gap-1.5">
-                    {e.automatic ? (
-                      <span className="px-2 py-2 text-xs text-muted-foreground" title="Recorded from the completed booking; the amount is kept as history">Recorded</span>
-                    ) : (<>
                     <button
                       type="button"
                       disabled={busy}
@@ -423,7 +420,6 @@ export function ExpensesPanel({
                         </button>
                       </>
                     )}
-                    </>)}
                   </div>
                 </li>
               ))}
