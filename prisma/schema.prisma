@@ -1234,6 +1234,13 @@ enum ExpenseCategoryEventKind {
   SHOWN
 }
 
+model BookingDeductionOverride {
+  lineId String @id
+  amountCentavos Int
+
+  @@map("booking_deduction_overrides")
+}
+
 model ServiceCostSnapshot {
   id String @id @default(dbgenerated("(gen_random_uuid())::text"))
   seq BigInt @unique @default(autoincrement())

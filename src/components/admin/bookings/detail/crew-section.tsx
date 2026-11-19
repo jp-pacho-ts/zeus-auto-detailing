@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { BookingDeductionCorrection } from "./booking-deduction-correction";
 import { Button } from "@/components/ui/button";
 import type { AdminBookingDetail, AdminDayBoard } from "@/types/admin-contracts";
 import { money } from "../model";
@@ -90,6 +91,7 @@ export function CrewSection({
           <Button variant="outline" size="sm" disabled={disabled} onClick={onRecalculate}>
             Recalculate commission
           </Button>
+          <BookingDeductionCorrection key={b.id} booking={b} disabled={disabled} />
           {recalc && (
             <table className="w-full text-sm tabular-nums" aria-label="Commission before and after">
               <thead>

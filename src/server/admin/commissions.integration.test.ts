@@ -1090,3 +1090,28 @@ test("L3 paid commission is never changed by a late worker", { skip }, async () 
   assert.deepEqual(await entries(job.id), before, "the paid entry and its amount are untouched; nobody else is credited");
   assert.deepEqual((await s.getBookingDetail(ADMIN, job.id, opts())).assignedWorkers.map((x) => x.staffId).sort(), [w.id, late.id].sort(), "the name is still recorded");
 });
+test("paid booking: preview and save a one-line deduction correction without rewriting payments", { skip }, async () => {
+  const worker = await person("Deduction Correction Worker", "20");
+  const tint = bySlug(r0(), "regular-tint").id;
+  const previous = await db.service.findUniqueOrThrow({ where: { id: tint }, select: { expenseDeductionCentavos: true, sizeDeductions: true } });
+  await db.$executeRaw`UPDATE services SET "expenseDeductionCentavos" = 150000, "sizeDeductions" = '{}'::jsonb WHERE id = ${tint}`;
+  try {
+    const job = await shopCompleted([worker.id], [{ slug: "regular-tint", price: 200_000 }], { keepWash: false });
+    const line = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: job.id, serviceId: tint } });
+    const [original] = await entries(job.id);
+    assert.equal(original.amountCentavos, 10_000);
+    await s.setCommissionsPaid(ADMIN, { ids: [original.id], paid: true }, opts());
+    const input = { lineId: line.id, deductionCentavos: 0 };
+    const preview = await s.correctBookingDeduction(ADMIN, job.id, input, opts());
+    assert.deepEqual(preview.rows.map((r) => [r.paidCentavos, r.correctedCentavos, r.differenceCentavos]), [[10_000, 40_000, 30_000]]);
+    assert.equal(await db.commissionAdjustment.count({ where: { entryId: original.id } }), 0);
+    const save = { ...input, expected: preview.token };
+    await s.correctBookingDeduction(ADMIN, job.id, save, opts());
+    await refused(s.correctBookingDeduction(ADMIN, job.id, save, opts()), "VERSION_CONFLICT", "stale preview cannot duplicate the correction");
+    const [settled] = await entries(job.id);
+    assert.deepEqual([settled.id, settled.amountCentavos, !!settled.paidAt], [original.id, 10_000, true]);
+    assert.deepEqual((await db.commissionAdjustment.findMany({ where: { entryId: original.id } })).map((a) => [Number(a.amountCentavos), a.paidAt]), [[30_000, null]]);
+  } finally {
+    await db.$executeRaw`UPDATE services SET "expenseDeductionCentavos" = ${previous.expenseDeductionCentavos}, "sizeDeductions" = ${JSON.stringify(previous.sizeDeductions)}::jsonb WHERE id = ${tint}`;
+  }
+});

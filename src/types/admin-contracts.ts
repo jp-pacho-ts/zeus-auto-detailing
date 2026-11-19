@@ -356,6 +356,20 @@ export interface AdminCommissionLine {
   /** The price at the time; null when the service had no price. */
   amountCentavos: number | null;
 }
+export interface AdminBookingDeductionPreview {
+  token: string;
+  previousDeductionCentavos: number;
+  rows: {
+    entryId: string;
+    name: string;
+    staffId: string;
+    previousCentavos: number;
+    paidCentavos: number;
+    correctedCentavos: number;
+    differenceCentavos: number;
+  }[];
+}
+
 export interface AdminCommissionAdjustment {
   id: UUID;
   /** Signed whole centavos; the entry amount plus its adjustments is never below zero. */

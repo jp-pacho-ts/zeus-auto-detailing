@@ -273,6 +273,12 @@ export const CommissionListSchema = z
   .refine((v) => v.to >= v.from, { message: "The end day can't be before the start day.", path: ["to"] })
   .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 <= 365, { message: "Choose a range of one year or less.", path: ["to"] });
 // A signed whole-centavo correction to one person's commission (never zero, at most 10 billion pesos), with a reason.
+export const BookingDeductionCorrectionSchema = z.object({
+  lineId: AdminIdSchema,
+  deductionCentavos: z.number().int().min(0).max(100_000_000),
+  expected: z.string().regex(/^[a-f0-9]{32}$/).optional(),
+}).strict();
+
 export const CommissionAdjustSchema = z
   .object({
     id: Id, // made by the browser once per form, so a retry after a lost response cannot record the adjustment twice
