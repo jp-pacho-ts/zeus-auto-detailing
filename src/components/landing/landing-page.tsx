@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ArrowDown, ArrowUpRight, MapPin, MessageCircle, Phone } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpRight, MapPin, MessageCircle, Phone } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import type { LandingStatus } from "@/server/landing/status";
@@ -208,15 +208,41 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
         </div>
       </section>
     </main>
-    <footer className="landing-footer"><div className="landing-wrap">
+    <footer id="site-footer" className="landing-footer landing-wrap">
       <div className="landing-footer-grid">
-        <div><Image src={brandConfig.logoUrl} alt="Zeus Auto Detailing" width="132" height="52" /><p className="landing-muted">{brandConfig.address}</p>
-          <div className="landing-icons"><a href={tel} aria-label="Call Zeus"><Phone aria-hidden="true" /></a><a href={brandConfig.facebookMessengerUrl} aria-label="Zeus on Messenger"><MessageCircle aria-hidden="true" /></a><a href={brandConfig.instagram} aria-label="Zeus on Instagram"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" /></svg></a></div>
+        <div className="landing-footer-location">
+          <Image src={brandConfig.logoUrl} alt={brandConfig.businessName} width={148} height={58} />
+          <address className="landing-footer-address"><strong>{brandConfig.location}</strong><span>{brandConfig.landmark}</span></address>
+          <a className="landing-text-link" href={directions} target="_blank" rel="noreferrer" aria-label="Get directions, opens Google Maps">Get directions<ArrowUpRight aria-hidden="true" /></a>
         </div>
-        <nav aria-label="Footer"><ul className="landing-footer-links"><li><a href="#about">About</a></li><li><a href="#services">Services</a></li><li><a href="#estimate">Prices</a></li><li><a href="#reviews">Reviews</a></li><li><a href="#visit">Visit</a></li><li><a href="/book/manage">Manage booking</a></li><li><a href="/admin/login">Staff login</a></li><li><a href="#top">Back to top</a></li></ul></nav>
+        <nav aria-labelledby="landing-footer-explore">
+          <h2 id="landing-footer-explore" className="landing-footer-heading">Explore</h2>
+          <ul className="landing-footer-links landing-footer-explore">
+            <li><a href="#about">About</a></li>
+            <li><a href="#services">Services and prices</a></li>
+            <li><a href="#estimate">Get an estimate</a></li>
+            <li><a href="#reviews">Reviews</a></li>
+            <li><a href="#visit">Visit the shop</a></li>
+            <li><a href="/book/manage">Manage booking</a></li>
+          </ul>
+        </nav>
+        <div>
+          <h2 className="landing-footer-heading">Contact</h2>
+          <ul className="landing-footer-links landing-footer-contact">
+            <li><a href={tel}><Phone aria-hidden="true" />{brandConfig.displayPhone}</a></li>
+            <li><a href={brandConfig.facebookMessengerUrl}><MessageCircle aria-hidden="true" />Messenger</a></li>
+            <li><a href={brandConfig.instagram}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" /></svg>Instagram</a></li>
+          </ul>
+        </div>
       </div>
-      <p className="landing-copyright">© {new Date().getFullYear()} {brandConfig.businessName}</p>
-    </div></footer>
+      <div className="landing-footer-bottom">
+        <p className="landing-copyright">© {new Date().getFullYear()} {brandConfig.businessName}</p>
+        <div className="landing-footer-utilities">
+          <a href="/admin/login">Staff login</a>
+          <a className="landing-footer-top" href="#top">Back to top<ArrowUp aria-hidden="true" /></a>
+        </div>
+      </div>
+    </footer>
     <LandingLifecycle />
   </div>;
 }

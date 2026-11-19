@@ -111,6 +111,19 @@ test("Visit: the verified pin has a lazy Google Maps embed and direct directions
   assert.match(html, /<nav class="landing-desktop-nav"[^>]*>.*href="#faq"[^>]*>FAQ</);
 });
 
+test("Footer groups site links, contact links and utilities while keeping their destinations", () => {
+  const footer = page().match(/<footer id="site-footer"[\s\S]*?<\/footer>/)?.[0];
+  assert.ok(footer);
+  assert.match(footer, /<nav aria-labelledby="landing-footer-explore"/);
+  assert.match(footer, /href="#estimate">Get an estimate/);
+  assert.match(footer, /href="\/book\/manage">Manage booking/);
+  assert.match(footer, /href="tel:\+639300162234"[^>]*>.*0930 016 2234/);
+  assert.match(footer, /href="https:\/\/m\.me\/zeusautodetailingtacloban"/);
+  assert.match(footer, /href="https:\/\/www\.instagram\.com\/zeus\.otodetailing"/);
+  assert.match(footer, /destination=11\.2054621%2C124\.991338/);
+  assert.match(footer, /class="landing-footer-bottom"[^>]*>.*href="\/admin\/login">Staff login.*href="#top">Back to top/);
+});
+
 test("LuxAuto identity uses local DM Sans throughout, including the monumental Zeus word", () => {
   const css = readFileSync("src/components/landing/landing.css", "utf8").replace(/\s+/g, "");
   assert.match(css, /@font-face\{font-family:LandingBody;src:url\('\/fonts\/home\/DMSans.ttf'\)/);
