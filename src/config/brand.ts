@@ -14,6 +14,9 @@ export const brandConfig = {
   shopAddress:
     "Maharlika Highway Corner Villa Mayor Brgy 95 Caibaan, Tacloban City, Philippines, 6500",
   landmark: "Corner Villa Mayor, Maharlika Highway",
+  mapCoordinates: "11.2054621,124.991338",
+  // Google Maps Share > Embed a map for the shop's verified listing.
+  mapEmbedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3913.7589542850656!2d124.99133800000001!3d11.2054621!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x330877f0a9e2c48f%3A0x7e38b176ace74446!2sZeus%20Carwash%20and%20Detailing%20Tacloban!5e0!3m2!1sen!2sph!4v1795064097394!5m2!1sen!2sph",
   supportPhone: "+63 930 016 2234",
   contactPhone: "+63 930 016 2234",
   displayPhone: "0930 016 2234",

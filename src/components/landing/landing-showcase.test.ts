@@ -37,21 +37,34 @@ test("What we do: the process stage names each category, links its catalog servi
   assert.doesNotMatch(work, /\b0?[123]\.|<ol/, "no numbering: the work is not a fixed sequence");
 });
 
-test("Coatings: a full-bleed eclipse photo, then a real comparison table of the graphene packages; phones get stacked blocks", () => {
+test("Coatings: package panels show prices, shared inclusions appear once, and the table keeps differences", () => {
   const coatings = section(page(), "coatings");
-  assert.match(coatings, /<h2[^>]*>Coatings and films<\/h2>/);
+  const title = /<h2[^>]*aria-label="Coatings and films"[^>]*><span class="landing-bleed-line" aria-hidden="true"><span class="landing-bleed-text">Coatings<\/span><\/span> <span class="landing-bleed-line" aria-hidden="true"><span class="landing-bleed-text">and films/;
+  assert.match(coatings, title);
+  assert.match(section(page("OPEN", null), "coatings"), title, "the title renders without the catalog");
   assert.match(coatings, /url=%2Fmedia%2Flanding%2Feclipse\.webp/);
   assert.doesNotMatch(coatings, /landing-coating-edge/, "the edge frame that drew the black strip is gone");
   assert.match(coatings, /<h3[^>]*>Compare graphene packages<\/h3>/);
-  assert.match(coatings, /Choose your vehicle size to see prices\./);
+  assert.match(coatings, /<select id="landing-compare-size"/);
+  assert.match(coatings, /<h4>Included in every package<\/h4>/);
+  assert.equal([...coatings.matchAll(/Decon wash/g)].length, 1);
   assert.match(coatings, /<table/);
   assert.match(coatings, /<th scope="col"[^>]*>Eclipse<\/th>/);
   assert.match(coatings, /<th scope="row"[^>]*>Graphene top<\/th>/);
   // Eclipse lacks "Graphene top": its cell says so to assistive technology, with no typed dash.
   assert.match(coatings, /Not included/);
   assert.match(coatings, /<span class="landing-sr">Included<\/span>/);
-  assert.match(coatings, /aria-label="Book Eclipse"/);
-  assert.match(coatings, /class="landing-compare-blocks"/);
+  assert.match(coatings, /href="\/book">Book Eclipse<svg/);
+  assert.match(coatings, /class="landing-compare-packages"/);
+});
+
+test("Coatings: packages with identical inclusions have no comparison matrix", () => {
+  const identical = services.map((s) => s.category === "GRAPHENE" ? { ...s, inclusions: ["Decon wash"] } : s);
+  const coatings = section(page("OPEN", catalog({ services: identical })), "coatings");
+  assert.match(coatings, /<h4>Eclipse<\/h4>/);
+  assert.match(coatings, /<h4>Kenzo<\/h4>/);
+  assert.match(coatings, /url=%2Fmedia%2Flanding%2Fkenzo\.webp/);
+  assert.doesNotMatch(coatings, /<table/);
 });
 
 test("FAQ: only the confirmed questions, as buttons; answers follow the booking state and the catalog", () => {
@@ -69,41 +82,62 @@ test("FAQ: only the confirmed questions, as buttons; answers follow the booking 
   assert.doesNotMatch(open, /How long does a coating last|deposit|How can I pay|wait at the shop/, "owner items stay out");
 });
 
-test("Hero: phones get the whole-car still photo; desktop keeps the terminal poster; the status line carries an icon, not a rule", () => {
+test("Hero: original responsive posters support looping workshop video; availability remains available outside the hero", () => {
   const html = page("PAUSED");
-  assert.match(html, /<source media="\(max-width: 767px\)" srcSet="\/media\/home\/hero-poster-720\.jpg"/);
-  assert.match(html, /src="\/media\/preview\/hero-terminal\.webp"/);
-  assert.match(html, /class="landing-status"><svg[^>]*lucide-info/);
+  assert.match(html, /srcSet="\/media\/home\/hero-poster-720\.jpg"/);
+  assert.match(html, /src="\/media\/home\/hero-poster\.jpg"/);
+  assert.match(html, /<video[^>]*loop=""/);
+  assert.match(html, /Online booking is paused\. Call or message us to book\./);
   const css = readFileSync("src/components/landing/landing.css", "utf8");
   assert.doesNotMatch(css, /border-left:3px/, "no side-tab rules (impeccable detect, landing.css:64 and :147)");
 });
 
-test("Cards: chips sit on the photo, each card has its service anchor, and Kenzo is contained on a dark mat", () => {
+test("Cards: title and price sit on the photo, each card has its service anchor, and Kenzo is contained on a dark mat", () => {
   const services = section(page(), "services");
   assert.match(services, /id="service-basic-wash"/);
-  assert.match(services, /class="landing-photo[^"]*"><span class="landing-chips">/);
+  assert.match(services, /class="landing-photo">[^]*?<div class="landing-service-heading"><h4>Basic Wash<\/h4><p class="landing-price"/);
   assert.match(services, /class="landing-photo landing-photo-contain"/);
 });
 
-test("Visit: the address stands large above equal cards, and the feedback slot sits in Visit; the header lists FAQ", () => {
+test("Visit: the verified pin has a lazy Google Maps embed and direct directions, alongside address and contact", () => {
   const html = page(), visit = section(html, "visit");
-  assert.match(visit, /<p class="landing-visit-address">Brgy 95 Caibaan, Tacloban City<\/p>/);
-  assert.match(visit, /Customer feedback will appear here\./);
+  assert.match(visit, /<address[^>]*>.*Brgy 95 Caibaan, Tacloban City.*<\/address>/);
+  assert.match(visit, /<iframe[^>]*src="https:\/\/www\.google\.com\/maps\/embed\?pb=[^"]*0x7e38b176ace74446[^>]*title="Google Maps location for Zeus Auto Detailing"[^>]*loading="lazy"/);
+  assert.match(visit, /https:\/\/www\.google\.com\/maps\/dir\/\?api=1&amp;destination=11\.2054621%2C124\.991338/);
+  assert.match(visit, /href="tel:\+639300162234"/);
+  assert.match(visit, /href="https:\/\/m\.me\/zeusautodetailingtacloban"/);
+  assert.match(section(html, "reviews"), /Customer feedback will appear here\./);
+  assert.match(html, /href="#reviews"[^>]*>Reviews</);
   assert.match(html, /<nav class="landing-desktop-nav"[^>]*>.*href="#faq"[^>]*>FAQ</);
 });
 
-test("Barlow Condensed is used for the outlined ZEUS word only (CEO, P1-90)", () => {
+test("Footer groups customer links and keeps staff sign-in out of public navigation", () => {
+  const footer = page().match(/<footer id="site-footer"[\s\S]*?<\/footer>/)?.[0];
+  assert.ok(footer);
+  assert.match(footer, /<nav aria-labelledby="landing-footer-explore"/);
+  assert.match(footer, /href="#estimate">Get an estimate/);
+  assert.match(footer, /href="\/book\/manage">Manage booking/);
+  assert.match(footer, /href="tel:\+639300162234"[^>]*>.*0930 016 2234/);
+  assert.match(footer, /href="https:\/\/m\.me\/zeusautodetailingtacloban"/);
+  assert.match(footer, /href="https:\/\/www\.instagram\.com\/zeus\.otodetailing"/);
+  assert.match(footer, /destination=11\.2054621%2C124\.991338/);
+  assert.match(footer, /class="landing-footer-bottom"[^>]*>.*href="#top">Back to top/);
+  assert.doesNotMatch(footer, /\/admin\/login|Staff login/);
+});
+
+test("The landing preview uses local Geist with an uppercase display hierarchy", () => {
   const css = readFileSync("src/components/landing/landing.css", "utf8").replace(/\s+/g, "");
-  const rules = [...css.matchAll(/([^{}]+)\{[^}]*LandingDisplay[^}]*\}/g)].map((m) => m[1]).filter((s) => !s.includes("@font-face"));
-  assert.ok(rules.length > 0);
-  for (const selector of rules) assert.match(selector, /^\.landing-word$/, selector);
+  assert.match(css, /@font-face\{font-family:LandingGeist;src:url\('\/fonts\/landing\/Geist-Variable.woff2'\)/);
+  assert.match(css, /\.landing\{[^}]*LandingGeist/);
+  assert.match(css, /\.landingh1,\.landingh2:not\(\.landing-footer-heading\)\{[^}]*text-transform:uppercase/);
+  assert.equal(readFileSync("public/fonts/landing/Geist-Variable.woff2").subarray(0, 4).toString("ascii"), "wOF2");
 });
 
 test("UI/UX F1: a graphene package with no catalog inclusions is left out of the comparison; under two packages, no comparison", () => {
   const moto = service("motorcycle-graphene", "Motorcycle Graphene", "GRAPHENE", [], [multiDay("m", 200000)]);
   const coatings = section(page("OPEN", catalog({ services: [...services, moto] } as Partial<BookingCatalog>)), "coatings");
   assert.doesNotMatch(coatings, /<th scope="col"[^>]*>Motorcycle Graphene<\/th>/);
-  assert.doesNotMatch(coatings.slice(coatings.indexOf("landing-compare-blocks")), /<h4>Motorcycle Graphene<\/h4>/);
+  assert.doesNotMatch(coatings, /<h4>Motorcycle Graphene<\/h4>/);
   assert.match(coatings, /<th scope="col"[^>]*>Kenzo<\/th>/);
   // The motorcycle package keeps its card in the Graphene tab.
   assert.match(section(page("OPEN", catalog({ services: [...services, moto] } as Partial<BookingCatalog>)), "services"), /id="service-motorcycle-graphene"/);

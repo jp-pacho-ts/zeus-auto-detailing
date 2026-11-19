@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { HERO_VIDEO_FILES } from "@/components/home/hero-video";
+import { HERO_VIDEO_FILES, type HeroVideoFiles } from "@/components/home/hero-video";
 import { attachHeroVideo, type HeroVideoEnv } from "@/components/home/hero-video-controller";
 
 type Listener = () => void;
@@ -15,7 +15,7 @@ function target() {
   };
 }
 
-function setup({ hidden = false, complete = false, width = 1440, reduced = false, connection }: { hidden?: boolean; complete?: boolean; width?: number; reduced?: boolean; connection?: { saveData?: boolean; effectiveType?: string } } = {}) {
+function setup({ hidden = false, complete = false, width = 1440, reduced = false, connection, files }: { hidden?: boolean; complete?: boolean; width?: number; reduced?: boolean; connection?: { saveData?: boolean; effectiveType?: string }; files?: HeroVideoFiles } = {}) {
   const videoTarget = target(), documentTarget = target(), windowTarget = target(), motionTarget = target();
   const calls = { play: 0, pause: 0 };
   const video = {
@@ -36,6 +36,7 @@ function setup({ hidden = false, complete = false, width = 1440, reduced = false
     window: windowTarget,
     motion,
     connection,
+    files,
     schedule: (callback) => { scheduled.push(callback); return () => { const i = scheduled.indexOf(callback); if (i >= 0) scheduled.splice(i, 1); }; },
   };
   const detach = attachHeroVideo(video, env);
@@ -64,6 +65,22 @@ test("a page that is already complete schedules the start at once, and a phone g
   const page = setup({ complete: true, width: 390 });
   page.idle();
   assert.equal(page.video.src, HERO_VIDEO_FILES.phone);
+});
+
+test("custom landing footage uses the responsive sources and the same poster-only playback gates", () => {
+  const files = { desktop: "/preview/film-1080.mp4", phone: "/preview/film-720.mp4" };
+  const desktop = setup({ complete: true, files });
+  desktop.idle();
+  assert.equal(desktop.video.src, files.desktop);
+  const phone = setup({ complete: true, width: 390, files });
+  phone.idle();
+  assert.equal(phone.video.src, files.phone);
+  const reduced = setup({ complete: true, reduced: true, files });
+  reduced.idle();
+  assert.equal(reduced.video.src, "");
+  const saver = setup({ complete: true, connection: { saveData: true }, files });
+  saver.idle();
+  assert.equal(saver.video.src, "");
 });
 
 test("F1: a page opened in a hidden tab loads nothing, then starts the video when the tab is first shown", () => {
