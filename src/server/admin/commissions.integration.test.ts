@@ -115,11 +115,12 @@ test("service deduction: editable defaults reduce commissions without posting to
   const coating = list.services.find((v) => v.slug === "eclipse-graphene")!;
   assert.equal((coating as typeof coating & { expenseDeductionCentavos: number }).expenseDeductionCentavos, 150_000);
   const tint = list.services.find((v) => v.slug === "regular-tint")!;
-  const save = (amount: number) => s.updateAdminService(ADMIN, tint.id, {
-    name: tint.name, description: tint.description, category: tint.category, offers: [], expenseDeductionCentavos: amount,
+  const save = (amount: number, sizeDeductions?: { S: number; MOTOR: number }) => s.updateAdminService(ADMIN, tint.id, {
+    name: tint.name, description: tint.description, category: tint.category, offers: [], expenseDeductionCentavos: amount, sizeDeductions,
   }, opts());
   try {
-    await save(25_050);
+    await save(150_000, { S: 25_050, MOTOR: 0 });
+    assert.deepEqual((await s.listAdminServices(ADMIN, opts())).services.find((v) => v.id === tint.id)?.sizeDeductions, { S: 25_050, MOTOR: 0 });
     const before = await s.expenseTotals(ADMIN, aroundToday(), opts());
     const job = await inProgress([], 100_000);
     assert.equal(await count("service_cost_snapshots", `"bookingId" = ${lit(job.id)}`), 0);
@@ -131,7 +132,7 @@ test("service deduction: editable defaults reduce commissions without posting to
     const expenses = await s.getExpenseMonth(ADMIN, { month }, opts());
     assert.equal(expenses.expenses.some((e) => e.note?.includes(job.reference)), false);
     assert.equal(await count("service_cost_snapshots", `"bookingId" = ${lit(job.id)} AND recorded`), 0);
-    await save(0);
+    await save(150_000, { S: 0, MOTOR: 0 });
     await db.$executeRawUnsafe('SELECT commission_accrue($1)', job.id);
     assert.equal((await header(job.id))!.serviceTotalCentavos, 74_950, "recorded cost is retained after editing the default");
     assert.equal((await s.expenseTotals(ADMIN, aroundToday(), opts())).total, after.total, "retry cannot duplicate a cost");
@@ -140,7 +141,7 @@ test("service deduction: editable defaults reduce commissions without posting to
     assert.equal((await s.expenseTotals(ADMIN, aroundToday(), opts())).total, after.total, "disabled service creates no expense");
     await assert.rejects(app.$executeRawUnsafe('SELECT admin_service_set_expense_deduction($1,$2,$3::integer)', "missing-actor", tint.id, 1));
     await assert.rejects(app.$executeRawUnsafe('UPDATE service_cost_snapshots SET "amountCentavos" = 1 WHERE "bookingId" = $1', job.id));
-  } finally { await save(0); }
+  } finally { await save(0, { S: 0, MOTOR: 0 }); }
 });
 
 async function refused(p: Promise<unknown>, code: string, label: string, check?: (e: AdminServiceError) => void) {

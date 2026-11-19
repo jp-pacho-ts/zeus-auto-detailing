@@ -60,6 +60,7 @@ model VehicleCategory {
 
 model Service {
   expenseDeductionCentavos Int @default(0)
+  sizeDeductions            Json @default("{}")
   id                  String                  @id @default(uuid())
   name                String
   slug                String                  @unique

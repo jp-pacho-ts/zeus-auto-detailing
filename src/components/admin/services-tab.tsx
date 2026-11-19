@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ServiceExpenseField } from "./service-expense-field";
-import { expensePesosToCentavos } from "@/lib/expenses";
+import { ServiceExpenseField, type SizeDeductionForm } from "./service-expense-field";
 import {
   Sparkles,
   Plus,
@@ -54,6 +53,13 @@ const CATEGORY_COLORS: Record<CatalogServiceKind, string> = {
 };
 
 const SIZE_ORDER = ["MOTOR", "S", "M", "L", "XL"] as const;
+function deductionBody(values: SizeDeductionForm) {
+  return Object.fromEntries(SIZE_ORDER.map((size) => {
+    const row = values[size];
+    return [size, row?.enabled ? Math.round(Number(row.amount) * 100) : 0];
+  }));
+}
+
 const SIZE_NAMES: Record<string, string> = {
   MOTOR: "Motorcycle",
   S: "Small",
@@ -238,8 +244,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     promoPricePhp: string;
     pickupPricePhp?: string; // L and XL only
   }>>({});
-  const [editExpenseEnabled, setEditExpenseEnabled] = React.useState(false);
-  const [editExpenseAmount, setEditExpenseAmount] = React.useState("1500");
+  const [editDeductions, setEditDeductions] = React.useState<SizeDeductionForm>({});
   const [editCommissionMode, setEditCommissionMode] = React.useState<CommissionMode>("DEFAULT");
   const [editCommissionRate, setEditCommissionRate] = React.useState<string>("");
   const [editSizes, setEditSizes] = React.useState<SizeValues>({});
@@ -251,8 +256,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
   const [createName, setCreateName] = React.useState("");
   const [createDesc, setCreateDesc] = React.useState("");
   const [createCategory, setCreateCategory] = React.useState<CatalogServiceKind>("WASH");
-  const [createExpenseEnabled, setCreateExpenseEnabled] = React.useState(false);
-  const [createExpenseAmount, setCreateExpenseAmount] = React.useState("1500");
+  const [createDeductions, setCreateDeductions] = React.useState<SizeDeductionForm>({});
   const [createCommissionMode, setCreateCommissionMode] = React.useState<CommissionMode>("NONE");
   const [createCommissionRate, setCreateCommissionRate] = React.useState<string>("");
   const [createSizes, setCreateSizes] = React.useState<SizeValues>({});
@@ -273,8 +277,10 @@ export function ServicesTab({ role }: ServicesTabProps) {
 
   const initEditModal = (svc: AdminServiceItem) => {
     setEditService(svc);
-    setEditExpenseEnabled((svc.expenseDeductionCentavos ?? 0) > 0);
-    setEditExpenseAmount(String((svc.expenseDeductionCentavos ?? 0) / 100 || 1500));
+    setEditDeductions(Object.fromEntries(SIZE_ORDER.map((size) => {
+      const amount = svc.sizeDeductions?.[size] ?? svc.expenseDeductionCentavos ?? 0;
+      return [size, { enabled: amount > 0, amount: amount > 0 ? String(amount / 100) : "1500" }];
+    })));
     setEditName(svc.name);
     setEditDesc(svc.description ?? "");
     setEditCategory(svc.category);
@@ -332,8 +338,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setCreateName("");
     setCreateDesc("");
     setCreateCategory("WASH");
-    setCreateExpenseEnabled(false);
-    setCreateExpenseAmount("1500");
+    setCreateDeductions({});
     setCreateCommissionMode("NONE"); // new services start with no commission (LE 2026-11-12)
     setCreateCommissionRate("0");
     setCreateSizes({});
@@ -408,7 +413,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           description: editDesc || null,
           category: editCategory,
           ...commissionBody(editCommissionMode, editCommissionRate, editSizes),
-          expenseDeductionCentavos: editExpenseEnabled ? expensePesosToCentavos(editExpenseAmount) : 0,
+          sizeDeductions: deductionBody(editDeductions),
           offers: offersPayload,
         },
       });
@@ -481,7 +486,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           type: createType,
           unit: createUnit,
           ...commissionBody(createCommissionMode, createCommissionRate, createSizes),
-          expenseDeductionCentavos: createExpenseEnabled ? expensePesosToCentavos(createExpenseAmount) : 0,
+          sizeDeductions: deductionBody(createDeductions),
           offers: offersPayload,
         },
       });
@@ -1000,8 +1005,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     sizes={editSizes} onSizes={setEditSizes} prices={sizePrices(editOffers)} />
                 </div>
               </div>
-              <ServiceExpenseField enabled={editExpenseEnabled} onEnabled={setEditExpenseEnabled}
-                amount={editExpenseAmount} onAmount={setEditExpenseAmount} />
+              <ServiceExpenseField values={editDeductions} onChange={setEditDeductions} />
 
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground">Description</label>
@@ -1274,8 +1278,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     sizes={createSizes} onSizes={setCreateSizes} prices={sizePrices(createOffers)} />
                 </div>
               </div>
-              <ServiceExpenseField enabled={createExpenseEnabled} onEnabled={setCreateExpenseEnabled}
-                amount={createExpenseAmount} onAmount={setCreateExpenseAmount} />
+              <ServiceExpenseField values={createDeductions} onChange={setCreateDeductions} />
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>

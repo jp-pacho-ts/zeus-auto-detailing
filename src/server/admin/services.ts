@@ -23,6 +23,12 @@ const setExpenseDeduction = async (tx: StaffTx, actor: StaffActor, serviceId: st
   await tx.$executeRawUnsafe("SELECT admin_service_set_expense_deduction($1, $2, $3::integer)", actor.staffId, serviceId, amount);
 };
 
+// A missing set leaves the saved vehicle overrides in place for older clients.
+const setSizeDeductions = async (tx: StaffTx, actor: StaffActor, serviceId: string, values: AdminServiceList["services"][number]["sizeDeductions"]) => {
+  if (values === undefined) return;
+  await tx.$executeRaw`SELECT public.admin_service_set_size_deductions(${actor.staffId}, ${serviceId}, ${JSON.stringify(values)}::jsonb)`;
+};
+
 // Same transaction: the per-size commission. Left alone when the request does not mention it.
 const setSizeCommissions = async (tx: StaffTx, actor: StaffActor, serviceId: string,
   input: { commissionMode?: "SIZE_PERCENT" | "SIZE_FIXED" | null; sizeCommissions?: { sizeCode: string; rateBp?: number | null; fixedCentavos?: number | null }[] }) => {
@@ -42,7 +48,14 @@ export async function listAdminServices(
       const rows = await tx.$queryRaw<{ admin_service_list: AdminServiceList }[]>`
         SELECT admin_service_list(${actor.staffId})
       `;
-      return rows[0]?.admin_service_list ?? { services: [], vehicleCategories: [] };
+      const result = rows[0]?.admin_service_list ?? { services: [], vehicleCategories: [] };
+      if (!result.services.length) return result;
+      const settings = await tx.$queryRaw<{ id: string; sizeDeductions: AdminServiceList["services"][number]["sizeDeductions"] }[]>`
+        SELECT id, "sizeDeductions" FROM public.services
+        WHERE id IN (${Prisma.join(result.services.map((service) => service.id))})
+      `;
+      const byId = new Map(settings.map((row) => [row.id, row.sizeDeductions]));
+      return { ...result, services: result.services.map((service) => ({ ...service, sizeDeductions: byId.get(service.id) })) };
     },
     { access: "read", db: options.db, signal: options.signal },
   );
@@ -79,6 +92,7 @@ export async function updateAdminService(
         await setPickupPrices(tx, actor, serviceId, input.offers);
         await setSizeCommissions(tx, actor, serviceId, input);
         await setExpenseDeduction(tx, actor, serviceId, input.expenseDeductionCentavos);
+        await setSizeDeductions(tx, actor, serviceId, input.sizeDeductions);
         return { ok: true, serviceId };
       } catch (error) {
         const text = error instanceof Error ? error.message : "";
@@ -123,6 +137,7 @@ export async function createAdminService(
         await setPickupPrices(tx, actor, serviceId, input.offers);
         await setSizeCommissions(tx, actor, serviceId, input);
         await setExpenseDeduction(tx, actor, serviceId, input.expenseDeductionCentavos ?? 0);
+        await setSizeDeductions(tx, actor, serviceId, input.sizeDeductions);
         return { ok: true, serviceId };
       } catch (error) {
         const text = error instanceof Error ? error.message : "";

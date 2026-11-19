@@ -663,6 +663,7 @@ export interface AdminServiceOffer {
 
 export interface AdminServiceItem {
   expenseDeductionCentavos?: number;
+  sizeDeductions?: Partial<Record<"MOTOR" | "S" | "M" | "L" | "XL", number>>;
   id: string;
   slug: string;
   name: string;

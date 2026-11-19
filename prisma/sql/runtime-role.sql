@@ -223,6 +223,12 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+DO $$ BEGIN
+  IF to_regprocedure('public.admin_service_set_size_deductions(text,text,jsonb)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.admin_service_set_size_deductions(text,text,jsonb) TO zeus_app;
+  END IF;
+END $$;
+
 -- No privileges at all: _prisma_migrations, catalog_publishers, catalog_publication_events,
 -- catalog_hold_segments, booking_assignments, slot_capacity_overrides, commission_payouts,
 -- inventory_items, inventory_transactions, service_recipes, booking_delete_tokens (P1-29, written only

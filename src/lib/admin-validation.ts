@@ -472,7 +472,9 @@ const SizeCommissionSchema = z.object({
   rateBp: z.number().int().min(0).max(10_000).nullable().optional(),
   fixedCentavos: z.number().int().min(0).max(100_000_000).nullable().optional(),
 }).strict();
+const DeductionAmount = z.number().int().min(0).max(100_000_000).optional();
 const SizeCommissionFields = {
+  sizeDeductions: z.object({ MOTOR: DeductionAmount, S: DeductionAmount, M: DeductionAmount, L: DeductionAmount, XL: DeductionAmount }).strict().optional(),
   expenseDeductionCentavos: z.number().int().min(0).max(100_000_000).optional(),
   commissionMode: z.enum(["SIZE_PERCENT", "SIZE_FIXED"]).nullable().optional(),
   sizeCommissions: z.array(SizeCommissionSchema).max(5).optional(),
