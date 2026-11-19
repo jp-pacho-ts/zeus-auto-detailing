@@ -19,9 +19,7 @@ test("LuxAuto page: one local service H1, genuine workshop photos and labelled p
   assert.equal(html.match(/<h1[\s>]/g)?.length, 1);
   assert.match(html, /<h1[^>]*aria-label="Car and motorcycle detailing in Tacloban City"[^>]*>.*Car &amp; motorcycle.*detailing.*<\/h1>/);
   assert.equal(html.match(/class="landing-hero-line(?: [^"]+)?"/g)?.length, 2);
-  assert.match(html, /class="landing-hero-wordmark" aria-hidden="true"/);
-  assert.deepEqual([...html.matchAll(/class="landing-hero-glyph">([^<]+)</g)].map((match) => match[1]), ["Z", "E", "U", "S"]);
-  assert.doesNotMatch(html, /landing-hero-beam|landing-letter-mask/);
+  assert.doesNotMatch(html, /landing-hero-wordmark|landing-hero-beam|landing-letter-mask/);
   assert.match(html, /id="gallery"/);
   assert.match(words, /Gallery photos will appear here\./);
   assert.match(words, /Customer feedback will appear here\./);

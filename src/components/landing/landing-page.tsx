@@ -55,9 +55,6 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
       <section id="top" className="landing-hero" aria-labelledby="landing-hero-title">
         <div className="landing-hero-art">
           <div className="landing-hero-photo"><LandingVideo /></div>
-          <div className="landing-hero-wordmark" aria-hidden="true">
-            {[..."ZEUS"].map((letter) => <span className="landing-hero-glyph-mask" key={letter}><span className="landing-hero-glyph">{letter}</span></span>)}
-          </div>
         </div>
         <div className="landing-wrap landing-hero-copy">
           <h1 id="landing-hero-title" aria-label="Car and motorcycle detailing in Tacloban City">

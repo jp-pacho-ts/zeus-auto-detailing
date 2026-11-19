@@ -21,9 +21,8 @@ export function LandingLifecycle() {
       const frame = hero?.querySelector(".landing-video-frame");
       if (!hero || !frame || hero.getBoundingClientRect().bottom < innerHeight / 2) return;
       const opening = gsap.timeline({ defaults: { ease: "power4.out" } });
-      opening.fromTo(frame, { scale: 1.14, xPercent: 1.2 }, { scale: 1, xPercent: 0, duration: .74 }, 0)
-        .fromTo(hero.querySelectorAll(".landing-hero-glyph"), { yPercent: 108, skewX: -10 }, { yPercent: 0, skewX: 0, duration: .55, stagger: .06 }, .03)
-        .fromTo(hero.querySelectorAll(".landing-hero-line > span"), { yPercent: 84 }, { yPercent: 0, duration: .49, stagger: .055 }, .19);
+      opening.fromTo(frame, { scale: 1.07 }, { scale: 1, duration: .98 }, 0)
+        .fromTo(hero.querySelectorAll(".landing-hero-line > span"), { yPercent: 84 }, { yPercent: 0, duration: .61, stagger: .08 }, .16);
       const reveal = () => { opening.progress(1); };
       hero.addEventListener("focusin", reveal);
       return () => hero.removeEventListener("focusin", reveal);
@@ -82,13 +81,10 @@ export function LandingLifecycle() {
       lenis.on("scroll", ScrollTrigger.update); gsap.ticker.add(tick);
       const hero = root.querySelector(".landing-hero");
       const footage = hero?.querySelector(".landing-hero-photo");
-      const wordmark = hero?.querySelector(".landing-hero-wordmark");
-      if (footage && wordmark) {
-        const exit = gsap.timeline({ scrollTrigger: { trigger: hero, start: "top top", end: "bottom 26%", scrub: .4 } });
-        exit.fromTo(footage, { clipPath: "inset(0% 0% 0% 0% round 0px)" }, {
-          yPercent: 8, scale: 1.06, clipPath: "inset(0% 7% 0% 7% round 10px)", duration: 1, ease: "none",
-        }, 0).to(wordmark, { yPercent: -42, opacity: 0, duration: .47, ease: "power2.in" }, 0);
-      }
+      if (footage) gsap.to(footage, {
+        yPercent: 7, scale: 1.07, ease: "none",
+        scrollTrigger: { trigger: hero, start: "top top", end: "bottom top", scrub: .45 },
+      });
       const cue = hero?.querySelector<HTMLAnchorElement>(".landing-scroll-cue");
       const about = root.querySelector<HTMLElement>("#about");
       const discover = (event: MouseEvent) => {
