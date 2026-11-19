@@ -125,11 +125,12 @@ test("Footer groups customer links and keeps staff sign-in out of public navigat
   assert.doesNotMatch(footer, /\/admin\/login|Staff login/);
 });
 
-test("LuxAuto identity uses local DM Sans throughout, including the cinematic hero", () => {
+test("The landing preview uses local Geist with an uppercase display hierarchy", () => {
   const css = readFileSync("src/components/landing/landing.css", "utf8").replace(/\s+/g, "");
-  assert.match(css, /@font-face\{font-family:LandingBody;src:url\('\/fonts\/home\/DMSans.ttf'\)/);
-  assert.match(css, /\.landing\{[^}]*LandingBody/);
-  assert.doesNotMatch(css, /LandingDisplay|BarlowCondensed/);
+  assert.match(css, /@font-face\{font-family:LandingGeist;src:url\('\/fonts\/landing\/Geist-Variable.woff2'\)/);
+  assert.match(css, /\.landing\{[^}]*LandingGeist/);
+  assert.match(css, /\.landingh1,\.landingh2:not\(\.landing-footer-heading\)\{[^}]*text-transform:uppercase/);
+  assert.equal(readFileSync("public/fonts/landing/Geist-Variable.woff2").subarray(0, 4).toString("ascii"), "wOF2");
 });
 
 test("UI/UX F1: a graphene package with no catalog inclusions is left out of the comparison; under two packages, no comparison", () => {
