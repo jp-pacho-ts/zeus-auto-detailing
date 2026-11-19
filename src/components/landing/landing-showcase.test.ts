@@ -37,7 +37,7 @@ test("What we do: the process stage names each category, links its catalog servi
   assert.doesNotMatch(work, /\b0?[123]\.|<ol/, "no numbering: the work is not a fixed sequence");
 });
 
-test("Coatings: a full-bleed eclipse photo, then a real comparison table of the graphene packages; phones get stacked blocks", () => {
+test("Coatings: package panels show prices, shared inclusions appear once, and the table keeps differences", () => {
   const coatings = section(page(), "coatings");
   const title = /<h2[^>]*aria-label="Coatings and films"[^>]*><span class="landing-bleed-line" aria-hidden="true"><span class="landing-bleed-text">Coatings<\/span><\/span> <span class="landing-bleed-line" aria-hidden="true"><span class="landing-bleed-text">and films/;
   assert.match(coatings, title);
@@ -45,15 +45,26 @@ test("Coatings: a full-bleed eclipse photo, then a real comparison table of the 
   assert.match(coatings, /url=%2Fmedia%2Flanding%2Feclipse\.webp/);
   assert.doesNotMatch(coatings, /landing-coating-edge/, "the edge frame that drew the black strip is gone");
   assert.match(coatings, /<h3[^>]*>Compare graphene packages<\/h3>/);
-  assert.match(coatings, /Choose your vehicle size to see prices\./);
+  assert.match(coatings, /<select id="landing-compare-size"/);
+  assert.match(coatings, /<h4>Included in every package<\/h4>/);
+  assert.equal([...coatings.matchAll(/Decon wash/g)].length, 1);
   assert.match(coatings, /<table/);
   assert.match(coatings, /<th scope="col"[^>]*>Eclipse<\/th>/);
   assert.match(coatings, /<th scope="row"[^>]*>Graphene top<\/th>/);
   // Eclipse lacks "Graphene top": its cell says so to assistive technology, with no typed dash.
   assert.match(coatings, /Not included/);
   assert.match(coatings, /<span class="landing-sr">Included<\/span>/);
-  assert.match(coatings, /aria-label="Book Eclipse"/);
-  assert.match(coatings, /class="landing-compare-blocks"/);
+  assert.match(coatings, /href="\/book">Book Eclipse<svg/);
+  assert.match(coatings, /class="landing-compare-packages"/);
+});
+
+test("Coatings: packages with identical inclusions have no comparison matrix", () => {
+  const identical = services.map((s) => s.category === "GRAPHENE" ? { ...s, inclusions: ["Decon wash"] } : s);
+  const coatings = section(page("OPEN", catalog({ services: identical })), "coatings");
+  assert.match(coatings, /<h4>Eclipse<\/h4>/);
+  assert.match(coatings, /<h4>Kenzo<\/h4>/);
+  assert.match(coatings, /url=%2Fmedia%2Flanding%2Fkenzo\.webp/);
+  assert.doesNotMatch(coatings, /<table/);
 });
 
 test("FAQ: only the confirmed questions, as buttons; answers follow the booking state and the catalog", () => {
@@ -108,7 +119,7 @@ test("UI/UX F1: a graphene package with no catalog inclusions is left out of the
   const moto = service("motorcycle-graphene", "Motorcycle Graphene", "GRAPHENE", [], [multiDay("m", 200000)]);
   const coatings = section(page("OPEN", catalog({ services: [...services, moto] } as Partial<BookingCatalog>)), "coatings");
   assert.doesNotMatch(coatings, /<th scope="col"[^>]*>Motorcycle Graphene<\/th>/);
-  assert.doesNotMatch(coatings.slice(coatings.indexOf("landing-compare-blocks")), /<h4>Motorcycle Graphene<\/h4>/);
+  assert.doesNotMatch(coatings, /<h4>Motorcycle Graphene<\/h4>/);
   assert.match(coatings, /<th scope="col"[^>]*>Kenzo<\/th>/);
   // The motorcycle package keeps its card in the Graphene tab.
   assert.match(section(page("OPEN", catalog({ services: [...services, moto] } as Partial<BookingCatalog>)), "services"), /id="service-motorcycle-graphene"/);
