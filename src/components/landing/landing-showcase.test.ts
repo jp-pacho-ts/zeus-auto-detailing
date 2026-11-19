@@ -39,7 +39,9 @@ test("What we do: the process stage names each category, links its catalog servi
 
 test("Coatings: a full-bleed eclipse photo, then a real comparison table of the graphene packages; phones get stacked blocks", () => {
   const coatings = section(page(), "coatings");
-  assert.match(coatings, /<h2[^>]*>Coatings and films<\/h2>/);
+  const title = /<h2[^>]*aria-label="Coatings and films"[^>]*><span class="landing-bleed-line" aria-hidden="true"><span class="landing-bleed-text">Coatings<\/span><\/span> <span class="landing-bleed-line" aria-hidden="true"><span class="landing-bleed-text">and films/;
+  assert.match(coatings, title);
+  assert.match(section(page("OPEN", null), "coatings"), title, "the title renders without the catalog");
   assert.match(coatings, /url=%2Fmedia%2Flanding%2Feclipse\.webp/);
   assert.doesNotMatch(coatings, /landing-coating-edge/, "the edge frame that drew the black strip is gone");
   assert.match(coatings, /<h3[^>]*>Compare graphene packages<\/h3>/);

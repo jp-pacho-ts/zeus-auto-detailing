@@ -4,7 +4,7 @@ import SplitType from "split-type";
 // Mounted inside the lifecycle media context; revert restores the original React markup.
 export function mountTextChoreography(root: HTMLElement, desktop: boolean) {
   const restores: (() => void)[] = [];
-  const headings = root.querySelectorAll<HTMLElement>(".landing-about h2, #landing-concerns-title, #services h2, #estimate h2, .landing-bleed-copy h2, .landing-gallery h2, #landing-gallery-title, #visit h2, #landing-faq-title, #landing-band-title");
+  const headings = root.querySelectorAll<HTMLElement>(".landing-about h2, #landing-concerns-title, #services h2, #estimate h2, .landing-gallery h2, #landing-gallery-title, #visit h2, #landing-faq-title, #landing-band-title");
   headings.forEach((heading, index) => {
     const label = heading.getAttribute("aria-label");
     heading.setAttribute("aria-label", heading.textContent?.trim() ?? "");

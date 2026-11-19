@@ -55,7 +55,30 @@ export function LandingLifecycle() {
         scrollTrigger: { trigger: frame, start: "top bottom", end: "bottom 55%", scrub: .45 },
       });
     });
-    // Desktop scenes use native scroll geometry; touch has no scroll-linked effects.
+    media.add("(prefers-reduced-motion: no-preference)", () => {
+      const copy = root.querySelector(".landing-bleed-copy");
+      const caption = copy?.querySelector("p");
+      if (!copy || !caption) return;
+
+      const title = gsap.timeline({
+        defaults: { ease: "power4.out" },
+        scrollTrigger: { trigger: copy, start: "top 91%", once: true },
+      });
+      title.fromTo(copy.querySelectorAll(".landing-bleed-text"), { yPercent: 112 }, { yPercent: 0, duration: .72, stagger: .12 }, 0)
+        .fromTo(caption, { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: .5 }, .33);
+
+      const compare = root.querySelector(".landing-compare-head");
+      if (compare) gsap.fromTo(compare, { y: 24, opacity: .5 }, {
+        y: 0, opacity: 1, duration: .55, ease: "power3.out",
+        scrollTrigger: { trigger: compare.parentElement, start: "top 84%", once: true },
+      });
+
+      const section = copy.closest("section");
+      const reveal = () => { title.progress(1); };
+      section?.addEventListener("focusin", reveal);
+      return () => section?.removeEventListener("focusin", reveal);
+    });
+    // Desktop scenes use native scroll geometry. Phones get the bounded title reveal.
     media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => {
       const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, autoRaf: false, prevent: (node) => !!node.closest(".landing-mobile-menu, select") });
       const tick = (seconds: number) => lenis.raf(seconds * 1000);
@@ -73,7 +96,11 @@ export function LandingLifecycle() {
         });
       });
       const bleed = root.querySelector(".landing-bleed");
-      if (bleed) gsap.fromTo(bleed.querySelector(".landing-bleed-media"), { clipPath: "inset(10% 8% 10% 8% round 20px)", scale: .92 }, { clipPath: "inset(0% 0% 0% 0% round 0px)", scale: 1, ease: "none", scrollTrigger: { trigger: bleed, start: "top 95%", end: "top 20%", scrub: .7 } });
+      const coatingPhoto = bleed?.querySelector("img");
+      if (coatingPhoto) gsap.fromTo(coatingPhoto, { scale: 1.025 }, {
+        scale: 1.16, yPercent: -3, ease: "none",
+        scrollTrigger: { trigger: bleed, start: "top bottom", end: "bottom 30%", scrub: .45 },
+      });
       root.querySelectorAll(".landing-gallery-grid figure").forEach((frame, i) => gsap.fromTo(frame, { y: i ? 100 : 0 }, { y: i ? -50 : 30, ease: "none", scrollTrigger: { trigger: frame.parentElement, start: "top bottom", end: "bottom top", scrub: .7 } }));
       const close = root.querySelector(".landing-band-media img");
       if (close) gsap.fromTo(close, { scale: 1.2 }, { scale: 1, ease: "none", scrollTrigger: { trigger: close.parentElement, start: "top bottom", end: "bottom bottom", scrub: .6 } });

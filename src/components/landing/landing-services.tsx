@@ -177,11 +177,17 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
   </>;
 }
 
-// The page's one full-bleed photo after the hero (P1-90 identity 9.3, C1). Shared with the no-catalog fallback.
+// Shared with the no-catalog fallback so the scene and its copy are present before animation mounts.
 export function CoatingsBleed() {
   const photo = landingPhoto("eclipse-graphene")!;
   return <div className="landing-bleed">
     <div className="landing-bleed-media"><Image src={photo.src} alt={photo.alt} width={1600} height={1200} sizes="100vw" /></div>
-    <div className="landing-wrap landing-bleed-copy"><h2>Coatings and films</h2><p>Ask us which coating or film suits your vehicle.</p></div>
+    <div className="landing-wrap landing-bleed-copy">
+      <h2 aria-label="Coatings and films">
+        <span className="landing-bleed-line" aria-hidden="true"><span className="landing-bleed-text">Coatings</span></span>{" "}
+        <span className="landing-bleed-line" aria-hidden="true"><span className="landing-bleed-text">and films<span className="landing-gold-dot">.</span></span></span>
+      </h2>
+      <p>Ask us which coating or film suits your vehicle.</p>
+    </div>
   </div>;
 }
