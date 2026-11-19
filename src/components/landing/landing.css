@@ -483,16 +483,18 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
 .landing-faq-answer[data-open=false]{grid-template-rows:0fr;visibility:hidden}
 .landing-faq-answer>div{overflow:hidden}
 .landing-faq-answer p{margin:0 0 24px}
-.landing-visit-address{font-size:clamp(32px,4.5vw,64px);line-height:1.15;letter-spacing:-.04em;margin:24px 0 40px!important;max-width:24ch!important}
-.landing-visit{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
-.landing-visit-card{padding:28px}
-.landing-visit-card h3{margin:0}
-.landing address{font-style:normal}
-.landing-link-list{list-style:none;padding:0}
-.landing-link-list a{display:inline-flex;align-items:center;min-height:44px;font-size:14px}
-.landing-visit-card .landing-pill{align-self:flex-start;margin-top:auto}
-.landing-visit-note{display:flex;gap:10px;align-items:center;font-size:14px;color:var(--mfg);margin:28px 0 0!important}
-.landing-visit-note svg{width:18px;height:18px;flex:none;color:var(--gold-hover)}
+.landing-visit{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,8fr);align-items:center;gap:clamp(28px,5vw,88px)}
+.landing-visit-info{min-width:0}
+.landing-visit-info h2{font-size:clamp(38px,5vw,78px);line-height:1.03;margin-bottom:clamp(20px,3vw,38px);text-wrap:initial}
+.landing-visit-address{display:grid;gap:5px;font-style:normal;color:var(--mfg);line-height:1.45}
+.landing-visit-address strong{font-size:clamp(18px,1.75vw,26px);font-weight:500;letter-spacing:-.025em;color:var(--fg)}
+.landing-visit-directions{margin-top:24px;border-radius:5px}
+.landing-visit-contact{display:flex;flex-wrap:wrap;align-items:center;gap:2px 20px;padding-top:16px;margin-top:24px;border-top:1px solid var(--line)}
+.landing .landing-visit-contact p{flex-basis:100%;margin:0;font-size:14px}
+.landing .landing-visit-contact .landing-text-link{gap:8px;border-bottom:0}
+.landing-visit-contact .landing-text-link svg{width:16px;height:16px;color:var(--gold-hover)}
+.landing-visit-map{overflow:clip;border:1px solid var(--line);border-radius:6px;background:var(--card)}
+.landing-visit-map iframe{display:block;width:100%;height:clamp(360px,38vw,540px);border:0}
 .landing-band{position:relative;isolation:isolate;overflow:hidden;min-height:580px;display:grid;align-items:center}
 .landing-band-stage{position:relative;min-height:580px;display:grid;align-items:center}
 .landing-band-copy{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;padding-block:100px}
@@ -563,7 +565,8 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
 .landing-bleed::after{background:linear-gradient(0deg,var(--bg),rgb(9 9 11 / .7) 26%,transparent 63%,var(--bg))}
 .landing-bleed-copy{padding-block:32px}
 .landing-bleed-copy h2{font-size:clamp(46px,11vw,72px);margin-bottom:10px}
-.landing-gallery-grid{grid-template-columns:1fr;gap:20px}.landing-gallery-grid figure:nth-child(2){margin-top:0}.landing-gallery-slots p{display:block}.landing-gallery-slots span{display:block;margin-top:8px}.landing-faq-question{min-height:68px;font-size:16px}.landing-visit-address{font-size:36px;margin:24px 0 32px!important}.landing-visit-card{padding:24px}.landing-visit-note{align-items:flex-start}
+.landing-gallery-grid{grid-template-columns:1fr;gap:20px}.landing-gallery-grid figure:nth-child(2){margin-top:0}.landing-gallery-slots p{display:block}.landing-gallery-slots span{display:block;margin-top:8px}.landing-faq-question{min-height:68px;font-size:16px}
+.landing-visit-map iframe{height:clamp(320px,46svh,440px)}
 .landing-band,.landing-band-stage{min-height:540px}.landing-band-copy{padding-block:72px}.landing-band-copy h2{font-size:38px}.landing-band-copy .landing-actions{gap:20px}.landing-footer-grid{display:grid}.landing-footer-links{gap:0 20px}
 .landing-phone-bar{position:fixed;bottom:0;left:0;right:0;z-index:28;display:flex;gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}.landing-phone-bar .landing-gold{flex:1;font-size:14px}.landing-call{min-width:48px;padding-inline:16px}
 html:has([data-landing-preview]){scroll-padding-bottom:100px}

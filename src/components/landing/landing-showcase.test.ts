@@ -99,10 +99,13 @@ test("Cards: title and price sit on the photo, each card has its service anchor,
   assert.match(services, /class="landing-photo landing-photo-contain"/);
 });
 
-test("Visit: address, contact and guidance remain prominent; feedback has its own navigation destination", () => {
+test("Visit: the verified pin has a lazy Google Maps embed and direct directions, alongside address and contact", () => {
   const html = page(), visit = section(html, "visit");
-  assert.match(visit, /<p class="landing-visit-address">Brgy 95 Caibaan, Tacloban City<\/p>/);
-  assert.match(visit, /Not sure which service fits\?/);
+  assert.match(visit, /<address[^>]*>.*Brgy 95 Caibaan, Tacloban City.*<\/address>/);
+  assert.match(visit, /<iframe[^>]*src="https:\/\/www\.google\.com\/maps\/embed\?pb=[^"]*0x7e38b176ace74446[^>]*title="Google Maps location for Zeus Auto Detailing"[^>]*loading="lazy"/);
+  assert.match(visit, /https:\/\/www\.google\.com\/maps\/dir\/\?api=1&amp;destination=11\.2054621%2C124\.991338/);
+  assert.match(visit, /href="tel:\+639300162234"/);
+  assert.match(visit, /href="https:\/\/m\.me\/zeusautodetailingtacloban"/);
   assert.match(section(html, "reviews"), /Customer feedback will appear here\./);
   assert.match(html, /href="#reviews"[^>]*>Reviews</);
   assert.match(html, /<nav class="landing-desktop-nav"[^>]*>.*href="#faq"[^>]*>FAQ</);

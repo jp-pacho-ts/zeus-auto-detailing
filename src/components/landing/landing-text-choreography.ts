@@ -31,8 +31,7 @@ export function mountTextChoreography(root: HTMLElement, desktop: boolean) {
   const focusFaq = () => { faq.progress(1); };
   root.querySelector("#faq")?.addEventListener("focusin", focusFaq);
   restores.push(() => root.querySelector("#faq")?.removeEventListener("focusin", focusFaq));
-  const cards = root.querySelectorAll(".landing-visit-card");
-  const visit = gsap.fromTo(cards, { y: desktop ? 45 : 20, x: desktop ? (i: number) => i % 2 ? 20 : -20 : 0, opacity: .4 }, { y: 0, x: 0, opacity: 1, stagger: .12, duration: .7, ease: "power3.out", scrollTrigger: { trigger: root.querySelector("#visit"), start: "top 82%", once: true } });
+  const visit = gsap.fromTo(root.querySelectorAll(".landing-visit-info"), { y: desktop ? 22 : 12 }, { y: 0, duration: .65, ease: "power3.out", scrollTrigger: { trigger: root.querySelector("#visit"), start: "top 84%", once: true } });
   const focusVisit = () => { visit.progress(1); };
   root.querySelector("#visit")?.addEventListener("focusin", focusVisit);
   restores.push(() => root.querySelector("#visit")?.removeEventListener("focusin", focusVisit));

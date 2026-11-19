@@ -6,8 +6,8 @@
 // frame from challenges.cloudflare.com. /api routes are left to their own, stricter headers (the
 // sandboxed proof image, no-store JSON).
 
-/** @param {boolean} production */
-export function documentContentSecurityPolicy(production) {
+/** @param {boolean} production @param {boolean} [landingMap] */
+export function documentContentSecurityPolicy(production, landingMap = false) {
   return [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
@@ -16,7 +16,7 @@ export function documentContentSecurityPolicy(production) {
     "img-src 'self' data: blob:",
     "font-src 'self'",
     "connect-src 'self' https://challenges.cloudflare.com",
-    "frame-src https://challenges.cloudflare.com",
+    `frame-src https://challenges.cloudflare.com${landingMap ? " https://www.google.com/maps/embed" : ""}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -49,6 +49,11 @@ export function securityHeaders(production) {
         { key: "X-Robots-Tag", value: "noindex, nofollow" },
         { key: "Cache-Control", value: "private, no-store" },
       ],
+    },
+    {
+      // The Google Maps frame belongs to the landing preview alone.
+      source: "/preview/landing",
+      headers: [{ key: "Content-Security-Policy", value: documentContentSecurityPolicy(production, true) }],
     },
   ];
 }

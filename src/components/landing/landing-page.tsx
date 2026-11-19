@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ArrowDown, ArrowUpRight, Check, MessageCircle, Phone } from "lucide-react";
+import { ArrowDown, ArrowUpRight, MapPin, MessageCircle, Phone } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import type { LandingStatus } from "@/server/landing/status";
@@ -29,7 +29,7 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
   const booking = bookingAction();
   // Explicit public display projection; release identifiers never cross into the client component props.
   const display: DisplayCatalog | null = catalog ? { vehicleCategories: catalog.vehicleCategories, services: catalog.services.map((service) => ({ ...service, productName: null, hardness: null, warrantyMonths: null })), addOnCompatibility: catalog.addOnCompatibility } : null;
-  const directions = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(brandConfig.address)}`;
+  const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(brandConfig.mapCoordinates)}`;
   const gold = (id?: string) => <a id={id} className="landing-pill landing-gold" href={booking.href}>{booking.label}</a>;
   const pausedLine = "Online booking is paused. Call or message us to book.";
   const unknownLine = <>We could not check online booking just now. <a href={tel}>Call the shop</a></>;
@@ -168,28 +168,25 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
         <div className="landing-gallery-grid"><figure>{photo("signature-wash", "(max-width: 767px) 100vw, 60vw")}<figcaption>The finishing touch <span>Signature wash</span></figcaption></figure><figure>{photo("eclipse-graphene", "(max-width: 767px) 100vw, 40vw")}<figcaption>Beyond the shine <span>Coating application</span></figcaption></figure></div><div className="landing-gallery-slots"><p>Finished-results gallery <span>Gallery photos will appear here.</span></p></div>
       </section>
       <LandingFaq items={faq} />
-      <section id="visit" className="landing-section landing-wrap landing-ground-muted">
-        <p className="landing-eyebrow">06 / Come find us</p>
-        <h2>Visit the shop</h2>
-        <p className="landing-visit-address">{brandConfig.location}</p>
-        <div className="landing-visit">
-          <div className="landing-card landing-visit-card">
-            <address>{brandConfig.address}</address>
-            <p className="landing-muted">Landmark: {brandConfig.landmark}</p>
-            <a className="landing-pill landing-outline" href={directions} target="_blank" rel="noreferrer" aria-label="Get directions, opens Google Maps">Get directions</a>
-          </div>
-          <div className="landing-card landing-visit-card">
-            <h3>Hours</h3>
-            <p><a href={tel}>Call {brandConfig.displayPhone} to confirm hours.</a></p>
-            <ul className="landing-link-list"><li><a href={tel}>Call {brandConfig.displayPhone}</a></li><li><a href={brandConfig.facebookMessengerUrl}>Message us on Messenger</a></li><li><a href={brandConfig.instagram}>Instagram {brandConfig.instagramHandle}</a></li></ul>
-            <p className="landing-muted">Already booked? <a href="/book/manage">Manage your booking</a></p>
-          </div>
-          <div className="landing-card landing-visit-card">
-            <h3>About Zeus</h3>
-            <p>{brandConfig.businessName} details cars and motorcycles at {brandConfig.location}.</p>
+      <section id="visit" className="landing-section landing-wrap landing-ground-muted landing-visit" aria-labelledby="landing-visit-title">
+        <div className="landing-visit-info">
+          <h2 id="landing-visit-title">Visit the shop<span className="landing-gold-dot" aria-hidden="true">.</span></h2>
+          <address className="landing-visit-address">
+            <strong>{brandConfig.location}</strong>
+            <span>{brandConfig.landmark}</span>
+          </address>
+          <a className="landing-pill landing-solid landing-visit-directions" href={directions} target="_blank" rel="noreferrer" aria-label="Get directions, opens Google Maps">
+            <MapPin aria-hidden="true" />Get directions<ArrowUpRight aria-hidden="true" />
+          </a>
+          <div className="landing-visit-contact">
+            <p className="landing-muted">Call or message to confirm shop hours.</p>
+            <a className="landing-text-link" href={tel}><Phone aria-hidden="true" />{brandConfig.displayPhone}</a>
+            <a className="landing-text-link" href={brandConfig.facebookMessengerUrl}><MessageCircle aria-hidden="true" />Messenger</a>
           </div>
         </div>
-        <p className="landing-visit-note"><Check aria-hidden="true" /> Not sure which service fits? Call or message us before your visit.</p>
+        <div className="landing-visit-map">
+          <iframe src={brandConfig.mapEmbedUrl} title={`Google Maps location for ${brandConfig.businessName}`} loading="lazy" referrerPolicy="no-referrer" allowFullScreen />
+        </div>
       </section>
       <section className="landing-band" aria-labelledby="landing-band-title">
         <div className="landing-band-stage">
