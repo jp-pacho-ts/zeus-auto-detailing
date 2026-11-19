@@ -103,7 +103,7 @@ export function LandingLifecycle() {
       });
       root.querySelectorAll(".landing-gallery-grid figure").forEach((frame, i) => gsap.fromTo(frame, { y: i ? 100 : 0 }, { y: i ? -50 : 30, ease: "none", scrollTrigger: { trigger: frame.parentElement, start: "top bottom", end: "bottom top", scrub: .7 } }));
       const close = root.querySelector(".landing-band-media img");
-      if (close) gsap.fromTo(close, { scale: 1.2 }, { scale: 1, ease: "none", scrollTrigger: { trigger: close.parentElement, start: "top bottom", end: "bottom bottom", scrub: .6 } });
+      if (close) gsap.fromTo(close, { scale: 1.11 }, { scale: 1, ease: "none", scrollTrigger: { trigger: close.closest(".landing-band"), start: "top bottom", end: "bottom bottom", scrub: .45 } });
       const progress = root.querySelector(".landing-progress");
       if (progress) gsap.fromTo(progress, { scaleX: 0 }, { scaleX: 1, ease: "none", scrollTrigger: { trigger: root, start: "top top", end: "bottom bottom", scrub: true } });
       const settle = () => lenis.scrollTo(window.scrollY, { immediate: true, force: true });

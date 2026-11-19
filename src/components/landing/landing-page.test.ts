@@ -28,11 +28,23 @@ test("LuxAuto page: one local service H1, genuine workshop photos and labelled p
   assert.doesNotMatch(html, /quoteToken|catalogReleaseId|"release"/);
 });
 
-test("gold budget: header CTA is neutral; gold only on hero, band and phone-bar pills; the band has one hairline", () => {
+test("gold budget: header CTA is neutral; gold only on hero, band and phone-bar pills", () => {
   const html = page("OPEN");
   assert.match(html, /class="landing-pill landing-outline landing-header-cta" href="\/book">Book now</);
   assert.equal(html.match(/landing-pill landing-gold/g)?.length, 3);
-  assert.equal(html.match(/landing-hairline/g)?.length, 1);
+});
+
+test("closing section offers Book now, Manage booking and a call link in every booking state", () => {
+  for (const status of ["OPEN", "PAUSED", "UNKNOWN"] as const) {
+    const html = page(status);
+    const band = html.match(/<section id="book-your-visit"[\s\S]*?<\/section>/)?.[0];
+    assert.ok(band);
+    assert.match(band, /id="landing-band-title" aria-label="Ready for a detail\?"/);
+    assert.match(band, /href="\/book">Book now/);
+    assert.match(band, /href="\/book\/manage">Manage booking/);
+    assert.match(band, /href="tel:\+639300162234">Call 0930 016 2234/);
+    assert.doesNotMatch(band, /Online booking is paused|We could not check online booking/);
+  }
 });
 
 test("booking states reach every pill and card arrow; PAUSED arrows call the shop", () => {

@@ -30,7 +30,6 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
   // Explicit public display projection; release identifiers never cross into the client component props.
   const display: DisplayCatalog | null = catalog ? { vehicleCategories: catalog.vehicleCategories, services: catalog.services.map((service) => ({ ...service, productName: null, hardness: null, warrantyMonths: null })), addOnCompatibility: catalog.addOnCompatibility } : null;
   const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(brandConfig.mapCoordinates)}`;
-  const gold = (id?: string) => <a id={id} className="landing-pill landing-gold" href={booking.href}>{booking.label}</a>;
   const pausedLine = "Online booking is paused. Call or message us to book.";
   const unknownLine = <>We could not check online booking just now. <a href={tel}>Call the shop</a></>;
   const photo = (slug: string, sizes: string) => { const p = landingPhoto(slug)!; return <Image src={p.src} alt={p.alt} width={1600} height={1200} sizes={sizes} style={p.position ? { objectPosition: p.position } : undefined} />; };
@@ -188,16 +187,21 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           <iframe src={brandConfig.mapEmbedUrl} title={`Google Maps location for ${brandConfig.businessName}`} loading="lazy" referrerPolicy="no-referrer" allowFullScreen />
         </div>
       </section>
-      <section className="landing-band" aria-labelledby="landing-band-title">
+      <section id="book-your-visit" className="landing-band" aria-labelledby="landing-band-title">
         <div className="landing-band-stage">
           <div className="landing-wrap landing-band-copy">
-            <span className="landing-hairline" aria-hidden="true" />
-            <p className="landing-eyebrow">Your next drive starts here</p><h2 id="landing-band-title" className="landing-band-line">Give your vehicle<br />the attention it deserves<span className="landing-gold-dot">.</span></h2>
-            <p className="landing-band-line landing-muted">{status === "PAUSED" ? pausedLine : status === "UNKNOWN" ? unknownLine : `Planning a visit? Book online, or call ${brandConfig.displayPhone} to ask about hours and prices.`}</p>
-            <div id="landing-closing-cta" className="landing-actions landing-band-line">{gold()}<a href={tel}>Call {brandConfig.displayPhone}</a></div>
+            <h2 id="landing-band-title" aria-label="Ready for a detail?">
+              <span className="landing-band-line" aria-hidden="true"><span>Ready for</span></span>{" "}
+              <span className="landing-band-line" aria-hidden="true"><span>a detail<span className="landing-gold-dot">?</span></span></span>
+            </h2>
+            <div id="landing-closing-cta" className="landing-band-actions">
+              <a className="landing-pill landing-gold" href={booking.href}>{booking.label}<ArrowUpRight aria-hidden="true" /></a>
+              <a className="landing-text-link" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a>
+            </div>
+            <p className="landing-band-help landing-muted">Questions before you book? <a href={tel}>Call {brandConfig.displayPhone}</a></p>
           </div>
           <div className="landing-band-media">
-            {/* Approved workshop derivative; the closing CTA stays readable over a static scrim. */}
+            {/* Keep the approved workshop image available in the static page. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/media/landing/full-detailing.webp" alt="Detailer machine-polishing the hood of a white pickup" width="1600" height="1200" loading="lazy" decoding="async" />
           </div>
