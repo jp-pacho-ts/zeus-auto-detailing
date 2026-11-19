@@ -21,8 +21,9 @@ export function LandingLifecycle() {
       const frame = hero?.querySelector(".landing-video-frame");
       if (!hero || !frame || hero.getBoundingClientRect().bottom < innerHeight / 2) return;
       const opening = gsap.timeline({ defaults: { ease: "power4.out" } });
-      opening.fromTo(frame, { scale: 1.1 }, { scale: 1, duration: 1.3 }, 0)
-        .fromTo(hero.querySelectorAll(".landing-hero-line > span"), { yPercent: 106 }, { yPercent: 0, duration: .85, stagger: .13 }, .08);
+      opening.fromTo(frame, { scale: 1.12 }, { scale: 1, duration: 1.35 }, 0)
+        .fromTo(hero.querySelectorAll(".landing-hero-glyph"), { yPercent: 108 }, { yPercent: 0, duration: .9, stagger: .075 }, .04)
+        .fromTo(hero.querySelectorAll(".landing-hero-line > span"), { yPercent: 106 }, { yPercent: 0, duration: .7, stagger: .1 }, .22);
       const reveal = () => { opening.progress(1); };
       hero.addEventListener("focusin", reveal);
       return () => hero.removeEventListener("focusin", reveal);
@@ -81,10 +82,13 @@ export function LandingLifecycle() {
       lenis.on("scroll", ScrollTrigger.update); gsap.ticker.add(tick);
       const hero = root.querySelector(".landing-hero");
       const footage = hero?.querySelector(".landing-hero-photo");
-      if (footage) gsap.to(footage, {
-        yPercent: 12, scale: 1.14, ease: "none",
-        scrollTrigger: { trigger: hero, start: "top top", end: "bottom top", scrub: .45 },
-      });
+      const wordmark = hero?.querySelector(".landing-hero-wordmark");
+      if (footage && wordmark) {
+        const exit = gsap.timeline({ scrollTrigger: { trigger: hero, start: "top top", end: "bottom 26%", scrub: .4 } });
+        exit.fromTo(footage, { clipPath: "inset(0% 0% 0% 0% round 0px)" }, {
+          yPercent: 5, scale: 1.04, clipPath: "inset(0% 7% 0% 7% round 10px)", duration: 1, ease: "none",
+        }, 0).to(wordmark, { yPercent: -24, opacity: 0, duration: .62, ease: "power1.inOut" }, 0);
+      }
       const cue = hero?.querySelector<HTMLAnchorElement>(".landing-scroll-cue");
       const about = root.querySelector<HTMLElement>("#about");
       const discover = (event: MouseEvent) => {

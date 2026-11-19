@@ -62,15 +62,22 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
 .landing-loop-video[data-ready=true]{opacity:1}
 .landing-hero-art::after{
  content:"";position:absolute;inset:0;
- background:linear-gradient(0deg,var(--bg) 1%,rgb(9 9 11 / .9) 13%,rgb(9 9 11 / .38) 42%,transparent 69%),
-  linear-gradient(90deg,rgb(9 9 11 / .55),transparent 72%),
+ background:linear-gradient(0deg,var(--bg) 1%,rgb(9 9 11 / .9) 14%,rgb(9 9 11 / .26) 39%,transparent 67%),
+  linear-gradient(90deg,rgb(9 9 11 / .45),transparent 72%),
   linear-gradient(180deg,rgb(0 0 0 / .54),transparent 27%);
 }
+.landing-hero-wordmark{
+ position:absolute;z-index:1;inset:clamp(82px,15svh,180px) 0 auto;
+ display:flex;justify-content:center;user-select:none;
+ font-size:clamp(112px,27vw,490px);font-weight:900;line-height:.83;letter-spacing:-.04em;
+ color:rgb(245 245 244 / .22);-webkit-text-stroke:1px rgb(245 245 244 / .38);
+}
+.landing-hero-glyph-mask{display:block;overflow:clip;padding-block:.07em}
+.landing-hero-glyph{display:block}
 .landing-hero-copy{position:relative;padding-block:calc(var(--header-h) + 20px) clamp(24px,4.4svh,48px)}
-.landing .landing-hero-copy h1{font-size:clamp(28px,3.7vw,58px);line-height:1.04;letter-spacing:-.04em;text-wrap:initial}
+.landing .landing-hero-copy h1{display:flex;flex-wrap:wrap;gap:0 .23em;font-size:clamp(38px,4.9vw,76px);line-height:1.04;letter-spacing:-.04em;text-wrap:initial}
 .landing-hero-line{display:block;width:fit-content;max-width:100%;overflow:clip;padding-bottom:.1em}
 .landing-hero-line>span{display:block}
-.landing-hero-line-display{font-size:clamp(76px,10.5vw,172px);line-height:.89}
 .landing-hero-bar{display:flex;justify-content:space-between;align-items:center;gap:8px 22px;margin-top:clamp(14px,2.1vw,30px);padding-top:clamp(10px,1.5vw,20px);border-top:1px solid rgb(245 245 244 / .25)}
 .landing-hero-bar .landing-actions{margin:0;gap:clamp(12px,2vw,28px)}
 .landing-hero-copy .landing-gold{min-height:52px;min-width:178px;padding:12px 22px;font-size:15px;gap:24px}
@@ -535,8 +542,8 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
 .landing-header{padding-block:8px;gap:12px}.landing-header img{width:100px;height:44px}.landing-header-cta{display:none}.landing-menu-toggle{margin-left:auto}
 .landing-header-manage{display:none}
  .landing-hero-copy{padding-bottom:18px}
- .landing .landing-hero-copy h1{font-size:clamp(25px,7.4vw,42px)}
- .landing-hero-line-display{font-size:clamp(58px,17vw,106px)}
+ .landing-hero-wordmark{top:clamp(76px,19svh,180px);font-size:clamp(100px,31vw,200px)}
+ .landing .landing-hero-copy h1{display:block;font-size:clamp(29px,9vw,52px)}
  .landing-video-frame img,.landing-video-frame video{object-position:56% 50%}
  .landing-hero-bar{display:grid;justify-content:start;gap:5px}
  .landing-hero-copy .landing-gold{min-height:50px;min-width:142px;padding:10px 16px;font-size:14px;gap:16px}
@@ -596,7 +603,7 @@ html:has([data-landing-preview]){scroll-padding-bottom:100px}
 @media(max-width:767px){.landing-header{height:61px;margin-bottom:-61px}}
 @media(max-height:580px){
  .landing-hero-copy{padding-bottom:14px}
- .landing-hero-line-display{font-size:clamp(58px,10vw,102px)}
+ .landing-hero-wordmark{font-size:min(29vw,30svh)}
  .landing-hero-bar{margin-top:12px}
 }
 /* A clear neutral header action, subordinate to the gold hero booking action. */
