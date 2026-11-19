@@ -79,10 +79,10 @@ test("Hero: original responsive posters support looping workshop video; availabi
   assert.doesNotMatch(css, /border-left:3px/, "no side-tab rules (impeccable detect, landing.css:64 and :147)");
 });
 
-test("Cards: chips sit on the photo, each card has its service anchor, and Kenzo is contained on a dark mat", () => {
+test("Cards: title and price sit on the photo, each card has its service anchor, and Kenzo is contained on a dark mat", () => {
   const services = section(page(), "services");
   assert.match(services, /id="service-basic-wash"/);
-  assert.match(services, /class="landing-photo[^"]*"><span class="landing-chips">/);
+  assert.match(services, /class="landing-photo">[^]*?<div class="landing-service-heading"><h4>Basic Wash<\/h4><p class="landing-price"/);
   assert.match(services, /class="landing-photo landing-photo-contain"/);
 });
 

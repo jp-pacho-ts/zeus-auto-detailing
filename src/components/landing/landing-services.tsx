@@ -1,14 +1,14 @@
 "use client";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { type ReactElement, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
-import { ArrowUpRight, Check, ChevronLeft, ChevronRight, CircleAlert, Minus, Plus } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Check, ChevronLeft, ChevronRight, CircleAlert, Minus, Plus } from "lucide-react";
 import type { BookingCatalog, BookingQuote, CatalogSelection, ServicePackage, VehicleBodyType } from "@/types/catalog-contracts";
 import { BODY_TYPES_BY_SIZE, BODY_TYPE_LABEL, MAX_SELECTION_LINES } from "@/types/catalog-contracts";
 import { brandConfig } from "@/config/brand";
 import type { LandingStatus } from "@/server/landing/status";
 import { bookingAction, bookingHref, estimateLabels, money, pruneSelection, quoteFailure, selectionKey, serviceArrow, servicePrice, type QuoteAnswer } from "./landing-model";
 import { LandingCard } from "./landing-card";
-import { landingPhoto } from "./landing-photos";
+import { landingPhoto, type LandingPhoto } from "./landing-photos";
 
 export type DisplayCatalog = Omit<BookingCatalog, "catalogReleaseId" | "catalogVersion">;
 const CATEGORIES = ["WASH", "DETAILING", "GRAPHENE", "TINT", "PPF", "REPAINT"] as const;
@@ -72,7 +72,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
     tab?.focus({ preventScroll: true });
     if (tab && tabs.current) tabs.current.scrollLeft += tab.offsetLeft - tabs.current.offsetLeft - 12;
   };
-  const card = (service: ServicePackage) => {
+  const card = (service: ServicePackage, photo?: LandingPhoto) => {
     const offer = service.offers.find((o) => o.vehicleCategoryId === sizeId);
     const picked = lines.find((l) => l.serviceId === service.id);
     const compatible = service.type === "BASE" || catalog.addOnCompatibility.some((c) => c.addOnServiceId === service.id && lines.some((l) => l.serviceId === c.baseServiceId));
@@ -80,7 +80,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
     const reason = picked || !enhanced ? null : !compatible ? "Add a main service first" : lines.length >= MAX_SELECTION_LINES ? "Limit of 10 reached" : null;
     const unavailable = !picked && offer?.onlineBooking === "UNAVAILABLE";
     const duration = offer?.duration.kind === "TIMED" ? `About ${offer.duration.minutes} min` : offer?.duration.kind === "MULTI_DAY" ? "Multi-day" : null;
-    return <LandingCard key={service.id} anchor={`service-${service.slug}`} chip={service.type === "ADD_ON" ? "Add-on" : LABELS[service.category]} duration={duration} title={service.name} price={servicePrice(service, size, body)} priceId={`landing-price-${service.id}`} arrow={serviceArrow(catalog, size, service, status, phone)} photo={landingPhoto(service.slug)}
+    return <LandingCard key={service.id} anchor={`service-${service.slug}`} addOn={service.type === "ADD_ON"} duration={duration} title={service.name} price={servicePrice(service, size, body)} priceId={`landing-price-${service.id}`} arrow={serviceArrow(catalog, size, service, status, phone)} photo={photo}
       action={<button type="button" className="landing-toggle" aria-pressed={!!picked} disabled={!enhanced || !!reason || unavailable} aria-describedby={unavailable ? `landing-price-${service.id}` : undefined} onClick={() => toggle(service, !picked)}>{picked ? <><Check aria-hidden="true" />In estimate</> : reason ?? <><Plus aria-hidden="true" />Add to estimate</>}</button>}>
       {picked && service.unit === "PANEL" && <label className="landing-panels">Panels, 1 to 20<input aria-label={`Panels, 1 to 20, for ${service.name}`} type="number" min="1" max="20" value={picked.quantity} onChange={(e) => { edit(); setLines(lines.map((l) => l.serviceId === service.id ? { ...l, quantity: Math.max(1, Math.min(20, Math.trunc(Number(e.target.value) || 1))) } : l)); }} /></label>}
       {service.description && <p className="landing-card-text">{service.description}</p>}
@@ -122,18 +122,31 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
   const included = <><Check aria-hidden="true" /><span className="landing-sr">Included</span></>, notIncluded = <><Minus aria-hidden="true" /><span className="landing-sr">Not included</span></>;
   const step = (by: number) => { const i = CATEGORIES.indexOf(category as typeof CATEGORIES[number]); chooseTab(CATEGORIES[(i + by + 6) % 6]); focusTab(i + by); };
   return <>
-    <section id="services" className="landing-section landing-wrap landing-ground-muted">
-      <div className="landing-filter-head"><p className="landing-eyebrow">04 / Care, made clear</p><h2>Services and prices</h2><p className="landing-muted">Choose your vehicle size to see its price.</p></div>
+    <section id="services" className="landing-section landing-wrap landing-ground-muted landing-catalog" aria-labelledby="landing-catalog-title">
+      <div className="landing-filter-head"><h2 id="landing-catalog-title">Services and prices<span className="landing-gold-dot" aria-hidden="true">.</span></h2><p className="landing-muted">Choose your vehicle size to see prices. Add services to build an estimate.</p></div>
       {/* P1-90 option P1: the size control sticks under the header while Services is on screen, so "Price depends on size" has its control at hand. */}
       <div className="landing-size-bar"><div className="landing-filter-selects">
           <label className="landing-select" htmlFor="landing-size"><span>Vehicle size</span><select id="landing-size" value={sizeId} onChange={(e) => setVehicle(e.target.value)}><option value="">Choose a size</option>{catalog.vehicleCategories.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
           {bodies && <label className="landing-select" htmlFor="landing-body"><span>Body type</span><select id="landing-body" value={body ?? ""} onChange={(e) => { edit(); setBody(e.target.value as VehicleBodyType || undefined); }}><option value="">Choose a body type</option>{bodies.map((b) => <option key={b} value={b}>{BODY_TYPE_LABEL[b]}</option>)}</select></label>}
       </div></div>
-      <div className="landing-tab-row"><button className="landing-tab-step" hidden={!enhanced} type="button" aria-label="Previous category" onClick={() => step(-1)}><ChevronLeft aria-hidden="true" /></button><div ref={tabs} className="landing-tabs" role={enhanced ? "tablist" : undefined} aria-label={enhanced ? "Service categories" : undefined}>{CATEGORIES.map((c, i) => <a key={c} id={`tab-${c}`} href={`#services-${c}`} aria-label={LABELS[c]} role={enhanced ? "tab" : undefined} aria-selected={enhanced ? category === c : undefined} aria-controls={enhanced ? `services-${c}` : undefined} tabIndex={enhanced ? category === c ? 0 : -1 : undefined} onClick={(e) => { if (enhanced) { e.preventDefault(); chooseTab(c); } }} onKeyDown={(e) => { if (!enhanced) return; if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); focusTab(i + (e.key === "ArrowRight" ? 1 : -1)); } if (e.key === "Home" || e.key === "End") { e.preventDefault(); focusTab(e.key === "Home" ? 0 : 5); } if (e.key === " ") { e.preventDefault(); chooseTab(c); } }}>{enhanced && category === c && <Check aria-hidden="true" />}{LABELS[c]}</a>)}</div><button className="landing-tab-step" hidden={!enhanced} type="button" aria-label="Next category" onClick={() => step(1)}><ChevronRight aria-hidden="true" /></button></div>
-      {CATEGORIES.map((c) => <div key={c} id={`services-${c}`} className="landing-panel" role={enhanced ? "tabpanel" : undefined} aria-labelledby={enhanced ? `tab-${c}` : undefined} hidden={enhanced && category !== c}><h3>{LABELS[c]}</h3><div className="landing-grid">{catalog.services.filter((s) => s.category === c).map(card)}</div>{!catalog.services.some((s) => s.category === c) && <p>Nothing listed here yet. Call us and ask.</p>}</div>)}
-      <p className="landing-muted landing-small">Inspection prices are estimates. The shop confirms the price after seeing your vehicle.</p>
+      <div className="landing-tab-row"><button className="landing-tab-step" hidden={!enhanced} type="button" aria-label="Previous category" onClick={() => step(-1)}><ChevronLeft aria-hidden="true" /></button><div ref={tabs} className="landing-tabs" role={enhanced ? "tablist" : undefined} aria-label={enhanced ? "Service categories" : undefined}>{CATEGORIES.map((c, i) => <a key={c} id={`tab-${c}`} href={`#services-${c}`} aria-label={LABELS[c]} role={enhanced ? "tab" : undefined} aria-selected={enhanced ? category === c : undefined} aria-controls={enhanced ? `services-${c}` : undefined} tabIndex={enhanced ? category === c ? 0 : -1 : undefined} onClick={(e) => { if (enhanced) { e.preventDefault(); chooseTab(c); } }} onKeyDown={(e) => { if (!enhanced) return; if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); focusTab(i + (e.key === "ArrowRight" ? 1 : -1)); } if (e.key === "Home" || e.key === "End") { e.preventDefault(); focusTab(e.key === "Home" ? 0 : 5); } if (e.key === " ") { e.preventDefault(); chooseTab(c); } }}>{LABELS[c]}</a>)}</div><button className="landing-tab-step" hidden={!enhanced} type="button" aria-label="Next category" onClick={() => step(1)}><ChevronRight aria-hidden="true" /></button></div>
+      {CATEGORIES.map((c) => {
+        const photographed: ReactElement[] = [];
+        const compact: ReactElement[] = [];
+        for (const service of catalog.services.filter((s) => s.category === c)) {
+          const photo = landingPhoto(service.slug);
+          (photo ? photographed : compact).push(card(service, photo));
+        }
+        return <div key={c} id={`services-${c}`} className="landing-panel" role={enhanced ? "tabpanel" : undefined} aria-labelledby={enhanced ? `tab-${c}` : undefined} hidden={enhanced && category !== c}>
+          <h3 className="landing-sr">{LABELS[c]}</h3>
+          {photographed.length > 0 && <div className="landing-grid">{photographed}</div>}
+          {compact.length > 0 && <div className="landing-rate-list">{compact}</div>}
+          {photographed.length + compact.length === 0 && <p>Contact us for options in this category.</p>}
+        </div>;
+      })}
+      <div className="landing-catalog-footer"><p className="landing-muted landing-small">The shop confirms inspection prices after seeing your vehicle.</p><a className="landing-text-link" href="#estimate">View estimate{lines.length > 0 && ` (${lines.length})`}<ArrowDown aria-hidden="true" /></a></div>
     </section>
-    <section id="estimate" className="landing-section landing-wrap landing-ground-muted landing-estimate-section"><div className="landing-card landing-estimate"><div><h2>Estimate your price</h2><p className="landing-muted">Pick a size and services above, then get an estimate from the current price list. Nothing is booked or held, and you choose your services again when you book.</p><p>{lines.length} of {MAX_SELECTION_LINES} selected{size ? ` · ${size.name}` : ""}{body ? ` · ${BODY_TYPE_LABEL[body]}` : ""}</p>{note && <p role="status">{note}</p>}
+    <section id="estimate" className="landing-section landing-wrap landing-ground-muted landing-estimate-section"><div className="landing-card landing-estimate"><div><h2>Build your estimate</h2><p className="landing-muted">See a breakdown of your selected services using the current price list. When you’re ready, book a separate appointment.</p><p className="landing-estimate-selection">{lines.length} of {MAX_SELECTION_LINES} selected{size ? ` · ${size.name}` : ""}{body ? ` · ${BODY_TYPE_LABEL[body]}` : ""}</p>{note && <p role="status">{note}</p>}
       <button className="landing-pill landing-solid" type="button" disabled={!enhanced || busy || remaining > 0} onClick={getEstimate}>{busy ? "Getting estimate…" : remaining > 0 ? `Try again in ${remaining}s` : "Get estimate"}</button><noscript><p>The estimate needs JavaScript. Prices and booking links above still work.</p></noscript>{error && <p className="landing-error" role="alert"><CircleAlert aria-hidden="true" /><span>{error} <a href={`tel:${phone}`}>Call {brandConfig.displayPhone}</a></span></p>}</div>
       <div id="landing-estimate-result" className="landing-estimate-result" aria-live="polite" aria-atomic="true">{result && labels ? <>{stale && <p className="landing-stale">Out of date. Get a new estimate.</p>}<h3>{stale ? "Previous estimate" : "Your estimate"}</h3><p className="landing-small landing-muted">For: {result.vehicle}</p><ul>{result.quote.lines.map((l) => <li key={l.serviceId}><span>{l.name}{l.quantity > 1 ? ` × ${l.quantity}` : ""}</span><span>{l.priceStatus === "PRICED" ? money(l.subtotalCentavos!) : l.referenceUnitPriceCentavos === null ? "Price on inspection" : `Price on inspection · about ${money(l.referenceUnitPriceCentavos)}${l.unit === "PANEL" ? ` per panel × ${l.quantity}` : ""}`}</span></li>)}</ul><p className="landing-total">{labels.subtotal}<strong>{money(result.quote.totalPriceCentavos)}</strong></p>{labels.estimate && <p className="landing-total">Estimated total incl. inspection items<strong>{labels.estimate}</strong></p>}<p className="landing-small landing-muted">From the current price list. This is an estimate, not a booking.</p><div className="landing-actions"><a className="landing-pill landing-gold" href={stale ? booking.href : href}>{booking.label}</a><a href={messenger}>Message us about this estimate</a></div></> : <><h3>Your estimate shows here.</h3><p className="landing-muted">Fixed prices and inspection items are listed separately.</p></>}</div>
     </div></section>

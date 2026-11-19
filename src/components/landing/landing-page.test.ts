@@ -24,7 +24,7 @@ test("LuxAuto page: one local service H1, genuine workshop photos and labelled p
   assert.match(words, /Customer feedback will appear here\./);
   assert.doesNotMatch(html, /<blockquote|aggregateRating|reviewCount|design dependency/);
   assert.doesNotMatch(words, /[—–]|!/);
-  assert.deepEqual(words.match(/coming soon/gi)?.length, words.match(/Photo coming soon/g)?.length);
+  assert.doesNotMatch(words, /coming soon/i);
   assert.doesNotMatch(html, /quoteToken|catalogReleaseId|"release"/);
 });
 
@@ -54,7 +54,7 @@ test("no JS: toggles remain disabled until hydration and the closing workshop im
   assert.doesNotMatch(html, /class="landing-door/);
 });
 
-test("photos (17.13): a photo only on its own service, lazy next/image with size and alt; other cards keep the labelled frame", () => {
+test("photos (17.13): a photo only on its own service, lazy next/image with size and alt; other services use compact price rows", () => {
   const services = [service("s1", "Basic Wash", "WASH"), service("s2", "Premium Wash", "WASH"), service("s3", "Kenzo", "GRAPHENE"), service("s4", "Regular Tint", "TINT")];
   ["basic-wash", "premium-wash", "kenzo-graphene", "regular-tint"].forEach((slug, i) => { services[i].slug = slug; });
   const html = renderToStaticMarkup(createElement(LandingPage, { catalog: { ...catalog, services } as unknown as BookingCatalog, status: "OPEN" }));
@@ -66,10 +66,10 @@ test("photos (17.13): a photo only on its own service, lazy next/image with size
     assert.match(img, /loading="lazy"/);
     assert.doesNotMatch(img, /fetchPriority|fetchpriority/);
     assert.match(img, /width="1600" height="1200"/);
-    assert.match(img, /sizes="\(max-width: 767px\) 100vw, \(max-width: 1023px\) 50vw, 400px"/);
+    assert.match(img, /sizes="\(max-width: 767px\) 100vw, \(max-width: 1264px\) 50vw, 600px"/);
   }
   assert.match(html, /alt="Kenzo coating kit: base and top bottles, Strip panel-prep spray, applicator and card"/);
-  assert.equal(html.match(/Photo coming soon/g)?.length, 2);
+  assert.equal(servicesHtml.match(/landing-service-card--compact/g)?.length, 2);
 });
 
 test("photo files (17.13): one 4:3 WebP per mapped service, under 250 KB, with no EXIF, XMP or ICC chunk", () => {
@@ -93,13 +93,13 @@ test("photo files (17.13): one 4:3 WebP per mapped service, under 250 KB, with n
   }
 });
 
-test("photos: a slug that names an Object prototype key gets the labelled frame, not a broken render", () => {
+test("photos: a slug that names an Object prototype key renders a compact price row", () => {
   const services = [service("p1", "Odd Wash", "WASH"), service("p2", "Odd Coat", "GRAPHENE")];
   services[0].slug = "constructor"; services[1].slug = "__proto__";
   const html = renderToStaticMarkup(createElement(LandingPage, { catalog: { ...catalog, services } as unknown as BookingCatalog, status: "OPEN" }));
   const servicesHtml = html.slice(html.indexOf('id="services"'), html.indexOf('id="coatings"'));
   assert.doesNotMatch(servicesHtml, /url=%2Fmedia%2Flanding%2F/);
-  assert.equal(servicesHtml.match(/Photo coming soon/g)?.length, 2);
+  assert.equal(servicesHtml.match(/landing-service-card--compact/g)?.length, 2);
 });
 
 test("coatings summaries use the same arrow icon as the cards, never a text glyph (UI/UX P1-89 copy note)", () => {
