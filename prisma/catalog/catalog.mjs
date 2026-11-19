@@ -138,7 +138,8 @@ export async function storedManifest(tx, releaseId) {
     const release = await tx.catalogRelease.findUniqueOrThrow({ where: { id: releaseId } });
     const versions = await tx.catalogServiceVersion.findMany({ where: { releaseId }, orderBy: { sortOrder: 'asc' }, include: { offers: { include: { workPlan: true } } } });
     const services = versions.map(({ releaseId: _, serviceId, offers, ...metadata }) => ({ id: serviceId, ...metadata, offers: SIZES.map(code => {
-            const { releaseId: _r, serviceId: _s, promoStartsAt: _p, promoEndsAt: _e, workPlan, ...o } = offers.find(o => o.sizeCode === code) ?? {};
+            // Match publish_catalog. Pickup prices are set later through Services.
+            const { releaseId: _r, serviceId: _s, promoStartsAt: _p, promoEndsAt: _e, pickupPriceCentavos: _pickup, workPlan, ...o } = offers.find(o => o.sizeCode === code) ?? {};
             assert.ok(workPlan, 'Missing offer or work plan');
             return { ...o, durationKind: workPlan.kind, durationMinutes: workPlan.durationMinutes, elapsedDays: workPlan.elapsedDays, bayHoldPolicy: workPlan.bayHoldPolicy };
         }) }));
