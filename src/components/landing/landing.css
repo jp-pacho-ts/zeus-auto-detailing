@@ -58,7 +58,7 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
 .landing-video-frame{position:absolute;inset:0}
 .landing-video-frame picture{display:block;width:100%;height:100%}
 .landing-video-frame img,.landing-video-frame video{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;object-position:50% 50%;filter:saturate(.8) contrast(1.08)}
-.landing-loop-video{opacity:0;transition:opacity .38s}
+.landing-loop-video{opacity:0;transition:opacity .2s}
 .landing-loop-video[data-ready=true]{opacity:1}
 .landing-hero-art::after{
  content:"";position:absolute;inset:0;
@@ -70,7 +70,7 @@ html:has([data-landing-preview]),body:has([data-landing-preview]){background:#09
  position:absolute;z-index:1;inset:clamp(82px,15svh,180px) 0 auto;
  display:flex;justify-content:center;user-select:none;
  font-size:clamp(112px,27vw,490px);font-weight:900;line-height:.83;letter-spacing:-.04em;
- color:rgb(245 245 244 / .22);-webkit-text-stroke:1px rgb(245 245 244 / .38);
+ color:rgb(245 245 244 / .34);-webkit-text-stroke:1px rgb(245 245 244 / .57);
 }
 .landing-hero-glyph-mask{display:block;overflow:clip;padding-block:.07em}
 .landing-hero-glyph{display:block}

@@ -3,6 +3,11 @@ import { useEffect, useRef } from "react";
 import { attachHeroVideo } from "@/components/home/hero-video-controller";
 import { HERO_POSTER_FILES, HERO_PHONE_MAX_WIDTH } from "@/components/home/hero-video";
 
+const LANDING_VIDEO_FILES = {
+  desktop: "/media/landing-hero/zeus-cut-1080.mp4",
+  phone: "/media/landing-hero/zeus-cut-720.mp4",
+};
+
 // LE correction: original shop footage loops. Shared home playback policy stays unchanged.
 export function LandingVideo() {
   const video = useRef<HTMLVideoElement>(null);
@@ -21,6 +26,7 @@ export function LandingVideo() {
     };
     const detach = attachHeroVideo(element, {
       width: () => innerWidth, document: page, window,
+      files: LANDING_VIDEO_FILES,
       motion: matchMedia("(prefers-reduced-motion: reduce)"),
       connection: (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection,
       schedule: (callback) => { const timer = setTimeout(callback, 0); return () => clearTimeout(timer); },
