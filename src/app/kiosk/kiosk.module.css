@@ -1,21 +1,49 @@
-.welcome {
-  display: grid;
-  min-height: 100dvh;
-  grid-template-rows: minmax(220px, 1fr) auto;
+@font-face {
+  font-family: KioskDisplay;
+  src: url("/fonts/home/BarlowCondensed-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-display: swap;
 }
 
-.media {
+@font-face {
+  font-family: KioskBody;
+  src: url("/fonts/home/DMSans.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+.welcome,
+.booking {
+  font-family: KioskBody, Arial, sans-serif;
+}
+
+.welcome {
+  --edge: max(clamp(1.25rem, 5vw, 4rem), calc((100% - 1200px) / 2));
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+}
+
+.hero {
   position: relative;
-  grid-row: 1;
-  overflow: hidden;
+  isolation: isolate;
+  overflow: clip;
   background: #0b0b0c;
 }
 
+.media,
 .media :global(.zeus-hero-media),
 .media :global(.zeus-hero-poster),
-.media :global(.zeus-hero-video) {
+.media :global(.zeus-hero-video),
+.hero::after {
   position: absolute;
   inset: 0;
+}
+
+.hero::after {
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, #080808b8 0%, transparent 32%, #080808cf 66%, #0b0b0c 100%);
 }
 
 .media :global(.zeus-hero-poster),
@@ -23,7 +51,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 62% center;
+  object-position: 61% center;
 }
 
 .media :global(.zeus-hero-video) {
@@ -34,13 +62,204 @@
   opacity: 1;
 }
 
-@media (orientation: landscape) {
-  .welcome {
-    grid-template-columns: minmax(290px, 2fr) minmax(0, 3fr);
-    grid-template-rows: 1fr;
+.heroInner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: space-between;
+  justify-items: start;
+  gap: 4rem;
+  min-height: 100svh;
+  padding: max(1.5rem, env(safe-area-inset-top)) var(--edge) max(2rem, env(safe-area-inset-bottom));
+}
+
+.heroCopy {
+  width: 100%;
+}
+
+.wordmark {
+  display: block;
+  margin: 0 0 .875rem -.025em;
+  color: rgb(255 255 255 / .04);
+  font: 800 clamp(5rem, 24vw, 14rem) / .76 KioskDisplay, sans-serif;
+  -webkit-text-stroke: 1px rgb(255 255 255 / .58);
+  pointer-events: none;
+  user-select: none;
+}
+
+.heroCopy h1,
+.showcase h2,
+.scene h3 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -.04em;
+  text-wrap: balance;
+}
+
+.heroCopy h1 {
+  max-width: 22ch;
+  font-size: clamp(2rem, 5.8vw, 4.5rem);
+  line-height: 1.04;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-top: 1.5rem;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  min-height: 56px;
+  padding: .625rem 1.4rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.primary {
+  background: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+}
+
+.primary:hover {
+  background: rgb(var(--primary-hover));
+}
+
+.secondary {
+  border-color: rgb(255 255 255 / .42);
+  background: #0b0b0c;
+  color: white;
+}
+
+.secondary:hover {
+  border-color: rgb(var(--primary));
+}
+
+.primary:focus-visible,
+.secondary:focus-visible {
+  outline: 2px solid rgb(var(--ring));
+  outline-offset: 4px;
+}
+
+.showcase {
+  display: grid;
+  justify-items: center;
+  gap: clamp(2rem, 5vw, 4rem);
+  padding: clamp(3rem, 9vw, 7rem) var(--edge);
+}
+
+.showcaseIntro {
+  width: 100%;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgb(var(--border));
+}
+
+.showcase h2 {
+  font-size: clamp(2rem, 5.6vw, 4rem);
+  line-height: 1.08;
+}
+
+.scenes {
+  display: grid;
+  gap: clamp(2rem, 6vw, 5rem);
+  width: 100%;
+}
+
+.scene {
+  display: grid;
+  gap: .875rem;
+}
+
+.frame {
+  position: relative;
+  min-width: 0;
+  overflow: clip;
+  aspect-ratio: 4 / 3;
+  background: rgb(var(--muted));
+}
+
+.frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scene h3 {
+  font-size: clamp(1.5rem, 3.5vw, 2.5rem);
+  line-height: 1.1;
+}
+
+@media (min-width: 700px) {
+  .scene {
+    width: 74%;
   }
 
-  .media {
-    grid-column: 2;
+  .scene:nth-child(even) {
+    justify-self: end;
+    width: 60%;
   }
+
+  .frame {
+    aspect-ratio: 16 / 10;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 768px) {
+  .hero::after {
+    background: linear-gradient(90deg, #080808bd, transparent 86%),
+      linear-gradient(0deg, #0b0b0c, transparent 54%);
+  }
+
+  .wordmark {
+    font-size: clamp(6rem, min(20vw, 28svh), 14rem);
+  }
+
+  .heroInner {
+    padding-bottom: max(3.5rem, env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .media :global(.zeus-hero-video) {
+    transition: opacity .65s ease;
+  }
+
+  @supports (animation-timeline: view()) {
+    .media {
+      animation: footage-settle linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0px 85svh;
+    }
+
+    .frame {
+      animation: frame-open linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 42%;
+    }
+
+    .frame img {
+      animation: footage-settle linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 65%;
+    }
+  }
+}
+
+@keyframes footage-settle {
+  from { transform: scale(1.10); }
+  to { transform: scale(1); }
+}
+
+@keyframes frame-open {
+  from { clip-path: inset(9% 7% 9% 7%); }
+  to { clip-path: inset(0); }
 }

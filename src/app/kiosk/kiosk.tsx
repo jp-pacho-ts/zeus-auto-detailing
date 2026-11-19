@@ -1,11 +1,19 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import Image from "next/image";
+import { ArrowDown, ArrowRight } from "lucide-react";
 import { BookingWizard } from "@/components/booking/booking-wizard";
 import { HomeVideo } from "@/components/home/home-video";
+import { LANDING_PHOTOS, landingPhoto } from "@/components/landing/landing-photos";
 import { Logo } from "@/components/ui/logo";
 import styles from "./kiosk.module.css";
+
+const scenes = [
+  { title: "Wash", slug: "signature-wash" },
+  { title: "Detailing", slug: "exterior-detailing" },
+  { title: "Graphene coating", slug: "arcane-graphene" },
+] as const;
 
 export function Kiosk() {
   const [started, setStarted] = useState(false);
@@ -31,27 +39,51 @@ export function Kiosk() {
     if (started) document.getElementById("wizard-step-title")?.focus();
   }, [started]);
 
-  if (started) return <BookingWizard kioskOnExit={reset} />;
+  if (started) return <div className={styles.booking}><BookingWizard kioskOnExit={reset} /></div>;
 
   return (
     <main className={styles.welcome}>
-      <div className="flex flex-col items-start justify-center gap-8 border-t border-primary/50 bg-muted px-6 py-8 sm:px-10 landscape:border-r landscape:border-t-0">
-        <Logo priority />
-        <div>
-          <h1 className="max-w-[13ch] text-balance text-4xl font-extrabold leading-none tracking-tight sm:text-5xl xl:text-6xl">
-            Book your detailing service
-          </h1>
-          <button
-            ref={startButton}
-            type="button"
-            onClick={() => setStarted(true)}
-            className="mt-8 inline-flex min-h-16 items-center gap-6 rounded-xl bg-primary px-8 text-xl font-bold text-primary-foreground hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-          >
-            Start booking <ArrowRight aria-hidden="true" />
-          </button>
+      <section className={styles.hero} aria-labelledby="kiosk-title">
+        <div className={styles.media}><HomeVideo /></div>
+        <div className={styles.heroInner}>
+          <Logo priority />
+          <div className={styles.heroCopy}>
+            <span className={styles.wordmark} aria-hidden="true">ZEUS</span>
+            <h1 id="kiosk-title">Book your detailing service</h1>
+            <div className={styles.actions}>
+              <button ref={startButton} type="button" onClick={() => setStarted(true)} className={styles.primary}>
+                Start booking <ArrowRight aria-hidden="true" size={20} />
+              </button>
+              <a href="#kiosk-services" className={styles.secondary}>
+                Explore services <ArrowDown aria-hidden="true" size={18} />
+              </a>
+            </div>
+          </div>
         </div>
-      </div>
-      <div className={styles.media}><HomeVideo /></div>
+      </section>
+
+      <section id="kiosk-services" className={styles.showcase} aria-labelledby="kiosk-services-title">
+        <div className={styles.showcaseIntro}>
+          <h2 id="kiosk-services-title">What we do in the shop</h2>
+        </div>
+        <div className={styles.scenes}>
+          {scenes.map(({ title, slug }) => {
+            const photo = landingPhoto(slug) ?? LANDING_PHOTOS["full-detailing"];
+            return (
+              <article key={slug} className={styles.scene}>
+                <div className={styles.frame}>
+                  <Image src={photo.src} alt={photo.alt} width={1600} height={1200}
+                    sizes="(max-width: 700px) 100vw, 70vw" style={{ objectPosition: photo.position }} />
+                </div>
+                <h3>{title}</h3>
+              </article>
+            );
+          })}
+        </div>
+        <button type="button" onClick={() => setStarted(true)} className={styles.primary}>
+          Choose your services <ArrowRight aria-hidden="true" size={20} />
+        </button>
+      </section>
     </main>
   );
 }

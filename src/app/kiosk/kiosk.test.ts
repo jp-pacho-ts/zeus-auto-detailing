@@ -22,3 +22,12 @@ test("the kiosk uses a horizontal step header and a persistent action bar", () =
   assert.match(wizard, /data-layout=\{kioskOnExit \? "kiosk"/);
   assert.match(wizard, /kioskOnExit \? "sm:px-8" : "lg:hidden"/);
 });
+
+test("the welcome uses landing photography and progressively enhanced scroll motion", () => {
+  const kiosk = readFileSync("src/app/kiosk/kiosk.tsx", "utf8");
+  const css = readFileSync("src/app/kiosk/kiosk.module.css", "utf8");
+  assert.match(kiosk, /landingPhoto\(/);
+  assert.match(kiosk, /href="#kiosk-services"/);
+  assert.match(css, /prefers-reduced-motion: no-preference/);
+  assert.match(css, /animation-timeline: view\(/);
+});
