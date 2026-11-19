@@ -237,10 +237,7 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
       </div>
       <div className="landing-footer-bottom">
         <p className="landing-copyright">© {new Date().getFullYear()} {brandConfig.businessName}</p>
-        <div className="landing-footer-utilities">
-          <a href="/admin/login">Staff login</a>
-          <a className="landing-footer-top" href="#top">Back to top<ArrowUp aria-hidden="true" /></a>
-        </div>
+        <a className="landing-footer-top" href="#top">Back to top<ArrowUp aria-hidden="true" /></a>
       </div>
     </footer>
     <LandingLifecycle />
