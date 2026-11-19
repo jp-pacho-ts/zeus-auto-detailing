@@ -125,10 +125,10 @@ test("Footer groups customer links and keeps staff sign-in out of public navigat
   assert.doesNotMatch(footer, /\/admin\/login|Staff login/);
 });
 
-test("LuxAuto identity uses local DM Sans throughout, including the monumental Zeus word", () => {
+test("LuxAuto identity uses local DM Sans throughout, including the cinematic hero", () => {
   const css = readFileSync("src/components/landing/landing.css", "utf8").replace(/\s+/g, "");
   assert.match(css, /@font-face\{font-family:LandingBody;src:url\('\/fonts\/home\/DMSans.ttf'\)/);
-  assert.match(css, /\.landing-word\{[^}]*LandingBody/);
+  assert.match(css, /\.landing\{[^}]*LandingBody/);
   assert.doesNotMatch(css, /LandingDisplay|BarlowCondensed/);
 });
 

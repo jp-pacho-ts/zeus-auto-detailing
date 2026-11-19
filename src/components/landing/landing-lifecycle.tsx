@@ -15,21 +15,17 @@ export function LandingLifecycle() {
     const root = marker.current?.closest<HTMLElement>("[data-landing-preview]");
     if (!root) return;
     const media = gsap.matchMedia();
-    // Bounded opening on every screen; copy and controls never wait for it.
+    // The poster and booking links are usable before the entrance runs.
     media.add("(prefers-reduced-motion: no-preference)", () => {
-      const car = root.querySelector(".landing-hero-car"), image = car?.querySelector("img");
-      const opening = gsap.timeline({ paused: true, defaults: { ease: "power4.out" } });
-      opening.fromTo(root.querySelectorAll(".landing-letter"), { yPercent: 110, rotationX: -75, opacity: .2 }, { yPercent: 0, rotationX: 0, opacity: 1, duration: 1.15, stagger: .085 }, 0);
-      if (car) opening.fromTo(car, { scale: 1.035, opacity: .4 }, { scale: 1, opacity: 1, duration: 1.1 }, .12);
-      const beam = root.querySelector(".landing-hero-beam");
-      if (beam) opening.fromTo(beam, { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: .8, duration: .6 }, .25).to(beam, { opacity: 0, duration: .8 }, .85);
-      opening.from(root.querySelector(".landing-hero-copy h1"), { y: 20, opacity: .7, duration: .7, ease: "power3.out" }, .2);
-      const launch = () => { opening.play(); };
-      if (!image || image.complete) launch();
-      else { image.addEventListener("load", launch, { once: true }); image.addEventListener("error", launch, { once: true }); }
-      const focus = () => { opening.progress(1); };
-      root.querySelector(".landing-hero")?.addEventListener("focusin", focus);
-      return () => { image?.removeEventListener("load", launch); image?.removeEventListener("error", launch); root.querySelector(".landing-hero")?.removeEventListener("focusin", focus); };
+      const hero = root.querySelector(".landing-hero");
+      const frame = hero?.querySelector(".landing-video-frame");
+      if (!hero || !frame || hero.getBoundingClientRect().bottom < innerHeight / 2) return;
+      const opening = gsap.timeline({ defaults: { ease: "power4.out" } });
+      opening.fromTo(frame, { scale: 1.1 }, { scale: 1, duration: 1.3 }, 0)
+        .fromTo(hero.querySelectorAll(".landing-hero-line > span"), { yPercent: 106 }, { yPercent: 0, duration: .85, stagger: .13 }, .08);
+      const reveal = () => { opening.progress(1); };
+      hero.addEventListener("focusin", reveal);
+      return () => hero.removeEventListener("focusin", reveal);
     });
     media.add("(prefers-reduced-motion: no-preference)", () => {
       const frame = root.querySelector(".landing-about-frame");
@@ -83,9 +79,23 @@ export function LandingLifecycle() {
       const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, autoRaf: false, prevent: (node) => !!node.closest(".landing-mobile-menu, select") });
       const tick = (seconds: number) => lenis.raf(seconds * 1000);
       lenis.on("scroll", ScrollTrigger.update); gsap.ticker.add(tick);
-      const sequence = gsap.timeline({ scrollTrigger: { trigger: root.querySelector(".landing-hero"), start: "top top", end: "bottom top", scrub: .65 } });
-      sequence.to(root.querySelector(".landing-word"), { yPercent: -48, scale: 1.18, opacity: .08, ease: "none" }, 0)
-        .to(root.querySelector(".landing-hero-photo"), { yPercent: 0, scale: 1.08, ease: "none" }, 0);
+      const hero = root.querySelector(".landing-hero");
+      const footage = hero?.querySelector(".landing-hero-photo");
+      if (footage) gsap.to(footage, {
+        yPercent: 12, scale: 1.14, ease: "none",
+        scrollTrigger: { trigger: hero, start: "top top", end: "bottom top", scrub: .45 },
+      });
+      const cue = hero?.querySelector<HTMLAnchorElement>(".landing-scroll-cue");
+      const about = root.querySelector<HTMLElement>("#about");
+      const discover = (event: MouseEvent) => {
+        if (!about || !cue || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        lenis.scrollTo(about, { duration: .95, onComplete: () => {
+          if (location.hash !== cue.hash) history.pushState(null, "", cue.hash);
+          about.focus({ preventScroll: true });
+        } });
+      };
+      cue?.addEventListener("click", discover);
       root.querySelectorAll(".landing-care-card").forEach((card) => {
         const photo = card.querySelector(".landing-care-photo img");
         if (!photo) return;
@@ -108,30 +118,11 @@ export function LandingLifecycle() {
       if (progress) gsap.fromTo(progress, { scaleX: 0 }, { scaleX: 1, ease: "none", scrollTrigger: { trigger: root, start: "top top", end: "bottom bottom", scrub: true } });
       const settle = () => lenis.scrollTo(window.scrollY, { immediate: true, force: true });
       root.addEventListener("focusin", settle); window.addEventListener("hashchange", settle);
-      return () => { root.removeEventListener("focusin", settle); window.removeEventListener("hashchange", settle); gsap.ticker.remove(tick); lenis.destroy(); };
+      return () => { cue?.removeEventListener("click", discover); root.removeEventListener("focusin", settle); window.removeEventListener("hashchange", settle); gsap.ticker.remove(tick); lenis.destroy(); };
     });
     media.add("(min-width: 1024px) and (min-height: 700px) and (prefers-reduced-motion: no-preference)", () => {
       const stage = root.querySelector<HTMLElement>(".landing-stage");
       return stage ? mountCareScene(stage) : undefined;
-    });
-    media.add("(min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)", () => {
-      const hero = root.querySelector<HTMLElement>(".landing-hero-art"), plane = root.querySelector(".landing-hero-car");
-      if (!hero || !plane) return;
-      gsap.set(plane, { transformPerspective: 1200 });
-      const x = gsap.quickTo(plane, "x", { duration: .75, ease: "power3.out" });
-      const y = gsap.quickTo(plane, "y", { duration: .75, ease: "power3.out" });
-      const turn = gsap.quickTo(plane, "rotationY", { duration: .75, ease: "power3.out" });
-      const tilt = gsap.quickTo(plane, "rotationX", { duration: .75, ease: "power3.out" });
-      const reset = () => { x(0); y(0); turn(0); tilt(0); };
-      const move = (event: PointerEvent) => {
-        if (event.pointerType === "touch" || hero.contains(document.activeElement)) return;
-        const rect = hero.getBoundingClientRect();
-        const dx = Math.max(-1, Math.min(1, (event.clientX - rect.left) / rect.width * 2 - 1));
-        const dy = Math.max(-1, Math.min(1, (event.clientY - rect.top) / rect.height * 2 - 1));
-        x(dx * 10); y(dy * 7); turn(dx * 2.5); tilt(-dy * 1.5);
-      };
-      hero.addEventListener("pointermove", move); hero.addEventListener("pointerleave", reset); hero.addEventListener("focusin", reset);
-      return () => { hero.removeEventListener("pointermove", move); hero.removeEventListener("pointerleave", reset); hero.removeEventListener("focusin", reset); };
     });
     media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => mountTextChoreography(root, true));
     media.add("(max-width: 767px) and (prefers-reduced-motion: no-preference)", () => mountTextChoreography(root, false));

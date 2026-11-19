@@ -30,10 +30,8 @@ export function LandingVideo() {
     seen.observe(element.closest(".landing-hero-art") ?? element);
     return () => { seen.disconnect(); detach(); document.removeEventListener("visibilitychange", notify); };
   }, []);
-  return <>
-    <div className="landing-hero-car"><div className="landing-video-frame">
-      <picture><source media={`(max-width: ${HERO_PHONE_MAX_WIDTH}px)`} srcSet={HERO_POSTER_FILES.phone} /><img src={HERO_POSTER_FILES.desktop} alt="White car in the Zeus workshop beneath geometric detailing lights" width="1920" height="1080" fetchPriority="high" /></picture>
-      <video ref={video} className="landing-loop-video" muted loop playsInline preload="none" aria-hidden="true" tabIndex={-1} />
-    </div></div>
-  </>;
+  return <div className="landing-video-frame">
+    <picture><source media={`(max-width: ${HERO_PHONE_MAX_WIDTH}px)`} srcSet={HERO_POSTER_FILES.phone} /><img src={HERO_POSTER_FILES.desktop} alt="White car in the Zeus workshop beneath geometric detailing lights" width="1920" height="1080" fetchPriority="high" /></picture>
+    <video ref={video} className="landing-loop-video" muted loop playsInline preload="none" aria-hidden="true" tabIndex={-1} />
+  </div>;
 }

@@ -11,7 +11,7 @@ const render = (status: "OPEN" | "PAUSED" | "UNKNOWN" = "OPEN") => renderToStati
 test("LuxAuto redesign connects the brand, care journey, genuine shop work and feedback", () => {
   const html = render();
   for (const id of ["top", "about", "care", "work", "services", "estimate", "coatings", "gallery", "reviews", "faq", "visit"]) assert.ok(html.includes(`id="${id}"`), id);
-  assert.match(html, /Car &amp; motorcycle detailing/);
+  assert.match(html, /Car &amp; motorcycle.*detailing/);
   assert.equal(html.match(/<h1[ >]/g)?.length, 1);
   assert.match(html, /Car and motorcycle detailing in Tacloban City/);
   assert.match(html, /Customer feedback will appear here\./);

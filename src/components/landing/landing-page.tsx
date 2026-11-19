@@ -54,18 +54,20 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
     <main id="landing-main">
       <section id="top" className="landing-hero" aria-labelledby="landing-hero-title">
         <div className="landing-hero-art">
-          <span className="landing-word" aria-hidden="true">{"ZEUS".split("").map((letter, index) => <span className="landing-letter-mask" key={index}><span className="landing-letter">{letter}</span></span>)}</span>
-          <div className="landing-hero-beam" aria-hidden="true" />
           <div className="landing-hero-photo"><LandingVideo /></div>
         </div>
         <div className="landing-wrap landing-hero-copy">
-          <h1 id="landing-hero-title"><span className="landing-hero-title">Car &amp; motorcycle detailing<span className="landing-gold-dot">.</span></span><span className="landing-sr"> Car and motorcycle detailing in Tacloban City</span></h1>
-
-          <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-hero-manage" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a></div>
-          <a className="landing-scroll-cue" href="#about" aria-label="Discover the Zeus approach"><span>Discover Zeus</span><ArrowDown aria-hidden="true" /></a>
+          <h1 id="landing-hero-title" aria-label="Car and motorcycle detailing in Tacloban City">
+            <span className="landing-hero-line" aria-hidden="true"><span>Car &amp; motorcycle</span></span>{" "}
+            <span className="landing-hero-line landing-hero-line-display" aria-hidden="true"><span>detailing<span className="landing-gold-dot">.</span></span></span>
+          </h1>
+          <div className="landing-hero-bar">
+            <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-hero-manage" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a></div>
+            <a className="landing-scroll-cue" href="#about" aria-label="Discover Zeus, the shop and its approach"><span>Discover Zeus</span><ArrowDown aria-hidden="true" /></a>
+          </div>
         </div>
       </section>
-      <section id="about" className="landing-about" aria-labelledby="landing-about-title">
+      <section id="about" className="landing-about" aria-labelledby="landing-about-title" tabIndex={-1}>
         <div className="landing-about-frame">
           <div className="landing-about-photo">{photo("full-detailing", "100vw")}</div>
           <div className="landing-wrap landing-about-heading">
