@@ -9,7 +9,7 @@ import { writeFeedback } from "../board-model";
 import { Select } from "../use-admin-resource";
 import { label } from "./shared";
 
-export function BookingDeductionCorrection({ booking, disabled }: { booking: AdminBookingDetail; disabled: boolean }) {
+export function BookingDeductionCorrection({ booking, disabled, onSaved }: { booking: AdminBookingDetail; disabled: boolean; onSaved: () => void }) {
   const [lineId, setLineId] = useState("");
   const [amount, setAmount] = useState("");
   const [preview, setPreview] = useState<AdminBookingDeductionPreview | null>(null);
@@ -30,7 +30,10 @@ export function BookingDeductionCorrection({ booking, disabled }: { booking: Adm
       });
       setPreview(result);
       setSaved(save);
-      if (save) window.dispatchEvent(new Event("zeus:commissions-changed"));
+      if (save) {
+        onSaved();
+        window.dispatchEvent(new Event("zeus:commissions-changed"));
+      }
     } catch (err) {
       setPreview(null);
       setError(err instanceof AdminRequestError ? writeFeedback(err.detail).message : "Could not reach the server. Preview again.");

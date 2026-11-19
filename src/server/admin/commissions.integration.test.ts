@@ -1111,6 +1111,19 @@ test("paid booking: preview and save a one-line deduction correction without rew
     const [settled] = await entries(job.id);
     assert.deepEqual([settled.id, settled.amountCentavos, !!settled.paidAt], [original.id, 10_000, true]);
     assert.deepEqual((await db.commissionAdjustment.findMany({ where: { entryId: original.id } })).map((a) => [Number(a.amountCentavos), a.paidAt]), [[30_000, null]]);
+    const another = await shopCompleted([worker.id], [{ slug: "regular-tint", price: 200_000 }], { keepWash: false });
+    const [anotherEntry] = await entries(another.id);
+    await s.setCommissionsPaid(ADMIN, { ids: [anotherEntry.id], paid: true }, opts());
+    await db.$executeRaw`UPDATE services SET "sizeDeductions" = '{"S":0}'::jsonb WHERE id=${tint}`;
+    const alreadyCorrected = await s.recalculateCommission(ADMIN, job.id, opts());
+    assert.deepEqual([alreadyCorrected.before[0].amountCentavos, alreadyCorrected.after[0].amountCentavos], [40_000, 40_000]);
+    const updated = await s.recalculateCommission(ADMIN, another.id, opts());
+    assert.deepEqual([updated.before[0].amountCentavos, updated.after[0].amountCentavos], [10_000, 40_000]);
+    assert.equal((await entries(another.id))[0].amountCentavos, 10_000, "the settled payment keeps its original amount");
+    const anotherLine = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: another.id, serviceId: tint } });
+    assert.equal((await db.bookingDeductionOverride.findUniqueOrThrow({ where: { lineId: anotherLine.id } })).amountCentavos, 0);
+    await s.recalculateCommission(ADMIN, another.id, opts());
+    assert.equal(await db.commissionAdjustment.count({ where: { entryId: anotherEntry.id } }), 1, "retry cannot duplicate the correction");
   } finally {
     await db.$executeRaw`UPDATE services SET "expenseDeductionCentavos" = ${previous.expenseDeductionCentavos}, "sizeDeductions" = ${JSON.stringify(previous.sizeDeductions)}::jsonb WHERE id = ${tint}`;
   }

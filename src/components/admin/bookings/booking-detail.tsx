@@ -72,6 +72,7 @@ export function BookingDetail({
     [conflict, setConflict] = React.useState<AdminBookingDetail | null>(null),
     [typed, setTyped] = React.useState("");
   const [recalc, setRecalc] = React.useState<Recalc | null>(null);
+  const [recalcVersion, setRecalcVersion] = React.useState(0);
   const mounted = React.useRef(true),
     writing = React.useRef(false);
   React.useEffect(() => {
@@ -81,13 +82,14 @@ export function BookingDetail({
     };
   }, []);
   async function recalculate() {
-    if (writing.current || !window.confirm("Recalculate this booking's commission with today's service and worker rates? Paid or adjusted commission is never changed.")) return;
+    if (writing.current || !window.confirm("Recalculate using the current service deductions? If commission was paid or adjusted, only the deduction difference is recorded separately.")) return;
     writing.current = true;
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
       setRecalc(await adminRequest<Recalc>(`/api/admin/bookings/${id}/commission`, { method: "POST", body: {} }));
+      setRecalcVersion((version) => version + 1);
       // The Commissions screen may already be open: it reloads on this event so the new records show at once.
       window.dispatchEvent(new Event("zeus:commissions-changed"));
     } catch (e) {
@@ -269,6 +271,8 @@ export function BookingDetail({
                   workers={workers}
                   recalc={recalc}
                   onRecalculate={() => void recalculate()}
+                  recalcVersion={recalcVersion}
+                  onDeductionCorrected={() => setRecalc(null)}
                 />
                 <ActivitySection history={b.history} />
               </div>
