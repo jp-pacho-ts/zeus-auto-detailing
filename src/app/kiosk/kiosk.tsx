@@ -10,9 +10,9 @@ import { Logo } from "@/components/ui/logo";
 import styles from "./kiosk.module.css";
 
 const scenes = [
-  { title: "Wash", slug: "signature-wash" },
-  { title: "Detailing", slug: "exterior-detailing" },
-  { title: "Graphene coating", slug: "arcane-graphene" },
+  { title: "Wash", slug: "signature-wash", description: "Choose from our wash packages for cars and motorcycles." },
+  { title: "Detailing", slug: "exterior-detailing", description: "Choose interior, exterior, or full detailing based on what your vehicle needs." },
+  { title: "Graphene coating", slug: "arcane-graphene", description: "Compare our graphene coating packages for your vehicle’s finish." },
 ] as const;
 
 export function Kiosk() {
@@ -65,24 +65,30 @@ export function Kiosk() {
       <section id="kiosk-services" className={styles.showcase} aria-labelledby="kiosk-services-title">
         <div className={styles.showcaseIntro}>
           <h2 id="kiosk-services-title">What we do in the shop</h2>
+          <p>Explore the work, then select your vehicle to see available services and prices.</p>
         </div>
         <div className={styles.scenes}>
-          {scenes.map(({ title, slug }) => {
+          {scenes.map(({ title, slug, description }) => {
             const photo = landingPhoto(slug) ?? LANDING_PHOTOS["full-detailing"];
             return (
               <article key={slug} className={styles.scene}>
                 <div className={styles.frame}>
                   <Image src={photo.src} alt={photo.alt} width={1600} height={1200}
-                    sizes="(max-width: 700px) 100vw, 70vw" style={{ objectPosition: photo.position }} />
+                    sizes="(max-width: 900px) 100vw, 65vw" style={{ objectPosition: photo.position }} />
                 </div>
-                <h3>{title}</h3>
+                <div className={styles.sceneCopy}>
+                  <h3>{title}</h3>
+                  <p>{description}</p>
+                </div>
               </article>
             );
           })}
+          <div className={styles.showcaseAction}>
+            <button type="button" onClick={() => setStarted(true)} className={styles.primary}>
+              Choose your services <ArrowRight aria-hidden="true" size={20} />
+            </button>
+          </div>
         </div>
-        <button type="button" onClick={() => setStarted(true)} className={styles.primary}>
-          Choose your services <ArrowRight aria-hidden="true" size={20} />
-        </button>
       </section>
     </main>
   );
