@@ -1,13 +1,14 @@
 "use client";
-import { type ReactElement, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, type ReactElement, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { ArrowDown, ArrowUpRight, Check, ChevronLeft, ChevronRight, CircleAlert, Minus, Plus } from "lucide-react";
 import type { BookingCatalog, BookingQuote, CatalogSelection, ServicePackage, VehicleBodyType } from "@/types/catalog-contracts";
 import { BODY_TYPES_BY_SIZE, BODY_TYPE_LABEL, MAX_SELECTION_LINES } from "@/types/catalog-contracts";
 import { brandConfig } from "@/config/brand";
 import type { LandingStatus } from "@/server/landing/status";
-import { bookingAction, bookingHref, estimateLabels, money, pruneSelection, quoteFailure, selectionKey, serviceArrow, servicePrice, type QuoteAnswer } from "./landing-model";
+import { bookingAction, bookingHref, estimateLabels, money, pruneSelection, quoteFailure, selectionKey, serviceArrow, type QuoteAnswer } from "./landing-model";
 import { LandingCard } from "./landing-card";
+import { PriceTag } from "./landing-price-tag";
 import { landingPhoto, type LandingPhoto } from "./landing-photos";
 
 export type DisplayCatalog = Omit<BookingCatalog, "catalogReleaseId" | "catalogVersion">;
@@ -84,7 +85,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
     const reason = picked || !enhanced ? null : !compatible ? "Add a main service first" : lines.length >= MAX_SELECTION_LINES ? "Limit of 10 reached" : null;
     const unavailable = !picked && offer?.onlineBooking === "UNAVAILABLE";
     const duration = offer?.duration.kind === "TIMED" ? `About ${offer.duration.minutes} min` : offer?.duration.kind === "MULTI_DAY" ? "Multi-day" : null;
-    return <LandingCard key={service.id} anchor={`service-${service.slug}`} addOn={service.type === "ADD_ON"} duration={duration} title={service.name} price={servicePrice(service, size, body)} priceId={`landing-price-${service.id}`} arrow={serviceArrow(catalog, size, service, status, phone)} photo={photo}
+    return <LandingCard key={service.id} anchor={`service-${service.slug}`} addOn={service.type === "ADD_ON"} duration={duration} title={service.name} priceTag={<PriceTag service={service} size={size} body={body} id={`landing-price-${service.id}`} />} arrow={serviceArrow(catalog, size, service, status, phone)} photo={photo}
       action={<button type="button" className="landing-toggle" aria-pressed={!!picked} disabled={!enhanced || !!reason || unavailable} aria-describedby={unavailable ? `landing-price-${service.id}` : undefined} onClick={() => toggle(service, !picked)}>{picked ? <><Check aria-hidden="true" />In estimate</> : reason ?? <><Plus aria-hidden="true" />Add to estimate</>}</button>}>
       {picked && service.unit === "PANEL" && <label className="landing-panels">Panels, 1 to 20<input aria-label={`Panels, 1 to 20, for ${service.name}`} type="number" min="1" max="20" value={picked.quantity} onChange={(e) => { edit(); setLines(lines.map((l) => l.serviceId === service.id ? { ...l, quantity: Math.max(1, Math.min(20, Math.trunc(Number(e.target.value) || 1))) } : l)); }} /></label>}
       {service.description && <p className="landing-card-text">{service.description}</p>}
@@ -129,7 +130,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
   const step = (by: number) => { const i = CATEGORIES.indexOf(category as typeof CATEGORIES[number]); chooseTab(CATEGORIES[(i + by + 6) % 6]); focusTab(i + by); };
   return <>
     <section id="services" className="landing-section landing-wrap landing-ground-muted landing-catalog" aria-labelledby="landing-catalog-title">
-      <div className="landing-filter-head"><h2 id="landing-catalog-title">Services and prices<span className="landing-gold-dot" aria-hidden="true">.</span></h2><p className="landing-muted">Choose your vehicle size to see prices. Add services to build an estimate.</p></div>
+      <div className="landing-filter-head"><div><p className="landing-eyebrow">The price list</p><h2 id="landing-catalog-title">Services and prices<span className="landing-gold-dot" aria-hidden="true">.</span></h2></div><p className="landing-muted landing-care-lede">Choose your vehicle size to see prices. Add services to build an estimate.</p></div>
       {/* P1-90 option P1: the size control sticks under the header while Services is on screen, so "Price depends on size" has its control at hand. */}
       <div className="landing-size-bar">{vehicleFilters("landing")}</div>
       <div className="landing-tab-row"><button className="landing-tab-step" hidden={!enhanced} type="button" aria-label="Previous category" onClick={() => step(-1)}><ChevronLeft aria-hidden="true" /></button><div ref={tabs} className="landing-tabs" role={enhanced ? "tablist" : undefined} aria-label={enhanced ? "Service categories" : undefined}>{CATEGORIES.map((c, i) => <a key={c} id={`tab-${c}`} href={`#services-${c}`} aria-label={LABELS[c]} role={enhanced ? "tab" : undefined} aria-selected={enhanced ? category === c : undefined} aria-controls={enhanced ? `services-${c}` : undefined} tabIndex={enhanced ? category === c ? 0 : -1 : undefined} onClick={(e) => { if (enhanced) { e.preventDefault(); chooseTab(c); } }} onKeyDown={(e) => { if (!enhanced) return; if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); focusTab(i + (e.key === "ArrowRight" ? 1 : -1)); } if (e.key === "Home" || e.key === "End") { e.preventDefault(); focusTab(e.key === "Home" ? 0 : 5); } if (e.key === " ") { e.preventDefault(); chooseTab(c); } }}>{LABELS[c]}</a>)}</div><button className="landing-tab-step" hidden={!enhanced} type="button" aria-label="Next category" onClick={() => step(1)}><ChevronRight aria-hidden="true" /></button></div>
@@ -156,8 +157,11 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
     <section id="coatings" className="landing-coatings">
       <CoatingsBleed />
       <div className="landing-wrap landing-compare">
-        {compared.length >= 2 && <>
+        {/* LE 2026-11-21: one spec sheet (Porsche model compare): labels in the first column, a column per package, and
+            the shared items and differences line up under each package. --n sets the package columns. */}
+        {compared.length >= 2 && <div className="landing-compare-sheet" style={{ "--n": compared.length } as CSSProperties}>
           <div id="graphene-comparison" className="landing-compare-head">
+            <p className="landing-eyebrow">Graphene coating</p>
             <h3>Compare graphene packages</h3>
             {vehicleFilters("landing-compare")}
           </div>
@@ -173,7 +177,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
                 <h4>{s.name}</h4>
               </div>
               <div className="landing-compare-rate" aria-live="polite">
-                <p className="landing-price">{servicePrice(s, size, body)}</p>
+                <PriceTag service={s} size={size} body={body} />
                 {duration && <p className="landing-small landing-muted">{duration}</p>}
               </div>
               <a className="landing-text-link" href={action.href}>{action.label}<ArrowUpRight aria-hidden="true" /></a>
@@ -188,16 +192,17 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
             <thead><tr><td />{compared.map((s) => <th scope="col" key={s.id}>{s.name}</th>)}</tr></thead>
             <tbody>{differences.map((item) => <tr key={item}><th scope="row">{item}</th>{compared.map((s) => <td key={s.id}>{s.inclusions.includes(item) ? included : notIncluded}</td>)}</tr>)}</tbody>
           </table></div>}
-        </>}
-        {films.length > 0 && <><h3>Window tint and paint protection film</h3><ul className="landing-chip-list">{films.map((s) => <li className="landing-chip" key={s.id}>{s.name}</li>)}</ul></>}
-        <p><a href={messenger}>Ask about coatings on Messenger</a></p>
+        </div>}
+        {films.length > 0 && <div className="landing-compare-films"><h3>Window tint and paint protection film</h3><ul className="landing-chip-list">{films.map((s) => <li className="landing-chip" key={s.id}>{s.name}</li>)}</ul></div>}
+        <p className="landing-compare-ask"><a className="landing-text-link" href={messenger}>Ask about coatings on Messenger<ArrowUpRight aria-hidden="true" /></a></p>
       </div>
     </section>
   </>;
 }
 
 // Shared with the no-catalog fallback so the scene and its copy are present before animation mounts.
-export function CoatingsBleed() {
+// The no-catalog fallback passes `messenger` so its only action sits in the scene instead of a near-empty block below.
+export function CoatingsBleed({ messenger }: { messenger?: string } = {}) {
   const photo = landingPhoto("eclipse-graphene")!;
   return <div className="landing-bleed">
     <div className="landing-bleed-media"><Image src={photo.src} alt={photo.alt} width={1600} height={1200} sizes="100vw" /></div>
@@ -207,6 +212,7 @@ export function CoatingsBleed() {
         <span className="landing-bleed-line" aria-hidden="true"><span className="landing-bleed-text">and films<span className="landing-gold-dot">.</span></span></span>
       </h2>
       <p>Ask us which coating or film suits your vehicle.</p>
+      {messenger && <a className="landing-text-link landing-bleed-link" href={messenger}>Ask about coatings on Messenger<ArrowUpRight aria-hidden="true" /></a>}
     </div>
   </div>;
 }

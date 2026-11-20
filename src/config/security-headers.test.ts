@@ -23,7 +23,11 @@ test("unlisted preview is noindex and uncached, and only the landing preview can
     assert.equal(preview["X-Robots-Tag"], "noindex, nofollow");
     assert.equal(preview["Cache-Control"], "private, no-store");
     const baseCsp = documentContentSecurityPolicy(production);
-    assert.equal(preview["Content-Security-Policy"], baseCsp.replace("frame-src https://challenges.cloudflare.com;", "frame-src https://challenges.cloudflare.com https://www.google.com/maps/embed;"));
+    // LE 2026-11-20: the landing preview alone adds OpenFreeMap tiles and MapLibre's blob: worker (3D map), and keeps the Google embed as its fallback.
+    assert.equal(preview["Content-Security-Policy"], baseCsp
+      .replace("img-src 'self' data: blob:;", "img-src 'self' data: blob: https://tiles.openfreemap.org;")
+      .replace("connect-src 'self' https://challenges.cloudflare.com;", "connect-src 'self' https://challenges.cloudflare.com https://tiles.openfreemap.org; worker-src 'self' blob:;")
+      .replace("frame-src https://challenges.cloudflare.com;", "frame-src https://challenges.cloudflare.com https://www.google.com/maps/embed;"));
     const otherPreview = Object.assign({}, ...matching(rules, "/preview/other").map(headerMap));
     assert.equal(otherPreview["Content-Security-Policy"], baseCsp);
     for (const url of ["/", "/book", "/book/manage", "/admin", "/api/catalog"]) {

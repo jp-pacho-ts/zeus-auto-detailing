@@ -21,45 +21,39 @@ export function mountCareScene(stage: HTMLElement) {
     },
   });
   scene.fromTo(progress, { scaleX: 0 }, { scaleX: 1, duration: 1, ease: "none" }, 0);
-  cards.forEach((card, index) => {
+  // LE 2026-11-20 cut: the outgoing title leaves through a mask, the shot pushes in and falls into shadow, and the
+  // next shot opens from a centred frame to full bleed (a camera iris) before its title rises in. Titles never overlap.
+  const parts = cards.map((card) => ({
+    frame: card.querySelector(".landing-step-photo"),
+    photo: card.querySelector("img"),
+    title: card.querySelector("h3"),
+    extras: card.querySelectorAll(".landing-step-links, .landing-step-prices"),
+  }));
+  const shown = { yPercent: 0, clipPath: "inset(0% 0% 0% 0%)" };
+  const opened = { scale: 1.035, xPercent: 0 };
+  const settled = { scale: 1.07, xPercent: -1.5 };
+  parts.forEach(({ frame, photo, title, extras }, index) => {
     const shot = shots[index];
-    const photo = card.querySelector("img");
-    const title = card.querySelector("h3");
-    const opened = { scale: 1.035, xPercent: 0 };
-    const settled = { scale: 1.07, xPercent: -1.5 };
     if (index > 0) {
       const approach = shots[index - 1].end;
       const duration = shot.start - approach;
-      // Reveal the next photo across the same frame so the cut reads horizontally.
-      scene.fromTo(card, { clipPath: "inset(0 0 0 100%)" }, {
-        clipPath: "inset(0 0 0 0%)",
-        duration,
-        ease: "sine.inOut",
-        immediateRender: true,
-      }, approach);
-      if (photo) {
-        scene.fromTo(photo, { scale: 1.15, xPercent: 5 }, { ...opened, duration, ease: "sine.out" }, approach);
-      }
-      if (title) {
-        scene.fromTo(title, { x: 30 }, { x: 0, duration, ease: "power2.out" }, approach);
-      }
+      const prev = parts[index - 1];
+      if (prev.title) scene.fromTo(prev.title, shown, { yPercent: -100, clipPath: "inset(100% 0% 0% 0%)", duration: duration * .4, ease: "power2.in", immediateRender: false }, approach);
+      if (prev.extras.length) scene.fromTo(prev.extras, { opacity: 1 }, { opacity: 0, duration: duration * .3, ease: "none", immediateRender: false }, approach);
+      if (prev.photo) scene.fromTo(prev.photo, { ...settled, filter: "saturate(.88) brightness(1)" }, { scale: 1.16, xPercent: -3, filter: "saturate(.88) brightness(.28)", duration, ease: "power1.in", immediateRender: false }, approach);
+      // From a point, so a waiting shot is invisible until its own cut.
+      if (frame) scene.fromTo(frame, { clipPath: "inset(50% 50% 50% 50%)" }, { clipPath: "inset(0% 0% 0% 0%)", duration, ease: "power3.inOut" }, approach);
+      if (photo) scene.fromTo(photo, { scale: 1.45, xPercent: 0 }, { ...opened, duration, ease: "power2.out" }, approach);
+      if (title) scene.fromTo(title, { yPercent: 100, clipPath: "inset(0% 0% 100% 0%)" }, { ...shown, duration: duration * .45, ease: "power3.out" }, approach + duration * .55);
+      if (extras.length) scene.fromTo(extras, { opacity: 0 }, { opacity: 1, duration: duration * .3, ease: "none" }, approach + duration * .7);
     }
-    if (!photo) return;
-    scene.fromTo(photo, opened, {
-      ...settled,
-      duration: shot.end - shot.start,
-      ease: "none",
-      immediateRender: index === 0,
-    }, shot.start);
-    if (index < cards.length - 1) {
-      scene.to(photo, {
-        scale: 1.1,
-        xPercent: -3,
-        duration: shots[index + 1].start - shot.end,
-        ease: "sine.in",
-      }, shot.end);
-    }
+    if (photo) scene.fromTo(photo, opened, { ...settled, duration: shot.end - shot.start, ease: "none", immediateRender: index === 0 }, shot.start);
   });
+  // The first shot is already on screen as the stage arrives: its photo settles and its title rises before the pin.
+  const first = parts[0];
+  const arrival = { trigger: stage, start: "top bottom", end: "top 74px", scrub: .5 };
+  if (first.photo) gsap.fromTo(first.photo, { scale: 1.22, xPercent: 0 }, { ...opened, ease: "none", scrollTrigger: arrival });
+  if (first.title) gsap.fromTo(first.title, { yPercent: 100, clipPath: "inset(0% 0% 100% 0%)" }, { ...shown, ease: "power3.out", scrollTrigger: { ...arrival, start: "top 55%" } });
 
   let currentShot = 0;
   scene.eventCallback("onUpdate", () => {

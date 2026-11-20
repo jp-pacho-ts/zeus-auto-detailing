@@ -17,7 +17,8 @@ const text = (html: string) => html.replace(/<style[\s\S]*?<\/style>|<script[\s\
 test("LuxAuto page: one local service H1, genuine workshop photos and labelled proof slots", () => {
   const html = page("OPEN"), words = text(html);
   assert.equal(html.match(/<h1[\s>]/g)?.length, 1);
-  assert.match(html, /<h1[^>]*aria-label="Car and motorcycle detailing in Tacloban City"[^>]*>.*Car &amp; motorcycle.*detailing.*<\/h1>/);
+  // LE 2026-11-20: a premium hook leads, and the H1 still names the local service in visible text (no aria-label override).
+  assert.match(html, /<h1 id="landing-hero-title">.*Beyond clean.*Premium car &amp; motorcycle detailing in Tacloban City.*<\/h1>/);
   assert.equal(html.match(/class="landing-hero-line(?: [^"]+)?"/g)?.length, 2);
   assert.doesNotMatch(html, /landing-hero-wordmark|landing-hero-beam|landing-letter-mask/);
   assert.match(html, /id="gallery"/);
@@ -41,7 +42,8 @@ test("closing section offers Book now, Manage booking and a call link in every b
     const band = html.match(/<section id="book-your-visit"[\s\S]*?<\/section>/)?.[0];
     assert.ok(band);
     assert.match(band, /id="landing-band-title" aria-label="Ready for a detail\?"/);
-    assert.match(band, /href="\/book">Book now/);
+    // The label sits inside the rolling-label spans (landing-k-label).
+    assert.match(band, /href="\/book">(?:<span[^>]*>)*Book now/);
     assert.match(band, /href="\/book\/manage">Manage booking/);
     assert.match(band, /href="tel:\+639300162234">Call 0930 016 2234/);
     assert.doesNotMatch(band, /Online booking is paused|We could not check online booking/);

@@ -6,6 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
 import { mountTextChoreography } from "./landing-text-choreography";
 import { mountCareScene } from "./landing-work-scene";
+import { HOME_INTRO_PENDING_STYLE_ID } from "@/components/home/home-intro-prepaint";
 import "lenis/dist/lenis.css";
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -19,7 +20,8 @@ export function LandingLifecycle() {
     media.add("(prefers-reduced-motion: no-preference)", () => {
       const hero = root.querySelector(".landing-hero");
       const frame = hero?.querySelector(".landing-video-frame");
-      if (!hero || !frame || hero.getBoundingClientRect().bottom < innerHeight / 2) return;
+      // A fresh tab's intro (landing-intro-motion) opens the hero itself as its curtain leaves.
+      if (!hero || !frame || hero.getBoundingClientRect().bottom < innerHeight / 2 || document.getElementById(HOME_INTRO_PENDING_STYLE_ID)) return;
       const opening = gsap.timeline({ defaults: { ease: "power4.out" } });
       opening.fromTo(frame, { scale: 1.07 }, { scale: 1, duration: .98 }, 0)
         .fromTo(hero.querySelectorAll(".landing-hero-line > span"), { yPercent: 84 }, { yPercent: 0, duration: .61, stagger: .08 }, .16);
@@ -74,9 +76,31 @@ export function LandingLifecycle() {
       section?.addEventListener("focusin", reveal);
       return () => section?.removeEventListener("focusin", reveal);
     });
+    // LE 2026-11-20: the service panels open like the intro: each shot wipes up out of black in black and white,
+    // then data-film="on" hands over to landing.css, which brings the colour back and lets the open panel's copy and
+    // gold rule arrive. GSAP moves only the photo frame, so it never fights the CSS panel states.
+    media.add("(prefers-reduced-motion: no-preference)", () => {
+      const cards = gsap.utils.toArray<HTMLElement>(root.querySelectorAll(".landing-care-card"));
+      if (!cards.length) return;
+      const frame = (card: HTMLElement) => card.querySelector(".landing-care-photo");
+      const play = (batch: HTMLElement[], instant = false) => batch.forEach((card, i) => {
+        if (card.dataset.film !== "wait") return;
+        if (instant) { gsap.killTweensOf(frame(card)); gsap.set(frame(card), { clearProps: "all" }); card.dataset.film = "on"; return; }
+        gsap.timeline({ delay: i * .16, onComplete: () => { gsap.set(frame(card), { clearProps: "all" }); } })
+          .to(frame(card), { clipPath: "inset(0% 0 0 0)", duration: 1.2, ease: "power4.inOut" }, 0)
+          .to(frame(card), { scale: 1, duration: 1.9, ease: "power3.out" }, 0)
+          .call(() => { card.dataset.film = "on"; }, [], .6);
+      });
+      cards.forEach((card) => { card.dataset.film = "wait"; gsap.set(frame(card), { clipPath: "inset(100% 0 0 0)", scale: 1.22 }); });
+      const triggers = ScrollTrigger.batch(cards, { start: "top 85%", once: true, onEnter: (batch) => play(batch as HTMLElement[]) });
+      // Keyboard users never wait for an entrance.
+      const reveal = (event: FocusEvent) => { const card = (event.target as Element).closest<HTMLElement>(".landing-care-card"); if (card) play([card], true); };
+      root.addEventListener("focusin", reveal);
+      return () => { root.removeEventListener("focusin", reveal); triggers.forEach((t) => t.kill()); cards.forEach((card) => { delete card.dataset.film; }); };
+    });
     // Desktop scenes use native scroll geometry. Phones get the bounded title reveal.
     media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => {
-      const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, autoRaf: false, prevent: (node) => !!node.closest(".landing-mobile-menu, select") });
+      const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, autoRaf: false, prevent: (node) => !!node.closest(".landing-menu, select") });
       const tick = (seconds: number) => lenis.raf(seconds * 1000);
       lenis.on("scroll", ScrollTrigger.update); gsap.ticker.add(tick);
       const hero = root.querySelector(".landing-hero");
@@ -96,15 +120,6 @@ export function LandingLifecycle() {
         } });
       };
       cue?.addEventListener("click", discover);
-      root.querySelectorAll(".landing-care-card").forEach((card) => {
-        const photo = card.querySelector(".landing-care-photo img");
-        if (!photo) return;
-        gsap.fromTo(photo, { scale: 1.12 }, {
-          scale: 1,
-          ease: "none",
-          scrollTrigger: { trigger: card, start: "top 96%", end: "top 46%", scrub: .4 },
-        });
-      });
       const bleed = root.querySelector(".landing-bleed");
       const coatingPhoto = bleed?.querySelector("img");
       if (coatingPhoto) gsap.fromTo(coatingPhoto, { scale: 1.025 }, {
