@@ -37,9 +37,12 @@ function SampleReviews() {
 export function LandingReviews() {
   return (
     <section id="reviews" className="landing-section landing-reviews" aria-labelledby="landing-reviews-title">
-      <div className="landing-wrap landing-review-head">
-        <h2 id="landing-reviews-title">Customer experiences<span className="landing-gold-dot">.</span></h2>
-        <p>Sample reviews for this preview. Customer feedback will appear here.</p>
+      <div className="landing-wrap landing-section-heading landing-review-head">
+        <div>
+          <p className="landing-eyebrow">In their words</p>
+          <h2 id="landing-reviews-title">Customer experiences<span className="landing-gold-dot">.</span></h2>
+        </div>
+        <p className="landing-muted landing-care-lede">Sample reviews for this preview. Customer feedback will appear here.</p>
       </div>
       <div className="landing-review-window" role="group" tabIndex={0} aria-label="Sample reviews. Focus or hover to pause the strip.">
         <div className="landing-review-track">

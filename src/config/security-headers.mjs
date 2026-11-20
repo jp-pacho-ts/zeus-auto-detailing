@@ -4,7 +4,8 @@
 // one CSP. It allows inline scripts and styles because Next's bootstrap and React style attributes
 // need them; a per-response nonce would need dynamic rendering. Turnstile loads its script and
 // frame from challenges.cloudflare.com. /api routes are left to their own, stricter headers (the
-// sandboxed proof image, no-store JSON).
+// sandboxed proof image, no-store JSON). The landing preview alone may also load OpenFreeMap tiles and run
+// MapLibre's blob: worker for its 3D map, plus frame the Google embed the map falls back to.
 
 /** @param {boolean} production @param {boolean} [landingMap] */
 export function documentContentSecurityPolicy(production, landingMap = false) {
@@ -13,9 +14,11 @@ export function documentContentSecurityPolicy(production, landingMap = false) {
     "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    `img-src 'self' data: blob:${landingMap ? " https://tiles.openfreemap.org" : ""}`,
     "font-src 'self'",
-    "connect-src 'self' https://challenges.cloudflare.com",
+    `connect-src 'self' https://challenges.cloudflare.com${landingMap ? " https://tiles.openfreemap.org" : ""}`,
+    // The landing map (MapLibre) decodes tiles in a blob: worker.
+    ...(landingMap ? ["worker-src 'self' blob:"] : []),
     `frame-src https://challenges.cloudflare.com${landingMap ? " https://www.google.com/maps/embed" : ""}`,
     "object-src 'none'",
     "base-uri 'self'",

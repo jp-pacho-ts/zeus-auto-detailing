@@ -5,7 +5,8 @@ export function careFocusProgress(index: number, count: number) {
 // Keep each shot fully open briefly between wipes.
 export function careShotWindow(index: number, count: number) {
   const center = careFocusProgress(index, count);
-  const halfHold = count > 1 ? .16 / (count - 1) : 0;
+  // LE 2026-11-20: longer holds so each shot rests before the next cut.
+  const halfHold = count > 1 ? .24 / (count - 1) : 0;
   return { start: Math.max(0, center - halfHold), end: Math.min(1, center + halfHold) };
 }
 

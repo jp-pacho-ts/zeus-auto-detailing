@@ -3,13 +3,14 @@ import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import type { LandingPhoto } from "./landing-photos";
 
-export function LandingCard({ anchor, addOn, duration, title, price, priceId, arrow, action, photo, children }: {
-  anchor: string; addOn: boolean; duration?: string | null; title: string; price: string; priceId: string;
+// priceTag: the <PriceTag> line (price, plus the promo discount when one is set in admin).
+export function LandingCard({ anchor, addOn, duration, title, priceTag, arrow, action, photo, children }: {
+  anchor: string; addOn: boolean; duration?: string | null; title: string; priceTag: ReactNode;
   arrow: { href: string; label: string }; action?: ReactNode; photo?: LandingPhoto; children?: ReactNode;
 }) {
   const heading = <div className="landing-service-heading">
     <h4>{title}</h4>
-    <p className="landing-price" id={priceId}>{price}</p>
+    {priceTag}
     {(addOn || duration) && <ul className="landing-service-meta">{addOn && <li>Add-on</li>}{duration && <li>{duration}</li>}</ul>}
   </div>;
   return <article id={anchor} className={`landing-service-card${photo ? " landing-service-card--photo" : " landing-service-card--compact"}`}>

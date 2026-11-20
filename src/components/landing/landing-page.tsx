@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ArrowDown, ArrowUp, ArrowUpRight, MapPin, MessageCircle, Phone } from "lucide-react";
+import { ArrowDown, ArrowUpRight, MessageCircle, Phone } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import type { BookingCatalog } from "@/types/catalog-contracts";
 import type { LandingStatus } from "@/server/landing/status";
@@ -11,8 +11,14 @@ import { LandingScrollFloat } from "./landing-scroll-float";
 import { LandingLifecycle } from "./landing-lifecycle";
 import { CoatingsBleed, LandingServices, type DisplayCatalog } from "./landing-services";
 import { LandingFaq } from "./landing-faq";
+import { LandingVisitMap } from "./landing-visit-map";
+import { LandingFeatured } from "./landing-featured";
+import { LandingCare } from "./landing-care";
+import { servicePage } from "./landing-pages";
 import { landingPhoto } from "./landing-photos";
 import { bookingAction } from "./landing-model";
+import { LandingIntro } from "./landing-intro";
+import { HOME_INTRO_PREPAINT, HOME_INTRO_PREPAINT_ID } from "@/components/home/home-intro-prepaint";
 import "./landing.css";
 
 // Each care category uses its own approved work photo; these are alternatives, not a fixed process.
@@ -47,6 +53,9 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
     { question: "What does a graphene package include?", answer: <p>Open What&apos;s included on each package, or compare them under <a href="#coatings">Coatings and films</a>.</p> },
   ];
   return <div className="landing" data-landing-preview>
+    {/* Before first paint: a fresh, motion-allowed tab shows the intro curtain instead of the page. */}
+    <script id={HOME_INTRO_PREPAINT_ID} dangerouslySetInnerHTML={{ __html: HOME_INTRO_PREPAINT }} />
+    <LandingIntro>
     <a className="landing-skip" href="#landing-main">Skip to content</a>
     <div className="landing-preview-note">Website preview</div>
     <div className="landing-progress" aria-hidden="true" />
@@ -57,16 +66,18 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           <div className="landing-hero-photo"><LandingVideo /></div>
         </div>
         <div className="landing-wrap landing-hero-copy">
-          <h1 id="landing-hero-title" aria-label="Car and motorcycle detailing in Tacloban City">
-            <span className="landing-hero-line" aria-hidden="true"><span>Car &amp; motorcycle</span></span>{" "}
-            <span className="landing-hero-line" aria-hidden="true"><span>detailing<span className="landing-gold-dot">.</span></span></span>
+          {/* LE 2026-11-20: a short premium hook, with the plain service line kept inside the h1 for clarity and search. */}
+          <h1 id="landing-hero-title">
+            <span className="landing-hero-line"><span>Beyond clean<span className="landing-gold-dot">.</span></span></span>{" "}
+            <span className="landing-hero-line landing-hero-sub"><span>Premium car &amp; motorcycle detailing in Tacloban City</span></span>
           </h1>
+          <a className="landing-scroll-cue" href="#about" aria-label="Discover Zeus, the shop and its approach"><span>Discover Zeus</span><ArrowDown aria-hidden="true" /></a>
           <div className="landing-hero-bar">
             <div id="landing-hero-actions" className="landing-actions"><LandingHeroAction href={booking.href} label={booking.label} /><a className="landing-hero-manage" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a></div>
-            <a className="landing-scroll-cue" href="#about" aria-label="Discover Zeus, the shop and its approach"><span>Discover Zeus</span><ArrowDown aria-hidden="true" /></a>
           </div>
         </div>
       </section>
+      {display && <LandingFeatured services={display.services} sizes={display.vehicleCategories} />}
       <section id="about" className="landing-about" aria-labelledby="landing-about-title" tabIndex={-1}>
         <div className="landing-about-frame">
           <div className="landing-about-photo">{photo("full-detailing", "100vw")}</div>
@@ -80,6 +91,13 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           <p>We handle everything from routine washes to interior and exterior detailing. For owners looking to protect their paint, we also offer graphene coating packages.</p>
           <p>Tell us what you drive and what you want to improve. We can recommend a service based on the condition of your vehicle and how you use it.</p>
           <a className="landing-text-link" href={brandConfig.facebookMessengerUrl}>Ask us about detailing<ArrowUpRight aria-hidden="true" /></a>
+          {/* LE 2026-11-20: shop facts as spec lines (Porsche-style), only what brandConfig states. No hours: the
+              page asks visitors to confirm them (Visit, FAQ). */}
+          <dl className="landing-about-facts">
+            <div><dt>Call or message</dt><dd><a href={tel}>{brandConfig.displayPhone}</a></dd></div>
+            <div><dt>We work on</dt><dd>Cars &amp; motorcycles</dd></div>
+            <div><dt>The shop</dt><dd>{brandConfig.location}</dd></div>
+          </dl>
         </div>
       </section>
       <section id="concerns" className="landing-concerns" aria-labelledby="landing-concerns-title">
@@ -104,27 +122,20 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
       </section>
       <section id="care" className="landing-section landing-wrap landing-care" aria-labelledby="landing-care-title">
         <div className="landing-section-heading">
-          <LandingScrollFloat id="landing-care-title" text="Choose your service." />
+          <div><p className="landing-eyebrow">Our services</p><LandingScrollFloat id="landing-care-title" text="Choose your service." /></div>
+          <p className="landing-muted landing-care-lede">From a routine wash to lasting paint protection, at our shop in Tacloban City.</p>
         </div>
-        <div className="landing-care-grid">{[
-          { title: "Wash", text: "Routine cleaning for cars and motorcycles.", category: "WASH", image: "basic-wash", cta: "View wash options" },
-          { title: "Detailing", text: "A deeper clean for the interior and exterior.", category: "DETAILING", image: "exterior-detailing", cta: "View detailing options" },
-          { title: "Graphene coating", text: "Added protection for your vehicle's paint.", category: "GRAPHENE", image: "eclipse-graphene", cta: "Compare coatings" },
-        ].map((service) => (
-          <a className="landing-care-card" href={display ? `#services-${service.category}` : "#services"} key={service.category}>
-            <div className="landing-care-photo">{photo(service.image, "(max-width: 767px) 100vw, 33vw")}</div>
-            <div className="landing-care-content">
-              <h3>{service.title}</h3>
-              <p>{service.text}</p>
-              <span>{service.cta}<ArrowUpRight aria-hidden="true" /></span>
-            </div>
-          </a>
-        ))}</div>
+        <LandingCare items={[
+          // LE 2026-11-20: each card opens its service page (a "coming soon" page for now).
+          { title: "Wash", text: "Routine cleaning for cars and motorcycles.", page: "wash", image: "basic-wash", cta: "Explore wash" },
+          { title: "Detailing", text: "A deeper clean for the interior and exterior.", page: "detailing", image: "exterior-detailing", cta: "Explore detailing" },
+          { title: "Graphene coating", text: "Added protection for your vehicle's paint.", page: "graphene-coating", image: "eclipse-graphene", cta: "Explore coatings" },
+        ].map((service) => ({ ...service, href: servicePage(service.page), photo: photo(service.image, "(max-width: 900px) 100vw, 62vw") }))} />
       </section>
       <section id="work" className="landing-section landing-wrap landing-stage" aria-labelledby="landing-work-title">
         <div className="landing-stage-viewport">
           <div className="landing-section-heading">
-            <div><h2 id="landing-work-title">What we do in the shop</h2></div>
+            <div><p className="landing-eyebrow">Inside the shop</p><h2 id="landing-work-title">What we do in the shop</h2></div>
             <p className="landing-muted">From the first wash to the final coat. Photographed at Zeus.</p>
           </div>
           <div className="landing-stage-track">
@@ -156,13 +167,13 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
               <p className="landing-price-preview-status">Prices are unavailable right now.</p>
               <p>Tell us what you drive and which service you have in mind for an estimate.</p>
               <div className="landing-price-preview-actions">
-                <a className="landing-pill landing-gold" href={brandConfig.facebookMessengerUrl}>Message for an estimate<ArrowUpRight aria-hidden="true" /></a>
+                <a className="landing-pill landing-gold landing-kbtn" href={brandConfig.facebookMessengerUrl}><span className="landing-k-label"><span>Message for an estimate</span></span><span className="landing-k-arrow"><ArrowUpRight aria-hidden="true" /></span></a>
                 <a className="landing-text-link" href={tel}><Phone aria-hidden="true" />Call {brandConfig.displayPhone}</a>
               </div>
             </div>
           </div>
         </section>
-        <section id="coatings" className="landing-coatings"><CoatingsBleed /><div className="landing-wrap landing-compare"><p><a href={brandConfig.facebookMessengerUrl}>Ask about coatings on Messenger</a></p></div></section>
+        <section id="coatings" className="landing-coatings landing-coatings-solo"><CoatingsBleed messenger={brandConfig.facebookMessengerUrl} /></section>
       </>}
       <section id="gallery" className="landing-section landing-wrap landing-gallery" aria-labelledby="landing-gallery-title">
         <div className="landing-section-heading"><div><p className="landing-eyebrow">A closer look</p><h2 id="landing-gallery-title">The details tell the story<span className="landing-gold-dot">.</span></h2></div><p className="landing-muted">A glimpse of our process, from the final wipe to the care beneath a coating.</p></div>
@@ -172,21 +183,24 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
       <section id="visit" className="landing-section landing-wrap landing-ground-muted landing-visit" aria-labelledby="landing-visit-title">
         <div className="landing-visit-info">
           <h2 id="landing-visit-title">Visit the shop<span className="landing-gold-dot" aria-hidden="true">.</span></h2>
-          <address className="landing-visit-address">
-            <strong>{brandConfig.location}</strong>
-            <span>{brandConfig.landmark}</span>
-          </address>
-          <a className="landing-pill landing-solid landing-visit-directions" href={directions} target="_blank" rel="noreferrer" aria-label="Get directions, opens Google Maps">
-            <MapPin aria-hidden="true" />Get directions<ArrowUpRight aria-hidden="true" />
+          {/* LE 2026-11-20: brochure-style spec sheet (label, value) instead of loose lines. */}
+          <dl className="landing-visit-spec">
+            <div><dt>Address</dt><dd><address className="landing-visit-address">
+              <strong>{brandConfig.location}</strong>
+              <span>{brandConfig.landmark}</span>
+            </address></dd></div>
+            <div><dt>Hours</dt><dd>Call or message to confirm shop hours.</dd></div>
+            <div><dt>Contact</dt><dd className="landing-visit-contact">
+              <a className="landing-text-link" href={tel}><Phone aria-hidden="true" />{brandConfig.displayPhone}</a>
+              <a className="landing-text-link" href={brandConfig.facebookMessengerUrl}><MessageCircle aria-hidden="true" />Messenger</a>
+            </dd></div>
+          </dl>
+          <a className="landing-kbtn landing-k-outline landing-visit-directions" href={directions} target="_blank" rel="noreferrer" aria-label="Get directions, opens Google Maps">
+            <span className="landing-k-label"><span>Get directions</span></span><span className="landing-k-arrow"><ArrowUpRight aria-hidden="true" /></span>
           </a>
-          <div className="landing-visit-contact">
-            <p className="landing-muted">Call or message to confirm shop hours.</p>
-            <a className="landing-text-link" href={tel}><Phone aria-hidden="true" />{brandConfig.displayPhone}</a>
-            <a className="landing-text-link" href={brandConfig.facebookMessengerUrl}><MessageCircle aria-hidden="true" />Messenger</a>
-          </div>
         </div>
         <div className="landing-visit-map">
-          <iframe src={brandConfig.mapEmbedUrl} title={`Google Maps location for ${brandConfig.businessName}`} loading="lazy" referrerPolicy="no-referrer" allowFullScreen />
+          <LandingVisitMap />
         </div>
       </section>
       <section id="book-your-visit" className="landing-band" aria-labelledby="landing-band-title">
@@ -197,7 +211,7 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
               <span className="landing-band-line" aria-hidden="true"><span>a detail<span className="landing-gold-dot">?</span></span></span>
             </h2>
             <div id="landing-closing-cta" className="landing-band-actions">
-              <a className="landing-pill landing-gold" href={booking.href}>{booking.label}<ArrowUpRight aria-hidden="true" /></a>
+              <a className="landing-pill landing-gold landing-kbtn" href={booking.href}><span className="landing-k-label"><span>{booking.label}</span></span><span className="landing-k-arrow"><ArrowUpRight aria-hidden="true" /></span></a>
               <a className="landing-text-link" href="/book/manage">Manage booking<ArrowUpRight aria-hidden="true" /></a>
             </div>
             <p className="landing-band-help landing-muted">Questions before you book? <a href={tel}>Call {brandConfig.displayPhone}</a></p>
@@ -211,23 +225,30 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
       </section>
     </main>
     <footer id="site-footer" className="landing-footer landing-wrap">
+      {/* LE 2026-11-20: four labelled columns, an oversized ZEUS signature and a quiet bottom line (no back-to-top). */}
       <div className="landing-footer-grid">
         <div className="landing-footer-location">
-          <Image src={brandConfig.logoUrl} alt={brandConfig.businessName} width={148} height={58} />
+          <h2 className="landing-footer-heading">Visit</h2>
           <address className="landing-footer-address"><strong>{brandConfig.location}</strong><span>{brandConfig.landmark}</span></address>
           <a className="landing-text-link" href={directions} target="_blank" rel="noreferrer" aria-label="Get directions, opens Google Maps">Get directions<ArrowUpRight aria-hidden="true" /></a>
         </div>
         <nav aria-labelledby="landing-footer-explore">
           <h2 id="landing-footer-explore" className="landing-footer-heading">Explore</h2>
-          <ul className="landing-footer-links landing-footer-explore">
+          <ul className="landing-footer-links">
             <li><a href="#about">About</a></li>
             <li><a href="#services">Services and prices</a></li>
             <li><a href="#estimate">Get an estimate</a></li>
             <li><a href="#reviews">Reviews</a></li>
             <li><a href="#visit">Visit the shop</a></li>
-            <li><a href="/book/manage">Manage booking</a></li>
           </ul>
         </nav>
+        <div>
+          <h2 className="landing-footer-heading">Booking</h2>
+          <ul className="landing-footer-links">
+            <li><a href={booking.href}>{booking.label}</a></li>
+            <li><a href="/book/manage">Manage booking</a></li>
+          </ul>
+        </div>
         <div>
           <h2 className="landing-footer-heading">Contact</h2>
           <ul className="landing-footer-links landing-footer-contact">
@@ -237,11 +258,14 @@ export function LandingPage({ catalog, status }: { catalog: BookingCatalog | nul
           </ul>
         </div>
       </div>
+      {/* Oversized ZEUS signature: the real logo letters (zeus-wordmark-mask.png, a 3x re-sharpened cut of logo.png) filled with a gold fade; decorative. */}
+      <div className="landing-footer-mark" aria-hidden="true" />
       <div className="landing-footer-bottom">
         <p className="landing-copyright">© {new Date().getFullYear()} {brandConfig.businessName}</p>
-        <a className="landing-footer-top" href="#top">Back to top<ArrowUp aria-hidden="true" /></a>
+        <p className="landing-footer-tag">Car &amp; motorcycle detailing · Tacloban City</p>
       </div>
     </footer>
     <LandingLifecycle />
+    </LandingIntro>
   </div>;
 }

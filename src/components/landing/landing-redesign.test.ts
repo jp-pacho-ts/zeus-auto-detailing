@@ -11,7 +11,8 @@ const render = (status: "OPEN" | "PAUSED" | "UNKNOWN" = "OPEN") => renderToStati
 test("LuxAuto redesign connects the brand, care journey, genuine shop work and feedback", () => {
   const html = render();
   for (const id of ["top", "about", "care", "work", "services", "estimate", "coatings", "gallery", "reviews", "faq", "visit"]) assert.ok(html.includes(`id="${id}"`), id);
-  assert.match(html, /Car &amp; motorcycle.*detailing/);
+  // LE 2026-11-20: the hero leads with a premium hook; the service line stays visible under it.
+  assert.match(html, /Beyond clean.*Premium car &amp; motorcycle detailing in Tacloban City/);
   assert.equal(html.match(/<h1[ >]/g)?.length, 1);
   assert.match(html, /Car and motorcycle detailing in Tacloban City/);
   assert.match(html, /Customer feedback will appear here\./);
@@ -24,7 +25,8 @@ test("unavailable prices provide an estimate request and a direct phone link", (
   const pricing = html.slice(html.indexOf('id="services"'), html.indexOf('id="coatings"'));
   assert.match(pricing, /Prices are unavailable right now\./);
   assert.match(pricing, /id="estimate"/);
-  assert.match(pricing, /href="https:\/\/m\.me\/[^"]+"[^>]*>Message for an estimate/);
+  // The label sits inside the rolling-label spans (landing-k-label).
+  assert.match(pricing, /href="https:\/\/m\.me\/[^"]+"[^>]*>(?:<span[^>]*>)*Message for an estimate/);
   assert.match(pricing, /href="tel:[^"]+"/);
 });
 
@@ -49,7 +51,8 @@ test("LE revision: Book now and Manage booking are first-screen actions in every
   for (const status of ["OPEN", "PAUSED", "UNKNOWN"] as const) {
     const html = render(status);
     const hero = html.slice(html.indexOf('id="top"'), html.indexOf('id="about"'));
-    assert.match(hero, /href="\/book"[^>]*>Book now/);
+    // The label sits inside the rolling-label spans (landing-k-label).
+    assert.match(hero, /href="\/book"[^>]*>(?:<span[^>]*>)*Book now/);
     assert.match(hero, /href="\/book\/manage"[^>]*>Manage booking/);
     assert.doesNotMatch(hero, />Call to book<|>Book an appointment</);
     assert.match(hero, /<video[^>]*loop=""/);
@@ -80,7 +83,7 @@ test("minimal hero keeps the headline and booking actions without decorative loc
   const hero = html.slice(html.indexOf('id="top"'), html.indexOf('id="about"'));
   assert.doesNotMatch(hero, /landing-hero-side|landing-hero-location|Precision\. Protection\. Pride\.|Tacloban City, PH|The art of considered car care|From the everyday refresh/);
   assert.doesNotMatch(hero, /landing-video-control|Pause video|landing-lede/);
-  assert.match(html, /<header class="landing-header" data-scrolled="false"/);
+  assert.match(html, /<header class="landing-header" data-menu-open="false"/);
 });
 
 test("hero keeps direct booking actions without availability notices in all states", () => {
@@ -99,12 +102,13 @@ test("opening leads directly into the shop introduction without a repeated facts
   assert.match(html, /Professional care for your vehicle/);
 });
 
-test("service choices use familiar names and header has clear section destinations", () => {
+test("service choices use familiar names and the header menu has clear section destinations", () => {
   const html = render();
   const care = html.slice(html.indexOf('id="care"'), html.indexOf('id="work"'));
   for (const name of ["Wash", "Detailing", "Graphene coating"]) assert.ok(care.includes(`<h3>${name}</h3>`), name);
   assert.doesNotMatch(care, /<h3>Refresh|<h3>Restore|more considered reset/);
-  const nav = html.slice(html.indexOf('class="landing-desktop-nav"'), html.indexOf('</nav>'));
+  // LE 2026-11-19: Koenigsegg-style header; the section links live in the full-screen menu at every width.
+  const nav = html.slice(html.indexOf('class="landing-menu-links"'), html.indexOf('</nav>'));
   assert.equal(nav.match(/<a /g)?.length, 5);
   for (const target of ["#about", "#services", "#work", "#faq", "#visit"]) assert.ok(nav.includes(`href="${target}"`), target);
 });
