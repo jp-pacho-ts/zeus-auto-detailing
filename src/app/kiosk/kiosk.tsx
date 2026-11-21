@@ -2,22 +2,50 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { ArrowRight, Hand } from "lucide-react";
 import { BookingWizard } from "@/components/booking/booking-wizard";
 import { LandingVideo } from "@/components/landing/landing-video";
+import { HERO_POSTER_FILES } from "@/components/home/hero-video";
 import { brandConfig } from "@/config/brand";
 import "@/components/landing/landing.css";
 import styles from "./kiosk.module.css";
 
+// Lengths of the welcome's exit and the booking's end; kept in step with the keyframes in kiosk.module.css.
+const EXIT_MS = 950;
+const END_MS = 900;
+
 export function Kiosk() {
   const [started, setStarted] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [ending, setEnding] = useState(false);
   const restoreFocus = useRef(false);
   const startButton = useRef<HTMLButtonElement>(null);
+  const leaveTimer = useRef<number | undefined>(undefined);
 
   const reset = useCallback(() => {
     restoreFocus.current = true;
+    setLeaving(false);
+    setEnding(false);
     setStarted(false);
   }, []);
+
+  // Ending a booking (End session, Next customer or the idle timeout) plays the reverse: the letterbox closes,
+  // the booking fades and the shop footage pushes into black, then the welcome fades up again.
+  const end = useCallback(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return reset();
+    setEnding(true);
+    window.clearTimeout(leaveTimer.current);
+    leaveTimer.current = window.setTimeout(reset, END_MS);
+  }, [reset]);
+
+  // A tap plays the exit (letterbox closes, footage pushes in and goes dark) before the booking fades up from black.
+  const start = () => {
+    if (leaving) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return setStarted(true);
+    setLeaving(true);
+    leaveTimer.current = window.setTimeout(() => setStarted(true), EXIT_MS);
+  };
+
+  useEffect(() => () => window.clearTimeout(leaveTimer.current), []);
 
   useEffect(() => {
     const onPageShow = (event: PageTransitionEvent) => {
@@ -33,13 +61,21 @@ export function Kiosk() {
     if (started) document.getElementById("wizard-step-title")?.focus();
   }, [started]);
 
-  if (started) return <div className={styles.booking}><BookingWizard kioskOnExit={reset} /></div>;
+  // The shop still from the welcome carries on behind every booking step, darkened, with a slow camera push.
+  if (started) return (
+    <div className={styles.booking} data-ending={ending || undefined}>
+      <div className={styles.backdrop} aria-hidden="true">
+        <Image src={HERO_POSTER_FILES.desktop} alt="" fill sizes="100vw" priority />
+      </div>
+      <BookingWizard kioskOnExit={end} />
+    </div>
+  );
 
-  // Attract screen: the live landing hero (landing.css). A tap anywhere starts the order; the gold button is the keyboard and screen-reader path.
+  // Attract screen: the live landing hero (landing.css). A tap anywhere starts the order; the bottom button is the keyboard and screen-reader path.
   return (
     // Kiosk start screen (McDonald's / Flipdish "touch to start order" pattern): footage full-screen, logo and copy centred,
-    // one large centred start target and a full-width gold touch bar along the bottom.
-    <main className={`landing ${styles.welcome}`} onClick={() => setStarted(true)}>
+    // and one quiet start button along the bottom.
+    <main className={`landing ${styles.welcome}`} data-leaving={leaving || undefined} onClick={start}>
       <div className={`landing-hero-art ${styles.art}`}>
         <div className="landing-hero-photo"><LandingVideo /></div>
       </div>
@@ -51,12 +87,9 @@ export function Kiosk() {
           Beyond clean<span className="landing-gold-dot">.</span>
           <span className={styles.sub}>Book your car or motorcycle detailing here</span>
         </h1>
-        <button ref={startButton} type="button" className={`landing-pill landing-gold landing-kbtn ${styles.start}`}>
-          <span className="landing-k-label"><span>Tap to start</span></span>
-          <span className="landing-k-arrow"><ArrowRight aria-hidden="true" /></span>
-        </button>
       </section>
-      <div className={styles.bar} aria-hidden="true"><Hand />Touch anywhere to begin</div>
+      {/* The one start control; the whole screen also starts the order on tap. */}
+      <button ref={startButton} type="button" className={styles.bar}>Touch anywhere to begin</button>
     </main>
   );
 }

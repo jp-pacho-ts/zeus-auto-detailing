@@ -25,6 +25,7 @@ import { Logo } from "@/components/ui/logo";
 import { TurnstileChallenge, type ChallengeStatus } from "@/components/booking/turnstile";
 import { DayPicker, DAYS_PER_PAGE, dateLabel, shortDayLabel, todayInManila } from "@/components/booking/day-picker";
 import { BookingTicket } from "@/components/booking/booking-ticket";
+import { KioskEndDialog } from "@/components/booking/kiosk-end-dialog";
 import { VehicleDrawing, VehicleDrawingDefs } from "@/components/booking/vehicle-drawing";
 import { ManagementCode } from "@/components/booking/management-code";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
@@ -174,6 +175,7 @@ export function BookingWizard({
   const [pending, setPending] = React.useState(false);
   const [uncertain, setUncertain] = React.useState(false);
   const [kioskWarning, setKioskWarning] = React.useState(false);
+  const [confirmEnd, setConfirmEnd] = React.useState(false);
   const kioskKeepBooking = React.useRef<(() => void) | null>(null);
   // The management code stays in memory only (ADR-002): never in the URL or browser storage.
   const [booking, setBooking] = React.useState<{ view: DayBookingView; access: ManagementAccessGrant | null; vehicleModel: string; vehiclePlate: string | null; customerName: string; customerPhone: string; multiDay: boolean } | null>(null);
@@ -1165,6 +1167,7 @@ export function BookingWizard({
   return (
     <div className="wizard-root min-h-screen bg-background text-foreground" data-layout={kioskOnExit ? "kiosk" : undefined}>
       <style>{printCss}</style>
+      {kioskOnExit && confirmEnd && !pending && step < 5 && <KioskEndDialog onKeep={() => setConfirmEnd(false)} onEnd={() => { setConfirmEnd(false); kioskOnExit(); }} />}
       {kioskOnExit && kioskWarning && !pending && step < 5 && (
         <aside className="fixed inset-x-4 top-4 z-50 mx-auto flex max-w-xl flex-wrap items-center justify-between gap-3 rounded-xl border border-warning bg-card p-4 shadow-xl">
           <p role="alert">This session will end soon.</p>
@@ -1200,7 +1203,7 @@ export function BookingWizard({
                 ))}
               </ol>}
               {kioskOnExit && !pending && (
-                <button type="button" data-part="end-session" onClick={kioskOnExit} className={pillLink + " col-start-2 row-start-1 justify-self-end px-4 lg:col-start-3"}>
+                <button type="button" data-part="end-session" onClick={() => setConfirmEnd(true)} className={pillLink + " col-start-2 row-start-1 justify-self-end px-4 lg:col-start-3"}>
                   End session
                 </button>
               )}
@@ -1235,6 +1238,7 @@ export function BookingWizard({
               <strong className="font-bold text-primary">Step {step} of 4</strong> · {stepLabel}
             </p>}
             <h1
+              key={kioskOnExit ? step : undefined}
               id="wizard-step-title"
               tabIndex={-1}
               className={kioskOnExit
@@ -1302,6 +1306,7 @@ export function BookingWizard({
                         return (
                           <label
                             key={v.id}
+                            data-part="vehicle-card"
                             className={
                               "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
                               (kioskOnExit ? "[--ic:clamp(96px,16vh,160px)] " :
