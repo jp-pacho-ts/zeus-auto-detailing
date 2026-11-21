@@ -32,6 +32,21 @@ test("the kiosk flow is an ordering screen in the landing's style", () => {
   assert.match(wizard, />Your order</);
   assert.match(wizard, /md:grid-cols-\[repeat\(auto-fit,minmax\(200px,1fr\)\)\]/);
   for (const part of ["primary", "back", "end-session", "step-number"]) assert.match(wizard, new RegExp(`data-part="${part}"`));
+  // Tablet (iPad mini portrait): the bar's total never truncates; only the description shortens.
+  assert.match(wizard, /<span className="min-w-0 truncate">/);
+  assert.match(wizard, /<strong className="shrink-0 text-xl font-extrabold tabular-nums">\{total\.amount\}<\/strong>/);
+  // Idle (LE): 10 minutes without activity returns to the start; the last minute is a countdown dialog, not a banner.
+  assert.match(wizard, /const KIOSK_IDLE_MS = 10 \* 60_000;/);
+  assert.match(wizard, /expiration = window\.setTimeout\(kioskOnExit, KIOSK_IDLE_MS\);/);
+  assert.match(wizard, /<KioskIdleDialog deadline=\{kioskWarning\} total=\{KIOSK_WARNING_MS\}/);
+  assert.doesNotMatch(wizard, /This session will end soon/);
+  assert.match(readFileSync("src/components/booking/kiosk-end-dialog.tsx", "utf8"), /role="timer"/);
+  // Loading states use the shared Skeleton (LE): menu cards, pricing and days; the pulse respects reduced motion.
+  assert.match(wizard, /import \{ Skeleton \} from "@\/components\/ui\/skeleton";/);
+  assert.match(wizard, /data-part="skeleton-card"/);
+  assert.ok((wizard.match(/<span className="sr-only">Pricing…<\/span><Skeleton/g) ?? []).length >= 2);
+  assert.match(readFileSync("src/components/booking/day-picker.tsx", "utf8"), /<Skeleton key=\{i\} className="h-16 rounded-xl" \/>/);
+  assert.match(readFileSync("src/components/ui/skeleton.tsx", "utf8"), /motion-safe:animate-pulse/);
   // End session asks first (LE); Keep booking is the focused default and Escape keeps the order.
   assert.match(wizard, /data-part="end-session" onClick=\{\(\) => setConfirmEnd\(true\)\}/);
   assert.match(wizard, /<KioskEndDialog onKeep=\{\(\) => setConfirmEnd\(false\)\} onEnd=\{\(\) => \{ setConfirmEnd\(false\); kioskOnExit\(\); \}\} \/>/);

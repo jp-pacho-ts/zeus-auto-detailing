@@ -22,10 +22,11 @@ import {
 } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
+import { Skeleton } from "@/components/ui/skeleton";
 import { TurnstileChallenge, type ChallengeStatus } from "@/components/booking/turnstile";
 import { DayPicker, DAYS_PER_PAGE, dateLabel, shortDayLabel, todayInManila } from "@/components/booking/day-picker";
 import { BookingTicket } from "@/components/booking/booking-ticket";
-import { KioskEndDialog } from "@/components/booking/kiosk-end-dialog";
+import { KioskEndDialog, KioskIdleDialog } from "@/components/booking/kiosk-end-dialog";
 import { VehicleDrawing, VehicleDrawingDefs } from "@/components/booking/vehicle-drawing";
 import { ManagementCode } from "@/components/booking/management-code";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
@@ -126,6 +127,9 @@ const STEP_LABELS = ["Vehicle size", "Services", "Day", "Your details"];
 const HEADINGS = ["Choose your vehicle size", "Choose your services", "Choose your day", "Your details", "Booking received"];
 // The normal security-check widget is a fixed 300 px wide; below this it is rendered compact.
 const NARROW_QUERY = "(max-width: 359px)";
+// Kiosk idle timeout (LE): a booking with no taps or typing for 10 minutes returns to the start; the last minute shows a countdown.
+const KIOSK_IDLE_MS = 10 * 60_000;
+const KIOSK_WARNING_MS = 60_000;
 // Kiosk menu tiles: a service without its own shop photo shows its category's photo.
 const KIOSK_CATEGORY_PHOTO: Partial<Record<string, string>> = { WASH: "signature-wash", DETAILING: "full-detailing", GRAPHENE: "arcane-graphene" };
 
@@ -174,7 +178,8 @@ export function BookingWizard({
   const [message, setMessage] = React.useState("");
   const [pending, setPending] = React.useState(false);
   const [uncertain, setUncertain] = React.useState(false);
-  const [kioskWarning, setKioskWarning] = React.useState(false);
+  // The countdown deadline while the idle warning shows; null otherwise.
+  const [kioskWarning, setKioskWarning] = React.useState<number | null>(null);
   const [confirmEnd, setConfirmEnd] = React.useState(false);
   const kioskKeepBooking = React.useRef<(() => void) | null>(null);
   // The management code stays in memory only (ADR-002): never in the URL or browser storage.
@@ -198,14 +203,15 @@ export function BookingWizard({
     let warned = false;
     const renew = () => {
       warned = false;
-      setKioskWarning(false);
+      setKioskWarning(null);
       window.clearTimeout(warning);
       window.clearTimeout(expiration);
       warning = window.setTimeout(() => {
         warned = true;
-        setKioskWarning(true);
-      }, 120_000);
-      expiration = window.setTimeout(kioskOnExit, 150_000);
+        setConfirmEnd(false);
+        setKioskWarning(Date.now() + KIOSK_WARNING_MS);
+      }, KIOSK_IDLE_MS - KIOSK_WARNING_MS);
+      expiration = window.setTimeout(kioskOnExit, KIOSK_IDLE_MS);
     };
     const onActivity = () => {
       if (!warned) renew();
@@ -621,9 +627,14 @@ export function BookingWizard({
   const renderKioskOrder = () => (
     <>
       <span className="block text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</span>
-      <span className="block truncate text-base text-foreground">
-        {[vehicle?.name ?? "Choose a size", lines.length ? `${lines.length} ${lines.length === 1 ? "service" : "services"}` : ""].filter(Boolean).join(" · ")}
-        {lines.length > 0 && <strong className="ml-3 text-xl font-extrabold tabular-nums">{total ? total.amount : "Pricing…"}</strong>}
+      {/* On a narrow tablet only the description shortens; the total always shows in full. */}
+      <span className="flex min-w-0 items-baseline justify-end gap-3 text-base text-foreground">
+        <span className="min-w-0 truncate">
+          {[vehicle?.name ?? "Choose a size", lines.length ? `${lines.length} ${lines.length === 1 ? "service" : "services"}` : ""].filter(Boolean).join(" · ")}
+        </span>
+        {lines.length > 0 && (total
+          ? <strong className="shrink-0 text-xl font-extrabold tabular-nums">{total.amount}</strong>
+          : <span role="status" className="shrink-0 self-center"><span className="sr-only">Pricing…</span><Skeleton className="h-6 w-24" /></span>)}
       </span>
     </>
   );
@@ -934,6 +945,8 @@ export function BookingWizard({
           }
         >
           <span className="relative block aspect-[16/10] bg-muted">
+            {/* Shows until the photo has loaded and covers it. */}
+            {photo && <Skeleton className="absolute inset-0 rounded-none" />}
             {photo ? (
               <Image src={photo.src} alt="" fill sizes="(min-width: 1024px) 22vw, 40vw"
                 className={photo.contain ? "object-contain" : "object-cover"} style={photo.position ? { objectPosition: photo.position } : undefined} />
@@ -1015,7 +1028,7 @@ export function BookingWizard({
                 return (
                   <li key={l.serviceId} className="flex items-center gap-2 py-3 text-sm">
                     <span className="min-w-0 flex-1 break-words font-semibold text-foreground">{s?.name}{l.quantity > 1 ? ` × ${l.quantity}` : ""}</span>
-                    <span className="tabular-nums text-muted-foreground">{priced ? lineAmount(priced) : "…"}</span>
+                    {priced ? <span className="tabular-nums text-muted-foreground">{lineAmount(priced)}</span> : <Skeleton className="h-4 w-16" />}
                     {s && (
                       <button type="button" onClick={() => togglePick(s)} disabled={locked} aria-label={"Remove " + s.name}
                         className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -1031,7 +1044,11 @@ export function BookingWizard({
           )}
           <div className="border-t border-border pt-3">
             <p className="text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</p>
-            <p className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : lines.length ? "Pricing…" : "—"}</p>
+            {total || !lines.length ? (
+              <p className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : "—"}</p>
+            ) : (
+              <div role="status" className="py-1.5"><span className="sr-only">Pricing…</span><Skeleton className="h-8 w-40" /></div>
+            )}
             {total?.note && <p className="mt-1 text-sm text-muted-foreground">{total.note}</p>}
           </div>
           <div className="mt-4 hidden lg:block [&>button]:w-full">{renderPrimary()}</div>
@@ -1140,11 +1157,23 @@ export function BookingWizard({
         </div>
       )}
 
-      {!catalog && !catalogError && (
+      {!catalog && !catalogError && (kioskOnExit ? (
+        // Kiosk: the vehicle cards as skeletons while the service menu loads.
+        <div role="status" aria-busy="true" className="grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+          <span className="sr-only">Loading the shop service menu…</span>
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} data-part="skeleton-card" className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3">
+              <Skeleton className="h-[clamp(124px,21vh,208px)] rounded-xl" />
+              <Skeleton className="mx-1.5 h-5 w-2/3" />
+              <Skeleton className="mx-1.5 mb-1.5 h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : (
         <div role="status" className={panel}>
           Loading the shop service menu…
         </div>
-      )}
+      ))}
       {catalogError && (
         <div role="alert" className={panel}>
           <p>{catalogError}</p>
@@ -1168,13 +1197,8 @@ export function BookingWizard({
     <div className="wizard-root min-h-screen bg-background text-foreground" data-layout={kioskOnExit ? "kiosk" : undefined}>
       <style>{printCss}</style>
       {kioskOnExit && confirmEnd && !pending && step < 5 && <KioskEndDialog onKeep={() => setConfirmEnd(false)} onEnd={() => { setConfirmEnd(false); kioskOnExit(); }} />}
-      {kioskOnExit && kioskWarning && !pending && step < 5 && (
-        <aside className="fixed inset-x-4 top-4 z-50 mx-auto flex max-w-xl flex-wrap items-center justify-between gap-3 rounded-xl border border-warning bg-card p-4 shadow-xl">
-          <p role="alert">This session will end soon.</p>
-          <button type="button" onClick={() => kioskKeepBooking.current?.()} className={outlineButton + " " + actionHeight}>
-            Keep booking
-          </button>
-        </aside>
+      {kioskOnExit && kioskWarning !== null && !pending && step < 5 && (
+        <KioskIdleDialog deadline={kioskWarning} total={KIOSK_WARNING_MS} onKeep={() => kioskKeepBooking.current?.()} onEnd={kioskOnExit} />
       )}
 
       {step < 5 && (
