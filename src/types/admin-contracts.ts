@@ -356,6 +356,20 @@ export interface AdminCommissionLine {
   /** The price at the time; null when the service had no price. */
   amountCentavos: number | null;
 }
+export interface AdminBookingDeductionPreview {
+  token: string;
+  previousDeductionCentavos: number;
+  rows: {
+    entryId: string;
+    name: string;
+    staffId: string;
+    previousCentavos: number;
+    paidCentavos: number;
+    correctedCentavos: number;
+    differenceCentavos: number;
+  }[];
+}
+
 export interface AdminCommissionAdjustment {
   id: UUID;
   /** Signed whole centavos; the entry amount plus its adjustments is never below zero. */
@@ -519,13 +533,27 @@ export interface AdminExpenseMonth {
   month: string;
   expenses: AdminExpense[];
   nextCursor: string | null;
-  /** total = manual + stockBought + commissionsPaid. commissionsOwed is a separate note and not in the total. */
+  /** total = manual + stockBought + commissionsPaid. commissionsOwed is separate. */
   totals: { total: string; manual: string; stockBought: string; commissionsPaid: string; commissionsOwed: string };
   byCategory: { categoryId: UUID; name: string; total: string }[];
   pricedStockIns: number;
   unpricedStockIns: number;
   /** The last 12 months, oldest first. */
   series: { month: string; total: string; manual: string; stockBought: string; commissionsPaid: string }[];
+}
+
+/** Expense analytics for a period (ADMIN only). Same period limits and day/week/month buckets as Sales & Analytics. Centavos as decimal strings. */
+export interface AdminExpenseAnalytics {
+  from: LocalDate;
+  to: LocalDate;
+  today: LocalDate;
+  unit: AdminAnalyticsBucketUnit;
+  /** A future bucket holds no result: its figures are "0" and future is true. */
+  buckets: { start: LocalDate; end: LocalDate; future: boolean; total: string; manual: string; stockBought: string; commissionsPaid: string }[];
+  totals: AdminExpenseMonth["totals"];
+  byCategory: AdminExpenseMonth["byCategory"];
+  pricedStockIns: number;
+  unpricedStockIns: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -648,6 +676,8 @@ export interface AdminServiceOffer {
 }
 
 export interface AdminServiceItem {
+  expenseDeductionCentavos?: number;
+  sizeDeductions?: Partial<Record<"MOTOR" | "S" | "M" | "L" | "XL", number>>;
   id: string;
   slug: string;
   name: string;

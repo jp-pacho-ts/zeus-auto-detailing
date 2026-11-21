@@ -4,6 +4,7 @@ import * as React from "react";
 import type { UserRole } from "@/types/contracts";
 import type { AdminExpenseCategory, AdminExpenseMonth } from "@/types/admin-contracts";
 import { LoadState } from "./bookings/use-admin-resource";
+import { periodRange, type AnalyticsPeriod } from "./analytics/analytics-model";
 import { shopDate } from "./bookings/model";
 import { ExpensesPanel } from "./expenses/expenses-panel";
 import { NOT_ADMIN_TEXT } from "./expenses/expenses-model";
@@ -13,10 +14,12 @@ import { useKeptResource } from "./team/use-kept-resource";
 export function ExpensesTab({ role }: { role: UserRole }) {
   const isAdmin = role === "ADMIN";
   const thisMonth = shopDate().slice(0, 7);
-  const [month, setMonth] = React.useState(thisMonth);
+  const [period, setPeriod] = React.useState<AnalyticsPeriod>(() => periodRange("THIS_MONTH", shopDate()));
+  const month = period.from.slice(0, 7);
+  const setMonth = (value: string) => setPeriod(periodRange("THIS_MONTH", value + "-01"));
   const [categoryId, setCategoryId] = React.useState("");
   const [includeRemoved, setIncludeRemoved] = React.useState(false);
-  const query = `month=${month}&includeRemoved=${includeRemoved}${categoryId ? `&categoryId=${categoryId}` : ""}`;
+  const query = `month=${month}&from=${period.from}&to=${period.to}&includeRemoved=${includeRemoved}${categoryId ? `&categoryId=${categoryId}` : ""}`;
   const data = useKeptResource<AdminExpenseMonth>(isAdmin ? `/api/admin/expenses?${query}` : null);
   const categories = useKeptResource<AdminExpenseCategory[]>(isAdmin ? "/api/admin/expense-categories" : null);
 
@@ -28,7 +31,7 @@ export function ExpensesTab({ role }: { role: UserRole }) {
       <LoadState loading={categories.loading} error={categories.error} retry={categories.reload} />
       {data.data && categories.data && (
         <ExpensesPanel
-          data={data.data} categories={categories.data} query={query} thisMonth={thisMonth} setMonth={setMonth} categoryId={categoryId} setCategoryId={setCategoryId}
+          period={period} setPeriod={setPeriod} data={data.data} categories={categories.data} query={query} thisMonth={thisMonth} setMonth={setMonth} categoryId={categoryId} setCategoryId={setCategoryId}
           includeRemoved={includeRemoved} setIncludeRemoved={setIncludeRemoved} reload={data.reload} reloadCategories={categories.reload}
         />
       )}
