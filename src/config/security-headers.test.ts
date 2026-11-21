@@ -16,13 +16,20 @@ const DOCUMENT_CSP_PRODUCTION =
   "img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; " +
   "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests";
 
-test("unlisted preview alone is noindex and uncached, with the unchanged document CSP", () => {
+test("unlisted preview is noindex and uncached, and only the landing preview can frame the Google map", () => {
   for (const production of [false, true]) {
     const rules = securityHeaders(production) as Rule[];
     const preview = Object.assign({}, ...matching(rules, "/preview/landing").map(headerMap));
     assert.equal(preview["X-Robots-Tag"], "noindex, nofollow");
     assert.equal(preview["Cache-Control"], "private, no-store");
-    assert.equal(preview["Content-Security-Policy"], documentContentSecurityPolicy(production));
+    const baseCsp = documentContentSecurityPolicy(production);
+    // LE 2026-11-20: the landing preview alone adds OpenFreeMap tiles and MapLibre's blob: worker (3D map), and keeps the Google embed as its fallback.
+    assert.equal(preview["Content-Security-Policy"], baseCsp
+      .replace("img-src 'self' data: blob:;", "img-src 'self' data: blob: https://tiles.openfreemap.org;")
+      .replace("connect-src 'self' https://challenges.cloudflare.com;", "connect-src 'self' https://challenges.cloudflare.com https://tiles.openfreemap.org; worker-src 'self' blob:;")
+      .replace("frame-src https://challenges.cloudflare.com;", "frame-src https://challenges.cloudflare.com https://www.google.com/maps/embed;"));
+    const otherPreview = Object.assign({}, ...matching(rules, "/preview/other").map(headerMap));
+    assert.equal(otherPreview["Content-Security-Policy"], baseCsp);
     for (const url of ["/", "/book", "/book/manage", "/admin", "/api/catalog"]) {
       const other = Object.assign({}, ...matching(rules, url).map(headerMap));
       assert.equal(other["X-Robots-Tag"], undefined, url);
