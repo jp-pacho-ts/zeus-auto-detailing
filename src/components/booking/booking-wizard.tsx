@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -10,6 +11,7 @@ import {
   ChevronLeft,
   Droplets,
   MessageSquare,
+  Plus,
   Phone,
   QrCode,
   ShieldCheck,
@@ -28,6 +30,7 @@ import { ManagementCode } from "@/components/booking/management-code";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import { bookingStatusWords } from "@/components/booking/manage-booking";
 import { reveal } from "@/components/booking/reveal";
+import { landingPhoto } from "@/components/landing/landing-photos";
 import {
   CATEGORY_NAMES,
   CATEGORY_ORDER,
@@ -122,6 +125,8 @@ const STEP_LABELS = ["Vehicle size", "Services", "Day", "Your details"];
 const HEADINGS = ["Choose your vehicle size", "Choose your services", "Choose your day", "Your details", "Booking received"];
 // The normal security-check widget is a fixed 300 px wide; below this it is rendered compact.
 const NARROW_QUERY = "(max-width: 359px)";
+// Kiosk menu tiles: a service without its own shop photo shows its category's photo.
+const KIOSK_CATEGORY_PHOTO: Partial<Record<string, string>> = { WASH: "signature-wash", DETAILING: "full-detailing", GRAPHENE: "arcane-graphene" };
 
 export function BookingWizard({
   initialServiceId,
@@ -582,6 +587,7 @@ export function BookingWizard({
   const renderPrimary = () => (
     <button
       type={step === 4 ? "submit" : "button"}
+      data-part="primary"
       form={step === 4 ? "booking-details" : undefined}
       onClick={(event) => {
         if (step !== 4) {
@@ -600,6 +606,7 @@ export function BookingWizard({
     step > 1 && step < 5 ? (
       <button
         type="button"
+        data-part="back"
         disabled={locked}
         onClick={() => goTo(step - 1)}
         className={outlineButton + " " + actionHeight}
@@ -608,8 +615,18 @@ export function BookingWizard({
         Back
       </button>
     ) : null;
+  // Kiosk: one running order line (size, services, total), like a counter ordering screen.
+  const renderKioskOrder = () => (
+    <>
+      <span className="block text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</span>
+      <span className="block truncate text-base text-foreground">
+        {[vehicle?.name ?? "Choose a size", lines.length ? `${lines.length} ${lines.length === 1 ? "service" : "services"}` : ""].filter(Boolean).join(" · ")}
+        {lines.length > 0 && <strong className="ml-3 text-xl font-extrabold tabular-nums">{total ? total.amount : "Pricing…"}</strong>}
+      </span>
+    </>
+  );
   const renderTotal = () =>
-    step === 1 ? (
+    kioskOnExit ? renderKioskOrder() : step === 1 ? (
       <span className="text-sm text-muted-foreground">{vehicle ? vehicle.name : "Choose a size"}</span>
     ) : lines.length ? (
       <>
@@ -742,6 +759,44 @@ export function BookingWizard({
     });
   };
 
+  // W13: the panel count for a picked per-panel service (both layouts).
+  const renderPanels = (s: ServicePackage, pick: { quantity: number }) => (
+    <div className={`mt-2 rounded-xl border border-border bg-muted p-4 lg:col-span-3 ${kioskOnExit ? "md:col-span-full" : ""}`}>
+      <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
+        Number of panels for {s.name}
+      </label>
+      <input
+        id={"panels-" + s.id}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        aria-describedby={"panels-help-" + s.id}
+        value={panelDrafts[s.id] ?? String(pick.quantity)}
+        disabled={locked}
+        onChange={(e) => {
+          // W13: the field may be empty while typing; a count from 1 to 20 is applied at once.
+          const draft = e.target.value.replace(/\D/g, "").slice(0, 2);
+          setPanelDrafts((d) => ({ ...d, [s.id]: draft }));
+          const n = Number(draft);
+          if (n >= 1 && n <= 20) setQuantity(s.id, n);
+        }}
+        onBlur={() => {
+          const n = Number(panelDrafts[s.id]);
+          setQuantity(s.id, n >= 1 ? Math.min(20, n) : pick.quantity);
+          setPanelDrafts((d) => {
+            const rest = { ...d };
+            delete rest[s.id];
+            return rest;
+          });
+        }}
+        className={control}
+      />
+      <p id={"panels-help-" + s.id} className="mt-1.5 text-sm text-muted-foreground">
+        1 to 20 panels.
+      </p>
+    </div>
+  );
+
   const renderService = (s: ServicePackage, nested = false) => {
     const pick = picked(s.id);
     const offer = offerLabel(s, vehicleId, pick?.quantity ?? 1);
@@ -788,42 +843,7 @@ export function BookingWizard({
             className="h-5 w-5 shrink-0 accent-primary"
           />
         </label>
-        {pick && s.unit === "PANEL" && (
-          <div className={`mt-2 rounded-xl border border-border bg-muted p-4 lg:col-span-3 ${kioskOnExit ? "md:col-span-full" : ""}`}>
-            <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
-              Number of panels for {s.name}
-            </label>
-            <input
-              id={"panels-" + s.id}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              aria-describedby={"panels-help-" + s.id}
-              value={panelDrafts[s.id] ?? String(pick.quantity)}
-              disabled={locked}
-              onChange={(e) => {
-                // W13: the field may be empty while typing; a count from 1 to 20 is applied at once.
-                const draft = e.target.value.replace(/\D/g, "").slice(0, 2);
-                setPanelDrafts((d) => ({ ...d, [s.id]: draft }));
-                const n = Number(draft);
-                if (n >= 1 && n <= 20) setQuantity(s.id, n);
-              }}
-              onBlur={() => {
-                const n = Number(panelDrafts[s.id]);
-                setQuantity(s.id, n >= 1 ? Math.min(20, n) : pick.quantity);
-                setPanelDrafts((d) => {
-                  const rest = { ...d };
-                  delete rest[s.id];
-                  return rest;
-                });
-              }}
-              className={control}
-            />
-            <p id={"panels-help-" + s.id} className="mt-1.5 text-sm text-muted-foreground">
-              1 to 20 panels.
-            </p>
-          </div>
-        )}
+        {pick && s.unit === "PANEL" && renderPanels(s, pick)}
         {extras.length > 0 && (
           <fieldset className={`ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4 lg:col-span-3 ${kioskOnExit ? "md:col-span-full" : ""}`}>
             <legend className="mb-2 text-sm font-semibold text-foreground">Extras for {s.name}</legend>
@@ -895,9 +915,133 @@ export function BookingWizard({
     );
   };
 
+  // Kiosk menu board: a photo tile per service (tap to add or remove), the extras for what is picked, and the order beside it.
+  const renderKioskTile = (s: ServicePackage) => {
+    const pick = picked(s.id);
+    const offer = offerLabel(s, vehicleId, pick?.quantity ?? 1);
+    const photo = landingPhoto(s.slug) ?? landingPhoto(KIOSK_CATEGORY_PHOTO[s.category] ?? "");
+    const Icon = getServiceDisciplineIcon(s.category);
+    const detail = serviceDetail(s);
+    return (
+      <li key={s.id}>
+        <label
+          data-part="menu-tile"
+          className={
+            "relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
+            (pick ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
+          }
+        >
+          <span className="relative block aspect-[16/10] bg-muted">
+            {photo ? (
+              <Image src={photo.src} alt="" fill sizes="(min-width: 1024px) 22vw, 40vw"
+                className={photo.contain ? "object-contain" : "object-cover"} style={photo.position ? { objectPosition: photo.position } : undefined} />
+            ) : (
+              <span className="grid h-full place-items-center"><Icon className="h-12 w-12 text-primary" aria-hidden="true" /></span>
+            )}
+          </span>
+          <span className="flex flex-1 flex-col gap-1 p-4">
+            <span className="text-lg font-bold leading-tight text-foreground">{s.name}</span>
+            {detail && <span className="line-clamp-2 text-sm text-muted-foreground">{detail}</span>}
+            <span className="mt-auto flex items-center justify-between gap-3 pt-3">
+              <span className="text-base font-semibold tabular-nums text-foreground">
+                {"compareAtText" in offer && offer.compareAtText && <s className="mr-2 text-xs font-normal text-muted-foreground">{offer.compareAtText}</s>}
+                {offer.text}
+                {s.unit === "PANEL" ? " · per panel" : ""}
+              </span>
+              <span aria-hidden="true" className={"grid h-11 w-11 shrink-0 place-items-center rounded-full border " + (pick ? "border-primary bg-primary text-primary-foreground" : "border-input text-foreground")}>
+                {pick ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              </span>
+            </span>
+          </span>
+          <input type="checkbox" name="service" value={s.id} checked={Boolean(pick)} disabled={locked} onChange={() => togglePick(s)} className="sr-only" />
+        </label>
+        {pick && s.unit === "PANEL" && renderPanels(s, pick)}
+      </li>
+    );
+  };
+
+  const renderKioskMenu = () => {
+    const available = bases.filter(offered);
+    const hidden = bases.length - available.length;
+    const groups = CATEGORY_ORDER.map((category) => ({ category, services: available.filter((s) => s.category === category) })).filter((g) => g.services.length);
+    const active = groups.find((g) => g.category === openCategory) ?? groups[0];
+    const extras = active ? [...new Map(active.services.flatMap(addOnsUnder).map((a) => [a.id, a])).values()] : [];
+    return (
+      <div className="grid items-start gap-6 md:grid-cols-[180px_minmax(0,1fr)] lg:grid-cols-[190px_minmax(0,1fr)_300px]">
+        <nav aria-label="Service categories" className="flex gap-2 overflow-x-auto md:sticky md:top-4 md:flex-col md:overflow-visible">
+          {groups.map(({ category }) => {
+            const current = active?.category === category;
+            const chosen = lines.filter((l) => serviceById(l.serviceId)?.category === category).length;
+            return (
+              <button key={category} type="button" data-part="menu-category" aria-pressed={current} onClick={() => setOpenCategory(category)}
+                className={"flex min-h-[64px] shrink-0 items-center justify-between gap-3 rounded-xl border px-4 text-left font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
+                  (current ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:border-primary")}>
+                {CATEGORY_NAMES[category]}
+                {chosen > 0 && <span className={"grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm tabular-nums " + (current ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground")}>{chosen}</span>}
+              </button>
+            );
+          })}
+        </nav>
+        {active && (
+          <section aria-labelledby="kiosk-menu-title" className="min-w-0">
+            <h2 id="kiosk-menu-title" data-part="menu-title" className="mb-4 text-2xl font-bold text-foreground">{CATEGORY_NAMES[active.category]}</h2>
+            <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">{active.services.map(renderKioskTile)}</ul>
+            {extras.length > 0 && (
+              <>
+                <h3 data-part="menu-title" className="mb-4 mt-8 text-xl font-bold text-foreground">Extras</h3>
+                <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">{extras.map(renderKioskTile)}</ul>
+              </>
+            )}
+            {hidden > 0 && (
+              <p className="mt-6 text-sm text-muted-foreground">
+                {hidden} {hidden === 1 ? "service isn't" : "services aren't"} offered for {vehicle?.name}. Call the shop at {brandConfig.displayPhone} to ask.
+              </p>
+            )}
+          </section>
+        )}
+        <aside aria-label="Your order" className="rounded-2xl border border-border bg-card p-5 md:col-span-2 lg:sticky lg:top-4 lg:col-span-1">
+          <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</p>
+          <div className="mt-2 flex items-center justify-between gap-3 border-b border-border pb-3">
+            <p className="font-bold text-foreground">{vehicle?.name}</p>
+            <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink}>Change size</button>
+          </div>
+          {lines.length ? (
+            <ul className="divide-y divide-border/60">
+              {lines.map((l) => {
+                const s = serviceById(l.serviceId);
+                const priced = quoteLines.find((q) => q.serviceId === l.serviceId);
+                return (
+                  <li key={l.serviceId} className="flex items-center gap-2 py-3 text-sm">
+                    <span className="min-w-0 flex-1 break-words font-semibold text-foreground">{s?.name}{l.quantity > 1 ? ` × ${l.quantity}` : ""}</span>
+                    <span className="tabular-nums text-muted-foreground">{priced ? lineAmount(priced) : "…"}</span>
+                    {s && (
+                      <button type="button" onClick={() => togglePick(s)} disabled={locked} aria-label={"Remove " + s.name}
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <X aria-hidden="true" className="h-4 w-4" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="py-4 text-sm text-muted-foreground">Tap a service to add it.</p>
+          )}
+          <div className="border-t border-border pt-3">
+            <p className="text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</p>
+            <p className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : lines.length ? "Pricing…" : "—"}</p>
+            {total?.note && <p className="mt-1 text-sm text-muted-foreground">{total.note}</p>}
+          </div>
+          <div className="mt-4 hidden lg:block [&>button]:w-full">{renderPrimary()}</div>
+          <div className="hidden lg:block">{renderReason()}</div>
+        </aside>
+      </div>
+    );
+  };
+
   const intro = [
     "Prices depend on the size of your vehicle.",
-    "Open a category to see its services. You can choose more than one.",
+    kioskOnExit ? "Tap a service to add it to your order. You can choose more than one." : "Open a category to see its services. You can choose more than one.",
     arrivalWords(),
     "The shop uses these details to confirm your booking.",
     "",
@@ -1040,23 +1184,23 @@ export function BookingWizard({
             className={kioskOnExit ? "no-print" : "no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-[clamp(14px,3vh,32px)] lg:pt-[clamp(14px,2.6vh,28px)]"}
           >
             <div className={kioskOnExit
-              ? "grid grid-cols-2 items-center gap-3 border-b border-border bg-muted px-4 py-3 sm:grid-cols-[1fr_auto_1fr] sm:px-8"
+              ? "grid grid-cols-2 items-center gap-3 border-b border-border bg-muted px-4 py-3 sm:px-8 lg:grid-cols-[1fr_auto_1fr]"
               : "flex items-center justify-between gap-3"}>
               {kioskOnExit ? <Logo className="col-start-1 row-start-1" /> : <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <Logo />
               </Link>}
-              {kioskOnExit && <ol aria-label="Booking steps" className="col-span-2 col-start-1 row-start-2 grid grid-cols-4 gap-2 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:gap-3">
+              {kioskOnExit && <ol aria-label="Booking steps" className="col-span-2 col-start-1 row-start-2 grid grid-cols-4 gap-2 sm:gap-3 lg:col-span-1 lg:col-start-2 lg:row-start-1">
                 {STEP_LABELS.map((label, index) => (
                   <li key={label} aria-current={index + 1 === step ? "step" : undefined}
                     className={"flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 text-center text-xs font-semibold sm:px-3 sm:text-sm " +
                       (index + 1 === step ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
-                    {index + 1 < step && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}
+                    {index + 1 < step ? <Check className="size-4 shrink-0 text-primary" aria-hidden="true" /> : <span data-part="step-number">{index + 1}</span>}
                     {label}
                   </li>
                 ))}
               </ol>}
               {kioskOnExit && !pending && (
-                <button type="button" onClick={kioskOnExit} className={pillLink + " col-start-2 row-start-1 justify-self-end px-4 sm:col-start-3"}>
+                <button type="button" data-part="end-session" onClick={kioskOnExit} className={pillLink + " col-start-2 row-start-1 justify-self-end px-4 lg:col-start-3"}>
                   End session
                 </button>
               )}
@@ -1086,7 +1230,7 @@ export function BookingWizard({
                 />
               ))}
             </div>}
-            <div className={kioskOnExit ? "mx-auto max-w-5xl px-4 pb-1 pt-7 text-center sm:px-8 sm:pt-10" : undefined}>
+            <div className={kioskOnExit ? "mx-auto max-w-6xl px-4 pb-1 pt-7 sm:px-8 sm:pt-10" : undefined}>
             {!kioskOnExit && <p className="mt-4 text-sm text-muted-foreground lg:mt-[clamp(10px,4.5vh,56px)]">
               <strong className="font-bold text-primary">Step {step} of 4</strong> · {stepLabel}
             </p>}
@@ -1149,7 +1293,7 @@ export function BookingWizard({
                   <fieldset>
                     <legend className="sr-only">Vehicle size</legend>
                     {/* P1-54 (LE 2026-11-06, mock M1): a card grid that uses the width: three tiles, then two wider ones. Phones: two columns. */}
-                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-6 lg:gap-[clamp(10px,1.8vh,16px)]">
+                    <div className={kioskOnExit ? "grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]" : "grid grid-cols-2 gap-3 lg:grid-cols-6 lg:gap-[clamp(10px,1.8vh,16px)]"}>
                       {catalog.vehicleCategories.map((v, index, all) => {
                         const name = splitSizeName(v.name);
                         const picked = vehicleId === v.id;
@@ -1159,9 +1303,9 @@ export function BookingWizard({
                           <label
                             key={v.id}
                             className={
-                              "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors [--ic:64px] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:[--ic:88px] lg:[--ic:clamp(64px,13vh,120px)] " +
-                              (lastOdd ? "col-span-2 " : "") +
-                              (wide ? "lg:col-span-3 " : "lg:col-span-2 ") +
+                              "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
+                              (kioskOnExit ? "[--ic:clamp(96px,16vh,160px)] " :
+                                "[--ic:64px] sm:[--ic:88px] lg:[--ic:clamp(64px,13vh,120px)] " + (lastOdd ? "col-span-2 " : "") + (wide ? "lg:col-span-3 " : "lg:col-span-2 ")) +
                               (picked ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
                             }
                           >
@@ -1236,11 +1380,11 @@ export function BookingWizard({
               {/* Steps 2-4 */}
               {catalog && step >= 2 && step <= 4 && (
                 <div className="min-w-0">
-                  {step < 4 && renderMobileSummaryTray()}
+                  {step < 4 && !(kioskOnExit && step === 2) && renderMobileSummaryTray()}
 
                   {step === 2 && (
                     <div className="space-y-6">
-                      {renderCategories()}
+                      {kioskOnExit ? renderKioskMenu() : renderCategories()}
                       {quoteState?.key === selectionKey && quoteState.error && (
                         <div role="alert" className="text-sm text-destructive">
                           <p>{quoteState.error}</p>
@@ -1673,7 +1817,7 @@ export function BookingWizard({
       {step < 5 && (
         <div
           id="wizard-action-bar"
-          className={"wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur " + (kioskOnExit ? "sm:px-8" : "lg:hidden")}
+          className={"wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur " + (kioskOnExit ? "sm:px-8" + (step === 2 ? " lg:hidden" : "") : "lg:hidden")}
         >
           {/* One row: Back, total, action. On phones (below 480 px): total and Back, then the action full width, so the
               total is never squeezed out. */}

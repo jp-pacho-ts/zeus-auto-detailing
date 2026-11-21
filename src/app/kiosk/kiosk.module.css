@@ -1,304 +1,230 @@
 @font-face {
-  font-family: KioskDisplay;
-  src: url("/fonts/home/BarlowCondensed-ExtraBold.ttf") format("truetype");
-  font-weight: 800;
-  font-display: swap;
-}
-
-@font-face {
   font-family: KioskBody;
   src: url("/fonts/home/DMSans.ttf") format("truetype");
   font-weight: 100 900;
   font-display: swap;
 }
 
-.welcome,
 .booking {
   font-family: KioskBody, Arial, sans-serif;
 }
 
+/* Welcome = the live landing hero (landing.css), held to one tablet screen with no scrolling. */
 .welcome {
-  --edge: max(clamp(1.25rem, 5vw, 4rem), calc((100% - 1200px) / 2));
-  background: rgb(var(--background));
-  color: rgb(var(--foreground));
-}
-
-.hero {
   position: relative;
   isolation: isolate;
-  overflow: clip;
-  background: #0b0b0c;
-}
-
-.media,
-.media :global(.zeus-hero-media),
-.media :global(.zeus-hero-poster),
-.media :global(.zeus-hero-video),
-.hero::after {
-  position: absolute;
-  inset: 0;
-}
-
-.hero::after {
-  z-index: 0;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(180deg, #080808b8 0%, transparent 32%, #080808cf 66%, #0b0b0c 100%);
-}
-
-.media :global(.zeus-hero-poster),
-.media :global(.zeus-hero-video) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 61% center;
-}
-
-.media :global(.zeus-hero-video) {
-  opacity: 0;
-}
-
-.media :global(.zeus-hero-video[data-ready="true"]) {
-  opacity: 1;
-}
-
-.heroInner {
-  position: relative;
-  z-index: 1;
   display: grid;
-  align-content: space-between;
-  justify-items: start;
-  gap: 4rem;
-  min-height: 100svh;
-  padding: max(1.5rem, env(safe-area-inset-top)) var(--edge) max(2rem, env(safe-area-inset-bottom));
-}
-
-.heroCopy {
-  width: 100%;
-}
-
-.wordmark {
-  display: block;
-  margin: 0 0 .875rem -.025em;
-  color: rgb(255 255 255 / .04);
-  font: 800 clamp(5rem, 24vw, 14rem) / .76 KioskDisplay, sans-serif;
-  -webkit-text-stroke: 1px rgb(255 255 255 / .58);
-  pointer-events: none;
+  grid-template-rows: auto 1fr auto;
+  height: 100svh;
+  min-height: 0;
+  overflow: clip;
+  cursor: pointer;
   user-select: none;
 }
 
-.heroCopy h1,
-.showcase h2,
-.scene h3 {
-  margin: 0;
-  font-weight: 600;
-  letter-spacing: -.04em;
-  text-wrap: balance;
+/* landing.css pads the page bottom for its phone call bar; the kiosk has none. */
+.welcome:global(.landing) {
+  padding-bottom: 0;
 }
 
-.heroCopy h1 {
-  max-width: 16ch;
-  font-size: clamp(2.5rem, 6vw, 5.75rem);
-  line-height: 1.04;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .75rem;
-  margin-top: 1.5rem;
-}
-
-.primary,
-.secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: .75rem;
-  min-height: 56px;
-  padding: .625rem 1.4rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.primary {
-  background: rgb(var(--primary));
-  color: rgb(var(--primary-foreground));
-}
-
-.primary:hover {
-  background: rgb(var(--primary-hover));
-}
-
-.secondary {
-  border-color: rgb(255 255 255 / .42);
-  background: #0b0b0c;
-  color: white;
-}
-
-.secondary:hover {
-  border-color: rgb(var(--primary));
-}
-
-.primary:focus-visible,
-.secondary:focus-visible {
-  outline: 2px solid rgb(var(--ring));
-  outline-offset: 4px;
-}
-
-.showcase {
-  display: grid;
-  align-items: start;
-  gap: clamp(2rem, 5vw, 5rem);
-  padding: clamp(3.5rem, 9vw, 7rem) var(--edge);
-  background: #171512;
-}
-
-.showcaseIntro {
-  padding-top: 1.5rem;
-  border-top: 1px solid rgb(var(--primary) / .65);
-}
-
-.showcase h2 {
-  max-width: 11ch;
-  font-size: clamp(2.5rem, 5.2vw, 4.5rem);
-  line-height: 1;
-}
-
-.showcase p {
-  max-width: 43ch;
-  margin: .625rem 0 0;
-  color: #d1c8bb;
-  line-height: 1.6;
-}
-
-.showcaseIntro p {
-  margin-top: 1.25rem;
-}
-
-.scenes {
-  display: grid;
-  gap: clamp(2rem, 5vw, 4rem);
-  min-width: 0;
-}
-
-.scene {
-  display: grid;
-  min-width: 0;
-}
-
-.frame {
-  position: relative;
-  min-width: 0;
-  overflow: clip;
-  aspect-ratio: 16 / 10;
-  background: rgb(var(--muted));
-}
-
-.frame img {
+/* A centre scrim on top of the landing grade, so centred copy reads over any frame of the footage. */
+.art::before {
+  content: "";
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  z-index: 1;
+  background: radial-gradient(ellipse 70% 55% at 50% 55%, rgb(9 9 11 / .72), rgb(9 9 11 / .2) 70%, transparent);
 }
 
-.sceneCopy {
-  padding: 1.25rem 0 0;
-  border-top: 1px solid rgb(var(--primary) / .65);
+.top,
+.center,
+.bar {
+  position: relative;
+  z-index: 2;
 }
 
-.scene h3 {
-  font-size: clamp(1.75rem, 3.65vw, 3rem);
-  line-height: 1.02;
+.top {
+  justify-self: center;
+  padding-top: max(32px, env(safe-area-inset-top));
 }
 
-.showcaseAction {
-  padding-top: 1.5rem;
-  border-top: 1px solid rgb(var(--primary) / .4);
+.top img {
+  display: block;
+  width: 200px;
+  height: auto;
+}
+
+.center {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(32px, 6svh, 64px);
+  padding-inline: 24px;
+  text-align: center;
+}
+
+.welcome .title {
+  font-size: clamp(56px, 9vw, 132px);
+  line-height: .9;
+}
+
+.sub {
+  display: block;
+  margin-top: clamp(16px, 2.4svh, 28px);
+  color: rgb(245 245 244 / .85);
+  font-size: clamp(13px, 1.4vw, 18px);
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: .22em;
+}
+
+.welcome .start {
+  min-width: min(440px, 80vw);
+  min-height: 96px;
+  padding-inline: 40px;
+  font-size: clamp(18px, 1.8vw, 22px);
+}
+
+.welcome .start svg {
+  width: 26px;
+  height: 26px;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 88px;
+  margin: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: rgb(var(--brand-primary));
+  color: rgb(var(--brand-primary-foreground));
+  font-family: LandingDisplay, LandingGeist, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.bar svg {
+  width: 24px;
+  height: 24px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar svg {
+    animation: tap 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes tap {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* Booking flow in the landing's type: expanded uppercase display for headings, steps and actions (fonts from landing.css). */
+.booking {
+  --display: LandingDisplay, LandingGeist, "Helvetica Neue", Arial, sans-serif;
+  --cut: 12px;
+  font-family: LandingText, LandingGeist, KioskBody, Arial, sans-serif;
 }
 
 .booking :global(#wizard-step-title) {
+  font-family: var(--display);
+  font-size: clamp(32px, 4.6vw, 60px);
   font-weight: 600;
-  letter-spacing: -.04em;
+  line-height: .95;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.booking :global(#wizard-step-title)::after {
+  content: ".";
+  color: rgb(var(--primary-hover));
+}
+
+.booking :global(ol[aria-label="Booking steps"] li) {
+  gap: 10px;
+  border-radius: 0;
+  background: none;
+  box-shadow: inset 0 -2px transparent;
+  color: rgb(var(--muted-foreground));
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.booking :global(ol[aria-label="Booking steps"] li[aria-current="step"]) {
+  box-shadow: inset 0 -2px rgb(var(--primary));
+  color: rgb(var(--foreground));
+}
+
+.booking :global([data-part="step-number"]) {
+  color: rgb(var(--primary-hover));
+}
+
+/* The landing's cut-corner buttons: gold for the main action, outline for Back and End session. */
+.booking :global(:is([data-part="primary"], [data-part="back"], [data-part="end-session"])) {
+  position: relative;
+  isolation: isolate;
+  min-height: 60px;
+  padding-inline: 26px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.booking :global(:is([data-part="primary"], [data-part="back"], [data-part="end-session"]))::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgb(var(--primary));
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+  transition: background-color .3s;
+}
+
+.booking :global([data-part="primary"]) {
+  min-width: 212px;
+  justify-content: space-between;
+  gap: 40px;
+  color: rgb(var(--primary-foreground));
+}
+
+.booking :global([data-part="primary"]:hover:not(:disabled))::before {
+  background: rgb(var(--primary-hover));
+}
+
+.booking :global(:is([data-part="back"], [data-part="end-session"])) {
+  min-height: 52px;
+  color: rgb(var(--foreground));
+}
+
+.booking :global(:is([data-part="back"], [data-part="end-session"]))::before {
+  background: rgb(245 245 244 / .4);
+  /* Outline only: the same cut shape with a 1 px hole. */
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)), 0 0, 1px 1px, 1px calc(100% - var(--cut) - .41px), calc(var(--cut) + .41px) calc(100% - 1px), calc(100% - 1px) calc(100% - 1px), calc(100% - 1px) calc(var(--cut) + .41px), calc(100% - var(--cut) - .41px) 1px, 1px 1px);
+}
+
+.booking :global(:is([data-part="back"], [data-part="end-session"]):hover:not(:disabled))::before {
+  background: rgb(var(--primary-hover));
+}
+
+.booking :global(:is([data-part="primary"], [data-part="back"], [data-part="end-session"]):focus-visible) {
+  outline: 3px solid rgb(var(--ring));
+  outline-offset: 3px;
+  box-shadow: none;
 }
 
 .booking :global([data-part="panel"]) > div:first-child,
 .booking :global(#wizard-action-bar) {
   background-color: #181612;
-}
-
-@media (min-width: 900px) {
-  .showcase {
-    grid-template-columns: minmax(0, .82fr) minmax(0, 1.75fr);
-  }
-
-  .showcaseIntro {
-    position: sticky;
-    top: 3rem;
-  }
-
-  .sceneCopy {
-    display: grid;
-    grid-template-columns: minmax(0, .95fr) minmax(0, 1fr);
-    align-items: baseline;
-    gap: 1rem;
-  }
-
-  .sceneCopy p {
-    margin: 0;
-  }
-}
-
-@media (orientation: landscape) and (min-width: 768px) {
-  .hero::after {
-    background: linear-gradient(90deg, #080808bd, transparent 86%),
-      linear-gradient(0deg, #0b0b0c, transparent 54%);
-  }
-
-  .wordmark {
-    font-size: clamp(6rem, min(20vw, 28svh), 14rem);
-  }
-
-  .heroInner {
-    padding-bottom: max(3.5rem, env(safe-area-inset-bottom));
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .media :global(.zeus-hero-video) {
-    transition: opacity .65s ease;
-  }
-
-  @supports (animation-timeline: view()) {
-    .media {
-      animation: footage-settle linear both;
-      animation-timeline: scroll(root block);
-      animation-range: 0px 85svh;
-    }
-
-    .frame {
-      animation: frame-open linear both;
-      animation-timeline: view();
-      animation-range: entry 0% cover 42%;
-    }
-
-    .frame img {
-      animation: footage-settle linear both;
-      animation-timeline: view();
-      animation-range: entry 0% cover 65%;
-    }
-  }
-}
-
-@keyframes footage-settle {
-  from { transform: scale(1.10); }
-  to { transform: scale(1); }
-}
-
-@keyframes frame-open {
-  from { clip-path: inset(9% 7% 9% 7%); }
-  to { clip-path: inset(0); }
 }
