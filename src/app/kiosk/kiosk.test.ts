@@ -18,17 +18,18 @@ test("the kiosk starts its own standalone app and reuses the public booking wiza
 
 test("the kiosk uses a horizontal step header and a persistent action bar", () => {
   const wizard = readFileSync("src/components/booking/booking-wizard.tsx", "utf8");
-  assert.match(wizard, /kioskOnExit && <ol aria-label="Booking steps"/);
+  assert.match(wizard, /<ol aria-label="Booking steps"/);
   assert.match(wizard, /data-layout=\{kioskOnExit \? "kiosk"/);
   // The bar stays on every kiosk step except the wide services board, whose order panel holds Continue.
-  assert.match(wizard, /kioskOnExit \? "sm:px-8" \+ \(step === 2 \? " lg:hidden" : ""\) : "lg:hidden"/);
-  assert.match(wizard, /<div className="mt-4 hidden lg:block \[&>button\]:w-full">\{renderPrimary\(\)\}<\/div>/);
+  assert.match(wizard, /"sm:px-8" \+ \(step === 2 \? " lg:hidden" : ""\)/);
+  assert.match(wizard, /<div className="mt-4 hidden space-y-2 lg:block \[&>button\]:w-full">\{renderPrimary\(\)\}\{renderBack\(\)\}<\/div>/);
 });
 
 test("the kiosk flow is an ordering screen in the landing's style", () => {
   const wizard = readFileSync("src/components/booking/booking-wizard.tsx", "utf8");
-  const css = readFileSync("src/app/kiosk/kiosk.module.css", "utf8");
-  assert.match(wizard, /kioskOnExit \? renderKioskOrder\(\)/);
+  // The booking stage's rules live in the shared stage module (/book uses the same screen); the welcome's in kiosk.module.css.
+  const css = readFileSync("src/app/kiosk/kiosk.module.css", "utf8") + readFileSync("src/components/booking/booking-stage.module.css", "utf8");
+  assert.match(wizard, /\{renderKioskOrder\(\)\}/);
   assert.match(wizard, />Your order</);
   assert.match(wizard, /md:grid-cols-\[repeat\(auto-fit,minmax\(200px,1fr\)\)\]/);
   for (const part of ["primary", "back", "end-session", "step-number"]) assert.match(wizard, new RegExp(`data-part="${part}"`));
@@ -52,20 +53,19 @@ test("the kiosk flow is an ordering screen in the landing's style", () => {
   assert.match(wizard, /<KioskEndDialog onKeep=\{\(\) => setConfirmEnd\(false\)\} onEnd=\{\(\) => \{ setConfirmEnd\(false\); kioskOnExit\(\); \}\} \/>/);
   // Ending plays its own exit before the welcome returns; reduced motion resets at once.
   const kioskSource = readFileSync("src/app/kiosk/kiosk.tsx", "utf8");
-  assert.match(kioskSource, /<BookingWizard kioskOnExit=\{end\} \/>/);
+  assert.match(kioskSource, /<BookingStage ending=\{ending\}>\s+<BookingWizard kioskOnExit=\{end\} \/>/);
   assert.match(kioskSource, /leaveTimer\.current = window\.setTimeout\(reset, END_MS\)/);
   assert.match(css, /\.booking\[data-ending\] :global\(\.wizard-root\) \{\s+animation: fade-out/);
   const dialog = readFileSync("src/components/booking/kiosk-end-dialog.tsx", "utf8");
   assert.match(dialog, /node\?\.showModal\(\);\s+keep\.current\?\.focus\(\);/);
   assert.match(dialog, /onCancel=\{\(event\) => \{ event\.preventDefault\(\); onKeep\(\); \}\}/);
-  assert.match(wizard, /kioskOnExit \? renderKioskMenu\(\) : renderCategories\(\)/);
+  assert.match(wizard, /\{renderKioskMenu\(\)\}/);
   assert.match(wizard, /<nav aria-label="Service categories"/);
   assert.match(wizard, /<aside aria-label="Your order"/);
   assert.match(wizard, /onChange=\{\(\) => togglePick\(s\)\} className="sr-only"/);
   // Cinematic stage: shop still behind every step, heading wipe and card stagger per step, all behind reduced motion.
-  const kiosk = readFileSync("src/app/kiosk/kiosk.tsx", "utf8");
-  assert.match(kiosk, /<div className=\{styles\.backdrop\} aria-hidden="true">/);
-  assert.match(wizard, /key=\{kioskOnExit \? step : undefined\}\s+id="wizard-step-title"/);
+  assert.match(readFileSync("src/components/booking/booking-stage.tsx", "utf8"), /<div className=\{styles\.backdrop\} aria-hidden="true">/);
+  assert.match(wizard, /key=\{step\}\s+id="wizard-step-title"/);
   const motion = css.slice(css.indexOf("/* The camera pushes in slowly"));
   for (const name of ["push", "wipe-up", "settle"]) assert.match(motion, new RegExp(`animation: ${name} `));
   assert.match(css, /font-family: var\(--display\)/);

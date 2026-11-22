@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-// P1-53 real-browser check that the booking wizard fits the SCREEN, not only the width: on laptop and desktop viewports step 1
-// (five size bands, the real long catalog names) shows fully with no document scroll and Continue in view; the side panel never
-// needs its own scroll; the step title and the empty "Choose a size" total are in the calmer type ranges; steps 2 to 4 keep the
-// panel fixed and whole. On phones (portrait and landscape) nothing is cut off and the bottom bar never covers the last band.
+// P1-53 real-browser check that the booking wizard fits the SCREEN, not only the width, in the ordering-screen layout /book shares
+// with the kiosk (CEO 2026-11-22): on laptop and desktop viewports step 1 (five size cards, the real long catalog names) shows fully
+// above the bottom bar with no document scroll and Continue in view; the step title is the display heading and the empty order says
+// "Choose a size"; on steps 2 to 4 the main action stays in view. On phones (portrait and landscape) nothing is cut off and the bottom bar never covers the last band.
 // Catalog, quote, days and create are stubbed in the browser; Cloudflare is stubbed too. Loopback app only; never loads .env.
 // Optional: P153_SHOTS (screenshot folder), P153_REPORT (a JSON file that receives the measured numbers).
 const assert = require('node:assert/strict');
@@ -79,44 +79,41 @@ test('the booking wizard fits the screen by height: bands, panel and type on lap
       const m = await page.evaluate(() => {
         const bands = [...document.querySelectorAll('label:has(input[name="vehicle-category"])')].map((e) => { const r = e.getBoundingClientRect(); return { y: r.y, height: r.height, bottom: r.y + r.height, left: r.left, right: r.right }; });
         const mainRect = document.querySelector('main').getBoundingClientRect();
-        const panel = document.querySelector('[data-part=panel]');
-        const total = [...panel.querySelectorAll('p')].find((p) => p.textContent.trim() === 'Choose a size');
-        return { docScroll: document.scrollingElement.scrollHeight - innerHeight, bands, panelOver: panel.scrollHeight - panel.clientHeight, panelHeight: panel.clientHeight, mainWidth: mainRect.width, mainLeft: mainRect.left, title: parseFloat(getComputedStyle(document.querySelector('h1')).fontSize), emptyTotal: total ? parseFloat(getComputedStyle(total).fontSize) : null, innerHeight };
+        const bar = document.getElementById('wizard-action-bar');
+        const total = [...bar.querySelectorAll('span')].find((p) => p.textContent.trim() === 'Choose a size');
+        return { docScroll: document.scrollingElement.scrollHeight - innerHeight, bands, barTop: bar.getBoundingClientRect().top, mainWidth: mainRect.width, mainLeft: mainRect.left, title: parseFloat(getComputedStyle(document.querySelector('h1')).fontSize), emptyTotal: total ? parseFloat(getComputedStyle(total).fontSize) : null, innerHeight };
       });
       const cont = await page.getByRole('button', { name: 'Continue', exact: true }).first().boundingBox();
       const tilesLeft = Math.min(...m.bands.map((b) => b.left)), tilesRight = Math.max(...m.bands.map((b) => b.right)), above = m.bands[0].y, below = m.innerHeight - m.bands.at(-1).bottom;
-      const row = { viewport: key, step1: { tilesWidth: Math.round(tilesRight - tilesLeft), emptyLeftInMain: Math.round(tilesLeft - m.mainLeft), emptyRightInMain: Math.round(m.mainLeft + m.mainWidth - tilesRight), emptyAbove: Math.round(above), emptyBelow: Math.round(below), docScrollOverflowPx: m.docScroll, bandHeights: m.bands.map((b) => Math.round(b.height)), lastBandBottom: Math.round(m.bands.at(-1).bottom), panelOverflowPx: m.panelOver, panelHeight: m.panelHeight, titlePx: m.title, emptyTotalPx: m.emptyTotal, continueBottom: cont && Math.round(cont.y + cont.height) } };
+      const row = { viewport: key, step1: { tilesWidth: Math.round(tilesRight - tilesLeft), emptyLeftInMain: Math.round(tilesLeft - m.mainLeft), emptyRightInMain: Math.round(m.mainLeft + m.mainWidth - tilesRight), emptyAbove: Math.round(above), emptyBelow: Math.round(below), docScrollOverflowPx: m.docScroll, bandHeights: m.bands.map((b) => Math.round(b.height)), lastBandBottom: Math.round(m.bands.at(-1).bottom), barTop: Math.round(m.barTop), titlePx: m.title, emptyTotalPx: m.emptyTotal, continueBottom: cont && Math.round(cont.y + cont.height) } };
       expect(key + ' step 1', m.bands.length === 5, 'five bands');
       expect(key + ' no document scroll', m.docScroll <= 1, `the page scrolls by ${m.docScroll}px`);
-      expect(key + ' bands fully visible', m.bands.every((b) => b.y >= 0 && b.bottom <= m.innerHeight), `the last band ends at ${Math.round(m.bands.at(-1).bottom)} of ${m.innerHeight}`);
-      expect(key + ' tile height', m.bands.every((b) => b.height <= 300), `tiles are ${m.bands.map((b) => Math.round(b.height))} px tall`);
+      expect(key + ' cards fully visible above the bar', m.bands.every((b) => b.y >= 0 && b.bottom <= m.barTop + 1), `the last card ends at ${Math.round(m.bands.at(-1).bottom)}, the bar starts at ${Math.round(m.barTop)}`);
+      // Cards grow with the screen (the kiosk stage); they never take more than about half its height.
+      expect(key + ' tile height', m.bands.every((b) => b.height <= m.innerHeight * 0.45), `tiles are ${m.bands.map((b) => Math.round(b.height))} px tall`);
       // P1-54: the size choices use the width of the right area (no narrow column with empty sides) and sit balanced between top and bottom.
-      expect(key + ' fills the width', tilesRight - tilesLeft >= Math.min(1000, m.mainWidth - 112), `the choices are ${Math.round(tilesRight - tilesLeft)} px wide in a ${Math.round(m.mainWidth)} px area`);
+      expect(key + ' fills the width', tilesRight - tilesLeft >= Math.min(1000, m.mainWidth - 112) || tilesRight - tilesLeft >= 1040, `the choices are ${Math.round(tilesRight - tilesLeft)} px wide in a ${Math.round(m.mainWidth)} px area`);
       expect(key + ' left and right balanced', Math.abs((tilesLeft - m.mainLeft) - (m.mainLeft + m.mainWidth - tilesRight)) <= 2, `left gap ${Math.round(tilesLeft - m.mainLeft)}, right gap ${Math.round(m.mainLeft + m.mainWidth - tilesRight)}`);
-      expect(key + ' top and bottom balanced', Math.abs(above - below) <= 40, `${Math.round(above)} px above, ${Math.round(below)} px below the choices`);
       expect(key + ' Continue in view', inView(cont, m.innerHeight, width), `Continue box ${JSON.stringify(cont)}`);
-      expect(key + ' panel needs no scroll', m.panelOver <= 1, `the panel overflows by ${m.panelOver}px`);
-      expect(key + ' title size', m.title >= 27 && m.title <= 33, `the step title is ${m.title}px`);
+      expect(key + ' title size', m.title >= 32 && m.title <= 60, `the step title is ${m.title}px`);
       expect(key + ' empty total size', m.emptyTotal !== null && m.emptyTotal >= 14 && m.emptyTotal <= 16, `the empty total is ${m.emptyTotal}px`);
       await shot(page, `p153-1-size-${key}`);
       if (DEEP.has(key)) {
-        // Steps 2 to 4: the panel stays fixed and whole while the right side scrolls.
+        // Steps 2 to 4: the main action stays in view while the page scrolls.
         await page.getByLabel(/^Small/).check();
         await page.getByRole('button', { name: 'Continue', exact: true }).first().click();
         await page.getByRole('heading', { name: 'Choose your services' }).waitFor();
         await page.getByRole('button', { name: /Premium Carwash/ }).click();
-        await page.getByLabel(/^Basic Wash/).check();
-        await page.getByLabel(/Engine Bay Wash/).check();
+        await page.locator('[data-part=menu-tile]', { hasText: 'Basic Wash' }).click();
+        await page.locator('[data-part=menu-tile]', { hasText: 'Engine Bay Wash' }).click();
         await page.waitForTimeout(600);
         const steps = [];
         const panelState = async (label) => {
-          const s = await page.evaluate(() => { const panel = document.querySelector('[data-part=panel]'); window.scrollTo({ top: document.scrollingElement.scrollHeight, behavior: 'instant' }); const r = panel.getBoundingClientRect(); const money = [...panel.querySelectorAll('p')].find((p) => /^₱/.test(p.textContent.trim())); return { over: panel.scrollHeight - panel.clientHeight, top: r.top, bottom: r.bottom, price: money ? parseFloat(getComputedStyle(money).fontSize) : null, innerHeight }; });
+          const s = await page.evaluate(() => { window.scrollTo({ top: document.scrollingElement.scrollHeight, behavior: 'instant' }); const money = [...document.querySelectorAll('aside p, #wizard-action-bar strong')].find((p) => p.getClientRects().length && /^₱/.test(p.textContent.trim())); return { price: money ? parseFloat(getComputedStyle(money).fontSize) : null, innerHeight }; });
           const primary = await page.getByRole('button', { name: /^(Continue|Submit booking request)$/ }).filter({ visible: true }).first().boundingBox();
-          steps.push({ step: label, panelOverflowPx: s.over, panelTopAfterScroll: Math.round(s.top), pricePx: s.price, primaryBottom: primary && Math.round(primary.y + primary.height) });
-          expect(`${key} ${label} panel whole`, s.over <= 1, `the panel overflows by ${s.over}px`);
-          expect(`${key} ${label} panel fixed`, Math.abs(s.top) <= 1 && s.bottom <= s.innerHeight + 1, `the panel top is ${s.top} after scrolling`);
+          steps.push({ step: label, pricePx: s.price, primaryBottom: primary && Math.round(primary.y + primary.height) });
           expect(`${key} ${label} action in view`, inView(primary, s.innerHeight, width), `action box ${JSON.stringify(primary)}`);
-          expect(`${key} ${label} price size`, s.price !== null && s.price >= 27 && s.price <= 33, `the total is ${s.price}px`);
+          expect(`${key} ${label} price shown`, s.price !== null && s.price >= 18, `the total is ${s.price}px`);
           await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
         };
         await panelState('step 2');
@@ -148,7 +145,7 @@ test('the booking wizard fits the screen by height: bands, panel and type on lap
         const bands = [...document.querySelectorAll('label:has(input[name="vehicle-category"])')];
         const last = bands.at(-1).getBoundingClientRect();
         const bar = document.getElementById('wizard-action-bar').getBoundingClientRect();
-        const small = [...document.querySelectorAll('main p, main span, [data-part=panel] p')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && e.textContent.trim() && parseFloat(getComputedStyle(e).fontSize) < 12; }).length;
+        const small = [...document.querySelectorAll('main p, main span, [data-part=panel] p, #wizard-action-bar span')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && e.textContent.trim() && parseFloat(getComputedStyle(e).fontSize) < 12; }).length;
         return { lastBottom: last.bottom, barTop: bar.top, sideways: document.scrollingElement.scrollWidth > document.scrollingElement.clientWidth, small, innerHeight };
       });
       const cont = await page.getByRole('button', { name: 'Continue', exact: true }).filter({ visible: true }).first().boundingBox();

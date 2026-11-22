@@ -78,7 +78,7 @@ test('Back is as tall as Continue on steps 2, 3 and 4 at laptop, desktop and pho
       await next();
       await page.getByRole('heading', { name: 'Choose your services' }).waitFor();
       await page.getByRole('button', { name: /Premium Carwash/ }).click();
-      await page.getByLabel(/^Basic Wash/).check();
+      await page.locator('[data-part=menu-tile]', { hasText: 'Basic Wash' }).click();
       await page.waitForTimeout(500);
       await pair('step 2'); await shot(page, `p155-step2-${key}`);
       await next();

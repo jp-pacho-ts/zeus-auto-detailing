@@ -198,6 +198,10 @@ const textOf = (node: unknown): string =>
       : node && typeof node === "object" && "props" in node ? textOf((node as { props: { children?: unknown } }).props.children) : "";
 const inputs = (h: H, type: string) => h.all().filter((e) => e.type === "input" && e.props.type === type);
 const byLabelText = (h: H, label: string) => h.all().find((e) => e.type === "button" && textOf(e.props.children).includes(label)) ?? null;
+// The header's step rail: the four steps in order and which one is current.
+const rail = (h: H) => (h.all().find((e) => e.type === "ol" && e.props["aria-label"] === "Booking steps")!.props.children as { props: Record<string, unknown> }[]).filter(Boolean);
+const currentStep = (h: H) => rail(h).findIndex((li) => li.props["aria-current"] === "step") + 1;
+const categories = (h: H) => h.all().filter((e) => e.type === "button" && e.props["data-part"] === "menu-category");
 const primary = (h: H, label: string) => h.all().find((e) => e.type === "button" && textOf(e.props.children).trim() === label) ?? null;
 
 async function toServices(h: H, size = S) {
@@ -229,11 +233,12 @@ test("W1: every Continue opens the next step at its top with focus on its headin
   const h = mountHooks(BookingWizard, {});
   await h.settle();
   assert.deepEqual(revealed, [], "nothing moves on first load");
-  assert.match(h.text(), /Step 1 of 4/);
+  assert.equal(rail(h).length, 4, "the header counts four steps");
+  assert.equal(currentStep(h), 1);
   await toServices(h);
   assert.equal(heading(h), "Choose your services");
   assert.deepEqual(revealed, ["scroll:wizard-step-title", "focus:wizard-step-title"]);
-  assert.match(h.text(), /Step 2 of 4/);
+  assert.equal(currentStep(h), 2);
   assert.equal(h.all().find((e) => e.type === "h1")!.props.tabIndex, -1, "the heading can take focus");
   revealed = [];
   byLabelText(h, "Premium Carwash")!.props.onClick();
@@ -251,33 +256,29 @@ test("W3: services are grouped by category; only the open category is listed; no
   network();
   const h = mountHooks(BookingWizard, {});
   await toServices(h);
-  assert.equal(inputs(h, "checkbox").length, 0, "categories first: no service is listed until one is opened");
-  const toggles = h.all().filter((e) => e.type === "button" && "aria-expanded" in e.props);
-  assert.deepEqual(toggles.map((t) => textOf(t.props.children).split("·")[0].replace(/\d.*$/, "").trim()), ["Premium Carwash", "Auto Detailing", "Window Tint"]);
-  assert.ok(toggles.every((t) => t.props["aria-expanded"] === false && typeof t.props["aria-controls"] === "string"));
-  assert.match(textOf(toggles[0].props.children), /2 services/);
-  assert.match(textOf(toggles[0].props.children), /from ₱180/);
+  // The menu board (kiosk layout, CEO 2026-11-22): one category shown at a time, the first one open to start.
+  assert.deepEqual(categories(h).map((t) => textOf(t.props.children).trim()), ["Premium Carwash", "Auto Detailing", "Window Tint"]);
+  assert.deepEqual(categories(h).map((t) => t.props["aria-pressed"]), [true, false, false]);
+  assert.deepEqual(inputs(h, "checkbox").map((e) => e.props.value), [basic.id, premium.id], "only the open category is listed");
+  assert.match(h.text(), /1 service isn't offered for Small · Compact \/ Sedan/);
   byLabelText(h, "Auto Detailing")!.props.onClick();
   await h.settle();
   assert.deepEqual(inputs(h, "checkbox").map((e) => e.props.value), [interior.id], "Headlight Restoration is not offered for this size");
-  assert.match(h.text(), /1 service isn't offered for Small · Compact \/ Sedan/);
   byLabelText(h, "Premium Carwash")!.props.onClick();
   await h.settle();
   assert.deepEqual(inputs(h, "checkbox").map((e) => e.props.value), [basic.id, premium.id], "one category open at a time");
   inputs(h, "checkbox").find((e) => e.props.value === basic.id)!.props.onChange({});
   await h.settle();
-  const order = inputs(h, "checkbox").map((e) => e.props.value);
-  assert.deepEqual(order, [basic.id, glass.id, premium.id], "the wash's extra appears directly under it");
-  assert.match(textOf(byLabelText(h, "Premium Carwash")!.props.children), /1 chosen/);
+  assert.deepEqual(inputs(h, "checkbox").map((e) => e.props.value), [basic.id, premium.id, glass.id], "the wash's extra appears under the category's services");
+  assert.match(textOf(byLabelText(h, "Premium Carwash")!.props.children), /Premium Carwash1/, "the category counts what is chosen in it");
+  assert.match(textOf(h.all().find((e) => e.type === "aside")!), /Your order[\s\S]*Basic Wash/, "the order beside the menu lists the pick");
   h.unmount();
 });
-
 test("W3: a motorcycle sees only the categories it can book", async () => {
   network();
   const h = mountHooks(BookingWizard, {});
   await toServices(h, MOTOR);
-  const toggles = h.all().filter((e) => e.type === "button" && "aria-expanded" in e.props);
-  assert.equal(toggles.length, 1);
+  assert.equal(categories(h).length, 1);
   assert.match(h.text(), /4 services aren't offered for Motor \/ Motorcycle/);
   h.unmount();
 });
@@ -467,26 +468,17 @@ test("P1-52: step 1 shows a drawn outline for each size, inline, with the size's
   h.unmount();
 });
 
-test("P1-52: the side panel counts four steps, marks the current one and lists what is chosen with a Change for each finished step", async () => {
+test("P1-52: the header counts four steps and marks the current one; the day step shows what is chosen with a way back", async () => {
   network();
   const h = mountHooks(BookingWizard, {});
   await toDay(h);
-  const list = h.all().find((e) => e.type === "ol" && e.props["aria-label"] === "Progress steps")!;
-  const items = (list.props.children as { props: Record<string, unknown> }[]).filter(Boolean);
-  assert.equal(items.length, 4);
-  assert.deepEqual(items.map((li) => li.props["aria-current"]), [undefined, undefined, "step", undefined]);
-  const sheet = textOf(list);
-  assert.match(sheet, /Vehicle size/);
-  assert.match(sheet, /Small · Compact \/ Sedan/);
-  assert.match(sheet, /Basic Wash/);
-  const changes = h.all().filter((e) => e.type === "button" && typeof e.props["aria-label"] === "string" && /^Change /.test(e.props["aria-label"] as string));
-  assert.deepEqual(changes.map((b) => b.props["aria-label"]), ["Change vehicle size", "Change services"]);
-  const bar = h.all().find((e) => e.props.role === "progressbar")!;
-  assert.equal(bar.props["aria-valuenow"], 3);
-  assert.equal(bar.props["aria-valuetext"], "Step 3 of 4: Day");
+  assert.equal(rail(h).length, 4);
+  assert.deepEqual(rail(h).map((li) => li.props["aria-current"]), [undefined, undefined, "step", undefined]);
+  assert.match(textOf(rail(h)[0]), /Vehicle size/);
+  const tray = h.all().find((e) => e.type === "div" && /Change size/.test(textOf(e)) && /Basic Wash/.test(textOf(e)) && !/Your order/.test(textOf(e)))!;
+  assert.match(textOf(tray), /Small · Compact \/ Sedan/);
   h.unmount();
 });
-
 test("P1-52: the details step keeps ONE submit: the review sits under the fields, no fifth step, same submit button text", async () => {
   network();
   const h = mountHooks(BookingWizard, {});
@@ -611,44 +603,39 @@ test("P1-52 (LE, mock F): the vehicle icons are gold extruded 3D: one shared gra
   h.unmount();
 });
 
-test("P1-53: the empty total is small muted text, the title and a price use calm height-based sizes", async () => {
+test("P1-53: the order line says Choose a size until one is picked; the order panel shows the total in big type", async () => {
   network();
   const h = mountHooks(BookingWizard, {});
   await h.settle();
-  const empty = h.all().find((e) => e.type === "p" && textOf(e.props.children) === "Choose a size")!;
-  assert.match(String(empty.props.className), /text-sm/);
-  assert.match(String(empty.props.className), /text-muted-foreground/);
-  assert.doesNotMatch(String(empty.props.className), /text-(3|4|5)xl|text-\[(3|4)\d/, "no big type for a placeholder");
+  assert.match(textOf(h.all().find((e) => e.props.id === "wizard-action-bar")!), /Your orderChoose a size/);
   const title = h.all().find((e) => e.type === "h1")!;
-  assert.match(String(title.props.className), /lg:text-\[clamp\(28px,3\.6vh,32px\)\]/, "28 to 32 px by screen height on laptops");
-  assert.doesNotMatch(String(title.props.className), /lg:text-\[40px\]/);
+  assert.equal(title.props.id, "wizard-step-title");
+  assert.match(String(title.props.className), /sm:text-5xl/, "the step heading is the stage's display heading");
   await toServices(h);
   byLabelText(h, "Premium Carwash")!.props.onClick();
   await h.settle();
   inputs(h, "checkbox").find((e) => e.props.value === basic.id)!.props.onChange({});
   await h.settle();
   const price = h.all().find((e) => e.type === "p" && /^₱/.test(textOf(e.props.children)) && /tabular-nums/.test(String(e.props.className)))!;
-  assert.match(String(price.props.className), /text-\[clamp\(28px,3\.4vh,32px\)\]/, "a price is 28 to 32 px");
+  assert.match(String(price.props.className), /text-3xl/, "the order total is big");
   h.unmount();
 });
-
-test("P1-53/P1-54: the size tiles and their icons are sized by screen height on laptops (a card grid, three tiles then two wider ones)", async () => {
+test("P1-53/P1-54: the size cards share the row on a tablet or laptop and their icons follow the screen height", async () => {
   network();
   const h = mountHooks(BookingWizard, {});
   await h.settle();
-  const tiles = h.all().filter((e) => e.type === "label" && /--ic/.test(String(e.props.className)));
-  assert.equal(tiles.length, 2, "one tile per size");
-  for (const tile of tiles) {
-    assert.match(String(tile.props.className), /lg:\[--ic:clamp\(64px,13vh,120px\)\]/, "the icon size follows the screen height");
-    assert.match(String(tile.props.className), /rounded-2xl/);
+  const cards = h.all().filter((e) => e.type === "label" && e.props["data-part"] === "vehicle-card");
+  assert.equal(cards.length, 2, "one card per size");
+  for (const card of cards) {
+    assert.match(String(card.props.className), /\[--ic:clamp\(64px,12vh,160px\)\]/, "the icon size follows the screen height");
+    assert.match(String(card.props.className), /rounded-2xl/);
   }
   const mark = h.all().find((e) => e.props["data-part"] === "vehicle-mark")!;
   assert.match(String(mark.props.className), /h-\[calc\(var\(--ic\)\*1\.3\)\]/);
-  const grid = h.all().find((e) => e.type === "div" && /lg:grid-cols-6/.test(String(e.props.className)))!;
+  const grid = h.all().find((e) => e.type === "div" && /md:grid-cols-\[repeat\(auto-fit,minmax\(200px,1fr\)\)\]/.test(String(e.props.className)) && !e.props.role)!;
   assert.match(String(grid.props.className), /grid-cols-2/, "two columns on phones");
   h.unmount();
 });
-
 test("P1-54: a size name is split into a title and a second line, and nothing else is added or lost", () => {
   assert.deepEqual(splitSizeName("Small · Compact / Sedan"), { head: "Small", tail: "Compact / Sedan" });
   assert.deepEqual(splitSizeName("X-Large · Fullsize SUV / Pick-up / Van"), { head: "X-Large", tail: "Fullsize SUV / Pick-up / Van" });
@@ -659,23 +646,18 @@ test("P1-54: a size name is split into a title and a second line, and nothing el
   }
 });
 
-test("P1-54: step 1 tiles keep every size's full name for screen readers and the panel; the grid is 3 + 2 wide on laptops", async () => {
+test("P1-54: step 1 cards keep every size's full name for screen readers and the order line, and show the size's starting price", async () => {
   network();
   const h = mountHooks(BookingWizard, {});
   await h.settle();
-  const tile = h.all().filter((e) => e.type === "label" && /--ic/.test(String(e.props.className)));
-  assert.match(textOf(tile[1]), /Small[ ·]*Compact \/ Sedan/);
-  assert.match(String(tile[0].props.className), /lg:col-span-3/);
-  assert.match(String(tile[1].props.className), /lg:col-span-3/, "with two sizes the tiles are each half the row");
+  const card = h.all().filter((e) => e.type === "label" && e.props["data-part"] === "vehicle-card");
+  assert.match(textOf(card[1]), /Small[ ·]*Compact \/ Sedan/);
+  assert.match(textOf(card[1]), /from ₱180\.00/, "the lowest bookable main-service price for the size");
   inputs(h, "radio").find((e) => e.props.value === S)!.props.onChange({});
   await h.settle();
-  assert.match(h.text(), /Small · Compact \/ Sedan/, "the panel still names the size in full");
-  const main = h.all().find((e) => e.type === "main")!;
-  assert.match(String(main.props.className), /lg:min-h-\[100dvh\][^"]*lg:justify-center/, "step 1 is centered between top and bottom");
-  assert.match(String(h.all().find((e) => /lg:max-w-\[1080px\]/.test(String(e.props.className)))!.props.className), /max-w-\[760px\]/, "phones keep the 760 px column");
+  assert.match(h.text(), /Small · Compact \/ Sedan/, "the order line names the size in full");
   h.unmount();
 });
-
 test("P1-55 (LE): Back uses the same height class as Continue and Submit, so the pair is level on every step", async () => {
   network();
   const h = mountHooks(BookingWizard, {});

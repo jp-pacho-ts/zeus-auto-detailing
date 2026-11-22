@@ -7,7 +7,6 @@ import {
   AlertCircle,
   ArrowRight,
   Check,
-  ChevronDown,
   ChevronLeft,
   Droplets,
   MessageSquare,
@@ -24,7 +23,7 @@ import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TurnstileChallenge, type ChallengeStatus } from "@/components/booking/turnstile";
-import { DayPicker, DAYS_PER_PAGE, dateLabel, shortDayLabel, todayInManila } from "@/components/booking/day-picker";
+import { DayPicker, DAYS_PER_PAGE, dateLabel, todayInManila } from "@/components/booking/day-picker";
 import { BookingTicket } from "@/components/booking/booking-ticket";
 import { KioskEndDialog, KioskIdleDialog } from "@/components/booking/kiosk-end-dialog";
 import { VehicleDrawing, VehicleDrawingDefs } from "@/components/booking/vehicle-drawing";
@@ -88,10 +87,6 @@ const control =
   "mt-2 min-h-[52px] w-full rounded-xl border border-input bg-card px-4 py-3 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60 transition-colors";
 // L9: less padding on phones so the security check fits a 320 px screen.
 const panel = "rounded-2xl border border-border bg-card p-4 sm:p-8";
-// L5: option bands have a visible edge (input token, 6.9:1) and a focus ring on the whole band. The picked band gets a second inner line.
-const optionCard = (selected: boolean) =>
-  "flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:p-5 lg:px-5 lg:py-[clamp(8px,1.5vh,20px)] " +
-  (selected ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary");
 const changeLink =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-end rounded-xl px-2 text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 // P1-55 (LE): Back is as tall as Continue and Submit: both use this height.
@@ -277,6 +272,10 @@ export function BookingWizard({
   const bases = catalog?.services.filter((s) => s.type === "BASE") ?? [];
   const picked = (id: string) => picks.find((p) => p.serviceId === id);
   const offered = (s: ServicePackage) => Boolean(vehicleId) && offerLabel(s, vehicleId).bookable;
+  const fromPrice = (sizeId: string) => {
+    const cents = bases.flatMap((s) => s.offers.filter((o) => o.vehicleCategoryId === sizeId && o.onlineBooking === "PRICED" && o.unitPriceCentavos !== null && offerLabel(s, sizeId).bookable).map((o) => o.unitPriceCentavos!));
+    return cents.length ? money(Math.min(...cents)) : "";
+  };
 
   // Inline validation checks for Step 4
   const isPhoneValid = /^(09\d{9}|\+639\d{9})$/.test(form.customerPhone.replace(/[\s()\-]/g, ""));
@@ -638,20 +637,9 @@ export function BookingWizard({
       </span>
     </>
   );
-  const renderTotal = () =>
-    kioskOnExit ? renderKioskOrder() : step === 1 ? (
-      <span className="text-sm text-muted-foreground">{vehicle ? vehicle.name : "Choose a size"}</span>
-    ) : lines.length ? (
-      <>
-        <span className="block text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</span>
-        <span className="block text-lg font-extrabold tabular-nums text-foreground">{total ? total.amount : "Pricing…"}</span>
-      </>
-    ) : (
-      <span className="text-sm text-muted-foreground">Nothing chosen yet</span>
-    );
   const renderReason = () => (submitReason ? <p className="mt-2 text-sm text-muted-foreground" role="status">{submitReason}</p> : null);
 
-  // The single review, under the details fields (L2, P1-52). Each Change returns to its step; on desktop the side panel has them.
+  // The single review, under the details fields (L2, P1-52). Each Change returns to its step.
   const renderReview = () => (
     <dl className="space-y-3 text-sm">
       <div className="flex items-start justify-between gap-3">
@@ -659,7 +647,7 @@ export function BookingWizard({
           <dt className="text-muted-foreground">Vehicle size</dt>
           <dd className="font-bold text-foreground">{vehicle?.name ?? "—"}</dd>
         </div>
-        <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink + " lg:hidden"} aria-label="Change vehicle size">
+        <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink} aria-label="Change vehicle size">
           Change
         </button>
       </div>
@@ -686,7 +674,7 @@ export function BookingWizard({
             </dd>
           </div>
           {step > 2 && (
-            <button type="button" onClick={() => goTo(2)} disabled={locked} className={changeLink + " lg:hidden"} aria-label="Change services">
+            <button type="button" onClick={() => goTo(2)} disabled={locked} className={changeLink} aria-label="Change services">
               Change
             </button>
           )}
@@ -699,7 +687,7 @@ export function BookingWizard({
             <dd className="font-bold text-foreground">{chosenDay ? dateLabel(chosenDay) : "Not chosen yet"}</dd>
           </div>
           {step > 3 && (
-            <button type="button" onClick={() => goTo(3)} disabled={locked} className={changeLink + " lg:hidden"} aria-label="Change day">
+            <button type="button" onClick={() => goTo(3)} disabled={locked} className={changeLink} aria-label="Change day">
               Change
             </button>
           )}
@@ -713,46 +701,9 @@ export function BookingWizard({
     </dl>
   );
 
-  // P1-52: the build sheet in the side panel: the four steps, what is chosen so far and a Change for each finished one.
-  const renderSheet = () => {
-    const values = [vehicle?.name ?? "", servicesSummary, chosenDay ? shortDayLabel(chosenDay) : "", ""];
-    return (
-      <ol aria-label="Progress steps" className="mt-6 border-t border-border lg:mt-[clamp(10px,3vh,32px)]">
-        {STEP_LABELS.map((label, index) => {
-          const n = index + 1;
-          const state = n < step ? "done" : n === step ? "current" : "next";
-          return (
-            <li key={label} aria-current={state === "current" ? "step" : undefined} className="flex items-start gap-3 border-b border-border py-3 text-sm lg:py-[clamp(6px,1.1vh,12px)]">
-              <span aria-hidden="true" className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center">
-                {state === "done" ? (
-                  <Check className="h-4 w-4 text-primary" />
-                ) : (
-                  <span className={"h-2.5 w-2.5 rounded-full border-2 " + (state === "current" ? "border-primary bg-primary" : "border-muted-foreground/60")} />
-                )}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className={"block " + (state === "current" ? "font-bold text-foreground" : "text-muted-foreground")}>{label}</span>
-                {state === "done" && values[index] && <span className="block break-words font-bold text-foreground">{values[index]}</span>}
-                {state === "done" && <span className="sr-only">(done)</span>}
-                {state === "current" && <span className="sr-only">(current step)</span>}
-              </span>
-              {state === "done" && (
-                <button type="button" onClick={() => goTo(n)} disabled={locked} className={changeLink} aria-label={"Change " + label.toLowerCase()}>
-                  Change
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    );
-  };
-
-  // Phones, services and day steps: what is chosen so far, above the choices.
+  // The day step: what is chosen so far, above the calendar.
   const renderMobileSummaryTray = () => (
-    <div className={kioskOnExit
-      ? "mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 rounded-xl border border-border bg-muted px-5 py-2 text-sm [&>p]:col-start-1 [&>button]:col-start-2 [&>button]:row-start-1 [&>button]:row-span-2"
-      : "mb-6 rounded-xl border border-border bg-muted p-4 text-sm lg:hidden"}>
+    <div className="mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 rounded-xl border border-border bg-muted px-5 py-2 text-sm [&>p]:col-start-1 [&>button]:col-start-2 [&>button]:row-start-1 [&>button]:row-span-2">
       <p className="font-bold text-foreground">{vehicle?.name}</p>
       <p className="break-words text-muted-foreground">{servicesSummary || "No service chosen yet"}</p>
       {step === 3 && chosenDay && <p className="text-muted-foreground">{dateLabel(chosenDay)}</p>}
@@ -772,9 +723,9 @@ export function BookingWizard({
     });
   };
 
-  // W13: the panel count for a picked per-panel service (both layouts).
+  // W13: the panel count for a picked per-panel service.
   const renderPanels = (s: ServicePackage, pick: { quantity: number }) => (
-    <div className={`mt-2 rounded-xl border border-border bg-muted p-4 lg:col-span-3 ${kioskOnExit ? "md:col-span-full" : ""}`}>
+    <div className={"mt-2 rounded-xl border border-border bg-muted p-4 md:col-span-full"}>
       <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
         Number of panels for {s.name}
       </label>
@@ -810,125 +761,7 @@ export function BookingWizard({
     </div>
   );
 
-  const renderService = (s: ServicePackage, nested = false) => {
-    const pick = picked(s.id);
-    const offer = offerLabel(s, vehicleId, pick?.quantity ?? 1);
-    const Icon = getServiceDisciplineIcon(s.category);
-    const detail = serviceDetail(s);
-    const extras = nested ? [] : addOnsUnder(s);
-    return (
-      <li key={s.id} className={nested ? undefined : kioskOnExit ? "md:contents" : "lg:contents"}>
-        <label className={optionCard(Boolean(pick)) + (kioskOnExit && !nested ? " min-h-[132px] items-start" : " min-h-[80px]")}>
-          <div className={kioskOnExit && !nested ? "grid gap-3" : "flex items-start gap-3.5"}>
-            {!nested && (
-              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted">
-                <Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-              </div>
-            )}
-            <div>
-              <span className={kioskOnExit && !nested ? "block text-lg font-bold text-foreground" : "block font-bold text-foreground"}>{s.name}</span>
-              {detail && <span className="mt-1 block text-sm text-muted-foreground">{detail}</span>}
-              <span className="mt-2 block text-sm font-semibold text-foreground">
-                {"compareAtText" in offer && offer.compareAtText && (
-                  <span className="mr-2 text-xs text-muted-foreground line-through">
-                    {offer.compareAtText}
-                  </span>
-                )}
-                <span className={"compareAtText" in offer && offer.compareAtText ? "text-emerald-400 font-bold" : ""}>
-                  {offer.text}
-                </span>
-                {"discountPercent" in offer && offer.discountPercent && (
-                  <span className="ml-2 inline-flex items-center rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
-                    {offer.discountPercent}% OFF
-                  </span>
-                )}
-                {s.unit === "PANEL" ? " · per panel count" : ""}
-              </span>
-            </div>
-          </div>
-          <input
-            type="checkbox"
-            name="service"
-            value={s.id}
-            checked={Boolean(pick)}
-            disabled={locked}
-            onChange={() => togglePick(s)}
-            className="h-5 w-5 shrink-0 accent-primary"
-          />
-        </label>
-        {pick && s.unit === "PANEL" && renderPanels(s, pick)}
-        {extras.length > 0 && (
-          <fieldset className={`ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4 lg:col-span-3 ${kioskOnExit ? "md:col-span-full" : ""}`}>
-            <legend className="mb-2 text-sm font-semibold text-foreground">Extras for {s.name}</legend>
-            <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{extras.map((a) => renderService(a, true))}</ul>
-          </fieldset>
-        )}
-      </li>
-    );
-  };
-
-  // W3: categories first; one open at a time, each with its count, starting price and choices.
-  const renderCategories = () => {
-    const available = bases.filter(offered);
-    const hidden = bases.length - available.length;
-    const groups = CATEGORY_ORDER.map((category) => ({ category, services: available.filter((s) => s.category === category) })).filter(
-      (g) => g.services.length,
-    );
-    const fromText = (services: ServicePackage[]) => {
-      const offers = services.map((s) => ({ s, o: s.offers.find((o) => o.vehicleCategoryId === vehicleId) }));
-      const fixed = offers.filter(({ o }) => o?.onlineBooking === "PRICED" && o.unitPriceCentavos !== null).map(({ o }) => o!.unitPriceCentavos!);
-      if (fixed.length) return "from " + money(Math.min(...fixed));
-      const estimates = offers.map(({ s, o }) => o?.unitPriceCentavos ?? s.referenceUnitPriceCentavos).filter((c): c is number => c !== null);
-      return estimates.length ? "from about " + money(Math.min(...estimates)) : "price from the shop";
-    };
-    return (
-      <div className="space-y-3">
-        {groups.map(({ category, services }) => {
-          const open = openCategory === category;
-          const chosen = lines.filter((l) => serviceById(l.serviceId)?.category === category).length;
-          const regionId = "category-" + category.toLowerCase();
-          return (
-            <section key={category} className="rounded-2xl border border-input bg-card">
-              <h2>
-                <button
-                  type="button"
-                  aria-expanded={open}
-                  aria-controls={regionId}
-                  onClick={() => setOpenCategory(open ? null : category)}
-                  className="flex min-h-[64px] w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span className="min-w-0">
-                    <span className="block text-base font-bold text-foreground">{CATEGORY_NAMES[category]}</span>
-                    <span className="block text-sm text-muted-foreground">
-                      {services.length} {services.length === 1 ? "service" : "services"} · {fromText(services)}
-                      {chosen ? <span className="font-semibold text-primary">{" · " + chosen + " chosen"}</span> : null}
-                    </span>
-                  </span>
-                  <ChevronDown aria-hidden="true" className={"h-5 w-5 shrink-0 text-primary transition-transform " + (open ? "rotate-180" : "")} />
-                </button>
-              </h2>
-              <div id={regionId} role="region" aria-label={CATEGORY_NAMES[category]} hidden={!open} className="border-t border-border p-3 sm:p-4">
-                {open && (
-                  <ul className={kioskOnExit
-                    ? "space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 lg:grid-cols-3"
-                    : "space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0"}>
-                    {services.map((s) => renderService(s))}
-                  </ul>
-                )}
-              </div>
-            </section>
-          );
-        })}
-        {hidden > 0 && (
-          <p className="text-sm text-muted-foreground">
-            {hidden} {hidden === 1 ? "service isn't" : "services aren't"} offered for {vehicle?.name}. Call the shop at {brandConfig.displayPhone} to ask.
-          </p>
-        )}
-      </div>
-    );
-  };
-
-  // Kiosk menu board: a photo tile per service (tap to add or remove), the extras for what is picked, and the order beside it.
+  // The menu board: a photo tile per service (tap or click to add or remove), the extras for what is picked, and the order beside it.
   const renderKioskTile = (s: ServicePackage) => {
     const pick = picked(s.id);
     const offer = offerLabel(s, vehicleId, pick?.quantity ?? 1);
@@ -1040,7 +873,7 @@ export function BookingWizard({
               })}
             </ul>
           ) : (
-            <p className="py-4 text-sm text-muted-foreground">Tap a service to add it.</p>
+            <p className="py-4 text-sm text-muted-foreground">{kioskOnExit ? "Tap a service to add it." : "Choose a service to add it."}</p>
           )}
           <div className="border-t border-border pt-3">
             <p className="text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</p>
@@ -1051,7 +884,7 @@ export function BookingWizard({
             )}
             {total?.note && <p className="mt-1 text-sm text-muted-foreground">{total.note}</p>}
           </div>
-          <div className="mt-4 hidden lg:block [&>button]:w-full">{renderPrimary()}</div>
+          <div className="mt-4 hidden space-y-2 lg:block [&>button]:w-full">{renderPrimary()}{renderBack()}</div>
           <div className="hidden lg:block">{renderReason()}</div>
         </aside>
       </div>
@@ -1060,34 +893,12 @@ export function BookingWizard({
 
   const intro = [
     "Prices depend on the size of your vehicle.",
-    kioskOnExit ? "Tap a service to add it to your order. You can choose more than one." : "Open a category to see its services. You can choose more than one.",
+    kioskOnExit ? "Tap a service to add it to your order. You can choose more than one." : "Choose a service to add it to your order. You can choose more than one.",
     arrivalWords(),
     "The shop uses these details to confirm your booking.",
     "",
   ][step - 1];
   const statusWords = booking ? bookingStatusWords(booking.view.status) : "";
-  const stepLabel = STEP_LABELS[Math.min(step, 4) - 1];
-
-  // P1-52: the running total in the side panel, as big as the Manage booking reference.
-  const renderPanelTotal = () =>
-    step === 1 ? (
-      vehicle ? (
-        <>
-          <p className="text-sm text-muted-foreground">Vehicle size</p>
-          <p className="mt-0.5 text-lg font-bold leading-snug text-foreground">{vehicle.name}</p>
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground">Choose a size</p>
-      )
-    ) : lines.length ? (
-      <>
-        <p className="text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</p>
-        <p className="mt-1 text-[clamp(28px,3.4vh,32px)] font-extrabold leading-none tracking-tight tabular-nums text-foreground">{total ? total.amount : "Pricing…"}</p>
-        {total?.note && <p className="mt-2 text-sm text-muted-foreground">{total.note}</p>}
-      </>
-    ) : (
-      <p className="text-sm text-muted-foreground">Nothing chosen yet</p>
-    );
 
   const ticket = booking
     ? {
@@ -1157,8 +968,8 @@ export function BookingWizard({
         </div>
       )}
 
-      {!catalog && !catalogError && (kioskOnExit ? (
-        // Kiosk: the vehicle cards as skeletons while the service menu loads.
+      {!catalog && !catalogError && (
+        // The vehicle cards as skeletons while the service menu loads.
         <div role="status" aria-busy="true" className="grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
           <span className="sr-only">Loading the shop service menu…</span>
           {Array.from({ length: 5 }, (_, i) => (
@@ -1169,11 +980,7 @@ export function BookingWizard({
             </div>
           ))}
         </div>
-      ) : (
-        <div role="status" className={panel}>
-          Loading the shop service menu…
-        </div>
-      ))}
+      )}
       {catalogError && (
         <div role="alert" className={panel}>
           <p>{catalogError}</p>
@@ -1202,21 +1009,17 @@ export function BookingWizard({
       )}
 
       {step < 5 && (
-        <div className={kioskOnExit ? "" : "lg:grid lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)]"}>
-          {/* P1-52 (LE 2026-11-06, mock C): the side panel. Desktop: logo, step, title, the build sheet, the big total and the
-              actions, kept in view. Phone: the same panel is the header (logo, segmented progress, step, title); the total
-              and the action sit in the bar at the bottom. */}
-          <div
-            data-part="panel"
-            className={kioskOnExit ? "no-print" : "no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-[clamp(14px,3vh,32px)] lg:pt-[clamp(14px,2.6vh,28px)]"}
-          >
-            <div className={kioskOnExit
-              ? "grid grid-cols-2 items-center gap-3 border-b border-border bg-muted px-4 py-3 sm:px-8 lg:grid-cols-[1fr_auto_1fr]"
-              : "flex items-center justify-between gap-3"}>
-              {kioskOnExit ? <Logo className="col-start-1 row-start-1" /> : <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Logo />
-              </Link>}
-              {kioskOnExit && <ol aria-label="Booking steps" className="col-span-2 col-start-1 row-start-2 grid grid-cols-4 gap-2 sm:gap-3 lg:col-span-1 lg:col-start-2 lg:row-start-1">
+        <div>
+          {/* The booking header (the kiosk ordering screen, LE): logo, the four steps on a gold rail, and End session on the
+              kiosk or Close online. The step heading sits under it. */}
+          <div data-part="panel" className="no-print">
+            <div className="grid grid-cols-2 items-center gap-3 border-b border-border bg-muted px-4 py-3 sm:px-8 lg:grid-cols-[1fr_auto_1fr]">
+              {kioskOnExit ? <Logo className="col-start-1 row-start-1" /> : (
+                <Link href="/" aria-label="Return to home" className="col-start-1 row-start-1 inline-flex min-h-[44px] items-center justify-self-start rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Logo />
+                </Link>
+              )}
+              <ol aria-label="Booking steps" className="col-span-2 col-start-1 row-start-2 grid grid-cols-4 gap-2 sm:gap-3 lg:col-span-1 lg:col-start-2 lg:row-start-1">
                 {STEP_LABELS.map((label, index) => (
                   <li key={label} aria-current={index + 1 === step ? "step" : undefined}
                     className={"flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 text-center text-xs font-semibold sm:px-3 sm:text-sm " +
@@ -1225,76 +1028,32 @@ export function BookingWizard({
                     {label}
                   </li>
                 ))}
-              </ol>}
+              </ol>
               {kioskOnExit && !pending && (
                 <button type="button" data-part="end-session" onClick={() => setConfirmEnd(true)} className={pillLink + " col-start-2 row-start-1 justify-self-end px-4 lg:col-start-3"}>
                   End session
                 </button>
               )}
               {!kioskOnExit && !locked && (
-                <Link href="/" aria-label="Cancel and return to home" className={pillLink + " h-11 w-11"}>
+                <Link href="/" aria-label="Cancel and return to home" className={pillLink + " col-start-2 row-start-1 h-11 w-11 justify-self-end lg:col-start-3"}>
                   <X aria-hidden="true" className="h-5 w-5" />
                 </Link>
               )}
             </div>
-            {!kioskOnExit && <div
-              role="progressbar"
-              aria-label="Booking progress"
-              aria-valuemin={1}
-              aria-valuemax={4}
-              aria-valuenow={step}
-              aria-valuetext={`Step ${step} of 4: ${stepLabel}`}
-              className="mt-3 grid grid-cols-4 gap-1 lg:hidden"
-            >
-              {STEP_LABELS.map((label, index) => (
-                <span
-                  key={label}
-                  aria-hidden="true"
-                  className={
-                    "h-1.5 rounded-full motion-safe:transition-colors motion-safe:duration-500 " +
-                    (index + 1 < step ? "bg-primary" : index + 1 === step ? "bg-gradient-to-r from-primary from-50% to-border to-50%" : "bg-border")
-                  }
-                />
-              ))}
-            </div>}
-            <div className={kioskOnExit ? "mx-auto max-w-6xl px-4 pb-1 pt-7 sm:px-8 sm:pt-10" : undefined}>
-            {!kioskOnExit && <p className="mt-4 text-sm text-muted-foreground lg:mt-[clamp(10px,4.5vh,56px)]">
-              <strong className="font-bold text-primary">Step {step} of 4</strong> · {stepLabel}
-            </p>}
-            <h1
-              key={kioskOnExit ? step : undefined}
-              id="wizard-step-title"
-              tabIndex={-1}
-              className={kioskOnExit
-                ? "text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none sm:text-5xl"
-                : "mt-1 scroll-mt-28 text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none lg:text-[clamp(28px,3.6vh,32px)] lg:leading-[1.1]"}
-            >
-              {HEADINGS[step - 1]}
-            </h1>
-            {intro && <p className="mt-2 text-base text-muted-foreground lg:max-w-none lg:text-[clamp(14px,1.9vh,16px)]">{intro}</p>}
+            <div className="mx-auto max-w-6xl px-4 pb-1 pt-7 sm:px-8 sm:pt-10 lg:pt-[clamp(16px,3vh,40px)]">
+              <h1
+                key={step}
+                id="wizard-step-title"
+                tabIndex={-1}
+                className="text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none sm:text-5xl"
+              >
+                {HEADINGS[step - 1]}
+              </h1>
+              {intro && <p className="mt-2 text-base text-muted-foreground">{intro}</p>}
             </div>
-            {!kioskOnExit && <>
-            <div className="hidden lg:block">{renderSheet()}</div>
-            <div className="hidden flex-1 lg:block" />
-            <div className="hidden lg:block lg:pt-[clamp(8px,2vh,32px)]">
-              <div className="border-t-2 border-primary pt-4">{renderPanelTotal()}</div>
-              {showPrimary && (
-                <div className="mt-4 flex items-center gap-2">
-                  {renderBack()}
-                  <div className="min-w-0 flex-1 [&>button]:w-full">{renderPrimary()}</div>
-                </div>
-              )}
-              {renderReason()}
-            </div>
-            </>}
           </div>
 
-          <main
-            className={kioskOnExit ? "mx-auto w-full px-4 pb-48 pt-6 sm:px-8 sm:pt-8" :
-              "min-w-0 px-4 pb-40 pt-4 sm:px-6 lg:px-[clamp(24px,3.5vw,56px)] lg:pb-[clamp(16px,4vh,64px)] lg:pt-[clamp(16px,5vh,56px)]" +
-              (step === 1 ? " lg:flex lg:min-h-[100dvh] lg:flex-col lg:justify-center" : "")
-            }
-          >
+          <main className="mx-auto w-full px-4 pb-48 pt-6 sm:px-8 sm:pt-8 lg:pb-28 lg:pt-[clamp(12px,2.5vh,32px)]">
             <div className="mx-auto w-full max-w-[760px] lg:max-w-[1080px]">
               {notices}
 
@@ -1320,21 +1079,20 @@ export function BookingWizard({
                   <VehicleDrawingDefs />
                   <fieldset>
                     <legend className="sr-only">Vehicle size</legend>
-                    {/* P1-54 (LE 2026-11-06, mock M1): a card grid that uses the width: three tiles, then two wider ones. Phones: two columns. */}
-                    <div className={kioskOnExit ? "grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]" : "grid grid-cols-2 gap-3 lg:grid-cols-6 lg:gap-[clamp(10px,1.8vh,16px)]"}>
-                      {catalog.vehicleCategories.map((v, index, all) => {
+                    {/* The cards share the row on a tablet or laptop (five sizes fit across); phones show two columns. */}
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+                      {catalog.vehicleCategories.map((v) => {
                         const name = splitSizeName(v.name);
                         const picked = vehicleId === v.id;
-                        const lastOdd = all.length % 2 === 1 && index === all.length - 1;
-                        const wide = all.length === 5 ? index >= 3 : all.length % 3 !== 0;
+                        const from = fromPrice(v.id);
                         return (
                           <label
                             key={v.id}
                             data-part="vehicle-card"
                             className={
                               "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
-                              (kioskOnExit ? "[--ic:clamp(96px,16vh,160px)] " :
-                                "[--ic:64px] sm:[--ic:88px] lg:[--ic:clamp(64px,13vh,120px)] " + (lastOdd ? "col-span-2 " : "") + (wide ? "lg:col-span-3 " : "lg:col-span-2 ")) +
+                              // The drawing follows the screen height, so step 1 fits a 650 px laptop screen and still fills a tablet.
+                              "[--ic:clamp(64px,12vh,160px)] " +
                               (picked ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
                             }
                           >
@@ -1355,7 +1113,8 @@ export function BookingWizard({
                                   <span className="block text-sm leading-snug text-muted-foreground">{name.tail}</span>
                                 </>
                               )}
-                              {v.description && <span className="block text-sm text-muted-foreground">{v.description}</span>}
+                              {v.description && <span className="block text-sm text-muted-foreground lg:line-clamp-2">{v.description}</span>}
+                              {from && <span className="mt-2 block text-sm font-semibold tabular-nums text-primary">from {from}</span>}
                             </span>
                             <input
                               type="radio"
@@ -1409,11 +1168,11 @@ export function BookingWizard({
               {/* Steps 2-4 */}
               {catalog && step >= 2 && step <= 4 && (
                 <div className="min-w-0">
-                  {step < 4 && !(kioskOnExit && step === 2) && renderMobileSummaryTray()}
+                  {step === 3 && renderMobileSummaryTray()}
 
                   {step === 2 && (
                     <div className="space-y-6">
-                      {kioskOnExit ? renderKioskMenu() : renderCategories()}
+                      {renderKioskMenu()}
                       {quoteState?.key === selectionKey && quoteState.error && (
                         <div role="alert" className="text-sm text-destructive">
                           <p>{quoteState.error}</p>
@@ -1842,17 +1601,17 @@ export function BookingWizard({
         </div>
       )}
 
-      {/* L1: on phones the running total and the main action stay under the thumb. */}
+      {/* L1: the running order and the main action stay under the thumb. */}
       {step < 5 && (
         <div
           id="wizard-action-bar"
-          className={"wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur " + (kioskOnExit ? "sm:px-8" + (step === 2 ? " lg:hidden" : "") : "lg:hidden")}
+          className={"wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur " + "sm:px-8" + (step === 2 ? " lg:hidden" : "")}
         >
           {/* One row: Back, total, action. On phones (below 480 px): total and Back, then the action full width, so the
               total is never squeezed out. */}
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2">
             <div className="order-2 min-[480px]:order-1">{renderBack()}</div>
-            <div className="order-1 min-w-0 flex-1 text-left min-[480px]:order-2 min-[480px]:text-right">{renderTotal()}</div>
+            <div className="order-1 min-w-0 flex-1 text-left min-[480px]:order-2 min-[480px]:text-right">{renderKioskOrder()}</div>
             {showPrimary && (
               <div className="order-3 basis-full min-[480px]:basis-auto [&>button]:w-full min-[480px]:[&>button]:w-auto">{renderPrimary()}</div>
             )}

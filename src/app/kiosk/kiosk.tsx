@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { BookingWizard } from "@/components/booking/booking-wizard";
+import { BookingStage } from "@/components/booking/booking-stage";
 import { LandingVideo } from "@/components/landing/landing-video";
-import { HERO_POSTER_FILES } from "@/components/home/hero-video";
 import { brandConfig } from "@/config/brand";
 import "@/components/landing/landing.css";
 import styles from "./kiosk.module.css";
@@ -63,12 +63,9 @@ export function Kiosk() {
 
   // The shop still from the welcome carries on behind every booking step, darkened, with a slow camera push.
   if (started) return (
-    <div className={styles.booking} data-ending={ending || undefined}>
-      <div className={styles.backdrop} aria-hidden="true">
-        <Image src={HERO_POSTER_FILES.desktop} alt="" fill sizes="100vw" priority />
-      </div>
+    <BookingStage ending={ending}>
       <BookingWizard kioskOnExit={end} />
-    </div>
+    </BookingStage>
   );
 
   // Attract screen: the live landing hero (landing.css). A tap anywhere starts the order; the bottom button is the keyboard and screen-reader path.

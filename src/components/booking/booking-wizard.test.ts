@@ -15,3 +15,10 @@ test("the customer phone field shows a neutral example, never a shop number", ()
   const shopNumbers = [brandConfig.supportPhone, brandConfig.contactPhone, brandConfig.displayPhone].map((p) => digits(p).slice(-10));
   assert.ok(shopNumbers.every((n) => n.length === 10 && !digits(placeholder!).endsWith(n)));
 });
+
+// CEO 2026-11-22: online booking uses the kiosk ordering screen on the same darkened shop stage.
+test("/book shows the wizard on the shared booking stage, without the kiosk session", () => {
+  const page = readFileSync(path.join(process.cwd(), "src/app/book/page.tsx"), "utf8");
+  assert.match(page, /<BookingStage>\s+<BookingWizard initialServiceId=\{params\.service\} initialVehicleName=\{params\.vehicle\} \/>\s+<\/BookingStage>/);
+  assert.doesNotMatch(page, /kioskOnExit/);
+});
