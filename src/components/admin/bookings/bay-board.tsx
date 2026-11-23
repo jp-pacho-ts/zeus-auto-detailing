@@ -14,6 +14,7 @@ import { LoadState, Select, dateBare, useAdminResource } from "./use-admin-resou
 import { shopDate, statusLabel } from "./model";
 import { bayPayload, canDrop, isControlTarget, plateLabel, writeFeedback } from "./board-model";
 import { AddBay, addBayButtonId, BayMenu } from "./bay-controls";
+import { boardBaysKey, RemovedBays } from "./removed-bays";
 import { AddContainer, ContainerMenu, Modal } from "./container-controls";
 import { placementPrompt, usualForLine, waitingTag } from "./container-model";
 import { BookingDetail } from "./booking-detail";
@@ -581,6 +582,7 @@ export function BayBoard({ role }: { role: UserRole }) {
                 );
               })}
               {role === "ADMIN" && <AddContainer containers={containers} onDone={bayChanged} />}
+              {role === "ADMIN" && <RemovedBays refresh={boardBaysKey(containers, board.bays)} onDone={bayChanged} />}
             </div>
 
             <section

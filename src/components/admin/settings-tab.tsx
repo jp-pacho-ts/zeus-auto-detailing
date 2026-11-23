@@ -136,8 +136,6 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
   const moved = React.useRef(false);
 
   React.useEffect(() => {
-    // Phones: the chip row scrolls sideways, so keep the current chip in view (a link can open on the last one).
-    document.querySelector('nav[aria-label="Settings sections"] [aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
     // Only a choice moves focus; the first render leaves it where the portal put it.
     if (!moved.current) return;
     moved.current = false;
@@ -219,8 +217,9 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
   const fb = { at: feedbackAt, saved, error };
   return (
     <div className="lg:grid lg:grid-cols-[13rem_minmax(0,48rem)] lg:items-start lg:gap-10">
-      <nav aria-label="Settings sections" className="-mx-4 mb-5 px-4 sm:-mx-8 sm:px-8 lg:sticky lg:top-0 lg:mx-0 lg:mb-0 lg:px-0">
-        <ul className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0">
+      {/* Phones: the list wraps into rows of chips (nothing in the admin scrolls sideways). */}
+      <nav aria-label="Settings sections" className="mb-5 lg:sticky lg:top-0 lg:mb-0">
+        <ul className="flex flex-wrap gap-2 lg:block lg:space-y-1">
           {SETTINGS_SECTIONS.map(([id, label]) => {
             const chosen = section === id, danger = id === "danger";
             return (
