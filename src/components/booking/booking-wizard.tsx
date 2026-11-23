@@ -23,7 +23,9 @@ import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TurnstileChallenge, type ChallengeStatus } from "@/components/booking/turnstile";
-import { DayPicker, DAYS_PER_PAGE, dateLabel, todayInManila } from "@/components/booking/day-picker";
+import { DayPicker, DAYS_PER_PAGE, dateLabel, shortDayLabel, todayInManila } from "@/components/booking/day-picker";
+import { BookingMedia, type MediaPhoto } from "@/components/booking/booking-media";
+import { HERO_POSTER_FILES } from "@/components/home/hero-video";
 import { BookingTicket } from "@/components/booking/booking-ticket";
 import { KioskEndDialog, KioskIdleDialog } from "@/components/booking/kiosk-end-dialog";
 import { VehicleDrawing, VehicleDrawingDefs } from "@/components/booking/vehicle-drawing";
@@ -148,6 +150,8 @@ export function BookingWizard({
   const catalog = React.useMemo(() => (rawCatalog && catalogForBody(rawCatalog, vehicleId, bodyType)), [rawCatalog, vehicleId, bodyType]);
   const [picks, setPicks] = React.useState<ServicePick[]>([]);
   const [openCategory, setOpenCategory] = React.useState<CatalogServiceKind | null>(null);
+  // Online split screen: the service under the pointer (or keyboard focus) shows in the photo half.
+  const [preview, setPreview] = React.useState<string | null>(null);
   const [panelDrafts, setPanelDrafts] = React.useState<Record<string, string>>({});
   const [linkWarning, setLinkWarning] = React.useState("");
   const [copied, setCopied] = React.useState(false);
@@ -769,7 +773,7 @@ export function BookingWizard({
     const Icon = getServiceDisciplineIcon(s.category);
     const detail = serviceDetail(s);
     return (
-      <li key={s.id}>
+      <li key={s.id} onPointerEnter={() => setPreview(s.id)} onFocus={() => setPreview(s.id)}>
         <label
           data-part="menu-tile"
           className={
@@ -831,7 +835,7 @@ export function BookingWizard({
           })}
         </nav>
         {active && (
-          <section aria-labelledby="kiosk-menu-title" className="min-w-0">
+          <section aria-labelledby="kiosk-menu-title" className="min-w-0" onPointerLeave={() => setPreview(null)}>
             <h2 id="kiosk-menu-title" data-part="menu-title" className="mb-4 text-2xl font-bold text-foreground">{CATEGORY_NAMES[active.category]}</h2>
             <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">{active.services.map(renderKioskTile)}</ul>
             {extras.length > 0 && (
@@ -899,6 +903,21 @@ export function BookingWizard({
     "",
   ][step - 1];
   const statusWords = booking ? bookingStatusWords(booking.view.status) : "";
+
+  // The photo half of the online split screen: the shop on step 1, then the service being looked at or last picked,
+  // with a caption that follows the order (size, service and price, day, total).
+  const shop: MediaPhoto = { src: HERO_POSTER_FILES.desktop };
+  const photoOf = (s?: ServicePackage): MediaPhoto => (s && (landingPhoto(s.slug) ?? landingPhoto(KIOSK_CATEGORY_PHOTO[s.category] ?? ""))) || shop;
+  const lastPick = serviceById(lines.at(-1)?.serviceId ?? "");
+  const shown = (preview && serviceById(preview)) || lastPick || bases.find((s) => offered(s) && s.category === openCategory) || bases.find(offered);
+  const sizeName = vehicle ? splitSizeName(vehicle.name) : null;
+  const chosen = [lines.map((l) => serviceById(l.serviceId)?.name).filter(Boolean).join(" + "), sizeName?.head].filter(Boolean).join(" · ");
+  const media = [
+    { photo: shop, title: sizeName?.head ?? "Beyond clean", line: vehicle ? [sizeName?.tail, fromPrice(vehicle.id) && "services from " + fromPrice(vehicle.id)].filter(Boolean).join(" · ") : "Pick your vehicle's size to see its prices." },
+    { photo: photoOf(shown), title: shown?.name ?? "Our services", line: shown ? [offerLabel(shown, vehicleId).text, serviceDetail(shown)].filter(Boolean).join(" · ") : "" },
+    { photo: photoOf(lastPick), title: day ? shortDayLabel(day) : "Your day", line: chosen },
+    { photo: photoOf(lastPick), title: "Almost done", line: [chosen, day && shortDayLabel(day), total?.amount].filter(Boolean).join(" · ") },
+  ][step - 1];
 
   const ticket = booking
     ? {
@@ -1001,8 +1020,9 @@ export function BookingWizard({
     ) : null;
 
   return (
-    <div className="wizard-root min-h-screen bg-background text-foreground" data-layout={kioskOnExit ? "kiosk" : undefined}>
+    <div className="wizard-root min-h-screen bg-background text-foreground" data-layout={kioskOnExit ? "kiosk" : "online"}>
       <style>{printCss}</style>
+      {!kioskOnExit && media && <BookingMedia photo={media.photo} title={media.title} line={media.line} />}
       {kioskOnExit && confirmEnd && !pending && step < 5 && <KioskEndDialog onKeep={() => setConfirmEnd(false)} onEnd={() => { setConfirmEnd(false); kioskOnExit(); }} />}
       {kioskOnExit && kioskWarning !== null && !pending && step < 5 && (
         <KioskIdleDialog deadline={kioskWarning} total={KIOSK_WARNING_MS} onKeep={() => kioskKeepBooking.current?.()} onEnd={kioskOnExit} />
@@ -1116,8 +1136,8 @@ export function BookingWizard({
                                   <span className="block text-sm leading-snug text-muted-foreground">{name.tail}</span>
                                 </>
                               )}
-                              {v.description && <span className="block text-sm text-muted-foreground lg:line-clamp-2">{v.description}</span>}
-                              {from && <span className="mt-2 block text-sm font-semibold tabular-nums text-primary">from {from}</span>}
+                              {v.description && <span data-part="vehicle-description" className="block text-sm text-muted-foreground lg:line-clamp-2">{v.description}</span>}
+                              {from && <span data-part="vehicle-from" className="mt-2 block text-sm font-semibold tabular-nums text-primary">from {from}</span>}
                             </span>
                             <input
                               type="radio"

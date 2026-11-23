@@ -16,6 +16,7 @@ import { splitSizeName } from "./day-booking";
 import { GOLD_GRADIENT_ID, VehicleDrawing, VehicleDrawingDefs } from "./vehicle-drawing";
 import { DayPicker } from "./day-picker";
 import { TurnstileChallenge } from "./turnstile";
+import { BookingMedia } from "./booking-media";
 
 const S = "11111111-1111-4111-8111-111111111111";
 const MOTOR = "33333333-3333-4333-8333-333333333333";
@@ -670,4 +671,31 @@ test("P1-55 (LE): Back uses the same height class as Continue and Submit, so the
   assert.ok(wanted && Number(wanted) >= 44);
   for (const el of [...backs, ...mains]) assert.equal(height(el), wanted, "same height class: " + textOf(el.props.children));
   h.unmount();
+});
+
+test("online split screen: the photo half follows the order and the service under the pointer; the kiosk has none", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  const media = () => h.child(BookingMedia)!.props as unknown as { photo: { src: string }; title: string; line: string };
+  assert.equal(h.all().find((e) => e.props.className?.toString().includes("wizard-root"))!.props["data-layout"], "online");
+  assert.equal(media().title, "Beyond clean", "before a size is picked");
+  await toServices(h);
+  assert.match(media().title, /^Basic Wash$/, "the first service on offer shows until one is looked at");
+  const row = h.all().find((e) => e.type === "li" && typeof e.props.onPointerEnter === "function" && /Premium Wash/.test(textOf(e.props.children)))!;
+  (row.props.onPointerEnter as () => void)();
+  await h.settle();
+  assert.equal(media().title, "Premium Wash", "the service under the pointer");
+  assert.match(media().line, /₱600.00/, "with its price for the size");
+  (h.all().find((e) => e.type === "section" && e.props["aria-labelledby"] === "kiosk-menu-title")!.props.onPointerLeave as () => void)();
+  inputs(h, "checkbox").find((e) => e.props.value === basic.id)!.props.onChange({});
+  await h.settle();
+  assert.equal(media().title, "Basic Wash", "back to the last pick when the pointer leaves");
+  h.unmount();
+
+  network();
+  const kiosk = mountHooks(BookingWizard, { kioskOnExit: () => {} });
+  await kiosk.settle();
+  assert.equal(kiosk.child(BookingMedia), null, "the kiosk keeps its ordering board, with no photo half");
+  kiosk.unmount();
 });

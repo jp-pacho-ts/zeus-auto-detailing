@@ -95,12 +95,15 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       await page.locator('[data-part=menu-tile]', { hasText: 'Engine Bay Wash' }).click();
       await page.waitForTimeout(500);
       await noSideways('step 2');
-      // The order: beside the menu on laptops (with Continue and Back), in the bottom bar on phones.
+      // The order: a receipt under the services on laptops (the split screen), in the bottom bar on phones; Back and Continue
+      // stay together in the bottom bar on every screen.
       const orderBox = desktop ? page.getByRole('complementary', { name: 'Your order' }) : page.locator('#wizard-action-bar');
       // The total rolls up to its new amount (booking-motion.tsx), so wait for the roll to land before reading it.
       await orderBox.getByText(/₱550\.00/).first().waitFor({ timeout: 3000 }).catch(() => {});
       assert.match(await orderBox.innerText(), /₱550.00/, `${width}px the total is in the order`);
-      if (desktop) assert.equal(await orderBox.getByRole('button', { name: 'Back' }).isVisible(), true, 'Back sits with Continue in the order');
+      const bar = page.locator('#wizard-action-bar');
+      assert.equal(await bar.getByRole('button', { name: 'Back' }).isVisible(), true, `${width}px Back sits with Continue in the bar`);
+      assert.equal(await bar.getByRole('button', { name: 'Continue', exact: true }).isVisible(), true, `${width}px Continue is in the bar`);
       await shot(page, `p152-2-services-${width}`);
       await cont().click();
       await page.getByRole('heading', { name: 'Choose your day' }).waitFor();
