@@ -791,3 +791,211 @@
     gap: 6px;
   }
 }
+
+/* Scenes of the photo half. The studio (step 1), the day (3) and the build (4) dim the photo so the gold reads first. */
+.booking :global([data-part="media"]:is([data-scene="garage"], [data-scene="date"], [data-scene="build"]) [data-part="media-layer"] img) {
+  filter: brightness(.38) saturate(.7);
+  transition: filter .8s ease;
+}
+
+.booking :global([data-part="media"][data-scene="garage"] [data-part="media-layer"] img) {
+  filter: brightness(.26) saturate(.5) blur(3px);
+}
+
+/* Step 1, the studio: a spotlight from above, a gold glow on the floor and the size's drawing between them. */
+.booking :global([data-part="media-garage"]) {
+  position: absolute;
+  inset: 0 0 26%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.booking :global([data-part="media-garage"])::before,
+.booking :global([data-part="media-garage"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.booking :global([data-part="media-garage"])::before {
+  background: radial-gradient(ellipse 46% 62% at 50% 0%, rgb(255 236 196 / .2), transparent 72%);
+}
+
+.booking :global([data-part="media-garage"])::after {
+  background: radial-gradient(ellipse 40% 9% at 50% 84%, rgb(var(--primary) / .42), transparent 70%);
+}
+
+.booking :global([data-part="media-car"]) {
+  position: relative;
+  z-index: 1;
+  width: min(58%, 440px);
+  margin-top: 14%;
+}
+
+.booking :global([data-part="media-car"] svg) {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Step 3: the chosen day, set very large. */
+.booking :global([data-part="media-date"]) {
+  display: grid;
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 600;
+  line-height: .86;
+  text-transform: uppercase;
+  color: rgb(245 245 244);
+}
+
+.booking :global([data-part="media-date"] > span:first-child) {
+  margin-bottom: .3em;
+  font-size: clamp(14px, 1.4vw, 20px);
+  letter-spacing: .24em;
+  color: rgb(var(--primary-hover));
+}
+
+.booking :global([data-part="media-date"] > span:nth-child(2)) {
+  font-size: clamp(88px, 14vw, 240px);
+  letter-spacing: -.02em;
+}
+
+.booking :global([data-part="media-date"] > span:last-child) {
+  font-size: clamp(28px, 3.6vw, 60px);
+}
+
+/* Steps 3 and 4: the build as a receipt, the total in the display face. */
+.booking :global([data-part="media-receipt"]) {
+  margin-top: clamp(18px, 3vh, 32px);
+  max-width: 460px;
+  border-top: 1px solid rgb(var(--primary) / .45);
+  padding-top: 14px;
+}
+
+.booking :global([data-part="media-receipt"] ul) {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.booking :global([data-part="media-receipt"] li),
+.booking :global([data-part="media-receipt"] p) {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+  font-size: 16px;
+  color: rgb(245 245 244 / .86);
+}
+
+.booking :global([data-part="media-receipt"] li > span:last-child) {
+  font-variant-numeric: tabular-nums;
+}
+
+.booking :global([data-part="media-receipt"] p) {
+  margin-top: 14px;
+  border-top: 1px solid rgb(245 245 244 / .16);
+  padding-top: 12px;
+}
+
+.booking :global([data-part="media-receipt"] strong) {
+  font-family: var(--display);
+  font-size: clamp(30px, 3.2vw, 48px);
+  font-variant-numeric: tabular-nums;
+  color: rgb(245 245 244);
+}
+
+/* The curtain: at each step a black panel with a gold edge crosses the photo half and uncovers the new scene. */
+.booking :global([data-part="media-curtain"]) {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: #050506;
+  transform: translateX(101%);
+  pointer-events: none;
+}
+
+.booking :global([data-part="media-curtain"])::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: rgb(var(--primary));
+  box-shadow: 0 0 24px 4px rgb(var(--primary) / .55);
+}
+
+/* A slow band of light crosses the photo now and then, like a reflection moving over paint. */
+.booking :global([data-part="media"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 42%, rgb(255 244 220 / .07) 50%, transparent 58%) no-repeat;
+  background-size: 260% 100%;
+  background-position: 160% 0;
+}
+
+/* Phones: the band is short, so the date is smaller and the receipt stays in the bottom bar. */
+@media (max-width: 1023px) {
+  .booking :global([data-part="media-date"] > span:nth-child(2)) {
+    font-size: clamp(64px, 22vw, 120px);
+  }
+
+  .booking :global([data-part="media-receipt"]),
+  .booking :global([data-part="media"]:is([data-scene="date"], [data-scene="build"]) [data-part="media-line"]) {
+    display: none;
+  }
+
+  .booking :global([data-part="media-car"]) {
+    width: min(46%, 240px);
+    margin-top: 6%;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-part="media-curtain"]) {
+    transform: translateX(0);
+    animation: media-curtain 1.05s cubic-bezier(.76, 0, .24, 1) .05s both;
+  }
+
+  .booking :global([data-part="media-car"]) {
+    animation: media-car .9s cubic-bezier(.2, .7, .2, 1) both;
+  }
+
+  .booking :global([data-part="media-date"] > span) {
+    animation: media-rise .8s cubic-bezier(.2, .7, .2, 1) both;
+  }
+
+  .booking :global([data-part="media-date"] > span:nth-child(2)) { animation-delay: .08s; }
+  .booking :global([data-part="media-date"] > span:nth-child(3)) { animation-delay: .16s; }
+
+  .booking :global([data-part="media-receipt"] li) {
+    animation: media-fade .5s ease-out both;
+  }
+
+  .booking :global([data-part="media"])::after {
+    animation: media-sweep 11s ease-in-out 1.2s infinite;
+  }
+}
+
+@keyframes media-curtain {
+  from { transform: translateX(0); }
+  to { transform: translateX(101%); }
+}
+
+@keyframes media-car {
+  from { opacity: 0; transform: translateY(22px) scale(.92); filter: blur(10px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+
+@keyframes media-sweep {
+  0% { background-position: 160% 0; }
+  32%, 100% { background-position: -60% 0; }
+}
