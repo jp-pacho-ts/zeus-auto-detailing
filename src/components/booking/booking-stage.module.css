@@ -628,7 +628,7 @@
 }
 
 .booking :global([data-layout="online"] [data-part="menu-tile"]) {
-  padding: clamp(14px, 2.2vh, 22px) 4px;
+  padding: clamp(8px, 1.6vh, 20px) 4px;
 }
 
 /* The service's photo fills the line's right side behind the text and fades out toward the name. */
@@ -676,7 +676,7 @@
 .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:first-child) {
   grid-column: 1;
   font-family: var(--display);
-  font-size: clamp(22px, 2.8vw, 42px);
+  font-size: clamp(20px, min(2.6vw, 4.2vh), 40px);
   font-weight: 600;
   line-height: 1;
   text-transform: uppercase;
@@ -698,6 +698,52 @@
 
 .booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) img) {
   transform: none;
+}
+
+/* Laptops: the menu fits the screen with no page scroll. The services and their extras sit side by side; a category
+   without extras runs its services across both columns. Names are a step smaller to fit a column. */
+@media (min-width: 1024px) {
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"]) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    column-gap: clamp(28px, 4vw, 64px);
+  }
+
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] > ul:first-of-type) {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: inherit;
+  }
+
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"]:has(> h3) > ul:first-of-type) {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] > h3) {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0 0 10px;
+    font-size: 15px;
+    text-transform: uppercase;
+    color: rgb(var(--primary-hover));
+  }
+
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] > h3 + ul) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] > p) {
+    grid-column: 1 / -1;
+    margin-top: 12px;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:first-child) {
+    font-size: clamp(18px, min(1.8vw, 3.6vh), 30px);
+  }
 }
 
 /* The order lives in the sheet that opens from the bottom bar, not under the menu. */
@@ -746,4 +792,96 @@
 @keyframes sheet-up {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: none; }
+}
+
+/* The "added" moment (React Bits ClickSpark, in CSS): when a service is added its button pops, a gold ring pulses out,
+   eight sparks burst from it and the check draws in; a chosen size's drawing pops in behind its line. The animations
+   start when a line becomes chosen, so removing one is quiet. */
+.booking :global([data-layout="online"] [data-part="menu-add"]) {
+  position: relative;
+  transition: background-color .25s ease, border-color .25s ease, color .25s ease;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-add"])::before,
+.booking :global([data-layout="online"] [data-part="menu-add"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-add"])::before {
+  border: 2px solid rgb(var(--primary));
+}
+
+.booking :global([data-layout="online"] [data-part="menu-add"])::after {
+  inset: -14px;
+  background: repeating-conic-gradient(rgb(var(--primary-hover)) 0 7deg, transparent 7deg 45deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 54%, #000 56%, #000 70%, transparent 72%);
+  mask-image: radial-gradient(circle, transparent 54%, #000 56%, #000 70%, transparent 72%);
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]:hover [data-part="menu-add"]:not(:has(.lucide-check))) {
+  border-color: rgb(var(--primary));
+  color: rgb(var(--primary-hover));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) [data-part="menu-add"]) {
+    animation: add-pop .55s cubic-bezier(.3, 1.6, .5, 1) both;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) [data-part="menu-add"])::before {
+    animation: add-ring .7s cubic-bezier(.2, .7, .2, 1) both;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) [data-part="menu-add"])::after {
+    animation: add-spark .6s cubic-bezier(.2, .7, .2, 1) .05s both;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-add"] .lucide-check) {
+    stroke-dasharray: 24;
+    animation: add-check .4s cubic-bezier(.2, .7, .2, 1) .12s both;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-add"] .lucide-plus) {
+    animation: add-plus .35s cubic-bezier(.2, .7, .2, 1) both;
+  }
+
+  .booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked) [data-part="vehicle-mark"] svg) {
+    animation: size-pop .7s cubic-bezier(.3, 1.5, .5, 1) both;
+  }
+}
+
+@keyframes add-pop {
+  0% { transform: scale(1); }
+  30% { transform: scale(.8); }
+  100% { transform: scale(1); }
+}
+
+@keyframes add-ring {
+  from { opacity: .9; transform: scale(1); }
+  to { opacity: 0; transform: scale(2.1); }
+}
+
+@keyframes add-spark {
+  from { opacity: 1; transform: scale(.55) rotate(0deg); }
+  to { opacity: 0; transform: scale(1.35) rotate(12deg); }
+}
+
+@keyframes add-check {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes add-plus {
+  from { transform: rotate(-90deg) scale(.6); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes size-pop {
+  0% { transform: translateY(14px) scale(.7); }
+  100% { transform: none; }
 }

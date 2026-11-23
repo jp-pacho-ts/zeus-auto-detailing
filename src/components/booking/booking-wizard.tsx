@@ -800,7 +800,7 @@ export function BookingWizard({
                 {offer.text}
                 {s.unit === "PANEL" ? " · per panel" : ""}
               </span>
-              <span aria-hidden="true" className={"grid h-11 w-11 shrink-0 place-items-center rounded-full border " + (pick ? "border-primary bg-primary text-primary-foreground" : "border-input text-foreground")}>
+              <span aria-hidden="true" data-part="menu-add" className={"grid h-11 w-11 shrink-0 place-items-center rounded-full border " + (pick ? "border-primary bg-primary text-primary-foreground" : "border-input text-foreground")}>
                 {pick ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
               </span>
             </span>
