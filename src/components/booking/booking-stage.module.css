@@ -627,8 +627,22 @@
   white-space: nowrap;
 }
 
+/* Each service line is its own card, with space between, so the photos never run together. */
+.booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] ul) {
+  gap: 10px;
+  border-top: 0;
+}
+
 .booking :global([data-layout="online"] [data-part="menu-tile"]) {
-  padding: clamp(8px, 1.6vh, 20px) 4px;
+  padding: clamp(8px, 1.6vh, 20px) 18px;
+  border-width: 1px;
+  border-color: rgb(245 245 244 / .1);
+  border-radius: 16px;
+  background: rgb(255 255 255 / .02);
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]:is(:hover, :has(input:checked))) {
+  background: rgb(255 255 255 / .02);
 }
 
 /* The service's photo fills the line's right side behind the text and fades out toward the name. */
@@ -884,4 +898,20 @@
 @keyframes size-pop {
   0% { transform: translateY(14px) scale(.7); }
   100% { transform: none; }
+}
+
+/* Short laptop screens (640 px and less): tighter service cards so the largest category still fits above the bar. */
+@media (min-width: 1024px) and (max-height: 640px) {
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] ul) {
+    gap: 8px;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-tile"]) {
+    padding-block: 6px;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:nth-child(2):not(:last-child)) {
+    margin-top: 3px;
+    font-size: 13px;
+  }
 }
