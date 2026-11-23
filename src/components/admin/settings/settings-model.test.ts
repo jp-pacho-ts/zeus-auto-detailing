@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AdminShopSettings } from "@/types/admin-contracts";
-import { bookingLine, CONFIRM_MAINTENANCE, emailCounts, emailStatus, MAINTENANCE_BANNER, messageProblem, overviewRows, savedText, sectionFromSearch, SETTINGS_SECTIONS, updateBody, websiteLine } from "./settings-model";
+import { bookingLine, CONFIRM_MAINTENANCE, emailCounts, emailStatus, MAINTENANCE_BANNER, messageProblem, overviewRows, savedText, sectionFromSearch, settingsUrl, SETTINGS_SECTIONS, updateBody, websiteLine } from "./settings-model";
 
 const settings = (extra: Partial<AdminShopSettings> = {}): AdminShopSettings => ({
   revision: 3, maintenance: false, maintenanceMessage: null, bookingPaused: false, bookingPausedByServer: false, updatedAt: "2026-11-07T00:00:00.000Z",
@@ -66,4 +66,14 @@ test("overviewRows: plain when healthy, coloured only when something needs actio
   ]);
   const bad = overviewRows(settings({ maintenance: true, email: { configured: false, failedLast7Days: 3, waitingLast7Days: 1 } }));
   assert.deepEqual(bad.map((r) => [r.value, r.tone]), [["Under maintenance", "warn"], ["Not set up", "warn"], ["3", "bad"]]);
+});
+
+// Review I2: a section choice keeps the rest of the address, and on /admin it also says the Settings tab, so a refresh or link reopens it.
+test("settingsUrl: sets only section, keeps other parameters, names the tab on /admin", () => {
+  assert.equal(settingsUrl("/admin/settings", "", "email"), "/admin/settings?section=email");
+  assert.equal(settingsUrl("/admin/settings", "?section=email", "overview"), "/admin/settings");
+  assert.equal(settingsUrl("/admin/settings", "?x=1&section=hours", "danger"), "/admin/settings?x=1&section=danger");
+  assert.equal(settingsUrl("/admin", "?tab=System+Settings", "email"), "/admin?tab=System+Settings&section=email");
+  assert.equal(settingsUrl("/admin", "", "limits"), "/admin?tab=System+Settings&section=limits");
+  assert.equal(settingsUrl("/admin", "?tab=System+Settings&section=email", "overview"), "/admin?tab=System+Settings");
 });

@@ -58,3 +58,14 @@ export const overviewRows = (s: AdminShopSettings): OverviewRow[] => [
   { label: "Email", value: s.email.configured ? "Set up" : "Not set up", tone: s.email.configured ? "ok" : "warn", section: "email" },
   { label: "Failed emails, 7 days", value: String(s.email.failedLast7Days), tone: s.email.failedLast7Days > 0 ? "bad" : "ok", section: "email" },
 ];
+
+// The address after choosing a section: only `section` changes. On /admin the portal picks its tab from ?tab=, so name Settings
+// there too; otherwise a refresh or a shared link would open the Dashboard.
+export function settingsUrl(pathname: string, search: string, section: SettingsSection): string {
+  const params = new URLSearchParams(search);
+  if (pathname === "/admin") params.set("tab", "System Settings");
+  if (section === "overview") params.delete("section");
+  else params.set("section", section);
+  const query = params.toString();
+  return pathname + (query ? "?" + query : "");
+}

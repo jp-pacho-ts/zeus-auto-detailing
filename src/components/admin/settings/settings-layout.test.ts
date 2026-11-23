@@ -30,6 +30,8 @@ test("Settings: side list in order, Danger zone last, Overview shown first", () 
   assert.match(list, /aria-current="page"[^>]*>Overview</);
   assert.equal((list.match(/aria-current=/g) ?? []).length, 1, "one section is current");
   assert.match(html, /id="settings-overview"/);
+  // Review I3: choosing a section focuses its heading, so the heading must take programmatic focus.
+  assert.match(html, /<h2 id="settings-overview-title" tabindex="-1"/);
   for (const gone of ["settings-email\"", "settings-danger\"", "settings-bays", "Settings summary", "Jump to a section", ">System Settings<"]) assert.equal(html.includes(gone), false, gone);
   // Status lives in the Overview only; no repeated badges, no "Railway".
   assert.doesNotMatch(html, /Storefront Live|Public Site Live|Bookings Open|SMTP Configured|Setup in Railway|Railway/);

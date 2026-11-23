@@ -23,6 +23,7 @@ import {
   overviewRows,
   savedText,
   sectionFromSearch,
+  settingsUrl,
   SETTINGS_SECTIONS,
   type SettingsSection,
   updateBody,
@@ -140,10 +141,10 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
     if (!moved.current) return;
     moved.current = false;
     document.getElementById("admin-content")?.scrollTo({ top: 0 });
-    panel.current?.focus({ preventScroll: true });
+    panel.current?.querySelector<HTMLElement>("h2")?.focus({ preventScroll: true }); // the chosen section's heading names it
   }, [section]);
   const choose = (id: SettingsSection) => {
-    window.history.replaceState(null, "", id === "overview" ? window.location.pathname : "?section=" + id);
+    window.history.replaceState(null, "", settingsUrl(window.location.pathname, window.location.search, id));
     moved.current = true;
     setPicked(id);
   };
@@ -246,7 +247,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
         </ul>
       </nav>
 
-      <div ref={panel} tabIndex={-1} className="min-w-0 space-y-6 outline-none">
+      <div ref={panel} className="min-w-0 space-y-6">
         {section === "hours" ? (
           <HoursManager />
         ) : section === "limits" ? (

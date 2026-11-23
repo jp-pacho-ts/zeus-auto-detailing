@@ -27,7 +27,8 @@ export function SectionCard({
           <Icon className="h-4 w-4" aria-hidden="true" />
         </div>
         <div className="min-w-0">
-          <h2 id={id + "-title"} className="text-base font-bold tracking-tight text-foreground">{title}</h2>
+          {/* tabIndex -1: Settings moves focus here when a section is chosen. */}
+          <h2 id={id + "-title"} tabIndex={-1} className="text-base font-bold tracking-tight text-foreground outline-none">{title}</h2>
           <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{intro}</p>
         </div>
       </div>

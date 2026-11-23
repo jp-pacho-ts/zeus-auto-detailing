@@ -4,7 +4,8 @@ import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AdminBay, AdminContainer } from "@/types/admin-contracts";
 import { adminRequest } from "./client";
-import { LoadState, Select, useAdminResource } from "./use-admin-resource";
+import { LoadState, Select } from "./use-admin-resource";
+import { useKeptResource } from "../team/use-kept-resource";
 import { useAdminWrite, WriteFeedback } from "../calendar/use-admin-write";
 
 // 2026-11-24 (LE): bays are managed on the Bay board only. Add, rename, move and remove live on the board rows; this list brings a
@@ -60,8 +61,9 @@ function Row({ row, containers, busy, onBringBack, onMove }: {
 
 // `refresh` changes whenever the board's bays change, so a bay removed from its row menu shows up here.
 export function RemovedBays({ refresh, onDone }: { refresh: unknown; onDone: (text: string) => Promise<unknown> }) {
-  const bays = useAdminResource<AdminBay[]>("/api/admin/bays");
-  const containers = useAdminResource<AdminContainer[]>("/api/admin/bay-containers");
+  // Kept resources: the last answer stays on screen during a reload, so the open list and its focused button never unmount mid-save.
+  const bays = useKeptResource<AdminBay[]>("/api/admin/bays");
+  const containers = useKeptResource<AdminContainer[]>("/api/admin/bay-containers");
   const { busy, message, error, run } = useAdminWrite();
   const [open, setOpen] = React.useState(false);
   const first = React.useRef(true);

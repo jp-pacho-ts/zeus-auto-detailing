@@ -17,11 +17,12 @@ test("removedBays: only removed bays, by container order, orphans last", () => {
   assert.deepEqual(removedBays([b("live", "wash", 1, true)], [c("wash", 1)]), []);
 });
 
-function render(bays: AdminBay[], containers: AdminContainer[]) {
-  const resources = require("./use-admin-resource");
-  mock.method(resources, "useAdminResource", (url: string | null) => ({
+// Review I1: the lists keep their last answer while reloading, so the open panel (and the focused button) never unmounts mid-save.
+function render(bays: AdminBay[], containers: AdminContainer[], loading = false) {
+  const kept = require("../team/use-kept-resource");
+  mock.method(kept, "useKeptResource", (url: string | null) => ({
     data: url === "/api/admin/bays" ? bays : url === "/api/admin/bay-containers" ? containers : null,
-    loading: false, error: null, reload: async () => {}, setData: () => {},
+    loading, error: null, reload: async () => {},
   }));
   try {
     return renderToStaticMarkup(createElement(require("./removed-bays").RemovedBays, { refresh: 1, onDone: async () => {} })).replace(/<!-- -->/g, "");
@@ -38,6 +39,10 @@ test("RemovedBays: a removed bay can be brought back; one whose container is gon
   assert.match(html, /aria-label="Move t1 to"/);
   assert.doesNotMatch(html, /Bring back t1/, "it cannot be brought back while its container is gone");
   assert.doesNotMatch(html, /Bring back live/, "a working bay is not listed");
+});
+
+test("RemovedBays: a reload in flight keeps the list on screen", () => {
+  assert.match(render([b("w1", "wash", 1)], [c("wash", 1)], true), />Bring back w1</);
 });
 
 test("RemovedBays: nothing on the board when no bay is removed", () => {
