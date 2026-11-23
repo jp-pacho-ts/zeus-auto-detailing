@@ -36,3 +36,25 @@ export function savedText(before: AdminShopSettings, after: AdminShopSettings): 
   if (before.bookingPaused !== after.bookingPaused) return after.bookingPaused ? "Online booking is paused." : "Online booking is open.";
   return before.maintenanceMessage !== after.maintenanceMessage ? "The message was saved." : "Nothing needed changing.";
 }
+
+// Side tabs (2026-11-24): the sections in list order, Danger zone last. The chosen one lives in ?section=.
+export type SettingsSection = "overview" | "hours" | "limits" | "email" | "danger";
+export const SETTINGS_SECTIONS: readonly [SettingsSection, string][] = [
+  ["overview", "Overview"],
+  ["hours", "Hours & closed days"],
+  ["limits", "Daily limits"],
+  ["email", "Email"],
+  ["danger", "Danger zone"],
+];
+export function sectionFromSearch(search: string): SettingsSection {
+  const id = new URLSearchParams(search).get("section");
+  return SETTINGS_SECTIONS.find(([s]) => s === id)?.[0] ?? "overview";
+}
+
+// The Overview's status lines: plain when healthy, amber or red only when something needs action.
+export type OverviewRow = { label: string; value: string; tone: "ok" | "warn" | "bad"; section: SettingsSection | null };
+export const overviewRows = (s: AdminShopSettings): OverviewRow[] => [
+  { label: "Customer website", value: s.maintenance ? "Under maintenance" : "Live", tone: s.maintenance ? "warn" : "ok", section: "danger" },
+  { label: "Email", value: s.email.configured ? "Set up" : "Not set up", tone: s.email.configured ? "ok" : "warn", section: "email" },
+  { label: "Failed emails, 7 days", value: String(s.email.failedLast7Days), tone: s.email.failedLast7Days > 0 ? "bad" : "ok", section: "email" },
+];

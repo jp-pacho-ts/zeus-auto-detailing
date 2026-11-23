@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AdminShopSettings } from "@/types/admin-contracts";
-import { bookingLine, CONFIRM_MAINTENANCE, emailCounts, emailStatus, MAINTENANCE_BANNER, messageProblem, savedText, updateBody, websiteLine } from "./settings-model";
+import { bookingLine, CONFIRM_MAINTENANCE, emailCounts, emailStatus, MAINTENANCE_BANNER, messageProblem, overviewRows, savedText, sectionFromSearch, SETTINGS_SECTIONS, updateBody, websiteLine } from "./settings-model";
 
 const settings = (extra: Partial<AdminShopSettings> = {}): AdminShopSettings => ({
   revision: 3, maintenance: false, maintenanceMessage: null, bookingPaused: false, bookingPausedByServer: false, updatedAt: "2026-11-07T00:00:00.000Z",
@@ -48,4 +48,22 @@ test("a saved change says what happened, and that customers may take a moment to
   assert.equal(savedText(settings({ bookingPaused: true }), settings()), "Online booking is open.");
   assert.equal(savedText(settings(), settings({ maintenanceMessage: "x" })), "The message was saved.");
   assert.equal(savedText(settings(), settings()), "Nothing needed changing.");
+});
+
+// Side tabs (2026-11-24): one section at a time, kept in ?section=. An old or wrong link opens Overview.
+test("sectionFromSearch: known ids open, anything else is Overview", () => {
+  assert.equal(sectionFromSearch("?section=email"), "email");
+  assert.equal(sectionFromSearch("?section=danger&x=1"), "danger");
+  for (const s of ["", "?section=bays", "?section=", "?section=EMAIL", "?other=1"]) assert.equal(sectionFromSearch(s), "overview", s);
+  assert.deepEqual(SETTINGS_SECTIONS.map(([id]) => id), ["overview", "hours", "limits", "email", "danger"], "Danger zone last");
+});
+
+test("overviewRows: plain when healthy, coloured only when something needs action", () => {
+  assert.deepEqual(overviewRows(settings({ email: { configured: true, failedLast7Days: 0, waitingLast7Days: 0 } })).map((r) => [r.label, r.value, r.tone, r.section]), [
+    ["Customer website", "Live", "ok", "danger"],
+    ["Email", "Set up", "ok", "email"],
+    ["Failed emails, 7 days", "0", "ok", "email"],
+  ]);
+  const bad = overviewRows(settings({ maintenance: true, email: { configured: false, failedLast7Days: 3, waitingLast7Days: 1 } }));
+  assert.deepEqual(bad.map((r) => [r.value, r.tone]), [["Under maintenance", "warn"], ["Not set up", "warn"], ["3", "bad"]]);
 });
