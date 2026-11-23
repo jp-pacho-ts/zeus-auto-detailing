@@ -500,7 +500,7 @@
   z-index: 1;
 }
 
-.booking :global([data-layout="online"] [data-part="vehicle-card"] > span:nth-child(2)) {
+.booking :global([data-layout="online"] [data-part="vehicle-card"] > span:not([data-part])) {
   display: flex;
   flex: 1;
   min-width: 0;
@@ -510,7 +510,7 @@
   padding: 0;
 }
 
-.booking :global([data-layout="online"] [data-part="vehicle-card"] > span:nth-child(2) > span:first-child) {
+.booking :global([data-layout="online"] [data-part="vehicle-card"] > span:not([data-part]) > span:first-child) {
   font-family: var(--display);
   font-size: clamp(20px, min(2.4vw, 4.4vh), 34px);
   line-height: 1.05;
@@ -523,6 +523,21 @@
 
 .booking :global([data-layout="online"] [data-part="vehicle-from"]) {
   margin: 0 0 0 auto;
+}
+
+/* Example cars on their own line under the name, so people can tell which size theirs is. */
+.booking :global([data-layout="online"] [data-part="vehicle-examples"]) {
+  flex-basis: 100%;
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+/* Short laptop screens (600 px tall): smaller size names, so all five sizes and their examples fit above the bar. */
+@media (max-height: 640px) {
+  .booking :global([data-layout="online"] [data-part="vehicle-card"] > span:not([data-part]) > span:first-child) {
+    font-size: clamp(18px, 3.4vh, 34px);
+  }
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-card"] input[type="radio"]) {
@@ -544,7 +559,7 @@
 }
 
 /* A chosen row's name turns gold. */
-.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked) > span:nth-child(2) > span:first-child),
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked) > span:not([data-part]) > span:first-child),
 .booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) > span:nth-child(2) > span:first-child) {
   color: rgb(var(--primary-hover));
 }

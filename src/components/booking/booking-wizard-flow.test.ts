@@ -463,11 +463,15 @@ test("P1-52: the kiosk's step 1 shows a drawn outline for each size, inline; onl
   await online.settle();
   assert.equal(online.all().filter((e) => e.type === VehicleDrawing || e.type === VehicleDrawingDefs).length, 0, "no size drawings online");
   assert.equal(online.all().filter((e) => e.props["data-part"] === "vehicle-mark").length, 0);
+  // Each size names example cars instead (CEO 2026-11-24), so people know which size theirs is.
+  const examples = online.all().filter((e) => e.props["data-part"] === "vehicle-examples").map((e) => String(e.props.children));
+  assert.deepEqual(examples, ["e.g. Honda Click, Yamaha NMAX", "e.g. Toyota Vios, Honda City"]);
   online.unmount();
   network();
   const h = mountHooks(BookingWizard, { kioskOnExit: () => {} });
   await h.settle();
   assert.equal(h.all().filter((e) => e.type === VehicleDrawing).length, 2, "one drawing per size");
+  assert.equal(h.all().filter((e) => e.props["data-part"] === "vehicle-examples").length, 0, "the kiosk board keeps its own text");
   const svg = renderToStaticMarkup(createElement(VehicleDrawing, { code: "S" }));
   assert.match(svg, /^<svg[^>]*aria-hidden="true"/);
   assert.doesNotMatch(svg, /<img|<image/);

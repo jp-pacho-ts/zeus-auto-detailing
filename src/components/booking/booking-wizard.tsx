@@ -121,6 +121,14 @@ function formatPhilippinePhone(raw: string): string {
 // L4: four steps the customer acts on; the receipt is not a step.
 const STEP_LABELS = ["Vehicle size", "Services", "Day", "Your details"];
 const HEADINGS = ["Choose your vehicle size", "Choose your services", "Choose your day", "Your details", "Booking received"];
+// Online /book (CEO 2026-11-24): common cars on Philippine roads for each size, so people can tell which size theirs is.
+const SIZE_EXAMPLES: Record<string, string> = {
+  MOTOR: "e.g. Honda Click, Yamaha NMAX",
+  S: "e.g. Toyota Vios, Honda City",
+  M: "e.g. Toyota Corolla Cross, Honda HR-V",
+  L: "e.g. Toyota Fortuner, Toyota Hilux",
+  XL: "e.g. Toyota Land Cruiser, Toyota HiAce",
+};
 // The normal security-check widget is a fixed 300 px wide; below this it is rendered compact.
 const NARROW_QUERY = "(max-width: 359px)";
 // Kiosk idle timeout (LE): a booking with no taps or typing for 10 minutes returns to the start; the last minute shows a countdown.
@@ -1131,6 +1139,9 @@ export function BookingWizard({
                               )}
                               {v.description && <span data-part="vehicle-description" className="block text-sm text-muted-foreground lg:line-clamp-2">{v.description}</span>}
                               {from && <span data-part="vehicle-from" className="mt-2 block text-sm font-semibold tabular-nums text-primary">from {from}</span>}
+                              {!kioskOnExit && SIZE_EXAMPLES[v.code] && (
+                                <span data-part="vehicle-examples" className="block text-sm text-muted-foreground">{SIZE_EXAMPLES[v.code]}</span>
+                              )}
                             </span>
                             <input
                               type="radio"
