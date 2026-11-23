@@ -88,6 +88,8 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       await cont().click();
       await page.getByRole('heading', { name: 'Choose your services' }).waitFor();
       assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.id), 'wizard-step-title', 'focus moves to the step heading');
+      // The heading rises word by word, each word in its own mask, and still reads as one heading.
+      assert.equal(await page.locator('#wizard-step-title [data-part=title-word]').count(), 3, 'one mask per heading word');
       await page.getByRole('button', { name: /Premium Carwash/ }).click();
       await page.locator('[data-part=menu-tile]', { hasText: 'Basic Wash' }).click();
       await page.locator('[data-part=menu-tile]', { hasText: 'Engine Bay Wash' }).click();
@@ -95,6 +97,8 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       await noSideways('step 2');
       // The order: beside the menu on laptops (with Continue and Back), in the bottom bar on phones.
       const orderBox = desktop ? page.getByRole('complementary', { name: 'Your order' }) : page.locator('#wizard-action-bar');
+      // The total rolls up to its new amount (booking-motion.tsx), so wait for the roll to land before reading it.
+      await orderBox.getByText(/₱550\.00/).first().waitFor({ timeout: 3000 }).catch(() => {});
       assert.match(await orderBox.innerText(), /₱550.00/, `${width}px the total is in the order`);
       if (desktop) assert.equal(await orderBox.getByRole('button', { name: 'Back' }).isVisible(), true, 'Back sits with Continue in the order');
       await shot(page, `p152-2-services-${width}`);

@@ -695,7 +695,7 @@ export function BookingWizard({
       )}
       <div className="border-t border-border pt-3">
         <dt className="text-muted-foreground">{total?.label ?? "Estimated total"}</dt>
-        <dd className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : lines.length ? "Pricing…" : "—"}</dd>
+        <dd data-count="" className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : lines.length ? "Pricing…" : "—"}</dd>
         {total?.note && <p className="mt-1 text-sm text-muted-foreground">{total.note}</p>}
       </div>
     </dl>
@@ -878,7 +878,7 @@ export function BookingWizard({
           <div className="border-t border-border pt-3">
             <p className="text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</p>
             {total || !lines.length ? (
-              <p className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : "—"}</p>
+              <p data-count="" className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : "—"}</p>
             ) : (
               <div role="status" className="py-1.5"><span className="sr-only">Pricing…</span><Skeleton className="h-8 w-40" /></div>
             )}
@@ -1047,7 +1047,10 @@ export function BookingWizard({
                 tabIndex={-1}
                 className="text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none sm:text-5xl"
               >
-                {HEADINGS[step - 1]}
+                {/* Each word rises out of its own mask (React Bits SplitText, in CSS); the spaces stay real text. */}
+                {HEADINGS[step - 1].split(" ").map((word, i) => (
+                  <React.Fragment key={i}>{i > 0 && " "}<span data-part="title-word" style={{ "--w": i } as React.CSSProperties}><span>{word}</span></span></React.Fragment>
+                ))}
               </h1>
               {intro && <p className="mt-2 text-base text-muted-foreground">{intro}</p>}
             </div>

@@ -50,6 +50,21 @@
   color: rgb(var(--primary-hover));
 }
 
+/* Each heading word sits in its own mask, so it can rise into view (the motion block below). */
+.booking :global([data-part="title-word"]) {
+  display: inline-block;
+  overflow: clip;
+  padding-block: .08em;
+  margin-block: -.08em;
+  vertical-align: top;
+  perspective: 600px;
+}
+
+.booking :global([data-part="title-word"] > span) {
+  display: inline-block;
+  transform-origin: 50% 100%;
+}
+
 /* Progress rail: a thin line over each step that fills with gold as the customer moves forward. */
 .booking :global(ol[aria-label="Booking steps"] li) {
   position: relative;
@@ -240,6 +255,24 @@
   border-color: rgb(245 245 244 / .14);
 }
 
+/* Spotlight (React Bits SpotlightCard): a soft gold light under the pointer; booking-motion.tsx moves it. */
+@media (hover: hover) and (pointer: fine) {
+  .booking :global(:is([data-part="vehicle-card"], [data-part="menu-tile"]))::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(280px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgb(var(--primary) / .18), transparent 70%);
+    transition: opacity .35s ease;
+  }
+
+  .booking :global(:is([data-part="vehicle-card"], [data-part="menu-tile"]):hover)::after {
+    opacity: 1;
+  }
+}
+
 /* Picked cards: a gold edge and a soft inner light, and the vehicle drawing lifts a little. */
 .booking :global(:is([data-part="vehicle-card"], [data-part="menu-tile"]):has(input:checked)) {
   border-color: rgb(var(--primary));
@@ -282,9 +315,15 @@
     animation: push 40s ease-out both;
   }
 
-  /* One moment per step: the heading wipes up, then the choices settle in, one after another. */
-  .booking :global(#wizard-step-title) {
-    animation: wipe-up .9s cubic-bezier(.2, .7, .2, 1) both;
+  /* One moment per step: the heading rises word by word (as the landing's section titles do), the gold dot lands,
+     then the choices settle in, one after another. */
+  .booking :global([data-part="title-word"] > span) {
+    animation: wipe-up 1s cubic-bezier(.2, .7, .2, 1) both;
+    animation-delay: calc(var(--w, 0) * 90ms);
+  }
+
+  .booking :global(#wizard-step-title)::after {
+    animation: from-black .5s ease-out .5s both;
   }
 
   .booking :global(:is([data-part="vehicle-card"], [data-part="menu-tile"], [data-part="menu-category"])) {
@@ -314,8 +353,8 @@
 }
 
 @keyframes wipe-up {
-  from { clip-path: inset(0 0 100% 0); transform: translateY(.35em); opacity: 0; }
-  to { clip-path: inset(0 0 -10% 0); transform: none; opacity: 1; }
+  from { transform: translateY(110%) rotateX(-65deg) scaleY(1.5); opacity: .2; }
+  to { transform: none; opacity: 1; }
 }
 
 @keyframes settle {
