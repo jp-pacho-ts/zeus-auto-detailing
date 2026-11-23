@@ -869,6 +869,45 @@ export function BookingWizard({
     );
   };
 
+  // When the question opens near the bottom (a phone), bring it above the bar; the page's scroll padding clears the bar.
+  const revealKind = React.useCallback((el: HTMLFieldSetElement | null) => {
+    if (!el) return;
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+    window.requestAnimationFrame(() => el.scrollIntoView({ block: "nearest", behavior }));
+  }, []);
+  // Large and X-Large cover more than one kind of vehicle, so the chosen one asks which. Online /book shows it inside the
+  // chosen size's line (CEO 2026-11-24); the kiosk shows it under the sizes.
+  const renderBodyChoices = (className = "") =>
+    bodyChoices.length > 0 && (
+      <fieldset ref={revealKind} data-part="vehicle-kind" className={className}>
+        <legend className="text-base font-bold text-foreground">What kind of vehicle?</legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {bodyChoices.map((type) => (
+            <label
+              key={type}
+              className={
+                "inline-flex min-h-[44px] cursor-pointer items-center rounded-full border px-5 text-sm font-semibold transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring " +
+                (bodyType === type ? "border-primary bg-primary/10 text-foreground" : "border-input bg-card text-muted-foreground hover:border-primary")
+              }
+            >
+              <input
+                type="radio"
+                name="vehicle-body-type"
+                value={type}
+                checked={bodyType === type}
+                onChange={() => {
+                  setBodyType(type);
+                  setMessage("");
+                }}
+                className="sr-only"
+              />
+              {vehicle?.code === "XL" && type === "SUV" ? "Full-size SUV" : BODY_TYPE_LABEL[type]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    );
+
   const renderOrderBody = () => (
     <>
           <div className="mt-2 flex items-center justify-between gap-3 border-b border-border pb-3">
@@ -1108,8 +1147,8 @@ export function BookingWizard({
                         const picked = vehicleId === v.id;
                         const from = fromPrice(v.id);
                         return (
+                          <React.Fragment key={v.id}>
                           <label
-                            key={v.id}
                             data-part="vehicle-card"
                             className={
                               "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
@@ -1156,39 +1195,13 @@ export function BookingWizard({
                               className="absolute right-[22px] top-[22px] h-5 w-5 accent-primary"
                             />
                           </label>
+                          {!kioskOnExit && picked && renderBodyChoices()}
+                          </React.Fragment>
                         );
                       })}
                     </div>
                   </fieldset>
-                  {bodyChoices.length > 0 && (
-                    <fieldset className="mt-5">
-                      <legend className="text-base font-bold text-foreground">What kind of vehicle?</legend>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {bodyChoices.map((type) => (
-                          <label
-                            key={type}
-                            className={
-                              "inline-flex min-h-[44px] cursor-pointer items-center rounded-full border px-5 text-sm font-semibold transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring " +
-                              (bodyType === type ? "border-primary bg-primary/10 text-foreground" : "border-input bg-card text-muted-foreground hover:border-primary")
-                            }
-                          >
-                            <input
-                              type="radio"
-                              name="vehicle-body-type"
-                              value={type}
-                              checked={bodyType === type}
-                              onChange={() => {
-                                setBodyType(type);
-                                setMessage("");
-                              }}
-                              className="sr-only"
-                            />
-                            {vehicle?.code === "XL" && type === "SUV" ? "Full-size SUV" : BODY_TYPE_LABEL[type]}
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
-                  )}
+                  {kioskOnExit && renderBodyChoices("mt-5")}
                 </div>
               )}
 

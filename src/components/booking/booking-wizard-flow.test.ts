@@ -686,6 +686,33 @@ test("P1-55 (LE): Back uses the same height class as Continue and Submit, so the
   h.unmount();
 });
 
+test("online /book asks what kind of vehicle inside the chosen X-Large line; the kiosk asks under the sizes (CEO 2026-11-24)", async () => {
+  const XL = id(77);
+  catalog.vehicleCategories.push({ id: XL, code: "XL", name: "X-Large · Fullsize SUV / Pick-up / Van", description: null, sortOrder: 4 });
+  try {
+    const fragmentsOf = (h: ReturnType<typeof mountHooks>) => {
+      const grid = h.all().find((e) => e.type === "div" && /md:grid-cols-\[repeat/.test(String(e.props.className)))!;
+      return grid.props.children as { key: string; props: { children: unknown[] } }[];
+    };
+    const kindIn = (f: { props: { children: unknown[] } }) => (f.props.children[1] as { props?: Record<string, unknown> } | undefined)?.props?.["data-part"];
+    for (const kiosk of [false, true]) {
+      network();
+      const h = mountHooks(BookingWizard, kiosk ? { kioskOnExit: () => {} } : {});
+      await h.settle();
+      assert.equal(h.all().filter((e) => e.props["data-part"] === "vehicle-kind").length, 0, "no question before a size is chosen");
+      inputs(h, "radio").find((e) => e.props.value === XL)!.props.onChange({});
+      await h.settle();
+      assert.equal(h.all().filter((e) => e.props["data-part"] === "vehicle-kind").length, 1, "one question");
+      const inside = fragmentsOf(h).filter((f) => kindIn(f) === "vehicle-kind").map((f) => f.key);
+      assert.deepEqual(inside, kiosk ? [] : [XL], kiosk ? "the kiosk asks under the sizes" : "online asks right under the chosen line");
+      assert.deepEqual(inputs(h, "radio").filter((e) => e.props.name === "vehicle-body-type").map((e) => e.props.value), ["SUV", "PICKUP", "VAN"]);
+      h.unmount();
+    }
+  } finally {
+    catalog.vehicleCategories.pop();
+  }
+});
+
 test("online editorial menu: the order opens from the bottom bar as a sheet and closes with Escape; the kiosk keeps its panel", async () => {
   network();
   const h = mountHooks(BookingWizard, {});

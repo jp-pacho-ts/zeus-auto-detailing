@@ -533,11 +533,63 @@
   line-height: 1.3;
 }
 
-/* Short laptop screens (600 px tall): smaller size names, so all five sizes and their examples fit above the bar. */
-@media (max-height: 640px) {
+/* Large and X-Large ask what kind of vehicle inside the chosen line: the line's gold rule moves under the choices. */
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked):has(+ [data-part="vehicle-kind"])) {
+  border-bottom-color: transparent;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 0 56px clamp(8px, 1.4vh, 16px) 4px;
+  border-bottom: 1px solid rgb(var(--primary) / .6);
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] > legend) {
+  float: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgb(var(--primary-hover));
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] > div) {
+  margin: 0;
+}
+
+/* With a mouse the choices can be a little shorter (still well above the 24 px minimum target), so the opened line fits
+   a laptop screen; touch screens keep 44 px. */
+@media (hover: hover) and (pointer: fine) {
+  .booking :global([data-layout="online"] [data-part="vehicle-kind"] label) {
+    min-height: 36px;
+  }
+}
+
+/* Laptop screens up to 700 px tall: tighter lines and names, so an opened X-Large line still fits above the bar. */
+@media (max-height: 700px) {
+  .booking :global([data-layout="online"] [data-part="vehicle-card"]) {
+    padding-block: 4px;
+  }
+
   .booking :global([data-layout="online"] [data-part="vehicle-card"] > span:not([data-part]) > span:first-child) {
     font-size: clamp(18px, 3.4vh, 34px);
   }
+
+  .booking :global([data-layout="online"] [data-part="vehicle-kind"]) {
+    padding-bottom: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="vehicle-kind"]) {
+    animation: kind-open .35s cubic-bezier(.2, .7, .2, 1) both;
+  }
+}
+
+@keyframes kind-open {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-card"] input[type="radio"]) {
