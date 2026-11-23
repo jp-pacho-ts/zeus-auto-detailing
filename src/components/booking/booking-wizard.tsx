@@ -127,7 +127,7 @@ const SIZE_EXAMPLES: Record<string, string> = {
   S: "e.g. Toyota Vios, Honda City",
   M: "e.g. Toyota Corolla Cross, Honda HR-V",
   L: "e.g. Toyota Fortuner, Toyota Hilux",
-  XL: "e.g. Toyota Land Cruiser, Toyota HiAce",
+  XL: "e.g. Toyota Land Cruiser, Ford Ranger Raptor, Toyota HiAce",
 };
 // The normal security-check widget is a fixed 300 px wide; below this it is rendered compact.
 const NARROW_QUERY = "(max-width: 359px)";
