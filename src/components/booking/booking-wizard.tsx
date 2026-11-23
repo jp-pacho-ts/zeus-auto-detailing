@@ -1089,7 +1089,8 @@ export function BookingWizard({
                       </button>
                     </div>
                   )}
-                  <VehicleDrawingDefs />
+                  {/* Online /book shows the sizes as words only (CEO 2026-11-24); the kiosk keeps its drawings. */}
+                  {kioskOnExit && <VehicleDrawingDefs />}
                   <fieldset>
                     <legend className="sr-only">Vehicle size</legend>
                     {/* The cards share the row on a tablet or laptop (five sizes fit across); phones show two columns. */}
@@ -1109,15 +1110,17 @@ export function BookingWizard({
                               (picked ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
                             }
                           >
-                            <span
-                              data-part="vehicle-mark"
-                              className={
-                                "grid h-[calc(var(--ic)*1.3)] place-items-center rounded-xl " +
-                                (picked ? "bg-[radial-gradient(circle_at_50%_30%,#2b2210,#0d0d0e)]" : "bg-[radial-gradient(circle_at_50%_30%,#1d1a14,#0d0d0e)]")
-                              }
-                            >
-                              <VehicleDrawing code={v.code} className="h-[var(--ic)] w-[var(--ic)]" />
-                            </span>
+                            {kioskOnExit && (
+                              <span
+                                data-part="vehicle-mark"
+                                className={
+                                  "grid h-[calc(var(--ic)*1.3)] place-items-center rounded-xl " +
+                                  (picked ? "bg-[radial-gradient(circle_at_50%_30%,#2b2210,#0d0d0e)]" : "bg-[radial-gradient(circle_at_50%_30%,#1d1a14,#0d0d0e)]")
+                                }
+                              >
+                                <VehicleDrawing code={v.code} className="h-[var(--ic)] w-[var(--ic)]" />
+                              </span>
+                            )}
                             <span className="block px-1.5 pb-1.5">
                               <span className="block text-base font-extrabold leading-tight text-foreground lg:text-lg">{name.head}</span>
                               {name.tail && (

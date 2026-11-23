@@ -68,19 +68,12 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       assert.match(await rail.locator('li[aria-current=step]').innerText(), /Vehicle size/i);
       assert.equal(await page.locator('#wizard-action-bar').isVisible(), true, `${width}px the bottom bar shows on step 1`);
       await noSideways('step 1');
-      // Menu rows (the editorial menu, CEO 2026-11-23): one drawing per size, no box, a hairline under each row.
-      assert.equal(await page.locator('label:has(input[name="vehicle-category"]) svg').count(), 2);
+      // Menu rows (the editorial menu, CEO 2026-11-23): no box, a hairline under each row. Words only, no size drawings (CEO 2026-11-24).
+      assert.equal(await page.locator('label:has(input[name="vehicle-category"])').count(), 2);
+      assert.equal(await page.locator('[data-part=vehicle-mark], #zeus-gold-3d').count(), 0, 'no size drawings online');
       const row = await page.locator('label:has(input[name="vehicle-category"])').first().evaluate((e) => { const s = getComputedStyle(e); return { radius: parseFloat(s.borderTopLeftRadius), under: parseFloat(s.borderBottomWidth), over: parseFloat(s.borderTopWidth) }; });
       assert.deepEqual(row, { radius: 0, under: 1, over: 0 }, `${width}px size rows are menu lines`);
-      // Gold extruded icons: one gradient on the page, eight layers per icon, decorative, big enough to read.
-      assert.equal(await page.locator('#zeus-gold-3d').count(), 1, 'the gold gradient is defined once');
       assert.equal(await page.locator('[id]').evaluateAll((els) => els.length - new Set(els.map((e) => e.id)).size), 0, 'no duplicate ids on the page');
-      for (const mark of await page.locator('[data-part=vehicle-mark] svg').all()) {
-        assert.equal(await mark.getAttribute('aria-hidden'), 'true');
-        assert.equal(await mark.locator('path').count(), 8);
-        const box = await mark.boundingBox();
-        assert.ok(box.width >= 40 && box.height >= 40, `${width}px the icon is at least 40 px (got ${Math.round(box.width)})`); // P1-53: 40 on short laptop screens (52 px tile), 44 and up elsewhere
-      }
       await shot(page, `p152-1-size-empty-${width}`);
       await page.getByLabel(/^Small/).check();
       await shot(page, `p152-1-size-${width}`);

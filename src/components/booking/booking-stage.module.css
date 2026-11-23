@@ -495,39 +495,6 @@
   padding: clamp(6px, 1.2vh, 18px) 56px clamp(6px, 1.2vh, 18px) 4px;
 }
 
-/* The size's drawing appears large and faded behind the line under the pointer and the chosen one, toward its price. */
-.booking :global([data-layout="online"] [data-part="vehicle-card"]) {
-  overflow: hidden;
-}
-
-.booking :global([data-layout="online"] [data-part="vehicle-mark"]) {
-  position: absolute;
-  top: 50%;
-  right: clamp(120px, 22%, 260px);
-  z-index: 0;
-  width: auto;
-  height: auto;
-  background: none;
-  opacity: 0;
-  transform: translateY(-50%) rotate(-6deg);
-  pointer-events: none;
-  transition: opacity .5s ease, transform .7s cubic-bezier(.2, .7, .2, 1);
-}
-
-.booking :global([data-layout="online"] [data-part="vehicle-mark"] svg) {
-  width: 96px;
-  height: 96px;
-}
-
-.booking :global([data-layout="online"] [data-part="vehicle-card"]:hover [data-part="vehicle-mark"]) {
-  opacity: .3;
-  transform: translateY(-50%) rotate(-6deg) scale(1.08);
-}
-
-.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked) [data-part="vehicle-mark"]) {
-  opacity: .45;
-}
-
 .booking :global([data-layout="online"] [data-part="vehicle-card"] > span:not([data-part])) {
   position: relative;
   z-index: 1;
@@ -798,7 +765,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"] > span:first-child, [data-part="vehicle-mark"])) {
+  .booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"] > span:first-child)) {
     transition: none;
   }
 }
@@ -809,7 +776,7 @@
 }
 
 /* The "added" moment (React Bits ClickSpark, in CSS): when a service is added its button pops, a gold ring pulses out,
-   eight sparks burst from it and the check draws in; a chosen size's drawing pops in behind its line. The animations
+   eight sparks burst from it and the check draws in. The animations
    start when a line becomes chosen, so removing one is quiet. */
 .booking :global([data-layout="online"] [data-part="menu-add"]) {
   position: relative;
@@ -863,10 +830,6 @@
   .booking :global([data-layout="online"] [data-part="menu-add"] .lucide-plus) {
     animation: add-plus .35s cubic-bezier(.2, .7, .2, 1) both;
   }
-
-  .booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked) [data-part="vehicle-mark"] svg) {
-    animation: size-pop .7s cubic-bezier(.3, 1.5, .5, 1) both;
-  }
 }
 
 @keyframes add-pop {
@@ -893,11 +856,6 @@
 @keyframes add-plus {
   from { transform: rotate(-90deg) scale(.6); opacity: 0; }
   to { transform: none; opacity: 1; }
-}
-
-@keyframes size-pop {
-  0% { transform: translateY(14px) scale(.7); }
-  100% { transform: none; }
 }
 
 /* Short laptop screens (640 px and less): tighter service cards so the largest category still fits above the bar. */

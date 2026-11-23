@@ -457,9 +457,15 @@ test("QA F1: keyboard focus scrolling keeps clear of the fixed action bar, at it
 
 // ---- P1-52 (LE 2026-11-06): the Showroom layout. Same steps and same submit; new panel, calendar, ticket and corners. ----
 
-test("P1-52: step 1 shows a drawn outline for each size, inline, with the size's name and description", async () => {
+test("P1-52: the kiosk's step 1 shows a drawn outline for each size, inline; online /book shows the sizes as words only (CEO 2026-11-24)", async () => {
   network();
-  const h = mountHooks(BookingWizard, {});
+  const online = mountHooks(BookingWizard, {});
+  await online.settle();
+  assert.equal(online.all().filter((e) => e.type === VehicleDrawing || e.type === VehicleDrawingDefs).length, 0, "no size drawings online");
+  assert.equal(online.all().filter((e) => e.props["data-part"] === "vehicle-mark").length, 0);
+  online.unmount();
+  network();
+  const h = mountHooks(BookingWizard, { kioskOnExit: () => {} });
   await h.settle();
   assert.equal(h.all().filter((e) => e.type === VehicleDrawing).length, 2, "one drawing per size");
   const svg = renderToStaticMarkup(createElement(VehicleDrawing, { code: "S" }));
@@ -574,9 +580,9 @@ test("P1-52 (LE): Back and the other labelled buttons are rounded-xl (12 px), no
 });
 
 
-test("P1-52 (LE, mock F): the vehicle icons are gold extruded 3D: one shared gradient, seven darker layers under the face, all decorative", async () => {
+test("P1-52 (LE, mock F): the kiosk's vehicle icons are gold extruded 3D: one shared gradient, seven darker layers under the face, all decorative", async () => {
   network();
-  const h = mountHooks(BookingWizard, {});
+  const h = mountHooks(BookingWizard, { kioskOnExit: () => {} });
   await h.settle();
   assert.equal(h.all().filter((e) => e.type === VehicleDrawingDefs).length, 1, "the gradient is defined once per page, not once per tile");
   const defs = renderToStaticMarkup(createElement(VehicleDrawingDefs));
@@ -630,8 +636,12 @@ test("P1-53/P1-54: the size cards share the row on a tablet or laptop and their 
     assert.match(String(card.props.className), /\[--ic:clamp\(64px,12vh,160px\)\]/, "the icon size follows the screen height");
     assert.match(String(card.props.className), /rounded-2xl/);
   }
-  const mark = h.all().find((e) => e.props["data-part"] === "vehicle-mark")!;
+  network();
+  const kiosk = mountHooks(BookingWizard, { kioskOnExit: () => {} });
+  await kiosk.settle();
+  const mark = kiosk.all().find((e) => e.props["data-part"] === "vehicle-mark")!;
   assert.match(String(mark.props.className), /h-\[calc\(var\(--ic\)\*1\.3\)\]/);
+  kiosk.unmount();
   const grid = h.all().find((e) => e.type === "div" && /md:grid-cols-\[repeat\(auto-fit,minmax\(200px,1fr\)\)\]/.test(String(e.props.className)) && !e.props.role)!;
   assert.match(String(grid.props.className), /grid-cols-2/, "two columns on phones");
   h.unmount();
