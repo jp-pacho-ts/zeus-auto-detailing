@@ -84,7 +84,13 @@ test('Back is as tall as Continue on steps 2, 3 and 4 at laptop, desktop and pho
       await next();
       await page.getByRole('heading', { name: 'Choose your day' }).waitFor();
       await page.locator('input[name="booking-day"]:not([disabled])').first().waitFor({ state: 'attached', timeout: 30000 });
-      await page.locator('input[name="booking-day"]:not([disabled])').nth(1).check({ force: true });
+      // While the step settles (its stubbed price and days still landing), a pick can be undone; pick until it holds.
+      for (let tries = 0; ; tries++) {
+        const pick = page.locator('input[name="booking-day"]:not([disabled])').nth(1);
+        if (await pick.check({ force: true }).then(() => true, () => false)) break;
+        if (tries === 20) throw new Error('the day pick never held');
+        await page.waitForTimeout(150);
+      }
       await pair('step 3'); await shot(page, `p155-step3-${key}`);
       await next();
       await page.getByRole('heading', { name: 'Your details' }).waitFor();

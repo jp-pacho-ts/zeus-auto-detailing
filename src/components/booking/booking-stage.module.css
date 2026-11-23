@@ -440,8 +440,8 @@
 
 /* ---------------------------------------------------------------------------------------------------------------
    /book (online) is an editorial menu, unlike the kiosk's ordering board: a deep black page with no shop photo and
-   choices as big type on hairline rules; a service's photo opens inside its line, and the order opens from the
-   bottom bar. Everything below is scoped to the online wizard, so the kiosk keeps its board. */
+   choices as big type on hairline rules, each line's picture faded in behind its text, and the order opening from
+   the bottom bar. Everything below is scoped to the online wizard, so the kiosk keeps its board. */
 .booking:has(:global([data-layout="online"])) {
   background: #0a0a0b;
 }
@@ -495,11 +495,42 @@
   padding: clamp(6px, 1.2vh, 18px) 56px clamp(6px, 1.2vh, 18px) 4px;
 }
 
+/* The size's drawing appears large and faded behind the line under the pointer and the chosen one, toward its price. */
+.booking :global([data-layout="online"] [data-part="vehicle-card"]) {
+  overflow: hidden;
+}
+
 .booking :global([data-layout="online"] [data-part="vehicle-mark"]) {
-  width: 64px;
-  height: 44px;
-  flex: none;
+  position: absolute;
+  top: 50%;
+  right: clamp(120px, 22%, 260px);
+  z-index: 0;
+  width: auto;
+  height: auto;
   background: none;
+  opacity: 0;
+  transform: translateY(-50%) rotate(-6deg);
+  pointer-events: none;
+  transition: opacity .5s ease, transform .7s cubic-bezier(.2, .7, .2, 1);
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-mark"] svg) {
+  width: 96px;
+  height: 96px;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:hover [data-part="vehicle-mark"]) {
+  opacity: .3;
+  transform: translateY(-50%) rotate(-6deg) scale(1.08);
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked) [data-part="vehicle-mark"]) {
+  opacity: .45;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"] > span:not([data-part])) {
+  position: relative;
+  z-index: 1;
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-card"] > span:nth-child(2)) {
@@ -600,12 +631,37 @@
   padding: clamp(14px, 2.2vh, 22px) 4px;
 }
 
+/* The service's photo fills the line's right side behind the text and fades out toward the name. */
 .booking :global([data-layout="online"] [data-part="menu-tile"] > span:first-child) {
-  width: 84px;
-  flex: none;
-  aspect-ratio: 1;
-  border-radius: 10px;
-  overflow: hidden;
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 0;
+  width: min(62%, 560px);
+  aspect-ratio: auto;
+  background: none;
+  opacity: .3;
+  -webkit-mask-image: linear-gradient(to left, #000 35%, transparent);
+  mask-image: linear-gradient(to left, #000 35%, transparent);
+  pointer-events: none;
+  transition: opacity .5s ease;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:first-child > :not(img)) {
+  display: none;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]:is(:hover, :has(:focus-visible)) > span:first-child) {
+  opacity: .55;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) > span:first-child) {
+  opacity: .5;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2)) {
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 1px 14px rgb(0 0 0 / .85);
 }
 
 .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2)) {
@@ -614,7 +670,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 24px;
-  padding: 0 0 0 18px;
+  padding: 0;
 }
 
 .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:first-child) {
@@ -668,29 +724,8 @@
   }
 }
 
-/* With a mouse, a service line keeps its photo folded away and opens it when the pointer (or keyboard focus) is on
-   the line; a size line slides in a little, like a finger running down a printed menu. Touch screens always show
-   the small photo. */
+/* With a mouse, a size line slides in a little under the pointer, like a finger running down a printed menu. */
 @media (hover: hover) and (pointer: fine) {
-  .booking :global([data-layout="online"] [data-part="menu-tile"] > span:first-child) {
-    width: 0;
-    height: 96px;
-    aspect-ratio: auto;
-    margin-right: 0;
-    opacity: 0;
-    transition: width .55s cubic-bezier(.2, .7, .2, 1), margin .55s cubic-bezier(.2, .7, .2, 1), opacity .35s ease;
-  }
-
-  .booking :global([data-layout="online"] [data-part="menu-tile"]:is(:hover, :has(:focus-visible)) > span:first-child) {
-    width: 148px;
-    margin-right: 22px;
-    opacity: 1;
-  }
-
-  .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2)) {
-    padding-left: 0;
-  }
-
   .booking :global([data-layout="online"] [data-part="vehicle-card"]:hover) {
     padding-left: 22px;
   }
@@ -703,7 +738,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"], [data-part="menu-tile"] > span:first-child)) {
+  .booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"] > span:first-child, [data-part="vehicle-mark"])) {
     transition: none;
   }
 }

@@ -121,7 +121,13 @@ test('the booking wizard fits the screen by height: bands, panel and type on lap
         await page.getByRole('button', { name: 'Continue', exact: true }).first().click();
         await page.getByRole('heading', { name: 'Choose your day' }).waitFor();
         await page.locator('input[name="booking-day"]:not([disabled])').first().waitFor({ state: 'attached', timeout: 30_000 });
-        await page.locator('input[name="booking-day"]:not([disabled])').nth(1).check({ force: true });
+        // While the step settles (its stubbed price and days still landing), a pick can be undone; pick until it holds.
+        for (let tries = 0; ; tries++) {
+          const pick = page.locator('input[name="booking-day"]:not([disabled])').nth(1);
+          if (await pick.check({ force: true }).then(() => true, () => false)) break;
+          if (tries === 20) throw new Error('the day pick never held');
+          await page.waitForTimeout(150);
+        }
         await panelState('step 3');
         await shot(page, `p153-3-day-${key}`);
         await page.getByRole('button', { name: 'Continue', exact: true }).first().click();
