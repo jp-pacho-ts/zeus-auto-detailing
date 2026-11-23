@@ -31,7 +31,6 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
   const shot = async (page, name) => { if (process.env.P152_SHOTS) await page.screenshot({ path: path.join(process.env.P152_SHOTS, name + '.png'), fullPage: true }); };
   try {
     for (const width of [320, 390, 1280, 1907]) {
-      const desktop = width >= 1024;
       const context = await browser.newContext({ viewport: { width, height: width < 600 ? 844 : 900 } });
       const creates = [];
       await context.route('**/*', async (route) => {
