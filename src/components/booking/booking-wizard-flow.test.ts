@@ -16,7 +16,6 @@ import { splitSizeName } from "./day-booking";
 import { GOLD_GRADIENT_ID, VehicleDrawing, VehicleDrawingDefs } from "./vehicle-drawing";
 import { DayPicker } from "./day-picker";
 import { TurnstileChallenge } from "./turnstile";
-import { BookingMedia, type MediaScene } from "./booking-media";
 
 const S = "11111111-1111-4111-8111-111111111111";
 const MOTOR = "33333333-3333-4333-8333-333333333333";
@@ -673,50 +672,21 @@ test("P1-55 (LE): Back uses the same height class as Continue and Submit, so the
   h.unmount();
 });
 
-test("online split screen: the photo half answers each choice (size, service, day, build); the kiosk has none", async () => {
+test("online editorial menu: each service line carries its photo for the floating preview; the kiosk keeps its board", async () => {
   network();
   const h = mountHooks(BookingWizard, {});
   await h.settle();
-  const media = () => (h.child(BookingMedia)!.props as unknown as { step: number; scene: MediaScene }).scene;
-  assert.equal(h.all().find((e) => e.props.className?.toString().includes("wizard-root"))!.props["data-layout"], "online");
-  assert.equal(media().title, "Beyond clean", "before a size is picked");
-  assert.equal(media().vehicle, null, "an empty studio");
-  // Step 1: the size under the pointer shows in the studio before it is picked.
-  const motor = h.all().find((e) => e.type === "label" && e.props["data-part"] === "vehicle-card" && /Motor/.test(textOf(e.props.children)))!;
-  (motor.props.onPointerEnter as () => void)();
-  await h.settle();
-  assert.equal(media().vehicle, "MOTOR");
+  const layout = (m: H) => m.all().find((e) => String(e.props.className ?? "").includes("wizard-root"))!.props["data-layout"];
+  assert.equal(layout(h), "online");
   await toServices(h);
-  assert.match(media().title, /^Basic Wash$/, "the first service on offer shows until one is looked at");
-  const row = h.all().find((e) => e.type === "li" && typeof e.props.onPointerEnter === "function" && /Premium Wash/.test(textOf(e.props.children)))!;
-  (row.props.onPointerEnter as () => void)();
-  await h.settle();
-  assert.equal(media().title, "Premium Wash", "the service under the pointer");
-  assert.match(media().line, /₱600.00/, "with its price for the size");
-  (h.all().find((e) => e.type === "section" && e.props["aria-labelledby"] === "kiosk-menu-title")!.props.onPointerLeave as () => void)();
-  inputs(h, "checkbox").find((e) => e.props.value === basic.id)!.props.onChange({});
-  await h.settle();
-  assert.equal(media().title, "Basic Wash", "back to the last pick when the pointer leaves");
+  const line = (name: string) => h.all().find((e) => e.type === "label" && e.props["data-part"] === "menu-tile" && textOf(e.props.children).includes(name))!;
+  assert.equal(line("Basic Wash").props["data-photo"], "/media/landing/basic-wash.webp", "the service's own photo");
+  assert.equal(line("Premium Wash").props["data-photo"], "/media/landing/signature-wash.webp", "else its category's photo");
   h.unmount();
-
-  // Steps 3 and 4: the day set large, then the build as a receipt with its total.
-  network();
-  const d = mountHooks(BookingWizard, {});
-  await toDetails(d);
-  const build = (d.child(BookingMedia)!.props as unknown as { scene: MediaScene }).scene;
-  assert.equal(build.title, "Your build");
-  assert.deepEqual(build.receipt!.items.map((i) => i.name), ["Basic Wash"]);
-  assert.match(build.receipt!.total, /₱/);
-  fire(primary(d, "Back"), "onClick", {});
-  await d.settle();
-  const date = (d.child(BookingMedia)!.props as unknown as { scene: MediaScene }).scene.date!;
-  assert.equal(date.day, String(Number(plus(2).slice(8))), "the picked day of the month, set large");
-  assert.ok(date.weekday && date.month, "with its weekday and month");
-  d.unmount();
 
   network();
   const kiosk = mountHooks(BookingWizard, { kioskOnExit: () => {} });
   await kiosk.settle();
-  assert.equal(kiosk.child(BookingMedia), null, "the kiosk keeps its ordering board, with no photo half");
+  assert.equal(layout(kiosk), "kiosk", "the kiosk keeps its ordering board");
   kiosk.unmount();
 });

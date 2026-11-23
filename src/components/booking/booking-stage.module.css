@@ -439,67 +439,84 @@
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
-   /book (online) is a split screen, unlike the kiosk's ordering board: the photo half (booking-media.tsx) on the left
-   of a laptop or across the top of a phone, and the steps as calm lists on the right. Everything below is scoped to
-   the online wizard, so the kiosk keeps its board. */
-.booking:has(:global([data-part="media"])) .backdrop {
+   /book (online) is an editorial menu, unlike the kiosk's ordering board: a deep black page with no shop photo,
+   choices as big type on hairline rules, and the photo (or the size's drawing) floating beside the pointer
+   (booking-motion.tsx). Everything below is scoped to the online wizard, so the kiosk keeps its board. */
+.booking:has(:global([data-layout="online"])) {
+  background: #0a0a0b;
+}
+
+.booking:has(:global([data-layout="online"])) .backdrop {
   display: none;
 }
 
-/* The header: the photo half carries the logo, so the step rail and Close share one row. */
 .booking :global([data-layout="online"] [data-part="panel"] > div) {
-  grid-template-columns: minmax(0, 1fr) auto;
   background: transparent;
   backdrop-filter: none;
 }
 
-.booking :global([data-layout="online"]:has(> [data-part="media"]) [data-part="panel"] a[aria-label="Return to home"]) {
+.booking :global([data-layout="online"] #wizard-step-title) {
+  font-size: clamp(32px, min(4.4vw, 7.4vh), 60px);
+}
+
+/* Rows share one look: no box, a hairline under each, the name in the display face. */
+.booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"])) {
+  flex-direction: row;
+  align-items: center;
+  border-width: 0 0 1px;
+  border-color: rgb(245 245 244 / .14);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: padding-left .45s cubic-bezier(.2, .7, .2, 1), border-color .3s;
+}
+
+.booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"]):is(:hover, :has(input:checked))) {
+  border-color: rgb(var(--primary) / .6);
+  background: transparent;
+  box-shadow: none;
+}
+
+.booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"]))::after {
   display: none;
 }
 
-.booking :global([data-layout="online"] [data-part="panel"] ol[aria-label="Booking steps"]) {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-.booking :global([data-layout="online"] [data-part="panel"] a[aria-label="Cancel and return to home"]) {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.booking :global([data-layout="online"] #wizard-step-title) {
-  font-size: clamp(32px, min(3.4vw, 6.6vh), 56px);
-}
-
-/* Step 1: the sizes are a list of rows (drawing, name, starting price, a ring that fills when chosen). */
-.booking :global([data-layout="online"] div:has(> [data-part="vehicle-card"])) {
+.booking :global([data-layout="online"] div:has(> [data-part="vehicle-card"])),
+.booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] ul) {
   grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+  gap: 0;
+  border-top: 1px solid rgb(245 245 244 / .14);
 }
 
+/* Step 1: one line per size (name, its kinds of car, the starting price) and a ring that fills when chosen. */
 .booking :global([data-layout="online"] [data-part="vehicle-card"]) {
-  --ic: 46px;
-  flex-direction: row;
-  align-items: center;
+  --ic: 40px;
   gap: 18px;
-  padding: 10px 60px 10px 10px;
+  padding: clamp(10px, 1.8vh, 18px) 56px clamp(10px, 1.8vh, 18px) 4px;
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-mark"]) {
-  width: 88px;
-  height: 52px;
+  width: 64px;
+  height: 48px;
   flex: none;
+  background: none;
 }
 
-/* One line per size: the name and its kinds of car, the starting price at the end (the description repeats the kinds). */
 .booking :global([data-layout="online"] [data-part="vehicle-card"] > span:nth-child(2)) {
   display: flex;
   flex: 1;
   min-width: 0;
   flex-wrap: wrap;
   align-items: baseline;
-  column-gap: 12px;
+  column-gap: 14px;
   padding: 0;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"] > span:nth-child(2) > span:first-child) {
+  font-family: var(--display);
+  font-size: clamp(20px, min(2.4vw, 4.4vh), 34px);
+  line-height: 1.05;
+  text-transform: uppercase;
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-description"]) {
@@ -512,7 +529,7 @@
 
 .booking :global([data-layout="online"] [data-part="vehicle-card"] input[type="radio"]) {
   top: 50%;
-  right: 20px;
+  right: 12px;
   width: 22px;
   height: 22px;
   margin: -11px 0 0;
@@ -528,8 +545,14 @@
   background: radial-gradient(circle, rgb(var(--primary)) 0 5px, transparent 6px);
 }
 
-/* Step 2: categories as a row of pills, services as rows (photo, name, price, add), the order as a receipt under them;
-   the bottom bar keeps the total and Continue on every screen. */
+/* A chosen row's name turns gold. */
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked) > span:nth-child(2) > span:first-child),
+.booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) > span:nth-child(2) > span:first-child) {
+  color: rgb(var(--primary-hover));
+}
+
+/* Step 2: the categories as words with a gold underline, the services as menu lines (name, a short note, price, add);
+   the order sits under them as a receipt and the bottom bar keeps the total and Continue on every screen. */
 .booking :global([data-layout="online"] div:has(> nav[aria-label="Service categories"])) {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -537,33 +560,88 @@
 .booking :global([data-layout="online"] nav[aria-label="Service categories"]) {
   position: static;
   flex-direction: row;
+  gap: clamp(18px, 3vw, 36px);
   overflow-x: auto;
   scrollbar-width: none;
 }
 
 .booking :global([data-layout="online"] [data-part="menu-category"]) {
   min-height: 48px;
-  border-radius: 999px;
-  padding-inline: 20px;
+  border-width: 0 0 2px;
+  border-color: transparent;
+  border-radius: 0;
+  padding: 0 2px;
+  background: transparent;
+  font-family: var(--display);
+  font-size: 15px;
+  text-transform: uppercase;
+  color: rgb(245 245 244 / .55);
 }
 
+.booking :global([data-layout="online"] [data-part="menu-category"]:hover),
 .booking :global([data-layout="online"] [data-part="menu-category"][aria-pressed="true"]) {
+  border-color: transparent transparent rgb(var(--primary));
+  background: transparent;
   box-shadow: none;
+  color: rgb(var(--foreground));
 }
 
-.booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] ul) {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+/* The open category's name is the underlined word above, so its heading stays for screen readers only. */
+.booking :global([data-layout="online"] #kiosk-menu-title) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .booking :global([data-layout="online"] [data-part="menu-tile"]) {
-  flex-direction: row;
+  padding: clamp(14px, 2.2vh, 22px) 4px;
 }
 
 .booking :global([data-layout="online"] [data-part="menu-tile"] > span:first-child) {
-  width: clamp(104px, 28%, 168px);
+  width: 84px;
   flex: none;
-  aspect-ratio: auto;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2)) {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 24px;
+  padding: 0 0 0 18px;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:first-child) {
+  grid-column: 1;
+  font-family: var(--display);
+  font-size: clamp(22px, 2.8vw, 42px);
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:nth-child(2):not(:last-child)) {
+  grid-column: 1;
+  margin-top: 6px;
+  -webkit-line-clamp: 1;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:last-child) {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+  padding: 0;
+  gap: 18px;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) img) {
+  transform: none;
 }
 
 .booking :global([data-layout="online"] aside[aria-label="Your order"]) {
@@ -576,426 +654,56 @@
 }
 
 @media (min-width: 1024px) {
-  .booking :global(.wizard-root[data-layout="online"]:has(> [data-part="media"])) {
-    --media-w: clamp(400px, 44vw, 820px);
-    display: grid;
-    grid-template-columns: var(--media-w) minmax(0, 1fr);
-    align-items: start;
-  }
-
-  .booking :global([data-layout="online"] > [data-part="media"]) {
-    position: sticky;
-    top: 0;
-  }
-
-  .booking :global([data-layout="online"]:has(> [data-part="media"]) #wizard-action-bar) {
+  .booking :global([data-layout="online"] #wizard-action-bar) {
     display: block;
-    left: var(--media-w);
   }
 }
 
-/* The photo half of /book's split screen (booking-media.tsx): a band across the top on phones, the left half (full
-   height, fixed while the form scrolls) on laptops. */
-.booking :global([data-part="media"]) {
-  position: relative;
-  isolation: isolate;
-  height: clamp(220px, 34svh, 340px);
+/* With a mouse, the pictures leave the rows and float beside the pointer instead (booking-motion.tsx); the row under
+   the pointer slides in a little, like a finger running down a printed menu. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] :is([data-part="vehicle-mark"], [data-part="menu-tile"] > span:first-child)) {
+    display: none;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2)) {
+    padding-left: 0;
+  }
+
+  .booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"]):hover) {
+    padding-left: 22px;
+  }
+}
+
+.booking :global([data-part="float"]) {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 15;
+  width: clamp(220px, 20vw, 320px);
+  aspect-ratio: 4 / 3;
   overflow: hidden;
-  background: #050506;
-}
-
-@media (min-width: 1024px) {
-  .booking :global([data-part="media"]) {
-    height: 100svh;
-  }
-}
-
-.booking :global([data-part="media-photos"]),
-.booking :global([data-part="media-layer"]) {
-  position: absolute;
-  inset: 0;
-}
-
-.booking :global([data-part="media-layer"] img) {
-  object-fit: cover;
-  transform: scale(1.04);
-}
-
-.booking :global([data-part="media-layer"] img[data-contain]) {
-  object-fit: contain;
-  padding: 12%;
-}
-
-/* Shade for the logo at the top and the caption at the bottom; the photo stays clear in the middle. */
-.booking :global([data-part="media-photos"])::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to bottom, rgb(5 5 6 / .7), transparent 26%),
-    linear-gradient(to top, rgb(5 5 6 / .92), rgb(5 5 6 / .35) 38%, transparent 62%);
-}
-
-.booking :global([data-part="media-home"]) {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 1;
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  border-radius: 12px;
-}
-
-.booking :global([data-part="media-home"]:focus-visible) {
-  outline: 2px solid rgb(var(--primary));
-  outline-offset: 4px;
-}
-
-.booking :global([data-part="media-caption"]) {
-  position: absolute;
-  inset: auto 0 0;
-  z-index: 1;
-  padding: 0 20px 22px;
-}
-
-.booking :global([data-part="media-title"]) {
-  margin: 0;
-  overflow: clip;
-  padding-block: .08em;
-  font-family: var(--display);
-  font-size: clamp(30px, 8vw, 44px);
-  font-weight: 600;
-  line-height: .95;
-  text-transform: uppercase;
-  text-wrap: balance;
-  color: rgb(245 245 244);
-}
-
-.booking :global([data-part="media-title"] > span) {
-  display: inline-block;
-}
-
-.booking :global([data-part="media-dot"]) {
-  color: rgb(var(--primary-hover));
-}
-
-.booking :global([data-part="media-line"]) {
-  margin: 10px 0 0;
-  max-width: 46ch;
-  font-size: 15px;
-  line-height: 1.45;
-  color: rgb(245 245 244 / .78);
-}
-
-@media (min-width: 1024px) {
-  .booking :global([data-part="media-home"]) {
-    top: 28px;
-    left: clamp(24px, 3vw, 48px);
-  }
-
-  .booking :global([data-part="media-caption"]) {
-    padding: 0 clamp(24px, 3vw, 48px) clamp(32px, 6vh, 64px);
-  }
-
-  .booking :global([data-part="media-title"]) {
-    font-size: clamp(40px, 4.4vw, 76px);
-  }
-
-  .booking :global([data-part="media-line"]) {
-    font-size: 17px;
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  /* The new photo wipes up over the last one and settles, the way the landing's service panels open. */
-  .booking :global([data-part="media-layer"]:not(:first-child)) {
-    animation: media-wipe .95s cubic-bezier(.7, 0, .2, 1) both;
-  }
-
-  .booking :global([data-part="media-layer"]:not(:first-child) img) {
-    animation: media-settle 1.6s cubic-bezier(.2, .7, .2, 1) both;
-  }
-
-  .booking :global([data-part="media-layer"]:only-child img) {
-    animation: media-drift 40s ease-out both;
-  }
-
-  .booking :global([data-part="media-title"] > span) {
-    animation: media-rise .8s cubic-bezier(.2, .7, .2, 1) both;
-  }
-
-  .booking :global([data-part="media-line"]) {
-    animation: media-fade .6s ease-out .25s both;
-  }
-}
-
-@keyframes media-wipe {
-  from { clip-path: inset(100% 0 0 0); }
-  to { clip-path: inset(0); }
-}
-
-@keyframes media-settle {
-  from { transform: scale(1.18); }
-  to { transform: scale(1.04); }
-}
-
-@keyframes media-drift {
-  from { transform: scale(1.04); }
-  to { transform: scale(1.12); }
-}
-
-@keyframes media-rise {
-  from { transform: translateY(105%); }
-  to { transform: none; }
-}
-
-@keyframes media-fade {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
-}
-
-@media print {
-  .booking :global([data-part="media"]) {
-    display: none;
-  }
-}
-
-/* Short laptop screens (650 px and less): slimmer size rows, so all five fit above the bar without scrolling. */
-@media (min-width: 1024px) and (max-height: 760px) {
-  .booking :global([data-layout="online"] [data-part="vehicle-card"]) {
-    --ic: 40px;
-    padding-block: 6px;
-  }
-
-  .booking :global([data-layout="online"] [data-part="vehicle-mark"]) {
-    height: 42px;
-  }
-
-  .booking :global([data-layout="online"] div:has(> [data-part="vehicle-card"])) {
-    gap: 8px;
-  }
-}
-
-@media (min-width: 1024px) and (max-height: 640px) {
-  .booking :global([data-layout="online"] [data-part="vehicle-card"]) {
-    --ic: 32px;
-    padding-block: 4px;
-  }
-
-  .booking :global([data-layout="online"] [data-part="vehicle-mark"]) {
-    height: 36px;
-  }
-
-  .booking :global([data-layout="online"] div:has(> [data-part="vehicle-card"])) {
-    gap: 6px;
-  }
-}
-
-/* Scenes of the photo half. The studio (step 1), the day (3) and the build (4) dim the photo so the gold reads first. */
-.booking :global([data-part="media"]:is([data-scene="garage"], [data-scene="date"], [data-scene="build"]) [data-part="media-layer"] img) {
-  filter: brightness(.38) saturate(.7);
-  transition: filter .8s ease;
-}
-
-.booking :global([data-part="media"][data-scene="garage"] [data-part="media-layer"] img) {
-  filter: brightness(.26) saturate(.5) blur(3px);
-}
-
-/* Step 1, the studio: a spotlight from above, a gold glow on the floor and the size's drawing between them. */
-.booking :global([data-part="media-garage"]) {
-  position: absolute;
-  inset: 0 0 26%;
-  z-index: 1;
-  display: grid;
-  place-items: center;
+  border-radius: 14px;
   pointer-events: none;
+  box-shadow: 0 34px 70px -24px rgb(0 0 0 / .85), 0 0 0 1px rgb(var(--primary) / .35);
 }
 
-.booking :global([data-part="media-garage"])::before,
-.booking :global([data-part="media-garage"])::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-}
-
-.booking :global([data-part="media-garage"])::before {
-  background: radial-gradient(ellipse 46% 62% at 50% 0%, rgb(255 236 196 / .2), transparent 72%);
-}
-
-.booking :global([data-part="media-garage"])::after {
-  background: radial-gradient(ellipse 40% 9% at 50% 84%, rgb(var(--primary) / .42), transparent 70%);
-}
-
-.booking :global([data-part="media-car"]) {
-  position: relative;
-  z-index: 1;
-  width: min(58%, 440px);
-  margin-top: 14%;
-}
-
-.booking :global([data-part="media-car"] svg) {
-  display: block;
+.booking :global([data-part="float"] img) {
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
 }
 
-/* Step 3: the chosen day, set very large. */
-.booking :global([data-part="media-date"]) {
-  display: grid;
-  margin: 0;
-  font-family: var(--display);
-  font-weight: 600;
-  line-height: .86;
-  text-transform: uppercase;
-  color: rgb(245 245 244);
+.booking :global([data-part="float"][data-kind="drawing"]) {
+  width: clamp(150px, 13vw, 210px);
+  aspect-ratio: 1;
+  overflow: visible;
+  border-radius: 0;
+  box-shadow: none;
 }
 
-.booking :global([data-part="media-date"] > span:first-child) {
-  margin-bottom: .3em;
-  font-size: clamp(14px, 1.4vw, 20px);
-  letter-spacing: .24em;
-  color: rgb(var(--primary-hover));
-}
-
-.booking :global([data-part="media-date"] > span:nth-child(2)) {
-  font-size: clamp(88px, 14vw, 240px);
-  letter-spacing: -.02em;
-}
-
-.booking :global([data-part="media-date"] > span:last-child) {
-  font-size: clamp(28px, 3.6vw, 60px);
-}
-
-/* Steps 3 and 4: the build as a receipt, the total in the display face. */
-.booking :global([data-part="media-receipt"]) {
-  margin-top: clamp(18px, 3vh, 32px);
-  max-width: 460px;
-  border-top: 1px solid rgb(var(--primary) / .45);
-  padding-top: 14px;
-}
-
-.booking :global([data-part="media-receipt"] ul) {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.booking :global([data-part="media-receipt"] li),
-.booking :global([data-part="media-receipt"] p) {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 0;
-  font-size: 16px;
-  color: rgb(245 245 244 / .86);
-}
-
-.booking :global([data-part="media-receipt"] li > span:last-child) {
-  font-variant-numeric: tabular-nums;
-}
-
-.booking :global([data-part="media-receipt"] p) {
-  margin-top: 14px;
-  border-top: 1px solid rgb(245 245 244 / .16);
-  padding-top: 12px;
-}
-
-.booking :global([data-part="media-receipt"] strong) {
-  font-family: var(--display);
-  font-size: clamp(30px, 3.2vw, 48px);
-  font-variant-numeric: tabular-nums;
-  color: rgb(245 245 244);
-}
-
-/* The curtain: at each step a black panel with a gold edge crosses the photo half and uncovers the new scene. */
-.booking :global([data-part="media-curtain"]) {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  background: #050506;
-  transform: translateX(101%);
-  pointer-events: none;
-}
-
-.booking :global([data-part="media-curtain"])::after {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 2px;
-  background: rgb(var(--primary));
-  box-shadow: 0 0 24px 4px rgb(var(--primary) / .55);
-}
-
-/* A slow band of light crosses the photo now and then, like a reflection moving over paint. */
-.booking :global([data-part="media"])::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  background: linear-gradient(105deg, transparent 42%, rgb(255 244 220 / .07) 50%, transparent 58%) no-repeat;
-  background-size: 260% 100%;
-  background-position: 160% 0;
-}
-
-/* Phones: the band is short, so the date is smaller and the receipt stays in the bottom bar. */
-@media (max-width: 1023px) {
-  .booking :global([data-part="media-date"] > span:nth-child(2)) {
-    font-size: clamp(64px, 22vw, 120px);
-  }
-
-  .booking :global([data-part="media-receipt"]),
-  .booking :global([data-part="media"]:is([data-scene="date"], [data-scene="build"]) [data-part="media-line"]) {
-    display: none;
-  }
-
-  .booking :global([data-part="media-car"]) {
-    width: min(46%, 240px);
-    margin-top: 6%;
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .booking :global([data-part="media-curtain"]) {
-    transform: translateX(0);
-    animation: media-curtain 1.05s cubic-bezier(.76, 0, .24, 1) .05s both;
-  }
-
-  .booking :global([data-part="media-car"]) {
-    animation: media-car .9s cubic-bezier(.2, .7, .2, 1) both;
-  }
-
-  .booking :global([data-part="media-date"] > span) {
-    animation: media-rise .8s cubic-bezier(.2, .7, .2, 1) both;
-  }
-
-  .booking :global([data-part="media-date"] > span:nth-child(2)) { animation-delay: .08s; }
-  .booking :global([data-part="media-date"] > span:nth-child(3)) { animation-delay: .16s; }
-
-  .booking :global([data-part="media-receipt"] li) {
-    animation: media-fade .5s ease-out both;
-  }
-
-  .booking :global([data-part="media"])::after {
-    animation: media-sweep 11s ease-in-out 1.2s infinite;
-  }
-}
-
-@keyframes media-curtain {
-  from { transform: translateX(0); }
-  to { transform: translateX(101%); }
-}
-
-@keyframes media-car {
-  from { opacity: 0; transform: translateY(22px) scale(.92); filter: blur(10px); }
-  to { opacity: 1; transform: none; filter: blur(0); }
-}
-
-@keyframes media-sweep {
-  0% { background-position: 160% 0; }
-  32%, 100% { background-position: -60% 0; }
+.booking :global([data-part="float"][data-kind="drawing"] svg) {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 24px 30px rgb(0 0 0 / .7));
 }

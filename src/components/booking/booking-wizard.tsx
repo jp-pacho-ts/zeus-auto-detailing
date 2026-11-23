@@ -23,9 +23,7 @@ import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TurnstileChallenge, type ChallengeStatus } from "@/components/booking/turnstile";
-import { DayPicker, DAYS_PER_PAGE, dateLabel, shortDayLabel, todayInManila } from "@/components/booking/day-picker";
-import { BookingMedia, type MediaPhoto, type MediaScene } from "@/components/booking/booking-media";
-import { HERO_POSTER_FILES } from "@/components/home/hero-video";
+import { DayPicker, DAYS_PER_PAGE, dateLabel, todayInManila } from "@/components/booking/day-picker";
 import { BookingTicket } from "@/components/booking/booking-ticket";
 import { KioskEndDialog, KioskIdleDialog } from "@/components/booking/kiosk-end-dialog";
 import { VehicleDrawing, VehicleDrawingDefs } from "@/components/booking/vehicle-drawing";
@@ -150,8 +148,6 @@ export function BookingWizard({
   const catalog = React.useMemo(() => (rawCatalog && catalogForBody(rawCatalog, vehicleId, bodyType)), [rawCatalog, vehicleId, bodyType]);
   const [picks, setPicks] = React.useState<ServicePick[]>([]);
   const [openCategory, setOpenCategory] = React.useState<CatalogServiceKind | null>(null);
-  // Online split screen: the service under the pointer (or keyboard focus) shows in the photo half.
-  const [preview, setPreview] = React.useState<string | null>(null);
   const [panelDrafts, setPanelDrafts] = React.useState<Record<string, string>>({});
   const [linkWarning, setLinkWarning] = React.useState("");
   const [copied, setCopied] = React.useState(false);
@@ -773,9 +769,10 @@ export function BookingWizard({
     const Icon = getServiceDisciplineIcon(s.category);
     const detail = serviceDetail(s);
     return (
-      <li key={s.id} onPointerEnter={() => setPreview(s.id)} onFocus={() => setPreview(s.id)}>
+      <li key={s.id}>
         <label
           data-part="menu-tile"
+          data-photo={photo?.src}
           className={
             "relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
             (pick ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
@@ -835,7 +832,7 @@ export function BookingWizard({
           })}
         </nav>
         {active && (
-          <section aria-labelledby="kiosk-menu-title" className="min-w-0" onPointerLeave={() => setPreview(null)}>
+          <section aria-labelledby="kiosk-menu-title" className="min-w-0">
             <h2 id="kiosk-menu-title" data-part="menu-title" className="mb-4 text-2xl font-bold text-foreground">{CATEGORY_NAMES[active.category]}</h2>
             <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">{active.services.map(renderKioskTile)}</ul>
             {extras.length > 0 && (
@@ -903,35 +900,6 @@ export function BookingWizard({
     "",
   ][step - 1];
   const statusWords = booking ? bookingStatusWords(booking.view.status) : "";
-
-  // The photo half of the online split screen answers every choice: the size under the pointer (or picked) in the
-  // studio, the service being looked at or last picked, the day set large, then the build as a receipt.
-  const shop: MediaPhoto = { src: HERO_POSTER_FILES.desktop };
-  const photoOf = (s?: ServicePackage): MediaPhoto => (s && (landingPhoto(s.slug) ?? landingPhoto(KIOSK_CATEGORY_PHOTO[s.category] ?? ""))) || shop;
-  const lastPick = serviceById(lines.at(-1)?.serviceId ?? "");
-  const shown = (preview && serviceById(preview)) || lastPick || bases.find((s) => offered(s) && s.category === openCategory) || bases.find(offered);
-  const sizeName = vehicle ? splitSizeName(vehicle.name) : null;
-  const sized = (step === 1 && preview && catalog?.vehicleCategories.find((v) => v.id === preview)) || vehicle;
-  const sizedName = sized ? splitSizeName(sized.name) : null;
-  const dayParts = day
-    ? Object.fromEntries(new Intl.DateTimeFormat(brandConfig.locale, { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Manila" })
-      .formatToParts(new Date(day + "T00:00:00+08:00")).map((p) => [p.type, p.value]))
-    : null;
-  const receipt = {
-    items: lines.map((l) => {
-      const priced = quoteLines.find((q) => q.serviceId === l.serviceId);
-      return { name: (serviceById(l.serviceId)?.name ?? "") + (l.quantity > 1 ? ` × ${l.quantity}` : ""), amount: priced ? lineAmount(priced) : "" };
-    }),
-    total: total?.amount ?? "",
-  };
-  const media: MediaScene | undefined = [
-    { photo: shop, vehicle: sized?.code ?? null, title: sizedName?.head ?? "Beyond clean",
-      line: sized ? [sizedName?.tail, fromPrice(sized.id) && "services from " + fromPrice(sized.id)].filter(Boolean).join(" · ") : "Pick your vehicle's size to see its prices." },
-    { photo: photoOf(shown), title: shown?.name ?? "Our services", line: shown ? [offerLabel(shown, vehicleId).text, serviceDetail(shown)].filter(Boolean).join(" · ") : "" },
-    { photo: photoOf(lastPick), title: "Your day", line: day ? arrivalWords() : "Pick a day on the calendar.",
-      date: dayParts && { weekday: dayParts.weekday, day: dayParts.day, month: dayParts.month }, receipt },
-    { photo: photoOf(lastPick), title: "Your build", line: [sizeName?.head, day && shortDayLabel(day)].filter(Boolean).join(" · "), receipt },
-  ][step - 1];
 
   const ticket = booking
     ? {
@@ -1036,7 +1004,6 @@ export function BookingWizard({
   return (
     <div className="wizard-root min-h-screen bg-background text-foreground" data-layout={kioskOnExit ? "kiosk" : "online"}>
       <style>{printCss}</style>
-      {!kioskOnExit && media && <BookingMedia step={step} scene={media} />}
       {kioskOnExit && confirmEnd && !pending && step < 5 && <KioskEndDialog onKeep={() => setConfirmEnd(false)} onEnd={() => { setConfirmEnd(false); kioskOnExit(); }} />}
       {kioskOnExit && kioskWarning !== null && !pending && step < 5 && (
         <KioskIdleDialog deadline={kioskWarning} total={KIOSK_WARNING_MS} onKeep={() => kioskKeepBooking.current?.()} onEnd={kioskOnExit} />
@@ -1114,7 +1081,7 @@ export function BookingWizard({
                     </div>
                   )}
                   <VehicleDrawingDefs />
-                  <fieldset onPointerLeave={() => setPreview(null)}>
+                  <fieldset>
                     <legend className="sr-only">Vehicle size</legend>
                     {/* The cards share the row on a tablet or laptop (five sizes fit across); phones show two columns. */}
                     <div className="grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
@@ -1126,7 +1093,6 @@ export function BookingWizard({
                           <label
                             key={v.id}
                             data-part="vehicle-card"
-                            onPointerEnter={() => setPreview(v.id)}
                             className={
                               "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
                               // The drawing follows the screen height, so step 1 fits a 650 px laptop screen and still fills a tablet.

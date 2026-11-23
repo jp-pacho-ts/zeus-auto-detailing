@@ -69,14 +69,23 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       assert.match(await rail.locator('li[aria-current=step]').innerText(), /Vehicle size/i);
       assert.equal(await page.locator('#wizard-action-bar').isVisible(), true, `${width}px the bottom bar shows on step 1`);
       await noSideways('step 1');
-      // Cards: one drawing per size, a 16 px radius.
+      // Menu rows (the editorial menu, CEO 2026-11-23): one drawing per size, no box, a hairline under each row.
       assert.equal(await page.locator('label:has(input[name="vehicle-category"]) svg').count(), 2);
-      const bandRadius = await page.locator('label:has(input[name="vehicle-category"])').first().evaluate((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius));
-      assert.ok(bandRadius >= 15 && bandRadius <= 21, `${width}px size cards are 16 to 20 px rounded, got ${bandRadius}`);
+      const row = await page.locator('label:has(input[name="vehicle-category"])').first().evaluate((e) => { const s = getComputedStyle(e); return { radius: parseFloat(s.borderTopLeftRadius), under: parseFloat(s.borderBottomWidth), over: parseFloat(s.borderTopWidth) }; });
+      assert.deepEqual(row, { radius: 0, under: 1, over: 0 }, `${width}px size rows are menu lines`);
       // Gold extruded icons: one gradient on the page, eight layers per icon, decorative, big enough to read.
       assert.equal(await page.locator('#zeus-gold-3d').count(), 1, 'the gold gradient is defined once');
       assert.equal(await page.locator('[id]').evaluateAll((els) => els.length - new Set(els.map((e) => e.id)).size), 0, 'no duplicate ids on the page');
-      for (const mark of await page.locator('[data-part=vehicle-mark] svg').all()) {
+      // With a mouse the drawing floats beside the pointer instead of sitting in the row (booking-motion.tsx).
+      const floats = await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)').matches);
+      if (floats) {
+        assert.equal(await page.locator('[data-part=vehicle-mark]').first().isVisible(), false, `${width}px the row keeps no drawing with a mouse`);
+        await page.locator('label:has(input[name="vehicle-category"])').first().hover();
+        await page.locator('[data-part=float] svg').waitFor({ state: 'visible', timeout: 3000 });
+        assert.equal(await page.locator('[data-part=float]').getAttribute('aria-hidden'), 'true', 'the floating preview is decorative');
+        await page.mouse.move(2, 2);
+      }
+      for (const mark of await page.locator('[data-part=vehicle-mark] svg').filter({ visible: true }).all()) {
         assert.equal(await mark.getAttribute('aria-hidden'), 'true');
         assert.equal(await mark.locator('path').count(), 8);
         const box = await mark.boundingBox();
