@@ -1,26 +1,17 @@
 "use client";
 
 import * as React from "react";
-import {
-  Globe,
-  CalendarCheck2,
-  Sliders,
-  Mail,
-  AlertTriangle,
-  CheckCircle2,
-  Lock,
-  Warehouse,
-} from "lucide-react";
+import { Globe, Gauge, Sliders, Mail, AlertTriangle, CheckCircle2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { brandConfig } from "@/config/brand";
-import type { AdminBay, AdminShopSettings, EmailKind } from "@/types/admin-contracts";
+import type { AdminShopSettings, EmailKind } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import { adminRequest, AdminRequestError } from "./bookings/client";
 import { CapSettings } from "./bookings/cap-settings";
-import { BayManager } from "./calendar/bay-manager";
 import { HoursManager } from "./calendar/hours-manager";
-import { fieldClass, LoadState, Select, useAdminResource } from "./bookings/use-admin-resource";
+import { fieldClass, LoadState } from "./bookings/use-admin-resource";
+import { SectionCard } from "./settings/section-card";
 import {
   bookingLine,
   BOOKING_INTRO,
@@ -29,7 +20,11 @@ import {
   EMAIL_INTRO,
   LIMITS_INTRO,
   messageProblem,
+  overviewRows,
   savedText,
+  sectionFromSearch,
+  SETTINGS_SECTIONS,
+  type SettingsSection,
   updateBody,
   websiteLine,
   WEBSITE_INTRO,
@@ -37,7 +32,6 @@ import {
 import { describeError } from "./team/team-panel";
 import { useKeptResource } from "./team/use-kept-resource";
 
-const CARD_SHELL = "rounded-xl border border-border bg-panel p-5 sm:p-6 shadow-sm";
 const today = () =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: brandConfig.timezone,
@@ -63,7 +57,7 @@ function Choice({
     <div
       role="group"
       aria-label={label}
-      className="inline-flex shrink-0 gap-1 rounded-lg border border-border bg-background p-1 shadow-inner"
+      className="inline-flex shrink-0 gap-1 self-start rounded-lg border border-border bg-background p-1 shadow-inner sm:self-auto"
     >
       {options.map(([id, text]) => {
         const isSelected = value === id;
@@ -76,7 +70,7 @@ function Choice({
             onClick={() => {
               if (value !== id) onChoose(id);
             }}
-            className={`min-h-[44px] min-w-[44px] rounded-md px-4 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 ${
+            className={`min-h-[44px] min-w-[44px] rounded-md px-4 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 ${
               isSelected
                 ? "bg-raised text-foreground shadow-sm ring-1 ring-white/10"
                 : "text-muted-foreground hover:bg-white/[0.03] hover:text-foreground"
@@ -90,43 +84,7 @@ function Choice({
   );
 }
 
-function SectionCard({
-  id,
-  icon: Icon,
-  title,
-  intro,
-  danger = false,
-  children,
-}: {
-  id: string;
-  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>;
-  title: string;
-  intro: string;
-  danger?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      id={id}
-      tabIndex={-1}
-      aria-labelledby={id + "-title"}
-      className={CARD_SHELL + " scroll-mt-40 lg:scroll-mt-24 outline-none" + (danger ? " border-rose-500/40" : "")}
-    >
-      <div className="flex items-start gap-3 border-b border-border/70 pb-4">
-        <div className={"flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-raised " + (danger ? "border-rose-500/40 text-rose-400" : "border-border text-primary")}>
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </div>
-        <div>
-          <h2 id={id + "-title"} className="text-base font-bold tracking-tight text-foreground">{title}</h2>
-          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{intro}</p>
-        </div>
-      </div>
-      <div className="mt-5 space-y-4">{children}</div>
-    </section>
-  );
-}
-
-// P1-77: the result of a save shows next to the section that saved it, not at the top of a long page.
+// P1-77: the result of a save shows next to the section that saved it.
 function Feedback({ at, here, saved, error }: { at: string | null; here: string; saved: string | null; error: string | null }) {
   if (at !== here) return null;
   if (error)
@@ -146,25 +104,9 @@ function Feedback({ at, here, saved, error }: { at: string | null; here: string;
   return null;
 }
 
-const SECTIONS: [string, string][] = [
-  ["settings-general", "General"],
-  ["settings-hours", "Hours & closed days"],
-  ["settings-limits", "Daily limits"],
-  ["settings-email", "Email"],
-  ["settings-bays", "Bays"],
-  ["settings-danger", "Danger zone"],
-];
-// "6 bays · 1 removed": one line while the Bays section is closed.
-export function baySummary(bays: AdminBay[] | null | undefined): string {
-  if (!bays) return "Add, move or bring back bays.";
-  const removed = bays.filter((b) => !b.isActive).length, working = bays.length - removed;
-  return `${working} ${working === 1 ? "bay" : "bays"}` + (removed ? ` · ${removed} removed` : "");
-}
-const jump = (id: string) => {
-  const target = document.getElementById(id);
-  target?.scrollIntoView({ block: "start" });
-  target?.focus({ preventScroll: true });
-};
+const noSubscribe = () => () => {};
+const TONE = { ok: "text-foreground", warn: "text-amber-400", bad: "text-rose-400" } as const;
+const DOT = { ok: "bg-emerald-400", warn: "bg-amber-400", bad: "bg-rose-400" } as const;
 
 const EMAIL_KINDS: [EmailKind, string, string][] = [
   ["confirmation", "Booking received", "Sent to the customer once, when they book."],
@@ -174,33 +116,48 @@ const EMAIL_KINDS: [EmailKind, string, string][] = [
 ];
 
 // Admin only: the server refuses everyone else, and this screen says so plainly first.
+// 2026-11-24: side tabs. One section on screen at a time, Overview first; the choice lives in ?section=.
 export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: () => unknown }) {
   const isAdmin = role === "ADMIN";
   const settings = useKeptResource<AdminShopSettings>(isAdmin ? "/api/admin/settings" : null);
+  // The link decides the first section (the server render has no URL, so Overview); a click then takes over.
+  const search = React.useSyncExternalStore(noSubscribe, () => window.location.search, () => "");
+  const [picked, setPicked] = React.useState<SettingsSection | null>(null);
+  const section = picked ?? sectionFromSearch(search);
   const [confirming, setConfirming] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [saved, setSaved] = React.useState<string | null>(null);
   const [feedbackAt, setFeedbackAt] = React.useState<string | null>(null);
-  // CEO 2026-11-14: Bays starts collapsed behind a one-line summary; a jump to Bays opens it.
-  const [baysOpen, setBaysOpen] = React.useState(false);
-  const bayList = useAdminResource<AdminBay[]>(isAdmin ? "/api/admin/bays" : null);
-  const go = (id: string) => {
-    if (id === "settings-bays") setBaysOpen(true);
-    jump(id);
-  };
   const [draft, setDraft] = React.useState<string | null>(null); // null: the message as saved
   const [limitsDay, setLimitsDay] = React.useState(today);
   const writing = React.useRef(false);
+  const panel = React.useRef<HTMLDivElement>(null);
+  const moved = React.useRef(false);
+
+  React.useEffect(() => {
+    // Phones: the chip row scrolls sideways, so keep the current chip in view (a link can open on the last one).
+    document.querySelector('nav[aria-label="Settings sections"] [aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    // Only a choice moves focus; the first render leaves it where the portal put it.
+    if (!moved.current) return;
+    moved.current = false;
+    document.getElementById("admin-content")?.scrollTo({ top: 0 });
+    panel.current?.focus({ preventScroll: true });
+  }, [section]);
+  const choose = (id: SettingsSection) => {
+    window.history.replaceState(null, "", id === "overview" ? window.location.pathname : "?section=" + id);
+    moved.current = true;
+    setPicked(id);
+  };
 
   if (!isAdmin) {
     return (
       <div className="rounded-xl border border-border bg-panel p-8 text-center shadow-sm">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-400 mb-3">
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-400">
           <Lock className="h-6 w-6" aria-hidden="true" />
         </div>
         <h2 className="text-base font-bold text-foreground">Access Restricted</h2>
-        <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
+        <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
           Only an admin can change the settings. Ask the shop owner if you need configuration adjustments.
         </p>
       </div>
@@ -260,72 +217,50 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
   const problem = messageProblem(message);
   const paused = Boolean(current && (current.bookingPaused || current.bookingPausedByServer));
   const fb = { at: feedbackAt, saved, error };
-  const chip = (tone: "ok" | "warn" | "bad" | "plain") =>
-    "inline-flex min-h-[44px] items-center gap-2 rounded-lg border px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary " +
-    (tone === "ok"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-      : tone === "warn"
-        ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-        : tone === "bad"
-          ? "border-rose-500/30 bg-rose-500/10 text-rose-400"
-          : "border-border bg-card text-foreground");
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-bold tracking-tight text-foreground">System Settings</h2>
-      <LoadState loading={settings.loading && !current} error={settings.error} retry={settings.reload} />
-      {current && (
-        <>
-          {/* P1-77: the one place status lives; each item jumps to its section. */}
-          <nav aria-label="Settings summary" className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 bg-background/95 px-1 py-2">
-            <button type="button" className={chip(current.maintenance ? "warn" : "ok")} onClick={() => go("settings-danger")}>
-              Site: {current.maintenance ? "Under maintenance" : "Live"}
-            </button>
-            <button type="button" className={chip(paused ? "warn" : "ok")} onClick={() => go("settings-general")}>
-              Online booking: {paused ? "Paused" : "Open"}
-            </button>
-            <button type="button" className={chip(current.email.configured ? "ok" : "warn")} onClick={() => go("settings-email")}>
-              Email: {current.email.configured ? "Set up" : "Not set up"}
-            </button>
-            <button type="button" className={chip(current.email.failedLast7Days > 0 ? "bad" : "plain")} onClick={() => go("settings-email")}>
-              Failed emails, 7 days: {current.email.failedLast7Days}
-            </button>
-          </nav>
+    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,48rem)] lg:items-start lg:gap-10">
+      <nav aria-label="Settings sections" className="-mx-4 mb-5 px-4 sm:-mx-8 sm:px-8 lg:sticky lg:top-0 lg:mx-0 lg:mb-0 lg:px-0">
+        <ul className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0">
+          {SETTINGS_SECTIONS.map(([id, label]) => {
+            const chosen = section === id, danger = id === "danger";
+            return (
+              <li key={id} className={danger ? "lg:mt-3 lg:border-t lg:border-border/70 lg:pt-3" : undefined}>
+                <button
+                  type="button"
+                  aria-current={chosen ? "page" : undefined}
+                  onClick={() => choose(id)}
+                  className={`flex min-h-[44px] w-full items-center whitespace-nowrap rounded-md border px-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:border-transparent ${
+                    chosen
+                      ? danger
+                        ? "border-rose-500/30 bg-rose-500/10 font-semibold text-rose-400 lg:border-rose-500/30"
+                        : "border-primary/25 bg-primary/10 font-semibold text-primary lg:border-primary/25"
+                      : danger
+                        ? "border-border text-rose-400/80 hover:bg-rose-500/10 hover:text-rose-400"
+                        : "border-border text-muted-foreground hover:bg-card hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
 
-          <div className="lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-8">
-            <nav aria-label="Settings sections" className="hidden lg:block">
-              <ul className="sticky top-20 space-y-1">
-                {SECTIONS.map(([id, label]) => (
-                  <li key={id}>
-                    <button
-                      type="button"
-                      onClick={() => go(id)}
-                      className="flex min-h-[44px] w-full items-center rounded-md px-3 text-left text-sm text-muted-foreground hover:bg-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    >
-                      {label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-
-            <div className="min-w-0 space-y-6">
-              <label className="block text-xs font-semibold text-muted-foreground lg:hidden">
-                Section
-                <Select value="" onChange={(e) => e.target.value && go(e.target.value)}>
-                  <option value="" disabled>
-                    Jump to a section…
-                  </option>
-                  {SECTIONS.map(([id, label]) => (
-                    <option key={id} value={id}>
-                      {label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-
-              <SectionCard id="settings-general" icon={CalendarCheck2} title="General" intro={BOOKING_INTRO}>
+      <div ref={panel} tabIndex={-1} className="min-w-0 space-y-6 outline-none">
+        {section === "hours" ? (
+          <HoursManager />
+        ) : section === "limits" ? (
+          <SectionCard id="settings-limits" icon={Sliders} title="Daily limits" intro={LIMITS_INTRO}>
+            <CapSettings date={limitsDay} onDateChange={setLimitsDay} onChanged={() => undefined} />
+          </SectionCard>
+        ) : (
+          <>
+            <LoadState loading={settings.loading && !current} error={settings.error} retry={settings.reload} />
+            {current && section === "overview" && (
+              <SectionCard id="settings-overview" icon={Gauge} title="Overview" intro={BOOKING_INTRO}>
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground">Online booking</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{bookingLine(current)}</p>
                   </div>
@@ -337,20 +272,39 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                       ["OPEN", "Open"],
                       ["PAUSED", "Paused"],
                     ]}
-                    onChoose={(v) => void save({ bookingPaused: v === "PAUSED" }, "settings-general")}
+                    onChoose={(v) => void save({ bookingPaused: v === "PAUSED" }, "settings-overview")}
                   />
                 </div>
-                <Feedback here="settings-general" {...fb} />
+                <Feedback here="settings-overview" {...fb} />
+                <dl className="divide-y divide-border/70 border-t border-border/70">
+                  {overviewRows(current).map((row) => (
+                    <div key={row.label} className="flex min-h-[52px] items-center justify-between gap-3 py-1.5">
+                      <dt className="text-sm text-muted-foreground">{row.label}</dt>
+                      <dd className="flex items-center gap-2">
+                        <span className={"flex items-center gap-2 text-sm font-semibold " + TONE[row.tone]}>
+                          <span aria-hidden="true" className={"h-2 w-2 rounded-full " + DOT[row.tone]} />
+                          {row.value}
+                        </span>
+                        {row.section && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="min-h-[44px] text-muted-foreground"
+                            aria-label={`Open ${SETTINGS_SECTIONS.find(([s]) => s === row.section)![1]} for ${row.label}`}
+                            onClick={() => choose(row.section!)}
+                          >
+                            View
+                          </Button>
+                        )}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
               </SectionCard>
+            )}
 
-              <div id="settings-hours" tabIndex={-1} className="scroll-mt-40 outline-none lg:scroll-mt-24">
-                <HoursManager />
-              </div>
-
-              <SectionCard id="settings-limits" icon={Sliders} title="Daily limits" intro={LIMITS_INTRO}>
-                <CapSettings date={limitsDay} onDateChange={setLimitsDay} onChanged={() => undefined} />
-              </SectionCard>
-
+            {current && section === "email" && (
               <SectionCard id="settings-email" icon={Mail} title="Email" intro={EMAIL_INTRO}>
                 <p className="text-sm text-foreground">{emailStatus(current)}</p>
                 <div>
@@ -367,7 +321,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                   <div className="divide-y divide-border/70">
                     {EMAIL_KINDS.map(([kind, label, hint]) => (
                       <div key={kind} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-sm font-semibold text-foreground">{label}</p>
                           <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
                         </div>
@@ -384,30 +338,12 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                 </div>
                 <Feedback here="settings-email" {...fb} />
               </SectionCard>
+            )}
 
-              <SectionCard id="settings-bays" icon={Warehouse} title="Bays" intro="Add a bay, move it to another container, or bring back a removed one. The Bay board shows the working bays.">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm text-foreground">{baySummary(bayList.data)}</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    aria-expanded={baysOpen}
-                    aria-controls="settings-bays-panel"
-                    onClick={() => setBaysOpen((open) => !open)}
-                  >
-                    {baysOpen ? "Hide bays" : "Show bays"}
-                  </Button>
-                </div>
-                {baysOpen && (
-                  <div id="settings-bays-panel">
-                    <BayManager onChanged={() => void bayList.reload()} />
-                  </div>
-                )}
-              </SectionCard>
-
+            {current && section === "danger" && (
               <SectionCard id="settings-danger" icon={Globe} title="Danger zone" intro={WEBSITE_INTRO} danger>
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground">Customer website</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{websiteLine(current)}</p>
                   </div>
@@ -432,11 +368,11 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                   }}
                   className="space-y-2 border-t border-border/70 pt-4"
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-start justify-between gap-3">
                     <label htmlFor="maintenance-message-input" className="text-xs font-semibold text-foreground">
                       Message customers see during maintenance (optional). The shop name and phone are always shown.
                     </label>
-                    <span className={`text-xs font-mono ${message.length > 200 ? "font-bold text-rose-400" : "text-muted-foreground"}`}>
+                    <span className={`shrink-0 text-xs tabular-nums ${message.length > 200 ? "font-bold text-rose-400" : "text-muted-foreground"}`}>
                       {message.length} / 200
                     </span>
                   </div>
@@ -460,40 +396,34 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                 </form>
                 <Feedback here="settings-danger" {...fb} />
               </SectionCard>
-            </div>
-          </div>
+            )}
+          </>
+        )}
+      </div>
 
-          {/* Maintenance Mode Confirmation Dialog */}
-          <Dialog open={confirming} onOpenChange={setConfirming}>
-            <DialogHeader>
-              <DialogTitle>Turn on maintenance?</DialogTitle>
-              <DialogDescription>{CONFIRM_MAINTENANCE}</DialogDescription>
-            </DialogHeader>
-            <div className="mt-5 flex justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-[44px] min-w-[44px]"
-                onClick={() => setConfirming(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="gold"
-                className="min-h-[44px] min-w-[44px]"
-                disabled={busy}
-                onClick={() => {
-                  setConfirming(false);
-                  void save({ maintenance: true }, "settings-danger");
-                }}
-              >
-                Turn on maintenance
-              </Button>
-            </div>
-          </Dialog>
-        </>
-      )}
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogHeader>
+          <DialogTitle>Turn on maintenance?</DialogTitle>
+          <DialogDescription>{CONFIRM_MAINTENANCE}</DialogDescription>
+        </DialogHeader>
+        <div className="mt-5 flex justify-end gap-3">
+          <Button type="button" variant="outline" className="min-h-[44px] min-w-[44px]" onClick={() => setConfirming(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="gold"
+            className="min-h-[44px] min-w-[44px]"
+            disabled={busy}
+            onClick={() => {
+              setConfirming(false);
+              void save({ maintenance: true }, "settings-danger");
+            }}
+          >
+            Turn on maintenance
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

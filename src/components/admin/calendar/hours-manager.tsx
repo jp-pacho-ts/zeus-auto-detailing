@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { CalendarOff, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { brandConfig } from "@/config/brand";
 import type { AdminSchedule, AdminWeekdayHours } from "@/lib/admin-schedule";
@@ -8,6 +9,7 @@ import { shopDate } from "../bookings/model";
 import { dateClass, fieldBare, fieldClass, LoadState, useAdminResource } from "../bookings/use-admin-resource";
 import { addDay } from "./calendar-model";
 import { useAdminWrite, WriteFeedback } from "./use-admin-write";
+import { SectionCard } from "../settings/section-card";
 
 // P1-20: ADMIN opening hours per weekday and closed dates. Customers only see open or closed
 // days; the closed-date reason stays with staff. The server refuses to close a day that has
@@ -28,17 +30,18 @@ function WeekForm({ schedule, write, onSaved }: { schedule: AdminSchedule; write
     setDays((all) => all.map((d) => (d.dayOfWeek === dayOfWeek ? { ...d, ...change } : d)));
   const today = shopDate();
   return (
-    <section aria-label="Opening hours" className="space-y-4 rounded border border-border bg-panel p-4">
-      <div>
-        <h2 className="font-bold">Opening hours</h2>
-        <p className="text-xs text-muted-foreground">
-          {schedule.startsOn === null
-            ? "No opening hours yet: customers see every day as closed until you save."
-            : schedule.startsOn > today
-              ? `Customers can book from ${longDay(schedule.startsOn)}.`
-              : "Customers can book any open day."}
-        </p>
-      </div>
+    <SectionCard
+      id="settings-hours-week"
+      icon={Clock}
+      title="Opening hours"
+      intro={
+        schedule.startsOn === null
+          ? "No opening hours yet: customers see every day as closed until you save."
+          : schedule.startsOn > today
+            ? `Customers can book from ${longDay(schedule.startsOn)}.`
+            : "Customers can book any open day."
+      }
+    >
       <form
         className="space-y-3"
         onSubmit={async (e) => {
@@ -88,7 +91,7 @@ function WeekForm({ schedule, write, onSaved }: { schedule: AdminSchedule; write
         </div>
         <WriteFeedback message={message} error={error} />
       </form>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -96,11 +99,7 @@ function ClosedDates({ schedule, write, onSaved }: { schedule: AdminSchedule; wr
   const { busy, message, error, run } = write;
   const today = shopDate();
   return (
-    <section aria-label="Closed days" className="space-y-4 rounded border border-border bg-panel p-4">
-      <div>
-        <h2 className="font-bold">Closed days</h2>
-        <p className="text-xs text-muted-foreground">Holidays and other days the shop is shut. Customers only see the day as closed.</p>
-      </div>
+    <SectionCard id="settings-hours-closed" icon={CalendarOff} title="Closed days" intro="Holidays and other days the shop is shut. Customers only see the day as closed.">
       <form
         className="flex flex-wrap items-end gap-3"
         onSubmit={async (e) => {
@@ -151,7 +150,7 @@ function ClosedDates({ schedule, write, onSaved }: { schedule: AdminSchedule; wr
           ))}
         </ul>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
