@@ -558,6 +558,54 @@
   margin: 0;
 }
 
+/* Tablet and up: the choices take the place of the chosen line's written kinds, on the name line (CEO 2026-11-24).
+   The script places them at the written kinds (--kind-x/--kind-y); the line keeps its gold rule and stays still. */
+.booking :global([data-layout="online"] div:has(> [data-part="vehicle-card"])) {
+  position: relative;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"][data-inline]) {
+  position: absolute;
+  top: var(--kind-y);
+  left: var(--kind-x);
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  translate: 0 -50%;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"][data-inline] > legend) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked):has(+ [data-part="vehicle-kind"][data-inline])) {
+  border-bottom-color: rgb(var(--primary) / .6);
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(+ [data-part="vehicle-kind"][data-inline]) [data-part="vehicle-kinds"]) {
+  visibility: hidden;
+}
+
+/* Compact choices on the name line, with a little more room above the example cars. */
+.booking :global([data-layout="online"] [data-part="vehicle-kind"][data-inline] label) {
+  min-height: 30px;
+  padding-inline: 14px;
+  font-size: 13px;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"][data-inline] > div) {
+  gap: 6px;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(+ [data-part="vehicle-kind"][data-inline]) [data-part="vehicle-examples"]) {
+  margin-top: 8px;
+}
+
 /* With a mouse the choices can be a little shorter (still well above the 24 px minimum target), so the opened line fits
    a laptop screen; touch screens keep 44 px. */
 @media (hover: hover) and (pointer: fine) {
@@ -820,7 +868,7 @@
 
 /* With a mouse, a size line slides in a little under the pointer, like a finger running down a printed menu. */
 @media (hover: hover) and (pointer: fine) {
-  .booking :global([data-layout="online"] [data-part="vehicle-card"]:hover) {
+  .booking :global([data-layout="online"] [data-part="vehicle-card"]:hover:not(:has(+ [data-part="vehicle-kind"]))) {
     padding-left: 22px;
   }
 }

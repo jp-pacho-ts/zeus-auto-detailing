@@ -870,12 +870,43 @@ export function BookingWizard({
   };
 
   // When the question opens near the bottom (a phone), bring it above the bar; the page's scroll padding clears the bar.
+  const kindRef = React.useRef<HTMLFieldSetElement | null>(null);
   const revealKind = React.useCallback((el: HTMLFieldSetElement | null) => {
+    kindRef.current = el;
     if (!el) return;
     const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
     window.requestAnimationFrame(() => el.scrollIntoView({ block: "nearest", behavior }));
   }, []);
-  // Large and X-Large cover more than one kind of vehicle, so the chosen one asks which. Online /book shows it inside the
+  // Online /book, tablet and up (CEO 2026-11-24): the choices sit on the chosen line itself, where its kinds of vehicle
+  // ("Fullsize SUV / Pick-up / Van") were written, so nothing moves. They cannot live inside the line's <label> (one
+  // control per label), so they are placed over it: at the written kinds, and again whenever the line resizes.
+  React.useEffect(() => {
+    const kind = kindRef.current;
+    const row = kind?.previousElementSibling;
+    const kinds = row?.querySelector<HTMLElement>('[data-part="vehicle-kinds"]');
+    const head = kinds?.parentElement?.firstElementChild;
+    if (kioskOnExit || !kind || !row || !kinds || !head) return;
+    const wide = window.matchMedia("(min-width: 768px)");
+    const place = () => {
+      kind.toggleAttribute("data-inline", wide.matches);
+      const parent = (kind.offsetParent ?? document.body) as HTMLElement;
+      const box = kinds.getBoundingClientRect();
+      const name = head.getBoundingClientRect(); // centred on the size's name, not the smaller text beside it
+      const frame = parent.getBoundingClientRect();
+      kind.style.setProperty("--kind-x", box.left - frame.left - parent.clientLeft + "px");
+      kind.style.setProperty("--kind-y", name.top + name.height / 2 - frame.top - parent.clientTop + "px");
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(row);
+    wide.addEventListener("change", place);
+    return () => {
+      observer.disconnect();
+      wide.removeEventListener("change", place);
+    };
+  }, [kioskOnExit, vehicleId, step, catalog]);
+
+  // Large and X-Large cover more than one kind of vehicle, so the chosen one asks which. Online /book shows it on the
   // chosen size's line (CEO 2026-11-24); the kiosk shows it under the sizes.
   const renderBodyChoices = (className = "") =>
     bodyChoices.length > 0 && (
@@ -1173,7 +1204,7 @@ export function BookingWizard({
                               {name.tail && (
                                 <>
                                   <span className="sr-only"> · </span>
-                                  <span className="block text-sm leading-snug text-muted-foreground">{name.tail}</span>
+                                  <span data-part="vehicle-kinds" className="block text-sm leading-snug text-muted-foreground">{name.tail}</span>
                                 </>
                               )}
                               {v.description && <span data-part="vehicle-description" className="block text-sm text-muted-foreground lg:line-clamp-2">{v.description}</span>}
