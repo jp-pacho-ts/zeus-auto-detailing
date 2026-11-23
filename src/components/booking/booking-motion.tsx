@@ -109,62 +109,6 @@ export function BookingMotion() {
       };
     });
 
-    // The online menu's floating preview (the hover image reveal of editorial menus): over a size row the size's gold
-    // drawing, over a service row its photo, follow the pointer with a little lag and lean with its speed. The rows
-    // keep their own pictures for touch screens and reduced motion (the CSS hides them only where this runs).
-    media.add("(prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine)", () => {
-      const float = document.createElement("div");
-      float.dataset.part = "float";
-      float.setAttribute("aria-hidden", "true");
-      stage.append(float);
-      gsap.set(float, { autoAlpha: 0, scale: .7, yPercent: -50 });
-      const xTo = gsap.quickTo(float, "x", { duration: .55, ease: "power3" });
-      const yTo = gsap.quickTo(float, "y", { duration: .55, ease: "power3" });
-      const lean = gsap.quickTo(float, "rotation", { duration: .6, ease: "power3" });
-      let current: HTMLElement | null = null, lastX = 0, upright: gsap.core.Tween | null = null;
-      const show = (row: HTMLElement) => {
-        if (row === current) return;
-        current = row;
-        const photo = row.dataset.photo, drawing = row.querySelector('[data-part="vehicle-mark"] svg');
-        if (photo) {
-          const img = document.createElement("img");
-          img.src = photo;
-          img.alt = "";
-          float.replaceChildren(img);
-        } else if (drawing) float.replaceChildren(drawing.cloneNode(true));
-        else return hide();
-        float.dataset.kind = photo ? "photo" : "drawing";
-        gsap.to(float, { autoAlpha: 1, scale: 1, duration: .5, ease: "power3.out", overwrite: "auto" });
-      };
-      const hide = () => {
-        current = null;
-        gsap.to(float, { autoAlpha: 0, scale: .7, duration: .3, ease: "power2.in", overwrite: "auto" });
-      };
-      const move = (event: PointerEvent) => {
-        if (event.pointerType === "touch") return;
-        // Beside the pointer, on the side with room, so it never covers the name being read.
-        const right = event.clientX < innerWidth * .62;
-        gsap.set(float, { xPercent: right ? 0 : -100 });
-        xTo(event.clientX + (right ? 36 : -36));
-        yTo(event.clientY);
-        lean(Math.max(-8, Math.min(8, (event.clientX - lastX) * .6)));
-        lastX = event.clientX;
-        upright?.kill();
-        upright = gsap.delayedCall(.12, () => lean(0));
-        const row = (event.target as Element | null)?.closest?.<HTMLElement>(`[data-layout="online"] :is(${CARDS})`);
-        if (row && stage.contains(row)) show(row);
-        else if (current) hide();
-      };
-      window.addEventListener("pointermove", move, { passive: true });
-      document.documentElement.addEventListener("pointerleave", hide);
-      return () => {
-        window.removeEventListener("pointermove", move);
-        document.documentElement.removeEventListener("pointerleave", hide);
-        upright?.kill();
-        float.remove();
-      };
-    });
-
     // Lenis, as on the landing: wheel scrolling glides on laptops and desktops; touch scrolling stays native.
     media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference) and (pointer: fine)", () => {
       const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, allowNestedScroll: true, prevent: (node) => !!node.closest("dialog, select") });

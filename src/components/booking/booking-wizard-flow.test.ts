@@ -672,21 +672,33 @@ test("P1-55 (LE): Back uses the same height class as Continue and Submit, so the
   h.unmount();
 });
 
-test("online editorial menu: each service line carries its photo for the floating preview; the kiosk keeps its board", async () => {
+test("online editorial menu: the order opens from the bottom bar as a sheet and closes with Escape; the kiosk keeps its panel", async () => {
   network();
   const h = mountHooks(BookingWizard, {});
   await h.settle();
-  const layout = (m: H) => m.all().find((e) => String(e.props.className ?? "").includes("wizard-root"))!.props["data-layout"];
-  assert.equal(layout(h), "online");
+  const toggle = () => h.all().find((e) => e.props["data-part"] === "order-toggle");
+  const sheet = () => h.all().find((e) => e.props["data-part"] === "order-sheet");
   await toServices(h);
-  const line = (name: string) => h.all().find((e) => e.type === "label" && e.props["data-part"] === "menu-tile" && textOf(e.props.children).includes(name))!;
-  assert.equal(line("Basic Wash").props["data-photo"], "/media/landing/basic-wash.webp", "the service's own photo");
-  assert.equal(line("Premium Wash").props["data-photo"], "/media/landing/signature-wash.webp", "else its category's photo");
+  assert.equal(toggle(), undefined, "nothing to open before a service is chosen");
+  inputs(h, "checkbox").find((e) => e.props.value === basic.id)!.props.onChange({});
+  await h.settle();
+  assert.equal(toggle()!.props["aria-expanded"], false);
+  assert.equal(sheet(), undefined);
+  fire(toggle(), "onClick");
+  await h.settle();
+  assert.equal(toggle()!.props["aria-expanded"], true);
+  assert.equal(sheet()!.props["aria-label"], "Your order");
+  assert.ok(h.all().some((e) => e.type === "button" && e.props["aria-label"] === "Remove Basic Wash"), "each service can be removed from the sheet");
+  fire(h.all().find((e) => e.props.id === "wizard-action-bar"), "onKeyDown", { key: "Escape" });
+  await h.settle();
+  assert.equal(sheet(), undefined, "Escape closes the sheet");
   h.unmount();
 
   network();
   const kiosk = mountHooks(BookingWizard, { kioskOnExit: () => {} });
+  await toServices(kiosk);
+  inputs(kiosk, "checkbox").find((e) => e.props.value === basic.id)!.props.onChange({});
   await kiosk.settle();
-  assert.equal(layout(kiosk), "kiosk", "the kiosk keeps its ordering board");
+  assert.equal(kiosk.all().find((e) => e.props["data-part"] === "order-toggle"), undefined, "the kiosk keeps its order panel beside the menu");
   kiosk.unmount();
 });

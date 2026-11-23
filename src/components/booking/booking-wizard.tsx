@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Check,
   ChevronLeft,
+  ChevronUp,
   Droplets,
   MessageSquare,
   Plus,
@@ -176,6 +177,9 @@ export function BookingWizard({
   // The countdown deadline while the idle warning shows; null otherwise.
   const [kioskWarning, setKioskWarning] = React.useState<number | null>(null);
   const [confirmEnd, setConfirmEnd] = React.useState(false);
+  // Online: the order opens from the bottom bar as a sheet; it belongs to the step it was opened on, so it closes on the next.
+  const [orderOpenAt, setOrderOpenAt] = React.useState(0);
+  const orderOpen = orderOpenAt === step;
   const kioskKeepBooking = React.useRef<(() => void) | null>(null);
   // The management code stays in memory only (ADR-002): never in the URL or browser storage.
   const [booking, setBooking] = React.useState<{ view: DayBookingView; access: ManagementAccessGrant | null; vehicleModel: string; vehiclePlate: string | null; customerName: string; customerPhone: string; multiDay: boolean } | null>(null);
@@ -772,7 +776,6 @@ export function BookingWizard({
       <li key={s.id}>
         <label
           data-part="menu-tile"
-          data-photo={photo?.src}
           className={
             "relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
             (pick ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
@@ -850,6 +853,16 @@ export function BookingWizard({
         )}
         <aside aria-label="Your order" className="rounded-2xl border border-border bg-card p-5 md:col-span-2 lg:sticky lg:top-4 lg:col-span-1">
           <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</p>
+          {renderOrderBody()}
+          <div className="mt-4 hidden space-y-2 lg:block [&>button]:w-full">{renderPrimary()}{renderBack()}</div>
+          <div className="hidden lg:block">{renderReason()}</div>
+        </aside>
+      </div>
+    );
+  };
+
+  const renderOrderBody = () => (
+    <>
           <div className="mt-2 flex items-center justify-between gap-3 border-b border-border pb-3">
             <p className="font-bold text-foreground">{vehicle?.name}</p>
             <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink}>Change size</button>
@@ -885,12 +898,8 @@ export function BookingWizard({
             )}
             {total?.note && <p className="mt-1 text-sm text-muted-foreground">{total.note}</p>}
           </div>
-          <div className="mt-4 hidden space-y-2 lg:block [&>button]:w-full">{renderPrimary()}{renderBack()}</div>
-          <div className="hidden lg:block">{renderReason()}</div>
-        </aside>
-      </div>
-    );
-  };
+    </>
+  );
 
   const intro = [
     "Prices depend on the size of your vehicle.",
@@ -1610,12 +1619,29 @@ export function BookingWizard({
         <div
           id="wizard-action-bar"
           className={"wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur " + "sm:px-8" + (step === 2 ? " lg:hidden" : "")}
+          onKeyDown={(event) => { if (event.key === "Escape" && orderOpen) setOrderOpenAt(0); }}
         >
+          {/* Online: the order (each service with its price and a way to remove it) slides up from the bar when asked for. */}
+          {!kioskOnExit && orderOpen && lines.length > 0 && (
+            <div id="order-sheet" data-part="order-sheet" role="region" aria-label="Your order" className="mx-auto mb-3 max-h-[50vh] max-w-5xl overflow-y-auto border-b border-border pb-3">
+              {renderOrderBody()}
+            </div>
+          )}
           {/* One row: Back, total, action. On phones (below 480 px): total and Back, then the action full width, so the
               total is never squeezed out. */}
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2">
             <div className="order-2 min-[480px]:order-1">{renderBack()}</div>
-            <div className="order-1 min-w-0 flex-1 text-left min-[480px]:order-2 min-[480px]:text-right">{renderKioskOrder()}</div>
+            <div className="order-1 min-w-0 flex-1 text-left min-[480px]:order-2 min-[480px]:text-right">
+              {kioskOnExit || !lines.length ? renderKioskOrder() : (
+                <button type="button" data-part="order-toggle" aria-expanded={orderOpen} aria-controls="order-sheet" onClick={() => setOrderOpenAt(orderOpen ? 0 : step)}
+                  className="flex w-full min-w-0 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-[480px]:justify-end min-[480px]:text-right">
+                  <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-input">
+                    <ChevronUp className={"h-4 w-4 transition-transform " + (orderOpen ? "rotate-180" : "")} />
+                  </span>
+                  <span className="block min-w-0">{renderKioskOrder()}</span>
+                </button>
+              )}
+            </div>
             {showPrimary && (
               <div className="order-3 basis-full min-[480px]:basis-auto [&>button]:w-full min-[480px]:[&>button]:w-auto">{renderPrimary()}</div>
             )}

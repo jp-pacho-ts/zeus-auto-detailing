@@ -439,9 +439,9 @@
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
-   /book (online) is an editorial menu, unlike the kiosk's ordering board: a deep black page with no shop photo,
-   choices as big type on hairline rules, and the photo (or the size's drawing) floating beside the pointer
-   (booking-motion.tsx). Everything below is scoped to the online wizard, so the kiosk keeps its board. */
+   /book (online) is an editorial menu, unlike the kiosk's ordering board: a deep black page with no shop photo and
+   choices as big type on hairline rules; a service's photo opens inside its line, and the order opens from the
+   bottom bar. Everything below is scoped to the online wizard, so the kiosk keeps its board. */
 .booking:has(:global([data-layout="online"])) {
   background: #0a0a0b;
 }
@@ -490,14 +490,14 @@
 
 /* Step 1: one line per size (name, its kinds of car, the starting price) and a ring that fills when chosen. */
 .booking :global([data-layout="online"] [data-part="vehicle-card"]) {
-  --ic: 40px;
+  --ic: 44px;
   gap: 18px;
-  padding: clamp(10px, 1.8vh, 18px) 56px clamp(10px, 1.8vh, 18px) 4px;
+  padding: clamp(6px, 1.2vh, 18px) 56px clamp(6px, 1.2vh, 18px) 4px;
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-mark"]) {
   width: 64px;
-  height: 48px;
+  height: 44px;
   flex: none;
   background: none;
 }
@@ -644,13 +644,22 @@
   transform: none;
 }
 
+/* The order lives in the sheet that opens from the bottom bar, not under the menu. */
 .booking :global([data-layout="online"] aside[aria-label="Your order"]) {
-  position: static;
-  grid-column: 1 / -1;
+  display: none;
 }
 
-.booking :global([data-layout="online"] aside[aria-label="Your order"] div:has(> [data-part="primary"])) {
-  display: none;
+.booking :global([data-layout="online"] [data-part="order-sheet"]) {
+  scrollbar-width: thin;
+}
+
+.booking :global([data-layout="online"] [data-part="order-sheet"] ul li) {
+  font-size: 16px;
+}
+
+.booking :global([data-layout="online"] [data-part="order-toggle"]:hover > span:first-child) {
+  border-color: rgb(var(--primary));
+  color: rgb(var(--primary-hover));
 }
 
 @media (min-width: 1024px) {
@@ -659,51 +668,47 @@
   }
 }
 
-/* With a mouse, the pictures leave the rows and float beside the pointer instead (booking-motion.tsx); the row under
-   the pointer slides in a little, like a finger running down a printed menu. */
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .booking :global([data-layout="online"] :is([data-part="vehicle-mark"], [data-part="menu-tile"] > span:first-child)) {
-    display: none;
+/* With a mouse, a service line keeps its photo folded away and opens it when the pointer (or keyboard focus) is on
+   the line; a size line slides in a little, like a finger running down a printed menu. Touch screens always show
+   the small photo. */
+@media (hover: hover) and (pointer: fine) {
+  .booking :global([data-layout="online"] [data-part="menu-tile"] > span:first-child) {
+    width: 0;
+    height: 96px;
+    aspect-ratio: auto;
+    margin-right: 0;
+    opacity: 0;
+    transition: width .55s cubic-bezier(.2, .7, .2, 1), margin .55s cubic-bezier(.2, .7, .2, 1), opacity .35s ease;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-tile"]:is(:hover, :has(:focus-visible)) > span:first-child) {
+    width: 148px;
+    margin-right: 22px;
+    opacity: 1;
   }
 
   .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2)) {
     padding-left: 0;
   }
 
-  .booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"]):hover) {
+  .booking :global([data-layout="online"] [data-part="vehicle-card"]:hover) {
     padding-left: 22px;
   }
 }
 
-.booking :global([data-part="float"]) {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 15;
-  width: clamp(220px, 20vw, 320px);
-  aspect-ratio: 4 / 3;
-  overflow: hidden;
-  border-radius: 14px;
-  pointer-events: none;
-  box-shadow: 0 34px 70px -24px rgb(0 0 0 / .85), 0 0 0 1px rgb(var(--primary) / .35);
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="order-sheet"]) {
+    animation: sheet-up .4s cubic-bezier(.2, .7, .2, 1) both;
+  }
 }
 
-.booking :global([data-part="float"] img) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+@media (prefers-reduced-motion: reduce) {
+  .booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"], [data-part="menu-tile"] > span:first-child)) {
+    transition: none;
+  }
 }
 
-.booking :global([data-part="float"][data-kind="drawing"]) {
-  width: clamp(150px, 13vw, 210px);
-  aspect-ratio: 1;
-  overflow: visible;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.booking :global([data-part="float"][data-kind="drawing"] svg) {
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 24px 30px rgb(0 0 0 / .7));
+@keyframes sheet-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
 }

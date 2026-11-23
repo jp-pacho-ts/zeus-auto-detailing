@@ -76,16 +76,7 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       // Gold extruded icons: one gradient on the page, eight layers per icon, decorative, big enough to read.
       assert.equal(await page.locator('#zeus-gold-3d').count(), 1, 'the gold gradient is defined once');
       assert.equal(await page.locator('[id]').evaluateAll((els) => els.length - new Set(els.map((e) => e.id)).size), 0, 'no duplicate ids on the page');
-      // With a mouse the drawing floats beside the pointer instead of sitting in the row (booking-motion.tsx).
-      const floats = await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)').matches);
-      if (floats) {
-        assert.equal(await page.locator('[data-part=vehicle-mark]').first().isVisible(), false, `${width}px the row keeps no drawing with a mouse`);
-        await page.locator('label:has(input[name="vehicle-category"])').first().hover();
-        await page.locator('[data-part=float] svg').waitFor({ state: 'visible', timeout: 3000 });
-        assert.equal(await page.locator('[data-part=float]').getAttribute('aria-hidden'), 'true', 'the floating preview is decorative');
-        await page.mouse.move(2, 2);
-      }
-      for (const mark of await page.locator('[data-part=vehicle-mark] svg').filter({ visible: true }).all()) {
+      for (const mark of await page.locator('[data-part=vehicle-mark] svg').all()) {
         assert.equal(await mark.getAttribute('aria-hidden'), 'true');
         assert.equal(await mark.locator('path').count(), 8);
         const box = await mark.boundingBox();
@@ -104,12 +95,20 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       await page.locator('[data-part=menu-tile]', { hasText: 'Engine Bay Wash' }).click();
       await page.waitForTimeout(500);
       await noSideways('step 2');
-      // The order: a receipt under the services on laptops (the split screen), in the bottom bar on phones; Back and Continue
-      // stay together in the bottom bar on every screen.
-      const orderBox = desktop ? page.getByRole('complementary', { name: 'Your order' }) : page.locator('#wizard-action-bar');
+      // The order: the total in the bottom bar on every screen; the bar opens the order (each service, its price, remove)
+      // as a sheet. Back and Continue stay together in the bar.
+      const orderBox = page.locator('#wizard-action-bar');
       // The total rolls up to its new amount (booking-motion.tsx), so wait for the roll to land before reading it.
       await orderBox.getByText(/₱550\.00/).first().waitFor({ timeout: 3000 }).catch(() => {});
       assert.match(await orderBox.innerText(), /₱550.00/, `${width}px the total is in the order`);
+      const toggle = orderBox.locator('[data-part=order-toggle]');
+      assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+      await toggle.click();
+      const sheet = page.getByRole('region', { name: 'Your order' });
+      await sheet.waitFor();
+      assert.equal(await sheet.getByRole('button', { name: 'Remove Basic Wash' }).isVisible(), true, `${width}px the sheet lists each service with a way to remove it`);
+      await page.keyboard.press('Escape');
+      await sheet.waitFor({ state: 'detached' });
       const bar = page.locator('#wizard-action-bar');
       assert.equal(await bar.getByRole('button', { name: 'Back' }).isVisible(), true, `${width}px Back sits with Continue in the bar`);
       assert.equal(await bar.getByRole('button', { name: 'Continue', exact: true }).isVisible(), true, `${width}px Continue is in the bar`);
