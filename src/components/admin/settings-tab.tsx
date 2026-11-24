@@ -216,8 +216,9 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
   const problem = messageProblem(message);
   const paused = Boolean(current && (current.bookingPaused || current.bookingPausedByServer));
   const fb = { at: feedbackAt, saved, error };
+  // Wide screens: the list and the section sit centred together, so the spare width is even on both sides.
   return (
-    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,48rem)] lg:items-start lg:gap-10">
+    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,48rem)] lg:items-start lg:justify-center lg:gap-10">
       {/* Phones: the list wraps into rows of chips (nothing in the admin scrolls sideways). */}
       <nav aria-label="Settings sections" className="mb-5 lg:sticky lg:top-0 lg:mb-0">
         <ul className="flex flex-wrap gap-2 lg:block lg:space-y-1">

@@ -19,7 +19,8 @@ const longDay = (day: string) =>
   new Intl.DateTimeFormat(brandConfig.locale, { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(day + "T00:00:00Z"));
 
 type Write = ReturnType<typeof useAdminWrite>;
-const ROW = "grid grid-cols-[7.5rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 py-1.5 sm:grid-cols-[9rem_10rem_10rem]";
+// The day takes the free width; the times sit on the right like every other Settings control.
+const ROW = "grid grid-cols-[7.5rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 py-1.5 sm:grid-cols-[minmax(0,1fr)_10rem_10rem]";
 const timeClass = fieldBare;
 
 // A refused save keeps the edits on screen (the server says why); a saved one reloads.
