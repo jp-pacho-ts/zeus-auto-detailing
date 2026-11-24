@@ -54,8 +54,8 @@ function Result({ ok, text }: { ok: boolean; text: string }) {
   );
 }
 
-// 2026-11-25 (LE, Vercel-style Settings): two cards. The test card's footer shows the send result the page passes in.
-export function EmailTools({ busy, onSendTest, testHint }: { busy: boolean; onSendTest: () => Promise<void>; testHint?: React.ReactNode }) {
+// 2026-11-25 (LE, Vercel-style Settings): two cards. The test card's footer shows the send result above its note.
+export function EmailTools({ busy, onSendTest, testResult }: { busy: boolean; onSendTest: () => Promise<void>; testResult?: React.ReactNode }) {
   const [kind, setKind] = React.useState<AdminEmailPreviewKind>("confirmation");
   const [preview, setPreview] = React.useState<AdminEmailPreview | null>(null);
   const [previewError, setPreviewError] = React.useState<string | null>(null);
@@ -97,7 +97,8 @@ export function EmailTools({ busy, onSendTest, testHint }: { busy: boolean; onSe
       <SettingsCard
         title="Send a test email"
         description="Sends one short email to the shop inbox, so you know emails are going out."
-        hint={testHint ?? "Goes to the shop inbox only. Up to 3 every 10 minutes."}
+        result={testResult}
+        hint="Goes to the shop inbox only. Up to 3 every 10 minutes."
         action={
           <Button type="button" variant="outline" className="min-h-[44px]" disabled={busy || sending} onClick={() => void sendTest()}>
             {sending ? "Sending…" : "Send a test email"}

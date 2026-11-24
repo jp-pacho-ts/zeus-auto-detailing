@@ -1,5 +1,5 @@
 // P1-42: the plain words of the Settings screen and what a save sends. No React, no network, so they are unit tested.
-import type { AdminEmailPreviewKind, AdminLastChanged, AdminShopSettings, AdminTestEmail } from "@/types/admin-contracts";
+import type { AdminEmailPreviewKind, AdminLastChanged, AdminShopSettings, AdminTestEmail, EmailKind } from "@/types/admin-contracts";
 
 export const WEBSITE_INTRO = "Takes the whole customer site offline: home, booking and manage booking. The admin and sign-in keep working.";
 export const BOOKING_INTRO = "Paused stops new bookings only. Customers can still look up and manage the bookings they have.";
@@ -96,8 +96,25 @@ export function testEmailText(r: AdminTestEmail): { ok: boolean; text: string } 
 export const TEST_EMAIL_LIMIT_TEXT = "Three test emails in 10 minutes is the limit. Try again in 10 minutes.";
 
 export const PREVIEW_KINDS: [AdminEmailPreviewKind, string][] = [
-  ["confirmation", "Booking confirmation"],
+  ["confirmation", "Booking received"],
   ["reminder", "Reminder"],
   ["turn_notice", "Turn notice"],
   ["car_ready", "Car ready"],
 ];
+
+// 2026-11-25 polish: the on/off switches, named like the preview list so each email has one name.
+export const EMAIL_KINDS: [EmailKind, string, string][] = [
+  ["confirmation", "Booking received", "Sent to the customer once, when they book."],
+  ["reminder", "Reminder", "Sent to the customer once, the day before drop-off."],
+  ["car_ready", "Car ready", "Sent to the customer once, when the car is finished on the board."],
+  ["shop_alerts", "Shop alerts", "New booking and deposit proof alerts to the shop inbox."],
+];
+
+// Leaving Settings removes the address parts Settings added, so a refresh opens the page the admin moved to.
+export function leaveSettingsUrl(pathname: string, search: string): string {
+  const params = new URLSearchParams(search);
+  params.delete("section");
+  if (params.get("tab") === "System Settings") params.delete("tab");
+  const query = params.toString();
+  return pathname + (query ? "?" + query : "");
+}

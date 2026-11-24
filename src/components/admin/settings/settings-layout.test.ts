@@ -98,7 +98,9 @@ test("Daily limits: each line of work says when its limit last changed", () => {
   mock.method(resources, "useAdminResource", () => ({ data: caps, loading: false, error: null, reload: async () => {}, setData: () => {} }));
   try {
     const html = renderToStaticMarkup(createElement(require("../bookings/cap-settings").CapSettings, { date: "2026-11-14", onChanged: () => {}, onDateChange: () => {} })).replace(/<!-- -->/g, "");
-    assert.match(html, /Up to 8 cars a day[\s\S]*?Last changed Nov 14, 2026, 3:05 PM by Wash Admin/);
+    assert.match(html, /Up to 8 cars a day[\s\S]*?Default limit last changed: Nov 14, 2026, 3:05 PM by Wash Admin/);
+    // Polish 2026-11-25: inside its h3 Settings card, the day heading is an h4.
+    assert.match(html, /<h4 id="caps-title"/);
   } finally {
     mock.restoreAll();
   }

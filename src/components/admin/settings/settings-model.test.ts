@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AdminShopSettings } from "@/types/admin-contracts";
-import { bookingLine, CONFIRM_MAINTENANCE, emailCounts, emailStatus, lastChangedLine, MAINTENANCE_BANNER, messageProblem, overviewRows, PREVIEW_KINDS, savedText, sectionFromSearch, SETTINGS_SECTIONS, settingsUrl, TEST_EMAIL_LIMIT_TEXT, testEmailText, updateBody, websiteLine } from "./settings-model";
+import { bookingLine, EMAIL_KINDS, leaveSettingsUrl, CONFIRM_MAINTENANCE, emailCounts, emailStatus, lastChangedLine, MAINTENANCE_BANNER, messageProblem, overviewRows, PREVIEW_KINDS, savedText, sectionFromSearch, SETTINGS_SECTIONS, settingsUrl, TEST_EMAIL_LIMIT_TEXT, testEmailText, updateBody, websiteLine } from "./settings-model";
 
 const settings = (extra: Partial<AdminShopSettings> = {}): AdminShopSettings => ({
   revision: 3, maintenance: false, maintenanceMessage: null, bookingPaused: false, bookingPausedByServer: false, updatedAt: "2026-11-07T00:00:00.000Z",
@@ -108,4 +108,20 @@ test("a test email result says what happened and what to do, for every result", 
 test("the preview offers the four emails, in the order customers get them", () => {
   assert.deepEqual(PREVIEW_KINDS.map(([k]) => k), ["confirmation", "reminder", "turn_notice", "car_ready"]);
   for (const [, label] of PREVIEW_KINDS) assert.match(label, /^[A-Z][a-z ]+$/);
+});
+
+// 2026-11-25 polish: one name per email everywhere (the preview list and the on/off switches used to differ).
+test("each email has the same name in the preview list and in the on/off switches", () => {
+  assert.deepEqual(PREVIEW_KINDS.map(([, name]) => name), ["Booking received", "Reminder", "Turn notice", "Car ready"]);
+  const switches = new Map(EMAIL_KINDS.map(([kind, name]) => [kind as string, name]));
+  for (const [kind, name] of PREVIEW_KINDS) if (switches.has(kind)) assert.equal(switches.get(kind), name, kind);
+  assert.deepEqual(EMAIL_KINDS.map(([kind]) => kind), ["confirmation", "reminder", "car_ready", "shop_alerts"]);
+});
+
+// 2026-11-25 polish: leaving Settings takes its own address parts with it, so a refresh opens the page the admin is on.
+test("leaveSettingsUrl drops section, and tab only when it names Settings", () => {
+  assert.equal(leaveSettingsUrl("/admin", "?tab=System+Settings&section=email"), "/admin");
+  assert.equal(leaveSettingsUrl("/admin", "?tab=Bookings&section=email"), "/admin?tab=Bookings");
+  assert.equal(leaveSettingsUrl("/admin/settings", "?section=danger&x=1"), "/admin/settings?x=1");
+  assert.equal(leaveSettingsUrl("/admin", ""), "/admin");
 });

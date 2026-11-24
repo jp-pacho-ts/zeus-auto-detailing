@@ -23,6 +23,7 @@ import {
   messageProblem,
   overviewRows,
   savedText,
+  EMAIL_KINDS,
   sectionFromSearch,
   settingsUrl,
   SETTINGS_SECTIONS,
@@ -121,12 +122,6 @@ const SECTION_INTRO: Record<SettingsSection, string> = {
 const TONE = { ok: "text-foreground", warn: "text-amber-400", bad: "text-rose-400" } as const;
 const DOT = { ok: "bg-emerald-400", warn: "bg-amber-400", bad: "bg-rose-400" } as const;
 
-const EMAIL_KINDS: [EmailKind, string, string][] = [
-  ["confirmation", "Booking received", "Sent to the customer once, when they book."],
-  ["reminder", "1-day reminder", "Sent to the customer once, the day before drop-off."],
-  ["car_ready", "Car ready", "Sent to the customer once, when the car is finished on the board."],
-  ["shop_alerts", "Shop alerts", "New booking and deposit proof alerts to the shop inbox."],
-];
 
 // Admin only: the server refuses everyone else, and this screen says so plainly first.
 // 2026-11-24: side tabs. One section on screen at a time, Overview first; the choice lives in ?section=.
@@ -248,7 +243,8 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
   const problem = messageProblem(message);
   const paused = Boolean(current && (current.bookingPaused || current.bookingPausedByServer));
   // The footer strip shows a save's result where that card saved, and its usual note otherwise.
-  const footer = (here: string, note: React.ReactNode) => (feedbackAt === here && (saved || error) ? <Feedback at={feedbackAt} here={here} saved={saved} error={error} /> : note);
+  // A save result shows above the card's note (polish 2026-11-25: it used to replace the note and the counter).
+  const resultAt = (here: string) => (feedbackAt === here && (saved || error) ? <Feedback at={feedbackAt} here={here} saved={saved} error={error} /> : null);
   // P1-78: the settings row has one "last changed"; the cards that write it show it under their note.
   const changed = current ? lastChangedLine(current.lastChanged) : null;
   const withChanged = (note: React.ReactNode) => (changed ? <><span className="block">{note}</span><span className="mt-0.5 block text-muted-foreground/80">{changed}</span></> : note);
@@ -290,7 +286,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
           {section === "hours" ? (
             <HoursManager />
           ) : section === "limits" ? (
-            <SettingsCard title="Limits per line of work" hint="Leave a limit blank for no limit. A limit never goes below what is already booked.">
+            <SettingsCard title="Limits per line of work" hint="Edit a line of work to change its usual limit or one day's limit.">
               <CapSettings date={limitsDay} onDateChange={setLimitsDay} onChanged={() => undefined} />
             </SettingsCard>
           ) : (
@@ -301,7 +297,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                   <SettingsCard
                     title="Online booking"
                     description={bookingLine(current)}
-                    hint={footer("settings-overview", withChanged(BOOKING_INTRO))}
+                    result={resultAt("settings-overview")} hint={withChanged(BOOKING_INTRO)}
                   >
                     <Choice
                       label="New bookings"
@@ -361,7 +357,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                       </>
                     }
                   />
-                  <SettingsCard title="Which emails go out" description="Each email can be switched off on its own." hint={footer("settings-email", withChanged("A change applies to the next email of that kind."))}>
+                  <SettingsCard title="Which emails go out" description="Each email can be switched off on its own." result={resultAt("settings-email")} hint={withChanged("A change applies to the next email of that kind.")}>
                     <div className="-my-3 divide-y divide-border/70">
                       {EMAIL_KINDS.map(([kind, label, hint]) => (
                         <div key={kind} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -380,7 +376,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                       ))}
                     </div>
                   </SettingsCard>
-                  <EmailTools busy={busy} onSendTest={sendTestEmail} testHint={feedbackAt === "settings-email-test" && (saved || error) ? <Feedback at={feedbackAt} here="settings-email-test" saved={saved} error={error} /> : undefined} />
+                  <EmailTools busy={busy} onSendTest={sendTestEmail} testResult={resultAt("settings-email-test")} />
                 </>
               )}
 
@@ -389,12 +385,8 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                   <SettingsCard
                     title="Maintenance message"
                     description="Shown to customers while the site is under maintenance. The shop name and phone are always shown."
-                    hint={
-                      footer(
-                        "settings-danger-message",
-                        <span className={message.length > 200 ? "font-bold text-rose-400" : undefined}>{message.length} / 200 characters</span>,
-                      )
-                    }
+                    result={resultAt("settings-danger-message")}
+                    hint={<span className={message.length > 200 ? "font-bold text-rose-400" : undefined}>{message.length} / 200 characters</span>}
                     action={
                       <Button type="submit" form="maintenance-message-form" variant="outline" className="min-h-[44px]" disabled={busy || Boolean(problem)}>
                         Save message
@@ -431,7 +423,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                     danger
                     title="Customer website"
                     description={websiteLine(current)}
-                    hint={footer("settings-danger", withChanged(WEBSITE_INTRO))}
+                    result={resultAt("settings-danger")} hint={withChanged(WEBSITE_INTRO)}
                   >
                     <Choice
                       label="Customer website"

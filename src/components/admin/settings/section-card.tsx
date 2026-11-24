@@ -21,6 +21,7 @@ export function SettingsCard({
   description,
   children,
   hint,
+  result,
   action,
   danger = false,
 }: {
@@ -28,13 +29,16 @@ export function SettingsCard({
   title: string;
   description?: React.ReactNode;
   children?: React.ReactNode;
-  /** Left side of the footer strip: a short note, a count, or the save result. */
+  /** Left side of the footer strip: a short note or a count. */
   hint?: React.ReactNode;
+  /** A save result, shown above the note (the note stays visible). */
+  result?: React.ReactNode;
   /** Right side of the footer strip: the card's button. */
   action?: React.ReactNode;
   danger?: boolean;
 }) {
-  const titleId = (id ?? title.toLowerCase().replace(/[^a-z0-9]+/g, "-")) + "-card-title";
+  const auto = React.useId(); // unique even when two cards share a title
+  const titleId = (id ?? auto) + "-card-title";
   return (
     <section
       id={id}
@@ -46,7 +50,7 @@ export function SettingsCard({
         {description && <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>}
         {children && <div className={description ? "mt-5" : "mt-4"}>{children}</div>}
       </div>
-      {(hint || action) && (
+      {(hint || result || action) && (
         <div
           data-settings-card-footer
           className={
@@ -54,7 +58,10 @@ export function SettingsCard({
             (danger ? "border-rose-500/30 bg-rose-500/[0.06]" : "border-border bg-background/60")
           }
         >
-          <div className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">{hint}</div>
+          <div className="min-w-0 flex-1 space-y-1 text-xs leading-relaxed text-muted-foreground">
+            {result}
+            {hint && <div>{hint}</div>}
+          </div>
           {action && <div className="flex shrink-0 flex-wrap gap-2">{action}</div>}
         </div>
       )}

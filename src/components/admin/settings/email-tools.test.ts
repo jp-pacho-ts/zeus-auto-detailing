@@ -41,7 +41,8 @@ test("the test email has no address field, and the source never injects HTML", (
   assert.match(out, /Send a test email/);
   assert.match(out, /Goes to the shop inbox only\./);
   assert.doesNotMatch(out, /<input/, "no address or other input; the preview choice is a select");
-  assert.match(out, /<select[^>]*aria-label="Email to preview"|Email to preview/);
+  // Polish 2026-11-25: the visible label wraps the select, so the choice has a real accessible name.
+  assert.match(out, /<label[^>]*>Email to preview<span[^>]*><select/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML|innerHTML|allow-same-origin|allow-scripts/);
 });
 
@@ -53,8 +54,10 @@ test("test email is disabled while the settings page writes", () => {
 
 // 2026-11-25 card layout: each tool is its own Settings card; the send result shows in the test card's footer strip.
 test("email tools are two Settings cards, and the test card's footer shows the result it is given", () => {
-  const out = html(EmailTools, { busy: false, onSendTest: async () => undefined, testHint: "Test email sent." });
+  const out = html(EmailTools, { busy: false, onSendTest: async () => undefined, testResult: "Test email sent." });
   assert.match(out, /<h3[^>]*>Send a test email<\/h3>/);
   assert.match(out, /<h3[^>]*>Preview an email<\/h3>/);
-  assert.match(out.split("data-settings-card-footer")[1] ?? "", /Test email sent\./);
+  const footer = out.split("data-settings-card-footer")[1] ?? "";
+  assert.match(footer, /Test email sent\./);
+  assert.match(footer, /Goes to the shop inbox only\./, "the note stays under the result");
 });

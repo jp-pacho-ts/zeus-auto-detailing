@@ -72,9 +72,10 @@ export function CapSettings({
   }
   return (
     <section aria-labelledby="caps-title">
-      <h3 id="caps-title" className="text-sm font-semibold text-foreground">
+      {/* h4: this block sits inside the h3 Settings card "Limits per line of work". */}
+      <h4 id="caps-title" className="text-sm font-semibold text-foreground">
         Limits on {shopDay(date)}
-      </h3>
+      </h4>
       <p className="mt-1 text-xs text-muted-foreground">
         Limits are off by default. Leave the default blank for no limit. An
         enabled limit counts car visits and cannot go below committed visits.
@@ -122,7 +123,8 @@ export function CapSettings({
                 {open ? "Close" : "Edit"}
               </Button>
             </div>
-            {q.lastChanged && <p className="mt-1 text-xs text-muted-foreground">{lastChangedLine(q.lastChanged)}</p>}
+            {/* The time covers the usual (default) limit only; one-day limits keep their own rows. */}
+            <p className="mt-1 text-xs text-muted-foreground">{lastChangedLine(q.lastChanged, "Default limit last changed")}</p>
             {open && (
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <form
