@@ -48,6 +48,8 @@ test("Settings: a page heading per section, one card per setting with a footer s
 
 test("Settings: Overview shows status rows; a server pause locks the booking switch", () => {
   const html = renderSettings("ADMIN", settings({ maintenance: true, bookingPausedByServer: true, email: { configured: true, failedLast7Days: 0, waitingLast7Days: 0 } }));
+  assert.doesNotMatch(html, /Railway|ONLINE_BOOKING_MODE/, "a server pause is explained in plain words");
+  assert.match(html, /Paused by the website host/);
   assert.match(html, />Under maintenance</);
   assert.match(html, />Set up</);
   assert.match(html, /aria-label="New bookings"/);

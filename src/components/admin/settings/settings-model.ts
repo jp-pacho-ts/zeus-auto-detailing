@@ -24,7 +24,7 @@ export function messageProblem(text: string): string | null {
 
 export const websiteLine = (s: AdminShopSettings): string => (s.maintenance ? "Under maintenance. Customers see a maintenance page." : "Live. Customers can see every page.");
 export function bookingLine(s: AdminShopSettings): string {
-  if (s.bookingPausedByServer) return "Paused by the server setting. Change ONLINE_BOOKING_MODE in Railway to open it.";
+  if (s.bookingPausedByServer) return "Paused by the website host. Ask whoever manages the website to open it.";
   return s.bookingPaused ? "Paused. New bookings are refused; customers can still manage the bookings they have." : "Open. Customers can book online.";
 }
 export const emailStatus = (s: AdminShopSettings): string =>

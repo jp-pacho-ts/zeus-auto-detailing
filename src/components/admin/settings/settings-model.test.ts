@@ -30,7 +30,8 @@ test("the website and booking lines say what is happening, and what the differen
   assert.equal(websiteLine(settings({ maintenance: true })), "Under maintenance. Customers see a maintenance page.");
   assert.equal(bookingLine(settings()), "Open. Customers can book online.");
   assert.equal(bookingLine(settings({ bookingPaused: true })), "Paused. New bookings are refused; customers can still manage the bookings they have.");
-  assert.equal(bookingLine(settings({ bookingPausedByServer: true })), "Paused by the server setting. Change ONLINE_BOOKING_MODE in Railway to open it.");
+  // LE 2026-11-25: plain words for the shop; the hosting variable name stays out of the admin (replaces the 11-14 wording).
+  assert.equal(bookingLine(settings({ bookingPausedByServer: true })), "Paused by the website host. Ask whoever manages the website to open it.");
   assert.match(CONFIRM_MAINTENANCE, /Customers will see a maintenance page/);
   assert.match(MAINTENANCE_BANNER, /Turn it off in Settings/);
 });
