@@ -5,12 +5,13 @@ import { AlertTriangle, CheckCircle2, ChevronRight, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { brandConfig } from "@/config/brand";
-import type { AdminShopSettings, EmailKind } from "@/types/admin-contracts";
+import type { AdminShopSettings, AdminTestEmail, EmailKind } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
 import { adminRequest, AdminRequestError } from "./bookings/client";
 import { CapSettings } from "./bookings/cap-settings";
 import { HoursManager } from "./calendar/hours-manager";
 import { fieldClass, LoadState } from "./bookings/use-admin-resource";
+import { EmailTools } from "./settings/email-tools";
 import { SettingsCard, SettingsHeader } from "./settings/section-card";
 import {
   bookingLine,
@@ -26,6 +27,9 @@ import {
   settingsUrl,
   SETTINGS_SECTIONS,
   type SettingsSection,
+  lastChangedLine,
+  testEmailText,
+  TEST_EMAIL_LIMIT_TEXT,
   updateBody,
   websiteLine,
   WEBSITE_INTRO,
@@ -197,6 +201,26 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
     }
   }
 
+  // P1-78 (ported from the UI/UX draft): one test email to the shop inbox; the answer is "sent" or a reason, never an address.
+  async function sendTestEmail() {
+    if (!current || writing.current) return;
+    writing.current = true;
+    setBusy(true);
+    setFeedbackAt("settings-email-test");
+    setError(null);
+    setSaved(null);
+    try {
+      const result = testEmailText(await adminRequest<AdminTestEmail>("/api/admin/settings/test-email", { method: "POST", body: {} }));
+      if (result.ok) setSaved(result.text);
+      else setError(result.text);
+    } catch (e) {
+      setError(e instanceof AdminRequestError && e.status === 429 ? TEST_EMAIL_LIMIT_TEXT : describeError(e));
+    } finally {
+      writing.current = false;
+      setBusy(false);
+    }
+  }
+
   async function switchEmail(kind: EmailKind, enabled: boolean) {
     if (!current || writing.current) return;
     writing.current = true;
@@ -225,6 +249,9 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
   const paused = Boolean(current && (current.bookingPaused || current.bookingPausedByServer));
   // The footer strip shows a save's result where that card saved, and its usual note otherwise.
   const footer = (here: string, note: React.ReactNode) => (feedbackAt === here && (saved || error) ? <Feedback at={feedbackAt} here={here} saved={saved} error={error} /> : note);
+  // P1-78: the settings row has one "last changed"; the cards that write it show it under their note.
+  const changed = current ? lastChangedLine(current.lastChanged) : null;
+  const withChanged = (note: React.ReactNode) => (changed ? <><span className="block">{note}</span><span className="mt-0.5 block text-muted-foreground/80">{changed}</span></> : note);
   // The section list sits on the left edge (LE 2026-11-25); the cards take the width beside it, capped so rows stay readable.
   return (
     <div className="lg:grid lg:grid-cols-[13rem_minmax(0,64rem)] lg:items-start lg:gap-10">
@@ -274,7 +301,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                   <SettingsCard
                     title="Online booking"
                     description={bookingLine(current)}
-                    hint={footer("settings-overview", BOOKING_INTRO)}
+                    hint={footer("settings-overview", withChanged(BOOKING_INTRO))}
                   >
                     <Choice
                       label="New bookings"
@@ -334,7 +361,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                       </>
                     }
                   />
-                  <SettingsCard title="Which emails go out" description="Each email can be switched off on its own." hint={footer("settings-email", "A change applies to the next email of that kind.")}>
+                  <SettingsCard title="Which emails go out" description="Each email can be switched off on its own." hint={footer("settings-email", withChanged("A change applies to the next email of that kind."))}>
                     <div className="-my-3 divide-y divide-border/70">
                       {EMAIL_KINDS.map(([kind, label, hint]) => (
                         <div key={kind} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -353,6 +380,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                       ))}
                     </div>
                   </SettingsCard>
+                  <EmailTools busy={busy} onSendTest={sendTestEmail} testHint={feedbackAt === "settings-email-test" && (saved || error) ? <Feedback at={feedbackAt} here="settings-email-test" saved={saved} error={error} /> : undefined} />
                 </>
               )}
 
@@ -403,7 +431,7 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
                     danger
                     title="Customer website"
                     description={websiteLine(current)}
-                    hint={footer("settings-danger", WEBSITE_INTRO)}
+                    hint={footer("settings-danger", withChanged(WEBSITE_INTRO))}
                   >
                     <Choice
                       label="Customer website"

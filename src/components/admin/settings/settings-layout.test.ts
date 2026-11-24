@@ -84,3 +84,22 @@ test("Daily limits: one sentence per line of work with Edit; the forms open on E
     mock.restoreAll();
   }
 });
+
+// P1-78 screens (LE 2026-11-25, ported from the UI/UX draft): who changed a setting and when sits in the card's footer strip.
+test("Settings: the Overview cards say when the settings last changed and by whom", () => {
+  const html = renderSettings("ADMIN", settings({ lastChanged: { at: "2026-11-14T07:05:00.000Z", by: "Ana Reyes" }, baysLastChanged: null }));
+  const footers = html.split("data-settings-card-footer").slice(1).map((part) => part.slice(0, 600));
+  assert.ok(footers.some((f) => f.includes("Last changed Nov 14, 2026, 3:05 PM by Ana Reyes")), footers.join(" | "));
+});
+
+test("Daily limits: each line of work says when its limit last changed", () => {
+  const resources = require("../bookings/use-admin-resource");
+  const caps = [{ code: "WASH", name: "Wash", isActive: true, dailyCap: 8, revision: 1, lastChanged: { at: "2026-11-14T07:05:00.000Z", by: "Wash Admin" }, overrides: [], committed: [] }];
+  mock.method(resources, "useAdminResource", () => ({ data: caps, loading: false, error: null, reload: async () => {}, setData: () => {} }));
+  try {
+    const html = renderToStaticMarkup(createElement(require("../bookings/cap-settings").CapSettings, { date: "2026-11-14", onChanged: () => {}, onDateChange: () => {} })).replace(/<!-- -->/g, "");
+    assert.match(html, /Up to 8 cars a day[\s\S]*?Last changed Nov 14, 2026, 3:05 PM by Wash Admin/);
+  } finally {
+    mock.restoreAll();
+  }
+});

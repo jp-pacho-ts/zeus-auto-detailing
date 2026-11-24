@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AdminShopSettings } from "@/types/admin-contracts";
-import { bookingLine, CONFIRM_MAINTENANCE, emailCounts, emailStatus, MAINTENANCE_BANNER, messageProblem, overviewRows, savedText, sectionFromSearch, settingsUrl, SETTINGS_SECTIONS, updateBody, websiteLine } from "./settings-model";
+import { bookingLine, CONFIRM_MAINTENANCE, emailCounts, emailStatus, lastChangedLine, MAINTENANCE_BANNER, messageProblem, overviewRows, PREVIEW_KINDS, savedText, sectionFromSearch, SETTINGS_SECTIONS, settingsUrl, TEST_EMAIL_LIMIT_TEXT, testEmailText, updateBody, websiteLine } from "./settings-model";
 
 const settings = (extra: Partial<AdminShopSettings> = {}): AdminShopSettings => ({
   revision: 3, maintenance: false, maintenanceMessage: null, bookingPaused: false, bookingPausedByServer: false, updatedAt: "2026-11-07T00:00:00.000Z",
@@ -78,4 +78,34 @@ test("settingsUrl: sets only section, keeps other parameters, names the tab on /
   assert.equal(settingsUrl("/admin", "?tab=System+Settings", "email"), "/admin?tab=System+Settings&section=email");
   assert.equal(settingsUrl("/admin", "", "limits"), "/admin?tab=System+Settings&section=limits");
   assert.equal(settingsUrl("/admin", "?tab=System+Settings&section=email", "overview"), "/admin?tab=System+Settings");
+});
+
+// Ported 2026-11-25 from the P1-78 UI/UX draft (ZEUS-CODEX-UIUX, ../zeus-p1-78-ui, uncommitted) when the LE moved the screens to Claude.
+// P1-78 (item 4 v1): who changed it and when, in shop time; nothing when the server does not know.
+test("a last-changed line gives the Manila time and the name, or just the time, or nothing", () => {
+  assert.equal(lastChangedLine({ at: "2026-11-14T07:05:00.000Z", by: "Ana Reyes" }), "Last changed Nov 14, 2026, 3:05 PM by Ana Reyes");
+  assert.equal(lastChangedLine({ at: "2026-11-14T07:05:00.000Z", by: null }), "Last changed Nov 14, 2026, 3:05 PM");
+  assert.equal(lastChangedLine({ at: "2026-11-14T16:30:00.000Z", by: null }), "Last changed Nov 15, 2026, 12:30 AM", "Manila is UTC+8, so this is the next day");
+  assert.equal(lastChangedLine(null), null);
+  assert.equal(lastChangedLine({ at: "2026-11-14T07:05:00.000Z", by: "Ana" }, "Last change to settings"), "Last change to settings: Nov 14, 2026, 3:05 PM by Ana", "PM: the settings row shows once, under the summary bar");
+});
+
+// P1-78 (item 1): every result in plain words, in shop time; never an address, a provider message or a code.
+test("a test email result says what happened and what to do, for every result", () => {
+  const at = "2026-11-14T07:05:00.000Z";
+  const results = ["sent", "config_missing", "auth_rejected", "timeout", "unreachable", "tls_failed", "refused", "error"] as const;
+  for (const r of results) {
+    const t = testEmailText({ result: r, at });
+    assert.equal(t.ok, r === "sent", r);
+    assert.ok(t.text.length > 10, r);
+    assert.doesNotMatch(t.text, /@|smtp|resend|brevo|\b\d{3}\b/i, r + " names no address, provider or code");
+  }
+  assert.equal(testEmailText({ result: "sent", at }).text, "Test email sent to the shop inbox at 3:05 PM. Check the inbox (and spam).");
+  assert.match(testEmailText({ result: "config_missing", at }).text, /not set up/);
+  assert.equal(TEST_EMAIL_LIMIT_TEXT, "Three test emails in 10 minutes is the limit. Try again in 10 minutes.");
+});
+
+test("the preview offers the four emails, in the order customers get them", () => {
+  assert.deepEqual(PREVIEW_KINDS.map(([k]) => k), ["confirmation", "reminder", "turn_notice", "car_ready"]);
+  for (const [, label] of PREVIEW_KINDS) assert.match(label, /^[A-Z][a-z ]+$/);
 });

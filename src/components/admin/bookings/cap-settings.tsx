@@ -5,6 +5,7 @@ import type { AdminQueueCaps } from "@/types/admin-contracts";
 import { adminRequest, AdminRequestError } from "./client";
 import { dateClass, fieldClass, LoadState, useAdminResource } from "./use-admin-resource";
 import { shopDay } from "./detail/shared";
+import { lastChangedLine } from "../settings/settings-model";
 // P1-77: each line of work reads as one sentence with an Edit button; the day picker comes last, not first.
 export function CapSettings({
   date,
@@ -121,6 +122,7 @@ export function CapSettings({
                 {open ? "Close" : "Edit"}
               </Button>
             </div>
+            {q.lastChanged && <p className="mt-1 text-xs text-muted-foreground">{lastChangedLine(q.lastChanged)}</p>}
             {open && (
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <form

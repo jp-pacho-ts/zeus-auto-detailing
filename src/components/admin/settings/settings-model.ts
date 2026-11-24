@@ -1,5 +1,5 @@
 // P1-42: the plain words of the Settings screen and what a save sends. No React, no network, so they are unit tested.
-import type { AdminShopSettings } from "@/types/admin-contracts";
+import type { AdminEmailPreviewKind, AdminLastChanged, AdminShopSettings, AdminTestEmail } from "@/types/admin-contracts";
 
 export const WEBSITE_INTRO = "Takes the whole customer site offline: home, booking and manage booking. The admin and sign-in keep working.";
 export const BOOKING_INTRO = "Paused stops new bookings only. Customers can still look up and manage the bookings they have.";
@@ -69,3 +69,35 @@ export function settingsUrl(pathname: string, search: string, section: SettingsS
   const query = params.toString();
   return pathname + (query ? "?" + query : "");
 }
+
+// Ported 2026-11-25 from the P1-78 UI/UX draft (ZEUS-CODEX-UIUX) when the LE moved the screens to Claude.
+// P1-78: when and who, in shop time. The server sends no name to a non-admin, and nothing when it does not know.
+const shopTime = (iso: string, opts: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleString("en-US", { timeZone: "Asia/Manila", ...opts });
+export function lastChangedLine(lc: AdminLastChanged | null, prefix = "Last changed"): string | null {
+  if (!lc) return null;
+  const when = shopTime(lc.at, { dateStyle: "medium", timeStyle: "short" });
+  return (prefix === "Last changed" ? prefix + " " : prefix + ": ") + when + (lc.by ? " by " + lc.by : "");
+}
+
+// P1-78 (item 1): plain words for each result. Only the shop inbox ever gets a test email, so no address is shown.
+const TEST_EMAIL_FAILED: Record<Exclude<AdminTestEmail["result"], "sent">, string> = {
+  config_missing: "Not sent: email is not set up on the server.",
+  auth_rejected: "Not sent: the mail server refused the shop's sign-in.",
+  timeout: "Not sent: the mail server did not answer. Try again later.",
+  unreachable: "Not sent: the mail server did not answer. Try again later.",
+  tls_failed: "Not sent: a secure connection to the mail server failed.",
+  refused: "Not sent: the mail server refused the message.",
+  error: "Not sent: something went wrong. Try again later.",
+};
+export function testEmailText(r: AdminTestEmail): { ok: boolean; text: string } {
+  if (r.result === "sent") return { ok: true, text: "Test email sent to the shop inbox at " + shopTime(r.at, { timeStyle: "short" }) + ". Check the inbox (and spam)." };
+  return { ok: false, text: TEST_EMAIL_FAILED[r.result] };
+}
+export const TEST_EMAIL_LIMIT_TEXT = "Three test emails in 10 minutes is the limit. Try again in 10 minutes.";
+
+export const PREVIEW_KINDS: [AdminEmailPreviewKind, string][] = [
+  ["confirmation", "Booking confirmation"],
+  ["reminder", "Reminder"],
+  ["turn_notice", "Turn notice"],
+  ["car_ready", "Car ready"],
+];
