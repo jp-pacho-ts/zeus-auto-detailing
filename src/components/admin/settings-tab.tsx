@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Globe, Gauge, Sliders, Mail, AlertTriangle, CheckCircle2, Lock } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { brandConfig } from "@/config/brand";
@@ -11,7 +11,7 @@ import { adminRequest, AdminRequestError } from "./bookings/client";
 import { CapSettings } from "./bookings/cap-settings";
 import { HoursManager } from "./calendar/hours-manager";
 import { fieldClass, LoadState } from "./bookings/use-admin-resource";
-import { SectionCard } from "./settings/section-card";
+import { SettingsCard, SettingsHeader } from "./settings/section-card";
 import {
   bookingLine,
   BOOKING_INTRO,
@@ -106,6 +106,14 @@ function Feedback({ at, here, saved, error }: { at: string | null; here: string;
 }
 
 const noSubscribe = () => () => {};
+const SECTION_TITLE = Object.fromEntries(SETTINGS_SECTIONS) as Record<SettingsSection, string>;
+const SECTION_INTRO: Record<SettingsSection, string> = {
+  overview: "How the shop is running right now.",
+  hours: "When customers can book, and the days the shop is shut.",
+  limits: LIMITS_INTRO,
+  email: EMAIL_INTRO,
+  danger: "Changes here affect every customer at once.",
+};
 const TONE = { ok: "text-foreground", warn: "text-amber-400", bad: "text-rose-400" } as const;
 const DOT = { ok: "bg-emerald-400", warn: "bg-amber-400", bad: "bg-rose-400" } as const;
 
@@ -215,10 +223,11 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
   const message = draft ?? current?.maintenanceMessage ?? "";
   const problem = messageProblem(message);
   const paused = Boolean(current && (current.bookingPaused || current.bookingPausedByServer));
-  const fb = { at: feedbackAt, saved, error };
+  // The footer strip shows a save's result where that card saved, and its usual note otherwise.
+  const footer = (here: string, note: React.ReactNode) => (feedbackAt === here && (saved || error) ? <Feedback at={feedbackAt} here={here} saved={saved} error={error} /> : note);
   // Wide screens: the list and the section sit centred together, so the spare width is even on both sides.
   return (
-    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,48rem)] lg:items-start lg:justify-center lg:gap-10">
+    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,56rem)] lg:items-start lg:justify-center lg:gap-10">
       {/* Phones: the list wraps into rows of chips (nothing in the admin scrolls sideways). */}
       <nav aria-label="Settings sections" className="mb-5 lg:sticky lg:top-0 lg:mb-0">
         <ul className="flex flex-wrap gap-2 lg:block lg:space-y-1">
@@ -248,158 +257,173 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
         </ul>
       </nav>
 
-      <div ref={panel} className="min-w-0 space-y-6">
-        {section === "hours" ? (
-          <HoursManager />
-        ) : section === "limits" ? (
-          <SectionCard id="settings-limits" icon={Sliders} title="Daily limits" intro={LIMITS_INTRO}>
-            <CapSettings date={limitsDay} onDateChange={setLimitsDay} onChanged={() => undefined} />
-          </SectionCard>
-        ) : (
-          <>
-            <LoadState loading={settings.loading && !current} error={settings.error} retry={settings.reload} />
-            {current && section === "overview" && (
-              <SectionCard id="settings-overview" icon={Gauge} title="Overview" intro={BOOKING_INTRO}>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">Online booking</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{bookingLine(current)}</p>
-                  </div>
-                  <Choice
-                    label="New bookings"
-                    value={paused ? "PAUSED" : "OPEN"}
-                    disabled={busy || current.bookingPausedByServer}
-                    options={[
-                      ["OPEN", "Open"],
-                      ["PAUSED", "Paused"],
-                    ]}
-                    onChoose={(v) => void save({ bookingPaused: v === "PAUSED" }, "settings-overview")}
-                  />
-                </div>
-                <Feedback here="settings-overview" {...fb} />
-                <dl className="divide-y divide-border/70 border-t border-border/70">
-                  {overviewRows(current).map((row) => (
-                    <div key={row.label} className="flex min-h-[52px] items-center justify-between gap-3 py-1.5">
-                      <dt className="text-sm text-muted-foreground">{row.label}</dt>
-                      <dd className="flex items-center gap-2">
-                        <span className={"flex items-center gap-2 text-sm font-semibold " + TONE[row.tone]}>
-                          <span aria-hidden="true" className={"h-2 w-2 rounded-full " + DOT[row.tone]} />
-                          {row.value}
-                        </span>
-                        {row.section && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="min-h-[44px] text-muted-foreground"
-                            aria-label={`Open ${SETTINGS_SECTIONS.find(([s]) => s === row.section)![1]} for ${row.label}`}
-                            onClick={() => choose(row.section!)}
-                          >
-                            View
-                          </Button>
-                        )}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </SectionCard>
-            )}
+      <div ref={panel} className="min-w-0">
+        <SettingsHeader id={"settings-" + section} title={SECTION_TITLE[section]} intro={SECTION_INTRO[section]} />
+        <div id={"settings-" + section} className="space-y-6">
+          {section === "hours" ? (
+            <HoursManager />
+          ) : section === "limits" ? (
+            <SettingsCard title="Limits per line of work" hint="Leave a limit blank for no limit. A limit never goes below what is already booked.">
+              <CapSettings date={limitsDay} onDateChange={setLimitsDay} onChanged={() => undefined} />
+            </SettingsCard>
+          ) : (
+            <>
+              <LoadState loading={settings.loading && !current} error={settings.error} retry={settings.reload} />
+              {current && section === "overview" && (
+                <>
+                  <SettingsCard
+                    title="Online booking"
+                    description={bookingLine(current)}
+                    hint={footer("settings-overview", BOOKING_INTRO)}
+                  >
+                    <Choice
+                      label="New bookings"
+                      value={paused ? "PAUSED" : "OPEN"}
+                      disabled={busy || current.bookingPausedByServer}
+                      options={[
+                        ["OPEN", "Open"],
+                        ["PAUSED", "Paused"],
+                      ]}
+                      onChoose={(v) => void save({ bookingPaused: v === "PAUSED" }, "settings-overview")}
+                    />
+                  </SettingsCard>
 
-            {current && section === "email" && (
-              <SectionCard id="settings-email" icon={Mail} title="Email" intro={EMAIL_INTRO}>
-                <p className="text-sm text-foreground">{emailStatus(current)}</p>
-                <div>
-                  <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/70 pb-2">
-                    <h3 className="text-sm font-semibold text-foreground">Which emails go out</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Last 7 days:{" "}
-                      <span className={current.email.failedLast7Days > 0 ? "font-semibold text-rose-400" : "font-semibold text-foreground"}>
-                        {current.email.failedLast7Days} failed
-                      </span>{" "}
-                      · <span className="font-semibold text-foreground">{current.email.waitingLast7Days} waiting</span>
-                    </p>
-                  </div>
-                  <div className="divide-y divide-border/70">
-                    {EMAIL_KINDS.map(([kind, label, hint]) => (
-                      <div key={kind} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-foreground">{label}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+                  <SettingsCard title="Shop status" description="What customers see and whether emails reach them." hint="Each line opens the section where it is changed.">
+                    <dl className="-my-1 divide-y divide-border/70">
+                      {overviewRows(current).map((row) => (
+                        <div key={row.label} className="flex min-h-[52px] items-center justify-between gap-3 py-1">
+                          <dt className="text-sm text-muted-foreground">{row.label}</dt>
+                          <dd className="flex items-center gap-1">
+                            <span className={"flex items-center gap-2 text-sm font-semibold " + TONE[row.tone]}>
+                              <span aria-hidden="true" className={"h-2 w-2 rounded-full " + DOT[row.tone]} />
+                              {row.value}
+                            </span>
+                            {row.section && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="min-h-[44px] gap-1 text-muted-foreground"
+                                aria-label={`Open ${SECTION_TITLE[row.section]} for ${row.label}`}
+                                onClick={() => choose(row.section!)}
+                              >
+                                Manage
+                                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                              </Button>
+                            )}
+                          </dd>
                         </div>
-                        <Choice
-                          label={label + " emails"}
-                          options={[["on", "On"], ["off", "Off"]]}
-                          value={current.emails[kind] ? "on" : "off"}
-                          disabled={busy}
-                          onChoose={(v) => void switchEmail(kind, v === "on")}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <Feedback here="settings-email" {...fb} />
-              </SectionCard>
-            )}
+                      ))}
+                    </dl>
+                  </SettingsCard>
+                </>
+              )}
 
-            {current && section === "danger" && (
-              <SectionCard id="settings-danger" icon={Globe} title="Danger zone" intro={WEBSITE_INTRO} danger>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">Customer website</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{websiteLine(current)}</p>
-                  </div>
-                  <Choice
-                    label="Customer website"
-                    value={current.maintenance ? "ON" : "LIVE"}
-                    disabled={busy}
-                    options={[
-                      ["LIVE", "Live"],
-                      ["ON", "Under maintenance"],
-                    ]}
-                    onChoose={(v) => {
-                      if (v === "ON") setConfirming(true);
-                      else void save({ maintenance: false }, "settings-danger");
-                    }}
+              {current && section === "email" && (
+                <>
+                  <SettingsCard
+                    title="Email delivery"
+                    description={emailStatus(current)}
+                    hint={
+                      <>
+                        Last 7 days:{" "}
+                        <span className={current.email.failedLast7Days > 0 ? "font-semibold text-rose-400" : "font-semibold text-foreground"}>
+                          {current.email.failedLast7Days} failed
+                        </span>{" "}
+                        · <span className="font-semibold text-foreground">{current.email.waitingLast7Days} waiting</span>
+                      </>
+                    }
                   />
-                </div>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!problem) void save({ maintenanceMessage: message }, "settings-danger");
-                  }}
-                  className="space-y-2 border-t border-border/70 pt-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <label htmlFor="maintenance-message-input" className="text-xs font-semibold text-foreground">
-                      Message customers see during maintenance (optional). The shop name and phone are always shown.
-                    </label>
-                    <span className={`shrink-0 text-xs tabular-nums ${message.length > 200 ? "font-bold text-rose-400" : "text-muted-foreground"}`}>
-                      {message.length} / 200
-                    </span>
-                  </div>
-                  <input
-                    id="maintenance-message-input"
-                    value={message}
-                    onChange={(e) => setDraft(e.target.value)}
-                    placeholder="e.g. Scheduled system upgrade in progress. Back shortly!"
-                    className={fieldClass}
-                  />
-                  {problem && (
-                    <p role="alert" className="text-xs font-medium text-rose-400">
-                      {problem}
-                    </p>
-                  )}
-                  <div className="flex justify-end pt-1">
-                    <Button type="submit" variant="outline" disabled={busy || Boolean(problem)}>
-                      Save message
-                    </Button>
-                  </div>
-                </form>
-                <Feedback here="settings-danger" {...fb} />
-              </SectionCard>
-            )}
-          </>
-        )}
+                  <SettingsCard title="Which emails go out" description="Each email can be switched off on its own." hint={footer("settings-email", "A change applies to the next email of that kind.")}>
+                    <div className="-my-3 divide-y divide-border/70">
+                      {EMAIL_KINDS.map(([kind, label, hint]) => (
+                        <div key={kind} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground">{label}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+                          </div>
+                          <Choice
+                            label={label + " emails"}
+                            options={[["on", "On"], ["off", "Off"]]}
+                            value={current.emails[kind] ? "on" : "off"}
+                            disabled={busy}
+                            onChoose={(v) => void switchEmail(kind, v === "on")}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </SettingsCard>
+                </>
+              )}
+
+              {current && section === "danger" && (
+                <>
+                  <SettingsCard
+                    title="Maintenance message"
+                    description="Shown to customers while the site is under maintenance. The shop name and phone are always shown."
+                    hint={
+                      footer(
+                        "settings-danger-message",
+                        <span className={message.length > 200 ? "font-bold text-rose-400" : undefined}>{message.length} / 200 characters</span>,
+                      )
+                    }
+                    action={
+                      <Button type="submit" form="maintenance-message-form" variant="outline" className="min-h-[44px]" disabled={busy || Boolean(problem)}>
+                        Save message
+                      </Button>
+                    }
+                  >
+                    <form
+                      id="maintenance-message-form"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!problem) void save({ maintenanceMessage: message }, "settings-danger-message");
+                      }}
+                      className="space-y-2"
+                    >
+                      <label htmlFor="maintenance-message-input" className="sr-only">
+                        Message customers see during maintenance (optional)
+                      </label>
+                      <input
+                        id="maintenance-message-input"
+                        value={message}
+                        onChange={(e) => setDraft(e.target.value)}
+                        placeholder="e.g. Scheduled system upgrade in progress. Back shortly!"
+                        className={fieldClass}
+                      />
+                      {problem && (
+                        <p role="alert" className="text-xs font-medium text-rose-400">
+                          {problem}
+                        </p>
+                      )}
+                    </form>
+                  </SettingsCard>
+
+                  <SettingsCard
+                    danger
+                    title="Customer website"
+                    description={websiteLine(current)}
+                    hint={footer("settings-danger", WEBSITE_INTRO)}
+                  >
+                    <Choice
+                      label="Customer website"
+                      value={current.maintenance ? "ON" : "LIVE"}
+                      disabled={busy}
+                      options={[
+                        ["LIVE", "Live"],
+                        ["ON", "Under maintenance"],
+                      ]}
+                      onChoose={(v) => {
+                        if (v === "ON") setConfirming(true);
+                        else void save({ maintenance: false }, "settings-danger");
+                      }}
+                    />
+                  </SettingsCard>
+                </>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <Dialog open={confirming} onOpenChange={setConfirming}>

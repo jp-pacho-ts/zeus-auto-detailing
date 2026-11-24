@@ -37,6 +37,15 @@ test("Settings: side list in order, Danger zone last, Overview shown first", () 
   assert.doesNotMatch(html, /Storefront Live|Public Site Live|Bookings Open|SMTP Configured|Setup in Railway|Railway/);
 });
 
+// 2026-11-25 (LE: Vercel reference): the section title heads the page; each setting is its own card ending in a footer strip.
+test("Settings: a page heading per section, one card per setting with a footer strip, no icon tiles", () => {
+  const html = renderSettings("ADMIN", settings());
+  assert.match(html, /<h2 id="settings-overview-title" tabindex="-1"[^>]*>Overview<\/h2>/);
+  for (const title of ["Online booking", "Shop status"]) assert.match(html, new RegExp(`<h3[^>]*>${title}</h3>`), title);
+  assert.ok((html.match(/data-settings-card-footer/g) ?? []).length >= 2, "each card ends in a footer strip");
+  assert.doesNotMatch(html, /h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-raised/, "no decorative icon tiles");
+});
+
 test("Settings: Overview shows status rows; a server pause locks the booking switch", () => {
   const html = renderSettings("ADMIN", settings({ maintenance: true, bookingPausedByServer: true, email: { configured: true, failedLast7Days: 0, waitingLast7Days: 0 } }));
   assert.match(html, />Under maintenance</);
