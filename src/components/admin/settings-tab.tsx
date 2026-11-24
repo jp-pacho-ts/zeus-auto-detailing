@@ -225,9 +225,9 @@ export function SettingsTab({ role, onChanged }: { role: UserRole; onChanged: ()
   const paused = Boolean(current && (current.bookingPaused || current.bookingPausedByServer));
   // The footer strip shows a save's result where that card saved, and its usual note otherwise.
   const footer = (here: string, note: React.ReactNode) => (feedbackAt === here && (saved || error) ? <Feedback at={feedbackAt} here={here} saved={saved} error={error} /> : note);
-  // Wide screens: the list and the section sit centred together, so the spare width is even on both sides.
+  // The section list sits on the left edge (LE 2026-11-25); the cards take the width beside it, capped so rows stay readable.
   return (
-    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,56rem)] lg:items-start lg:justify-center lg:gap-10">
+    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,64rem)] lg:items-start lg:gap-10">
       {/* Phones: the list wraps into rows of chips (nothing in the admin scrolls sideways). */}
       <nav aria-label="Settings sections" className="mb-5 lg:sticky lg:top-0 lg:mb-0">
         <ul className="flex flex-wrap gap-2 lg:block lg:space-y-1">
