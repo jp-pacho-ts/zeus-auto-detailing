@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ServiceExpenseField, type SizeDeductionForm } from "./service-expense-field";
 import {
   Sparkles,
   Plus,
@@ -16,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  Trash2,
 } from "lucide-react";
 import type {
   AdminServiceList,
@@ -26,6 +28,7 @@ import type { UserRole } from "@/types/contracts";
 import type { CatalogServiceKind, PriceUnit } from "@/types/catalog-contracts";
 import { adminRequest, AdminRequestError } from "./bookings/client";
 import { useAdminResource } from "./bookings/use-admin-resource";
+import { DeleteServiceDialog } from "./delete-service-dialog";
 
 interface ServicesTabProps {
   role: UserRole;
@@ -50,6 +53,13 @@ const CATEGORY_COLORS: Record<CatalogServiceKind, string> = {
 };
 
 const SIZE_ORDER = ["MOTOR", "S", "M", "L", "XL"] as const;
+function deductionBody(values: SizeDeductionForm) {
+  return Object.fromEntries(SIZE_ORDER.map((size) => {
+    const row = values[size];
+    return [size, row?.enabled ? Math.round(Number(row.amount) * 100) : 0];
+  }));
+}
+
 const SIZE_NAMES: Record<string, string> = {
   MOTOR: "Motorcycle",
   S: "Small",
@@ -206,7 +216,10 @@ function CommissionField({ mode, onMode, rate, onRate, sizes, onSizes, prices }:
 }
 
 export function ServicesTab({ role }: ServicesTabProps) {
-  void role;
+  const canDelete = role === "ADMIN";
+  const [deleteService, setDeleteService] = React.useState<AdminServiceItem | null>(null);
+  const [deleteNotice, setDeleteNotice] = React.useState<string | null>(null);
+  const addButton = React.useRef<HTMLButtonElement>(null);
   const resource = useAdminResource<AdminServiceList>("/api/admin/services");
   const data = resource.data;
   const services = data?.services ?? [];
@@ -231,6 +244,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     promoPricePhp: string;
     pickupPricePhp?: string; // L and XL only
   }>>({});
+  const [editDeductions, setEditDeductions] = React.useState<SizeDeductionForm>({});
   const [editCommissionMode, setEditCommissionMode] = React.useState<CommissionMode>("DEFAULT");
   const [editCommissionRate, setEditCommissionRate] = React.useState<string>("");
   const [editSizes, setEditSizes] = React.useState<SizeValues>({});
@@ -242,6 +256,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
   const [createName, setCreateName] = React.useState("");
   const [createDesc, setCreateDesc] = React.useState("");
   const [createCategory, setCreateCategory] = React.useState<CatalogServiceKind>("WASH");
+  const [createDeductions, setCreateDeductions] = React.useState<SizeDeductionForm>({});
   const [createCommissionMode, setCreateCommissionMode] = React.useState<CommissionMode>("NONE");
   const [createCommissionRate, setCreateCommissionRate] = React.useState<string>("");
   const [createSizes, setCreateSizes] = React.useState<SizeValues>({});
@@ -262,6 +277,10 @@ export function ServicesTab({ role }: ServicesTabProps) {
 
   const initEditModal = (svc: AdminServiceItem) => {
     setEditService(svc);
+    setEditDeductions(Object.fromEntries(SIZE_ORDER.map((size) => {
+      const amount = svc.sizeDeductions?.[size] ?? svc.expenseDeductionCentavos ?? 0;
+      return [size, { enabled: amount > 0, amount: amount > 0 ? String(amount / 100) : "1500" }];
+    })));
     setEditName(svc.name);
     setEditDesc(svc.description ?? "");
     setEditCategory(svc.category);
@@ -319,6 +338,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
     setCreateName("");
     setCreateDesc("");
     setCreateCategory("WASH");
+    setCreateDeductions({});
     setCreateCommissionMode("NONE"); // new services start with no commission (LE 2026-11-12)
     setCreateCommissionRate("0");
     setCreateSizes({});
@@ -393,6 +413,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           description: editDesc || null,
           category: editCategory,
           ...commissionBody(editCommissionMode, editCommissionRate, editSizes),
+          sizeDeductions: deductionBody(editDeductions),
           offers: offersPayload,
         },
       });
@@ -465,6 +486,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
           type: createType,
           unit: createUnit,
           ...commissionBody(createCommissionMode, createCommissionRate, createSizes),
+          sizeDeductions: deductionBody(createDeductions),
           offers: offersPayload,
         },
       });
@@ -491,7 +513,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
       if (svc.isActive) {
         await adminRequest(`/api/admin/services/${svc.id}`, { method: "DELETE" });
       } else {
-        await adminRequest(`/api/admin/services/${svc.id}`, { method: "POST" });
+        await adminRequest(`/api/admin/services/${svc.id}`, { method: "POST", body: {} });
       }
       resource.reload();
     } catch (err) {
@@ -533,6 +555,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
         </div>
         <button
           type="button"
+          ref={addButton}
           onClick={initCreateModal}
           className="inline-flex min-h-[40px] items-center gap-2 rounded bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary-hover shadow-sm transition-colors"
         >
@@ -745,7 +768,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                 </div>
 
                 {/* Card Action Buttons */}
-                <div className="flex items-center gap-2 self-start pt-1 sm:pt-0">
+                <div className="flex flex-wrap items-center gap-2 self-start pt-1 sm:pt-0">
                   <button
                     type="button"
                     onClick={() => initEditModal(svc)}
@@ -768,6 +791,16 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     <Power className="h-3.5 w-3.5" />
                     <span>{svc.isActive ? "Deactivate" : "Activate"}</span>
                   </button>
+                  {canDelete && <button
+                    type="button"
+                    disabled={togglingId === svc.id}
+                    onClick={() => { setDeleteNotice(null); setDeleteService(svc); }}
+                    aria-label={`Delete ${svc.name}`}
+                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-rose-500/30 px-3 py-1 text-xs font-semibold text-rose-400 transition-colors hover:border-rose-500/60 hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-50"
+                  >
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                    <span>Delete</span>
+                  </button>}
                 </div>
               </div>
 
@@ -900,6 +933,18 @@ export function ServicesTab({ role }: ServicesTabProps) {
         </div>
       )}
 
+      {deleteNotice && <p role="status" className="text-sm text-emerald-400">{deleteNotice}</p>}
+      {deleteService && <DeleteServiceDialog
+        service={deleteService}
+        onClose={() => setDeleteService(null)}
+        onDeleted={() => {
+          setDeleteNotice(`${deleteService.name} was deleted.`);
+          setDeleteService(null);
+          addButton.current?.focus();
+          resource.reload();
+        }}
+      />}
+
       {/* Edit Service & Pricing Modal */}
       {editService && (
         <div
@@ -960,11 +1005,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     sizes={editSizes} onSizes={setEditSizes} prices={sizePrices(editOffers)} />
                 </div>
               </div>
-              {editCategory === "GRAPHENE" && (
-                <div className="rounded border border-purple-500/30 bg-purple-500/10 p-2.5 text-xs text-purple-300">
-                  <span className="font-semibold">Coating Rule:</span> ₱1,500 chemical/product cost is automatically deducted from the base price before technician commission is calculated.
-                </div>
-              )}
+              <ServiceExpenseField values={editDeductions} onChange={setEditDeductions} />
 
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground">Description</label>
@@ -1237,11 +1278,7 @@ export function ServicesTab({ role }: ServicesTabProps) {
                     sizes={createSizes} onSizes={setCreateSizes} prices={sizePrices(createOffers)} />
                 </div>
               </div>
-              {createCategory === "GRAPHENE" && (
-                <div className="rounded border border-purple-500/30 bg-purple-500/10 p-2.5 text-xs text-purple-300">
-                  <span className="font-semibold">Coating Rule:</span> ₱1,500 chemical/product cost is automatically deducted from the base price before technician commission is calculated.
-                </div>
-              )}
+              <ServiceExpenseField values={createDeductions} onChange={setCreateDeductions} />
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>

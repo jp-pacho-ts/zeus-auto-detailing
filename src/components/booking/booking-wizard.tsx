@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -10,6 +11,7 @@ import {
   ChevronLeft,
   Droplets,
   MessageSquare,
+  Plus,
   Phone,
   QrCode,
   ShieldCheck,
@@ -20,14 +22,17 @@ import {
 } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
+import { Skeleton } from "@/components/ui/skeleton";
 import { TurnstileChallenge, type ChallengeStatus } from "@/components/booking/turnstile";
 import { DayPicker, DAYS_PER_PAGE, dateLabel, shortDayLabel, todayInManila } from "@/components/booking/day-picker";
 import { BookingTicket } from "@/components/booking/booking-ticket";
+import { KioskEndDialog, KioskIdleDialog } from "@/components/booking/kiosk-end-dialog";
 import { VehicleDrawing, VehicleDrawingDefs } from "@/components/booking/vehicle-drawing";
 import { ManagementCode } from "@/components/booking/management-code";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import { bookingStatusWords } from "@/components/booking/manage-booking";
 import { reveal } from "@/components/booking/reveal";
+import { landingPhoto } from "@/components/landing/landing-photos";
 import {
   CATEGORY_NAMES,
   CATEGORY_ORDER,
@@ -122,13 +127,20 @@ const STEP_LABELS = ["Vehicle size", "Services", "Day", "Your details"];
 const HEADINGS = ["Choose your vehicle size", "Choose your services", "Choose your day", "Your details", "Booking received"];
 // The normal security-check widget is a fixed 300 px wide; below this it is rendered compact.
 const NARROW_QUERY = "(max-width: 359px)";
+// Kiosk idle timeout (LE): a booking with no taps or typing for 10 minutes returns to the start; the last minute shows a countdown.
+const KIOSK_IDLE_MS = 10 * 60_000;
+const KIOSK_WARNING_MS = 60_000;
+// Kiosk menu tiles: a service without its own shop photo shows its category's photo.
+const KIOSK_CATEGORY_PHOTO: Partial<Record<string, string>> = { WASH: "signature-wash", DETAILING: "full-detailing", GRAPHENE: "arcane-graphene" };
 
 export function BookingWizard({
   initialServiceId,
   initialVehicleName,
+  kioskOnExit,
 }: {
   initialServiceId?: string;
   initialVehicleName?: string;
+  kioskOnExit?: () => void;
 }) {
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
   const [step, setStep] = React.useState(1);
@@ -166,6 +178,10 @@ export function BookingWizard({
   const [message, setMessage] = React.useState("");
   const [pending, setPending] = React.useState(false);
   const [uncertain, setUncertain] = React.useState(false);
+  // The countdown deadline while the idle warning shows; null otherwise.
+  const [kioskWarning, setKioskWarning] = React.useState<number | null>(null);
+  const [confirmEnd, setConfirmEnd] = React.useState(false);
+  const kioskKeepBooking = React.useRef<(() => void) | null>(null);
   // The management code stays in memory only (ADR-002): never in the URL or browser storage.
   const [booking, setBooking] = React.useState<{ view: DayBookingView; access: ManagementAccessGrant | null; vehicleModel: string; vehiclePlate: string | null; customerName: string; customerPhone: string; multiDay: boolean } | null>(null);
 
@@ -174,6 +190,46 @@ export function BookingWizard({
   const errorSummary = React.useRef<HTMLDivElement>(null);
   const deepLinkHandled = React.useRef(false);
   const shownStep = React.useRef(step);
+
+  React.useEffect(() => {
+    if (!kioskOnExit || pending) return;
+    if (step === 5) {
+      const timer = window.setTimeout(kioskOnExit, 45_000);
+      return () => window.clearTimeout(timer);
+    }
+
+    let warning: number;
+    let expiration: number;
+    let warned = false;
+    const renew = () => {
+      warned = false;
+      setKioskWarning(null);
+      window.clearTimeout(warning);
+      window.clearTimeout(expiration);
+      warning = window.setTimeout(() => {
+        warned = true;
+        setConfirmEnd(false);
+        setKioskWarning(Date.now() + KIOSK_WARNING_MS);
+      }, KIOSK_IDLE_MS - KIOSK_WARNING_MS);
+      expiration = window.setTimeout(kioskOnExit, KIOSK_IDLE_MS);
+    };
+    const onActivity = () => {
+      if (!warned) renew();
+    };
+    kioskKeepBooking.current = renew;
+    renew();
+    window.addEventListener("pointerdown", onActivity);
+    window.addEventListener("keydown", onActivity);
+    window.addEventListener("input", onActivity);
+    return () => {
+      window.clearTimeout(warning);
+      window.clearTimeout(expiration);
+      window.removeEventListener("pointerdown", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("input", onActivity);
+      kioskKeepBooking.current = null;
+    };
+  }, [kioskOnExit, pending, step]);
   // L9 / QA F2: below 360 px the security check is compact. It follows the window as it resizes,
   // not only when something else happens to re-render the form.
   const [narrow, setNarrow] = React.useState(
@@ -456,6 +512,7 @@ export function BookingWizard({
         headers: BOOKING_HEADERS,
         body: JSON.stringify(attempt.current),
         cache: "no-store",
+        signal: kioskOnExit ? AbortSignal.timeout(30_000) : undefined,
       });
       const result: DayBookingResponse = await response.json();
       if (result.ok) {
@@ -538,6 +595,7 @@ export function BookingWizard({
   const renderPrimary = () => (
     <button
       type={step === 4 ? "submit" : "button"}
+      data-part="primary"
       form={step === 4 ? "booking-details" : undefined}
       onClick={(event) => {
         if (step !== 4) {
@@ -556,6 +614,7 @@ export function BookingWizard({
     step > 1 && step < 5 ? (
       <button
         type="button"
+        data-part="back"
         disabled={locked}
         onClick={() => goTo(step - 1)}
         className={outlineButton + " " + actionHeight}
@@ -564,8 +623,23 @@ export function BookingWizard({
         Back
       </button>
     ) : null;
+  // Kiosk: one running order line (size, services, total), like a counter ordering screen.
+  const renderKioskOrder = () => (
+    <>
+      <span className="block text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</span>
+      {/* On a narrow tablet only the description shortens; the total always shows in full. */}
+      <span className="flex min-w-0 items-baseline justify-end gap-3 text-base text-foreground">
+        <span className="min-w-0 truncate">
+          {[vehicle?.name ?? "Choose a size", lines.length ? `${lines.length} ${lines.length === 1 ? "service" : "services"}` : ""].filter(Boolean).join(" · ")}
+        </span>
+        {lines.length > 0 && (total
+          ? <strong className="shrink-0 text-xl font-extrabold tabular-nums">{total.amount}</strong>
+          : <span role="status" className="shrink-0 self-center"><span className="sr-only">Pricing…</span><Skeleton className="h-6 w-24" /></span>)}
+      </span>
+    </>
+  );
   const renderTotal = () =>
-    step === 1 ? (
+    kioskOnExit ? renderKioskOrder() : step === 1 ? (
       <span className="text-sm text-muted-foreground">{vehicle ? vehicle.name : "Choose a size"}</span>
     ) : lines.length ? (
       <>
@@ -676,7 +750,9 @@ export function BookingWizard({
 
   // Phones, services and day steps: what is chosen so far, above the choices.
   const renderMobileSummaryTray = () => (
-    <div className="mb-6 rounded-xl border border-border bg-muted p-4 text-sm lg:hidden">
+    <div className={kioskOnExit
+      ? "mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 rounded-xl border border-border bg-muted px-5 py-2 text-sm [&>p]:col-start-1 [&>button]:col-start-2 [&>button]:row-start-1 [&>button]:row-span-2"
+      : "mb-6 rounded-xl border border-border bg-muted p-4 text-sm lg:hidden"}>
       <p className="font-bold text-foreground">{vehicle?.name}</p>
       <p className="break-words text-muted-foreground">{servicesSummary || "No service chosen yet"}</p>
       {step === 3 && chosenDay && <p className="text-muted-foreground">{dateLabel(chosenDay)}</p>}
@@ -696,6 +772,44 @@ export function BookingWizard({
     });
   };
 
+  // W13: the panel count for a picked per-panel service (both layouts).
+  const renderPanels = (s: ServicePackage, pick: { quantity: number }) => (
+    <div className={`mt-2 rounded-xl border border-border bg-muted p-4 lg:col-span-3 ${kioskOnExit ? "md:col-span-full" : ""}`}>
+      <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
+        Number of panels for {s.name}
+      </label>
+      <input
+        id={"panels-" + s.id}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        aria-describedby={"panels-help-" + s.id}
+        value={panelDrafts[s.id] ?? String(pick.quantity)}
+        disabled={locked}
+        onChange={(e) => {
+          // W13: the field may be empty while typing; a count from 1 to 20 is applied at once.
+          const draft = e.target.value.replace(/\D/g, "").slice(0, 2);
+          setPanelDrafts((d) => ({ ...d, [s.id]: draft }));
+          const n = Number(draft);
+          if (n >= 1 && n <= 20) setQuantity(s.id, n);
+        }}
+        onBlur={() => {
+          const n = Number(panelDrafts[s.id]);
+          setQuantity(s.id, n >= 1 ? Math.min(20, n) : pick.quantity);
+          setPanelDrafts((d) => {
+            const rest = { ...d };
+            delete rest[s.id];
+            return rest;
+          });
+        }}
+        className={control}
+      />
+      <p id={"panels-help-" + s.id} className="mt-1.5 text-sm text-muted-foreground">
+        1 to 20 panels.
+      </p>
+    </div>
+  );
+
   const renderService = (s: ServicePackage, nested = false) => {
     const pick = picked(s.id);
     const offer = offerLabel(s, vehicleId, pick?.quantity ?? 1);
@@ -703,16 +817,16 @@ export function BookingWizard({
     const detail = serviceDetail(s);
     const extras = nested ? [] : addOnsUnder(s);
     return (
-      <li key={s.id} className={nested ? undefined : "lg:contents"}>
-        <label className={optionCard(Boolean(pick)) + " min-h-[80px]"}>
-          <div className="flex items-start gap-3.5">
+      <li key={s.id} className={nested ? undefined : kioskOnExit ? "md:contents" : "lg:contents"}>
+        <label className={optionCard(Boolean(pick)) + (kioskOnExit && !nested ? " min-h-[132px] items-start" : " min-h-[80px]")}>
+          <div className={kioskOnExit && !nested ? "grid gap-3" : "flex items-start gap-3.5"}>
             {!nested && (
               <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted">
                 <Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
               </div>
             )}
             <div>
-              <span className="block font-bold text-foreground">{s.name}</span>
+              <span className={kioskOnExit && !nested ? "block text-lg font-bold text-foreground" : "block font-bold text-foreground"}>{s.name}</span>
               {detail && <span className="mt-1 block text-sm text-muted-foreground">{detail}</span>}
               <span className="mt-2 block text-sm font-semibold text-foreground">
                 {"compareAtText" in offer && offer.compareAtText && (
@@ -742,44 +856,9 @@ export function BookingWizard({
             className="h-5 w-5 shrink-0 accent-primary"
           />
         </label>
-        {pick && s.unit === "PANEL" && (
-          <div className="mt-2 rounded-xl border border-border bg-muted p-4 lg:col-span-3">
-            <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
-              Number of panels for {s.name}
-            </label>
-            <input
-              id={"panels-" + s.id}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              aria-describedby={"panels-help-" + s.id}
-              value={panelDrafts[s.id] ?? String(pick.quantity)}
-              disabled={locked}
-              onChange={(e) => {
-                // W13: the field may be empty while typing; a count from 1 to 20 is applied at once.
-                const draft = e.target.value.replace(/\D/g, "").slice(0, 2);
-                setPanelDrafts((d) => ({ ...d, [s.id]: draft }));
-                const n = Number(draft);
-                if (n >= 1 && n <= 20) setQuantity(s.id, n);
-              }}
-              onBlur={() => {
-                const n = Number(panelDrafts[s.id]);
-                setQuantity(s.id, n >= 1 ? Math.min(20, n) : pick.quantity);
-                setPanelDrafts((d) => {
-                  const rest = { ...d };
-                  delete rest[s.id];
-                  return rest;
-                });
-              }}
-              className={control}
-            />
-            <p id={"panels-help-" + s.id} className="mt-1.5 text-sm text-muted-foreground">
-              1 to 20 panels.
-            </p>
-          </div>
-        )}
+        {pick && s.unit === "PANEL" && renderPanels(s, pick)}
         {extras.length > 0 && (
-          <fieldset className="ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4 lg:col-span-3">
+          <fieldset className={`ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4 lg:col-span-3 ${kioskOnExit ? "md:col-span-full" : ""}`}>
             <legend className="mb-2 text-sm font-semibold text-foreground">Extras for {s.name}</legend>
             <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{extras.map((a) => renderService(a, true))}</ul>
           </fieldset>
@@ -829,7 +908,13 @@ export function BookingWizard({
                 </button>
               </h2>
               <div id={regionId} role="region" aria-label={CATEGORY_NAMES[category]} hidden={!open} className="border-t border-border p-3 sm:p-4">
-                {open && <ul className="space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0">{services.map((s) => renderService(s))}</ul>}
+                {open && (
+                  <ul className={kioskOnExit
+                    ? "space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 lg:grid-cols-3"
+                    : "space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0"}>
+                    {services.map((s) => renderService(s))}
+                  </ul>
+                )}
               </div>
             </section>
           );
@@ -843,9 +928,139 @@ export function BookingWizard({
     );
   };
 
+  // Kiosk menu board: a photo tile per service (tap to add or remove), the extras for what is picked, and the order beside it.
+  const renderKioskTile = (s: ServicePackage) => {
+    const pick = picked(s.id);
+    const offer = offerLabel(s, vehicleId, pick?.quantity ?? 1);
+    const photo = landingPhoto(s.slug) ?? landingPhoto(KIOSK_CATEGORY_PHOTO[s.category] ?? "");
+    const Icon = getServiceDisciplineIcon(s.category);
+    const detail = serviceDetail(s);
+    return (
+      <li key={s.id}>
+        <label
+          data-part="menu-tile"
+          className={
+            "relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
+            (pick ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
+          }
+        >
+          <span className="relative block aspect-[16/10] bg-muted">
+            {/* Shows until the photo has loaded and covers it. */}
+            {photo && <Skeleton className="absolute inset-0 rounded-none" />}
+            {photo ? (
+              <Image src={photo.src} alt="" fill sizes="(min-width: 1024px) 22vw, 40vw"
+                className={photo.contain ? "object-contain" : "object-cover"} style={photo.position ? { objectPosition: photo.position } : undefined} />
+            ) : (
+              <span className="grid h-full place-items-center"><Icon className="h-12 w-12 text-primary" aria-hidden="true" /></span>
+            )}
+          </span>
+          <span className="flex flex-1 flex-col gap-1 p-4">
+            <span className="text-lg font-bold leading-tight text-foreground">{s.name}</span>
+            {detail && <span className="line-clamp-2 text-sm text-muted-foreground">{detail}</span>}
+            <span className="mt-auto flex items-center justify-between gap-3 pt-3">
+              <span className="text-base font-semibold tabular-nums text-foreground">
+                {"compareAtText" in offer && offer.compareAtText && <s className="mr-2 text-xs font-normal text-muted-foreground">{offer.compareAtText}</s>}
+                {offer.text}
+                {s.unit === "PANEL" ? " · per panel" : ""}
+              </span>
+              <span aria-hidden="true" className={"grid h-11 w-11 shrink-0 place-items-center rounded-full border " + (pick ? "border-primary bg-primary text-primary-foreground" : "border-input text-foreground")}>
+                {pick ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              </span>
+            </span>
+          </span>
+          <input type="checkbox" name="service" value={s.id} checked={Boolean(pick)} disabled={locked} onChange={() => togglePick(s)} className="sr-only" />
+        </label>
+        {pick && s.unit === "PANEL" && renderPanels(s, pick)}
+      </li>
+    );
+  };
+
+  const renderKioskMenu = () => {
+    const available = bases.filter(offered);
+    const hidden = bases.length - available.length;
+    const groups = CATEGORY_ORDER.map((category) => ({ category, services: available.filter((s) => s.category === category) })).filter((g) => g.services.length);
+    const active = groups.find((g) => g.category === openCategory) ?? groups[0];
+    const extras = active ? [...new Map(active.services.flatMap(addOnsUnder).map((a) => [a.id, a])).values()] : [];
+    return (
+      <div className="grid items-start gap-6 md:grid-cols-[180px_minmax(0,1fr)] lg:grid-cols-[190px_minmax(0,1fr)_300px]">
+        <nav aria-label="Service categories" className="flex gap-2 overflow-x-auto md:sticky md:top-4 md:flex-col md:overflow-visible">
+          {groups.map(({ category }) => {
+            const current = active?.category === category;
+            const chosen = lines.filter((l) => serviceById(l.serviceId)?.category === category).length;
+            return (
+              <button key={category} type="button" data-part="menu-category" aria-pressed={current} onClick={() => setOpenCategory(category)}
+                className={"flex min-h-[64px] shrink-0 items-center justify-between gap-3 rounded-xl border px-4 text-left font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
+                  (current ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:border-primary")}>
+                {CATEGORY_NAMES[category]}
+                {chosen > 0 && <span className={"grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm tabular-nums " + (current ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground")}>{chosen}</span>}
+              </button>
+            );
+          })}
+        </nav>
+        {active && (
+          <section aria-labelledby="kiosk-menu-title" className="min-w-0">
+            <h2 id="kiosk-menu-title" data-part="menu-title" className="mb-4 text-2xl font-bold text-foreground">{CATEGORY_NAMES[active.category]}</h2>
+            <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">{active.services.map(renderKioskTile)}</ul>
+            {extras.length > 0 && (
+              <>
+                <h3 data-part="menu-title" className="mb-4 mt-8 text-xl font-bold text-foreground">Extras</h3>
+                <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">{extras.map(renderKioskTile)}</ul>
+              </>
+            )}
+            {hidden > 0 && (
+              <p className="mt-6 text-sm text-muted-foreground">
+                {hidden} {hidden === 1 ? "service isn't" : "services aren't"} offered for {vehicle?.name}. Call the shop at {brandConfig.displayPhone} to ask.
+              </p>
+            )}
+          </section>
+        )}
+        <aside aria-label="Your order" className="rounded-2xl border border-border bg-card p-5 md:col-span-2 lg:sticky lg:top-4 lg:col-span-1">
+          <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</p>
+          <div className="mt-2 flex items-center justify-between gap-3 border-b border-border pb-3">
+            <p className="font-bold text-foreground">{vehicle?.name}</p>
+            <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink}>Change size</button>
+          </div>
+          {lines.length ? (
+            <ul className="divide-y divide-border/60">
+              {lines.map((l) => {
+                const s = serviceById(l.serviceId);
+                const priced = quoteLines.find((q) => q.serviceId === l.serviceId);
+                return (
+                  <li key={l.serviceId} className="flex items-center gap-2 py-3 text-sm">
+                    <span className="min-w-0 flex-1 break-words font-semibold text-foreground">{s?.name}{l.quantity > 1 ? ` × ${l.quantity}` : ""}</span>
+                    {priced ? <span className="tabular-nums text-muted-foreground">{lineAmount(priced)}</span> : <Skeleton className="h-4 w-16" />}
+                    {s && (
+                      <button type="button" onClick={() => togglePick(s)} disabled={locked} aria-label={"Remove " + s.name}
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <X aria-hidden="true" className="h-4 w-4" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="py-4 text-sm text-muted-foreground">Tap a service to add it.</p>
+          )}
+          <div className="border-t border-border pt-3">
+            <p className="text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</p>
+            {total || !lines.length ? (
+              <p className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : "—"}</p>
+            ) : (
+              <div role="status" className="py-1.5"><span className="sr-only">Pricing…</span><Skeleton className="h-8 w-40" /></div>
+            )}
+            {total?.note && <p className="mt-1 text-sm text-muted-foreground">{total.note}</p>}
+          </div>
+          <div className="mt-4 hidden lg:block [&>button]:w-full">{renderPrimary()}</div>
+          <div className="hidden lg:block">{renderReason()}</div>
+        </aside>
+      </div>
+    );
+  };
+
   const intro = [
     "Prices depend on the size of your vehicle.",
-    "Open a category to see its services. You can choose more than one.",
+    kioskOnExit ? "Tap a service to add it to your order. You can choose more than one." : "Open a category to see its services. You can choose more than one.",
     arrivalWords(),
     "The shop uses these details to confirm your booking.",
     "",
@@ -942,11 +1157,23 @@ export function BookingWizard({
         </div>
       )}
 
-      {!catalog && !catalogError && (
+      {!catalog && !catalogError && (kioskOnExit ? (
+        // Kiosk: the vehicle cards as skeletons while the service menu loads.
+        <div role="status" aria-busy="true" className="grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+          <span className="sr-only">Loading the shop service menu…</span>
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} data-part="skeleton-card" className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3">
+              <Skeleton className="h-[clamp(124px,21vh,208px)] rounded-xl" />
+              <Skeleton className="mx-1.5 h-5 w-2/3" />
+              <Skeleton className="mx-1.5 mb-1.5 h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : (
         <div role="status" className={panel}>
           Loading the shop service menu…
         </div>
-      )}
+      ))}
       {catalogError && (
         <div role="alert" className={panel}>
           <p>{catalogError}</p>
@@ -967,29 +1194,50 @@ export function BookingWizard({
     ) : null;
 
   return (
-    <div className="wizard-root min-h-screen bg-background text-foreground">
+    <div className="wizard-root min-h-screen bg-background text-foreground" data-layout={kioskOnExit ? "kiosk" : undefined}>
       <style>{printCss}</style>
+      {kioskOnExit && confirmEnd && !pending && step < 5 && <KioskEndDialog onKeep={() => setConfirmEnd(false)} onEnd={() => { setConfirmEnd(false); kioskOnExit(); }} />}
+      {kioskOnExit && kioskWarning !== null && !pending && step < 5 && (
+        <KioskIdleDialog deadline={kioskWarning} total={KIOSK_WARNING_MS} onKeep={() => kioskKeepBooking.current?.()} onEnd={kioskOnExit} />
+      )}
 
       {step < 5 && (
-        <div className="lg:grid lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)]">
+        <div className={kioskOnExit ? "" : "lg:grid lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)]"}>
           {/* P1-52 (LE 2026-11-06, mock C): the side panel. Desktop: logo, step, title, the build sheet, the big total and the
               actions, kept in view. Phone: the same panel is the header (logo, segmented progress, step, title); the total
               and the action sit in the bar at the bottom. */}
           <div
             data-part="panel"
-            className="no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-[clamp(14px,3vh,32px)] lg:pt-[clamp(14px,2.6vh,28px)]"
+            className={kioskOnExit ? "no-print" : "no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-[clamp(14px,3vh,32px)] lg:pt-[clamp(14px,2.6vh,28px)]"}
           >
-            <div className="flex items-center justify-between gap-3">
-              <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <div className={kioskOnExit
+              ? "grid grid-cols-2 items-center gap-3 border-b border-border bg-muted px-4 py-3 sm:px-8 lg:grid-cols-[1fr_auto_1fr]"
+              : "flex items-center justify-between gap-3"}>
+              {kioskOnExit ? <Logo className="col-start-1 row-start-1" /> : <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <Logo />
-              </Link>
-              {!locked && (
+              </Link>}
+              {kioskOnExit && <ol aria-label="Booking steps" className="col-span-2 col-start-1 row-start-2 grid grid-cols-4 gap-2 sm:gap-3 lg:col-span-1 lg:col-start-2 lg:row-start-1">
+                {STEP_LABELS.map((label, index) => (
+                  <li key={label} aria-current={index + 1 === step ? "step" : undefined}
+                    className={"flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 text-center text-xs font-semibold sm:px-3 sm:text-sm " +
+                      (index + 1 === step ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+                    {index + 1 < step ? <Check className="size-4 shrink-0 text-primary" aria-hidden="true" /> : <span data-part="step-number">{index + 1}</span>}
+                    {label}
+                  </li>
+                ))}
+              </ol>}
+              {kioskOnExit && !pending && (
+                <button type="button" data-part="end-session" onClick={() => setConfirmEnd(true)} className={pillLink + " col-start-2 row-start-1 justify-self-end px-4 lg:col-start-3"}>
+                  End session
+                </button>
+              )}
+              {!kioskOnExit && !locked && (
                 <Link href="/" aria-label="Cancel and return to home" className={pillLink + " h-11 w-11"}>
                   <X aria-hidden="true" className="h-5 w-5" />
                 </Link>
               )}
             </div>
-            <div
+            {!kioskOnExit && <div
               role="progressbar"
               aria-label="Booking progress"
               aria-valuemin={1}
@@ -1008,18 +1256,24 @@ export function BookingWizard({
                   }
                 />
               ))}
-            </div>
-            <p className="mt-4 text-sm text-muted-foreground lg:mt-[clamp(10px,4.5vh,56px)]">
+            </div>}
+            <div className={kioskOnExit ? "mx-auto max-w-6xl px-4 pb-1 pt-7 sm:px-8 sm:pt-10" : undefined}>
+            {!kioskOnExit && <p className="mt-4 text-sm text-muted-foreground lg:mt-[clamp(10px,4.5vh,56px)]">
               <strong className="font-bold text-primary">Step {step} of 4</strong> · {stepLabel}
-            </p>
+            </p>}
             <h1
+              key={kioskOnExit ? step : undefined}
               id="wizard-step-title"
               tabIndex={-1}
-              className="mt-1 scroll-mt-28 text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none lg:text-[clamp(28px,3.6vh,32px)] lg:leading-[1.1]"
+              className={kioskOnExit
+                ? "text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none sm:text-5xl"
+                : "mt-1 scroll-mt-28 text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none lg:text-[clamp(28px,3.6vh,32px)] lg:leading-[1.1]"}
             >
               {HEADINGS[step - 1]}
             </h1>
             {intro && <p className="mt-2 text-base text-muted-foreground lg:max-w-none lg:text-[clamp(14px,1.9vh,16px)]">{intro}</p>}
+            </div>
+            {!kioskOnExit && <>
             <div className="hidden lg:block">{renderSheet()}</div>
             <div className="hidden flex-1 lg:block" />
             <div className="hidden lg:block lg:pt-[clamp(8px,2vh,32px)]">
@@ -1032,10 +1286,11 @@ export function BookingWizard({
               )}
               {renderReason()}
             </div>
+            </>}
           </div>
 
           <main
-            className={
+            className={kioskOnExit ? "mx-auto w-full px-4 pb-48 pt-6 sm:px-8 sm:pt-8" :
               "min-w-0 px-4 pb-40 pt-4 sm:px-6 lg:px-[clamp(24px,3.5vw,56px)] lg:pb-[clamp(16px,4vh,64px)] lg:pt-[clamp(16px,5vh,56px)]" +
               (step === 1 ? " lg:flex lg:min-h-[100dvh] lg:flex-col lg:justify-center" : "")
             }
@@ -1066,7 +1321,7 @@ export function BookingWizard({
                   <fieldset>
                     <legend className="sr-only">Vehicle size</legend>
                     {/* P1-54 (LE 2026-11-06, mock M1): a card grid that uses the width: three tiles, then two wider ones. Phones: two columns. */}
-                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-6 lg:gap-[clamp(10px,1.8vh,16px)]">
+                    <div className={kioskOnExit ? "grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]" : "grid grid-cols-2 gap-3 lg:grid-cols-6 lg:gap-[clamp(10px,1.8vh,16px)]"}>
                       {catalog.vehicleCategories.map((v, index, all) => {
                         const name = splitSizeName(v.name);
                         const picked = vehicleId === v.id;
@@ -1075,10 +1330,11 @@ export function BookingWizard({
                         return (
                           <label
                             key={v.id}
+                            data-part="vehicle-card"
                             className={
-                              "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors [--ic:64px] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:[--ic:88px] lg:[--ic:clamp(64px,13vh,120px)] " +
-                              (lastOdd ? "col-span-2 " : "") +
-                              (wide ? "lg:col-span-3 " : "lg:col-span-2 ") +
+                              "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
+                              (kioskOnExit ? "[--ic:clamp(96px,16vh,160px)] " :
+                                "[--ic:64px] sm:[--ic:88px] lg:[--ic:clamp(64px,13vh,120px)] " + (lastOdd ? "col-span-2 " : "") + (wide ? "lg:col-span-3 " : "lg:col-span-2 ")) +
                               (picked ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
                             }
                           >
@@ -1153,11 +1409,11 @@ export function BookingWizard({
               {/* Steps 2-4 */}
               {catalog && step >= 2 && step <= 4 && (
                 <div className="min-w-0">
-                  {step < 4 && renderMobileSummaryTray()}
+                  {step < 4 && !(kioskOnExit && step === 2) && renderMobileSummaryTray()}
 
                   {step === 2 && (
                     <div className="space-y-6">
-                      {renderCategories()}
+                      {kioskOnExit ? renderKioskMenu() : renderCategories()}
                       {quoteState?.key === selectionKey && quoteState.error && (
                         <div role="alert" className="text-sm text-destructive">
                           <p>{quoteState.error}</p>
@@ -1192,6 +1448,7 @@ export function BookingWizard({
                   {step === 4 && (
                     <form
                       id="booking-details"
+                      autoComplete={kioskOnExit ? "off" : undefined}
                       noValidate
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -1223,7 +1480,7 @@ export function BookingWizard({
                                   id="customerFirstName"
                                   name="customerFirstName"
                                   type="text"
-                                  autoComplete="given-name"
+                                  autoComplete={kioskOnExit ? "off" : "given-name"}
                                   enterKeyHint="next"
                                   maxLength={50}
                                   value={form.customerFirstName}
@@ -1250,7 +1507,7 @@ export function BookingWizard({
                                   id="customerLastName"
                                   name="customerLastName"
                                   type="text"
-                                  autoComplete="family-name"
+                                  autoComplete={kioskOnExit ? "off" : "family-name"}
                                   enterKeyHint="next"
                                   maxLength={50}
                                   value={form.customerLastName}
@@ -1280,7 +1537,7 @@ export function BookingWizard({
                                 name="customerPhone"
                                 type="tel"
                                 inputMode="tel"
-                                autoComplete="tel"
+                                autoComplete={kioskOnExit ? "off" : "tel"}
                                 enterKeyHint="next"
                                 maxLength={32}
                                 value={form.customerPhone}
@@ -1309,7 +1566,7 @@ export function BookingWizard({
                                 name="customerEmail"
                                 type="email"
                                 inputMode="email"
-                                autoComplete="email"
+                                autoComplete={kioskOnExit ? "off" : "email"}
                                 enterKeyHint="next"
                                 maxLength={254}
                                 value={form.customerEmail}
@@ -1518,9 +1775,9 @@ export function BookingWizard({
       {step === 5 && ticket && booking && (
         <div className="mx-auto max-w-3xl px-4 pb-14 pt-3 sm:px-6">
           <header className="no-print flex items-center justify-between gap-3">
-            <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {kioskOnExit ? <Logo /> : <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <Logo />
-            </Link>
+            </Link>}
           </header>
           <div className="mt-6 flex items-center gap-4">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
@@ -1534,13 +1791,13 @@ export function BookingWizard({
             <BookingTicket
               booking={ticket}
               copied={copied}
-              onCopy={copyReference}
-              onPrint={() => {
+              onCopy={kioskOnExit ? undefined : copyReference}
+              onPrint={kioskOnExit ? undefined : () => {
                 if (typeof window !== "undefined") window.print();
               }}
             />
 
-            <ManagementCode referenceCode={booking.view.referenceCode} bookingDate={booking.view.bookingDate} access={booking.access} />
+            {!kioskOnExit && <ManagementCode referenceCode={booking.view.referenceCode} bookingDate={booking.view.bookingDate} access={booking.access} />}
 
             <details className={`${panel} no-print`}>
               <summary className="flex min-h-[44px] cursor-pointer items-center text-base font-bold text-foreground">
@@ -1551,7 +1808,7 @@ export function BookingWizard({
               </div>
             </details>
 
-            <div className={`${panel} no-print`}>
+            {!kioskOnExit && <div className={`${panel} no-print`}>
               <h2 className="text-base font-bold text-foreground">Questions about this booking?</h2>
               <p className="mt-1 text-sm text-muted-foreground">{brandConfig.address}</p>
               <div className="mt-3 flex flex-wrap gap-3">
@@ -1572,11 +1829,15 @@ export function BookingWizard({
                   Message us on Messenger
                 </a>
               </div>
-            </div>
+            </div>}
 
-            <Link href="/" className={outlineButton + " min-h-[44px] no-print"}>
+            {kioskOnExit ? (
+              <button type="button" onClick={kioskOnExit} className={outlineButton + " " + actionHeight}>
+                Next customer
+              </button>
+            ) : <Link href="/" className={outlineButton + " min-h-[44px] no-print"}>
               Return to home
-            </Link>
+            </Link>}
           </div>
         </div>
       )}
@@ -1585,7 +1846,7 @@ export function BookingWizard({
       {step < 5 && (
         <div
           id="wizard-action-bar"
-          className="wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur lg:hidden"
+          className={"wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur " + (kioskOnExit ? "sm:px-8" + (step === 2 ? " lg:hidden" : "") : "lg:hidden")}
         >
           {/* One row: Back, total, action. On phones (below 480 px): total and Back, then the action full width, so the
               total is never squeezed out. */}

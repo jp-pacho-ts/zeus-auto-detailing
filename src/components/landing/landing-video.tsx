@@ -1,22 +1,43 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { attachLandingPass } from "./landing-video-pass";
+import { attachHeroVideo } from "@/components/home/hero-video-controller";
+import { HERO_POSTER_FILES, HERO_PHONE_MAX_WIDTH } from "@/components/home/hero-video";
 
-// Landing-only controller. The shared ComingSoon media and its lifecycle stay untouched.
+const LANDING_VIDEO_FILES = {
+  desktop: "/media/landing-hero/zeus-cut-1080.mp4",
+  phone: "/media/landing-hero/zeus-cut-720.mp4",
+};
+
+// LE correction: original shop footage loops. Shared home playback policy stays unchanged.
 export function LandingVideo() {
   const video = useRef<HTMLVideoElement>(null);
-  const pass = useRef({ consumed: false });
   useEffect(() => {
     const element = video.current;
     if (!element) return;
-    return attachLandingPass(element, pass.current);
+    let visible = false;
+    const events = new EventTarget();
+    const notify = () => { events.dispatchEvent(new Event("visibilitychange")); };
+    // The tested shared controller treats offscreen playback like a hidden page.
+    const page = {
+      get hidden() { return document.hidden || !visible; },
+      get readyState() { return document.readyState; },
+      addEventListener: (type: string, fn: () => void) => events.addEventListener(type, fn),
+      removeEventListener: (type: string, fn: () => void) => events.removeEventListener(type, fn),
+    };
+    const detach = attachHeroVideo(element, {
+      width: () => innerWidth, document: page, window,
+      files: LANDING_VIDEO_FILES,
+      motion: matchMedia("(prefers-reduced-motion: reduce)"),
+      connection: (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection,
+      schedule: (callback) => { const timer = setTimeout(callback, 0); return () => clearTimeout(timer); },
+    });
+    document.addEventListener("visibilitychange", notify);
+    const seen = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; notify(); });
+    seen.observe(element.closest(".landing-hero-art") ?? element);
+    return () => { seen.disconnect(); detach(); document.removeEventListener("visibilitychange", notify); };
   }, []);
-  return <div className="landing-media">
-    {/* Desktop: the pass ends on the matching terminal frame. Phones: the approved whole-car first frame, no video (P1-90). */}
-    <div className="landing-media-frame"><div className="landing-media-layer">
-      {/* Already-public, encoded shop footage; the poster always remains underneath. */}
-      <picture><source media="(max-width: 767px)" srcSet="/media/home/hero-poster-720.jpg" width={1280} height={720} /><img src="/media/preview/hero-terminal.webp" alt="" width="1920" height="1080" fetchPriority="high" /></picture>
-      <video ref={video} muted playsInline preload="none" aria-hidden="true" style={{ opacity: 0 }} />
-    </div></div>
+  return <div className="landing-video-frame">
+    <picture><source media={`(max-width: ${HERO_PHONE_MAX_WIDTH}px)`} srcSet={HERO_POSTER_FILES.phone} /><img src={HERO_POSTER_FILES.desktop} alt="White car in the Zeus workshop beneath geometric detailing lights" width="1920" height="1080" fetchPriority="high" /></picture>
+    <video ref={video} className="landing-loop-video" muted loop playsInline preload="none" aria-hidden="true" tabIndex={-1} />
   </div>;
 }

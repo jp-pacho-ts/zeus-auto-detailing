@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { BookingDeductionCorrection } from "./booking-deduction-correction";
 import { Button } from "@/components/ui/button";
 import type { AdminBookingDetail, AdminDayBoard } from "@/types/admin-contracts";
 import { money } from "../model";
@@ -17,6 +18,8 @@ export function CrewSection({
   workers,
   recalc,
   onRecalculate,
+  onDeductionCorrected,
+  recalcVersion,
 }: {
   b: AdminBookingDetail;
   admin: boolean;
@@ -26,6 +29,8 @@ export function CrewSection({
   workers: { data: AdminDayBoard | null; loading: boolean; error: string | null; reload: () => unknown };
   recalc: Recalc | null;
   onRecalculate: () => void;
+  onDeductionCorrected: () => void;
+  recalcVersion: number;
 }) {
   return (
     <section aria-label="Assigned staff" className={`${panel} space-y-3 p-4 sm:p-5`}>
@@ -86,10 +91,11 @@ export function CrewSection({
       )}
       {admin && b.status === "COMPLETED" && b.snapshot === "QUEUE_V3" && (
         <div className="space-y-2 border-t border-border pt-3">
-          <p className="text-xs text-muted-foreground">Changed a service or worker rate? Work this booking&apos;s commission out again.</p>
+          <p className="text-xs text-muted-foreground">Use the current service deductions to recalculate this booking.</p>
           <Button variant="outline" size="sm" disabled={disabled} onClick={onRecalculate}>
             Recalculate commission
           </Button>
+          <BookingDeductionCorrection key={`${b.id}-${recalcVersion}`} booking={b} disabled={disabled} onSaved={onDeductionCorrected} />
           {recalc && (
             <table className="w-full text-sm tabular-nums" aria-label="Commission before and after">
               <thead>

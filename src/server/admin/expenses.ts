@@ -61,7 +61,7 @@ async function categoryOrThrow(tx: StaffTx, id: string): Promise<AdminExpenseCat
 export async function getExpenseMonth(actor: StaffActor, input: unknown, options: AdminOptions = {}): Promise<AdminExpenseMonth> {
   authorize(actor, "EXPENSE_READ");
   const v = parse(ExpenseMonthSchema, input);
-  const { from, to } = monthRange(v.month);
+  const { from, to } = v.from && v.to ? { from: v.from, to: v.to } : monthRange(v.month);
   const months = lastTwelveMonths(v.month);
   const seriesFrom = monthRange(months[0]).from;
   return read(options, async (tx) => {
