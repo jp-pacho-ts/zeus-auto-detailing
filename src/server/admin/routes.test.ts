@@ -80,6 +80,8 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   // P1-42 Settings.
   ["GET", "/api/admin/settings", () => import("@/app/api/admin/settings/route"), {}],
   ["PUT", "/api/admin/settings", () => import("@/app/api/admin/settings/route"), {}],
+  ["GET", "/api/admin/settings/email-preview?kind=confirmation", () => import("@/app/api/admin/settings/email-preview/route"), {}],
+  ["POST", "/api/admin/settings/test-email", () => import("@/app/api/admin/settings/test-email/route"), {}],
   // P1-38 Supplies.
   ["GET", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],
   ["POST", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],
