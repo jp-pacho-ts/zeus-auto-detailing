@@ -43,8 +43,14 @@ export function LoginForm({ next }: { next: string }) {
     e.preventDefault();
     setError(null);
 
+    const email = identifier.trim();
     const missing = {
-      identifier: identifier.trim() ? undefined : "Enter your staff email or username.",
+      // Staff sign in by email only; the server's StaffLoginSchema is the real check.
+      identifier: !email
+        ? "Enter your staff email."
+        : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+          ? undefined
+          : "Enter a valid email address, like name@example.com.",
       password: password.length > 0 ? undefined : "Enter your password.",
     };
     setFieldErrors(missing);
@@ -105,12 +111,15 @@ export function LoginForm({ next }: { next: string }) {
 
         <form onSubmit={handleLogin} className="login-form" noValidate>
           <div>
-            <label htmlFor="staff-identifier">Staff Email or Username</label>
+            <label htmlFor="staff-identifier">Staff email</label>
             <div className="login-input">
               <input
                 ref={identifierRef}
                 id="staff-identifier"
-                type="text"
+                type="email"
+                inputMode="email"
+                autoCapitalize="none"
+                spellCheck={false}
                 value={identifier}
                 onChange={(e) => {
                   setIdentifier(e.target.value);
@@ -175,8 +184,8 @@ export function LoginForm({ next }: { next: string }) {
           <button type="submit" disabled={loading} className="login-submit">
             {loading ? (
               <>
-                <Loader2 className="login-spin" aria-hidden="true" />
                 <span>Signing in...</span>
+                <Loader2 className="login-spin" aria-hidden="true" />
               </>
             ) : (
               <>

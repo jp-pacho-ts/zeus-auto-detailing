@@ -37,7 +37,7 @@ test('click anywhere on a board card opens its details modal; controls and drags
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or Username').fill(email);
+    await page.getByLabel('Staff email', { exact: true }).fill(email);
     await page.getByLabel('Password', { exact: true }).fill(password);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();

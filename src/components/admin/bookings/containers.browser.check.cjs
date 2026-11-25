@@ -38,7 +38,7 @@ test('P1-62 container board: one Waiting, containers, one Done; place-anyway pro
     const shot = async (name) => { if (process.env.P162_SHOTS) await page.screenshot({ path: path.join(process.env.P162_SHOTS, name + '.png') }); };
 
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
+    await page.getByLabel('Staff email', { exact: true }).fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
