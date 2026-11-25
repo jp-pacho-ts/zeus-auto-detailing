@@ -20,6 +20,7 @@ import {
   User,
   UserCog,
   KeyRound,
+  Loader2,
   LogOut,
   Settings,
   Sparkles,
@@ -42,6 +43,7 @@ import { AnalyticsTab } from "./analytics-tab";
 import { SettingsTab } from "./settings-tab";
 import { UsersTab } from "./users-tab";
 import { UserSettingsModal, applyAdminTheme } from "./user-settings-modal";
+import { SignOutDialog } from "./sign-out-dialog";
 import { THEME_STORAGE_KEY, type AdminThemeMode, resolveEffectiveTheme } from "./user-settings/user-settings-model";
 import { NotificationPopover } from "./notifications/notification-popover";
 import { MAINTENANCE_BANNER } from "./settings/settings-model";
@@ -119,7 +121,8 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   // The banner: a site left in maintenance must be impossible to miss on any admin screen.
   const shopSettings = useKeptResource<AdminShopSettings>(session.data?.role === "ADMIN" ? "/api/admin/settings" : null);
   const [signingOut, setSigningOut] = React.useState(false),
-    [logoutError, setLogoutError] = React.useState<string | null>(null);
+    [logoutError, setLogoutError] = React.useState<string | null>(null),
+    [confirmSignOut, setConfirmSignOut] = React.useState(false);
   const [userSettingsOpen, setUserSettingsOpen] = React.useState(false);
   const [userSettingsTab, setUserSettingsTab] = React.useState<"profile" | "security">("profile");
 
@@ -286,12 +289,19 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
     setSigningOut(true);
     setLogoutError(null);
     session.setData(null);
+    // The sign-in page is always dark; switch now so the hand-off does not flash.
+    document.documentElement.classList.remove("light");
+    document.documentElement.classList.add("dark");
     try {
-      await adminRequest("/api/admin/auth/logout", {
-        method: "POST",
-        body: {},
-      });
-      window.location.replace("/admin/login");
+      await Promise.all([
+        adminRequest("/api/admin/auth/logout", {
+          method: "POST",
+          body: {},
+        }),
+        // Hold the farewell screen long enough to read, not long enough to wait on.
+        new Promise((resolve) => setTimeout(resolve, reduceMotion ? 0 : 700)),
+      ]);
+      window.location.replace("/admin/login?signedOut=1");
     } catch {
       setLogoutError(
         "Sign-out could not be confirmed. Retry to close your session.",
@@ -301,20 +311,38 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
   }
   if (signingOut)
     return (
-      <main className="min-h-screen bg-background p-6 text-foreground">
-        <p role="status">Signing out...</p>
-        {logoutError && (
-          <div role="alert">
-            {logoutError}
-            <button
-              className="ml-3 min-h-[44px] underline"
-              onClick={() => void signOut()}
-            >
-              Retry sign-out
-            </button>
-          </div>
-        )}
-      </main>
+      <LazyMotion features={domAnimation}>
+        <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background p-6 text-foreground">
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(192,136,24,0.12),transparent_70%)]"
+            aria-hidden="true"
+          />
+          <m.div
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.96, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            className="relative z-10 flex flex-col items-center gap-5 text-center"
+          >
+            <Logo />
+            {logoutError ? (
+              <div role="alert" className="text-sm text-rose-400">
+                {logoutError}
+                <button
+                  className="ml-3 min-h-[44px] underline"
+                  onClick={() => void signOut()}
+                >
+                  Retry sign-out
+                </button>
+              </div>
+            ) : (
+              <p role="status" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
+                Signing you out...
+              </p>
+            )}
+          </m.div>
+        </main>
+      </LazyMotion>
     );
   if (!session.data)
     return session.loading ? (
@@ -705,7 +733,7 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
                         role="menuitem"
                         onClick={() => {
                           setProfileOpen(false);
-                          void signOut();
+                          setConfirmSignOut(true);
                         }}
                         className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs text-rose-400 transition-colors hover:bg-rose-500/10"
                       >
@@ -771,6 +799,14 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
         initialTab={userSettingsTab}
         currentTheme={currentTheme}
         onThemeChange={handleThemeChange}
+      />
+      <SignOutDialog
+        open={confirmSignOut}
+        onCancel={() => setConfirmSignOut(false)}
+        onConfirm={() => {
+          setConfirmSignOut(false);
+          void signOut();
+        }}
       />
     </div>
     </LazyMotion>

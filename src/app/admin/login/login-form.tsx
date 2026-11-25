@@ -12,8 +12,10 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  CheckCircle2,
   Loader2,
 } from "lucide-react";
+import { LazyMotion, MotionConfig, domAnimation, m } from "motion/react";
 import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
 
@@ -25,7 +27,7 @@ const ERRORS: Record<number, string> = {
   503: "Sign-in is temporarily unavailable. Please try again shortly.",
 };
 
-export function LoginForm({ next }: { next: string }) {
+export function LoginForm({ next, signedOut = false }: { next: string; signedOut?: boolean }) {
   const router = useRouter();
   const [identifier, setIdentifier] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -81,6 +83,8 @@ export function LoginForm({ next }: { next: string }) {
   };
 
   return (
+    <LazyMotion features={domAnimation}>
+    <MotionConfig reducedMotion="user">
     <div className="relative flex h-full w-full min-h-screen flex-col items-center justify-center overflow-y-auto bg-background px-4 py-12 text-[#f5f5f4] selection:bg-primary selection:text-black">
       {/* Ambient background glows */}
       <div
@@ -92,7 +96,12 @@ export function LoginForm({ next }: { next: string }) {
         aria-hidden="true"
       />
 
-      <div className="relative z-10 w-full max-w-[420px]">
+      <m.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-full max-w-[420px]"
+      >
         {/* Brand Header */}
         <div className="mb-8 flex flex-col items-center text-center">
           <Link
@@ -182,6 +191,19 @@ export function LoginForm({ next }: { next: string }) {
               </div>
             </div>
 
+            {signedOut && !error && (
+              <m.div
+                role="status"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25, duration: 0.3 }}
+                className="flex items-start gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-400"
+              >
+                <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+                <span className="leading-relaxed">You have signed out. Sign in again to continue.</span>
+              </m.div>
+            )}
+
             {/* Error Message */}
             {error && (
               <div
@@ -231,7 +253,9 @@ export function LoginForm({ next }: { next: string }) {
         <p className="mt-6 text-center text-xs text-zinc-600">
           Protected shop system · {brandConfig.location} · {brandConfig.timezone}
         </p>
-      </div>
+      </m.div>
     </div>
+    </MotionConfig>
+    </LazyMotion>
   );
 }
