@@ -33,6 +33,7 @@ import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import { bookingStatusWords } from "@/components/booking/manage-booking";
 import { reveal } from "@/components/booking/reveal";
 import { landingPhoto } from "@/components/landing/landing-photos";
+import { HERO_POSTER_FILES } from "@/components/home/hero-video";
 import {
   CATEGORY_NAMES,
   CATEGORY_ORDER,
@@ -986,6 +987,13 @@ export function BookingWizard({
     "The shop uses these details to confirm your booking.",
     "",
   ][step - 1];
+  // Online: the shop photo faded in behind the menu. The last service added, else the open category, else the shop still.
+  // A kit shot (contain) is not a scene, so it falls back to its category's photo.
+  const scene = (slug: string) => { const p = landingPhoto(slug); return p && !p.contain ? p.src : undefined; };
+  const lastPick = step > 1 && picks.length ? serviceById(picks[picks.length - 1].serviceId) : undefined;
+  const featureSrc = (lastPick && (scene(lastPick.slug) ?? scene(KIOSK_CATEGORY_PHOTO[lastPick.category] ?? "")))
+    ?? (step > 1 && openCategory ? scene(KIOSK_CATEGORY_PHOTO[openCategory] ?? "") : undefined)
+    ?? HERO_POSTER_FILES.desktop;
   const statusWords = booking ? bookingStatusWords(booking.view.status) : "";
 
   const ticket = booking
@@ -1096,6 +1104,11 @@ export function BookingWizard({
         <KioskIdleDialog deadline={kioskWarning} total={KIOSK_WARNING_MS} onKeep={() => kioskKeepBooking.current?.()} onEnd={kioskOnExit} />
       )}
 
+      {!kioskOnExit && step < 5 && (
+        <div data-part="feature-photo" aria-hidden="true">
+          <Image key={featureSrc} src={featureSrc} alt="" fill sizes="(min-width: 768px) 62vw, 100vw" />
+        </div>
+      )}
       {step < 5 && (
         <div>
           {/* The booking header (the kiosk ordering screen, LE): logo, the four steps on a gold rail, and End session on the
@@ -1113,7 +1126,7 @@ export function BookingWizard({
                     className={"flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 text-center text-xs font-semibold sm:px-3 sm:text-sm " +
                       (index + 1 === step ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
                     {index + 1 < step ? <Check className="size-4 shrink-0 text-primary" aria-hidden="true" /> : <span data-part="step-number">{index + 1}</span>}
-                    {label}
+                    <span data-part="step-label">{label}</span>
                   </li>
                 ))}
               </ol>
