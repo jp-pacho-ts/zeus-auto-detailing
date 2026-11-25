@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
-import "@/components/landing/landing.css";
 import "./login.css";
 
 // Messages per status code. 401 uses the server's specific text if provided.
@@ -83,13 +82,13 @@ export function LoginForm({ next }: { next: string }) {
   };
 
   return (
-    <div className="landing login">
+    <div className="login">
       <div className="login-media">
         {/* Same approved shop photo as the landing closing band; decorative here. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/media/landing/full-detailing.webp" alt="" width="1600" height="1200" decoding="async" />
-        <span className="landing-word" aria-hidden="true">ZEUS</span>
-        <p className="login-media-caption">Car and motorcycle detailing in Tacloban City</p>
+        <p className="login-media-title">Beyond clean<span className="login-gold">.</span></p>
+        <p className="login-media-sub">Premium car &amp; motorcycle detailing in Tacloban City</p>
       </div>
 
       <main className="login-panel">
@@ -97,12 +96,12 @@ export function LoginForm({ next }: { next: string }) {
           <Logo priority />
         </Link>
 
-        <span className="login-badge">
+        <p className="login-eyebrow">
           <ShieldCheck aria-hidden="true" />
           Authorized staff portal
-        </span>
-        <h1>Staff sign in</h1>
-        <p className="login-lede landing-muted">
+        </p>
+        <h1>Staff sign in<span className="login-gold">.</span></h1>
+        <p className="login-lede login-muted">
           Access {brandConfig.shortName} operations, bay board, calendar schedule, and customer records.
         </p>
 
@@ -155,7 +154,7 @@ export function LoginForm({ next }: { next: string }) {
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="landing-pill landing-gold login-submit">
+          <button type="submit" disabled={loading} className="login-submit">
             {loading ? (
               <>
                 <Loader2 className="login-spin" aria-hidden="true" />
@@ -175,7 +174,7 @@ export function LoginForm({ next }: { next: string }) {
           Return to public website
         </Link>
 
-        <p className="login-foot landing-muted">
+        <p className="login-foot login-muted">
           Protected shop system · {brandConfig.location} · {brandConfig.timezone}
         </p>
       </main>
