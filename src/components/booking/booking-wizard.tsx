@@ -1064,7 +1064,20 @@ export function BookingWizard({
         </div>
       )}
 
-      {!catalog && !catalogError && (
+      {!catalog && !catalogError && !kioskOnExit && (
+        // Online: the size lines as skeletons (name and examples, price and ring) on the same hairlines.
+        <div role="status" aria-busy="true" data-part="skeleton-lines">
+          <span className="sr-only">Loading the shop service menu…</span>
+          {[62, 40, 52, 44, 58].map((width, i) => (
+            <div key={i} data-part="skeleton-line">
+              <span><Skeleton style={{ width: width + "%" }} /><Skeleton /></span>
+              <Skeleton />
+              <Skeleton />
+            </div>
+          ))}
+        </div>
+      )}
+      {!catalog && !catalogError && kioskOnExit && (
         // The vehicle cards as skeletons while the service menu loads.
         <div role="status" aria-busy="true" className="grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
           <span className="sr-only">Loading the shop service menu…</span>

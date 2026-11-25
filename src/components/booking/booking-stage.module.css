@@ -878,10 +878,82 @@
   to { opacity: 1; transform: none; }
 }
 
-/* Adding a service swaps the plus for a gold check, with no animation (CEO 2026-11-26: the spark burst read as slop). */
+/* Adding a service turns the plus into a gold check: the circle fills and the check settles in, nothing more
+   (CEO 2026-11-26: the spark burst read as slop). */
+.booking :global([data-layout="online"] [data-part="menu-add"]) {
+  transition: background-color .22s ease, border-color .22s ease, color .22s ease;
+}
+
 .booking :global([data-layout="online"] [data-part="menu-tile"]:hover [data-part="menu-add"]:not(:has(.lucide-check))) {
   border-color: rgb(var(--primary));
   color: rgb(var(--primary-hover));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="menu-add"] svg) {
+    animation: add-swap .22s cubic-bezier(.2, .7, .2, 1) both;
+  }
+}
+
+@keyframes add-swap {
+  from { opacity: 0; transform: scale(.7); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Loading /book: the size lines as quiet bars on the same hairlines, with a slow light passing over them. */
+.booking :global([data-layout="online"] [data-part="skeleton-lines"]) {
+  border-top: 1px solid rgb(245 245 244 / .14);
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"]) {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: clamp(10px, 1.8vh, 22px) 4px;
+  border-bottom: 1px solid rgb(245 245 244 / .14);
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] > span) {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] > span > div:first-child) {
+  height: clamp(22px, 3.6vh, 34px);
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] > span > div:last-child) {
+  width: 34%;
+  height: 12px;
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] > div:nth-child(2)) {
+  width: 96px;
+  height: 14px;
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] > div:last-child) {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] div) {
+  border-radius: 2px;
+  background: rgb(245 245 244 / .06);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="skeleton-line"] div) {
+    background: linear-gradient(90deg, rgb(245 245 244 / .05) 30%, rgb(245 245 244 / .12) 50%, rgb(245 245 244 / .05) 70%) 0 0 / 300% 100%;
+    animation: skeleton-sweep 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
 }
 
 /* Short laptop screens (640 px and less): tighter service lines so the largest category still fits above the bar. */
