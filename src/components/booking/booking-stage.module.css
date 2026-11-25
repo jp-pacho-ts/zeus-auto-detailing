@@ -709,8 +709,7 @@
   white-space: nowrap;
 }
 
-/* Service lines match the size lines: no box, no photo strip (the chosen service's photo is the page's backdrop),
-   a hairline under each. No frosted glass either: it showed as blurred boxes over the backdrop photo. */
+/* Service lines match the size lines: no box, a hairline under each, the service's photo faded in on the right. No frosted glass either: it showed as blurred boxes over the backdrop photo. */
 .booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"], [data-part="menu-category"])) {
   backdrop-filter: none;
 }
@@ -719,8 +718,31 @@
   padding: clamp(8px, 1.6vh, 20px) 4px;
 }
 
+/* The service's photo fills the line's right side behind the text and fades out toward the name. */
 .booking :global([data-layout="online"] [data-part="menu-tile"] > span:first-child) {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 0;
+  width: min(62%, 560px);
+  aspect-ratio: auto;
+  background: none;
+  opacity: .3;
+  -webkit-mask-image: linear-gradient(to left, #000 35%, transparent);
+  mask-image: linear-gradient(to left, #000 35%, transparent);
+  pointer-events: none;
+  transition: opacity .5s ease;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:first-child > :not(img)) {
   display: none;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]:is(:hover, :has(:focus-visible)) > span:first-child) {
+  opacity: .55;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) > span:first-child) {
+  opacity: .5;
 }
 
 .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2)) {
@@ -1015,5 +1037,126 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+}
+
+/* Step 3 (/book): the day picker in the menu's language. No boxes: the order is one plain line, the date range and the
+   Earlier/Later buttons share the top line, and the days sit on a grid of thin lines with the chosen day in gold.
+   Cells follow the screen height, so the step fits a 650 px laptop screen without scrolling. */
+.booking :global([data-layout="online"] [data-part="summary-tray"]) {
+  margin-bottom: clamp(8px, 1.6vh, 16px);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.booking :global([data-layout="online"] [data-part="summary-tray"] > button) {
+  min-height: 36px;
+}
+
+.booking :global([data-layout="online"] #booking-days) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 16px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.booking :global([data-layout="online"] #booking-days > *) {
+  grid-column: 1 / -1;
+}
+
+.booking :global([data-layout="online"] #booking-days > div:first-child) {
+  grid-column: 1;
+  grid-row: 1;
+  border: 0;
+  padding: 0;
+}
+
+.booking :global([data-layout="online"] #booking-days > div:first-child > h2) {
+  font-size: 15px;
+  color: rgb(var(--primary-hover));
+}
+
+/* Earlier / Later: quiet outline buttons on the range's line. */
+.booking :global([data-layout="online"] #booking-days > div:not([role]):has(> button)) {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  gap: 8px;
+}
+
+.booking :global([data-layout="online"] #booking-days > div:not([role]):has(> button) > button) {
+  border-color: rgb(245 245 244 / .18);
+  background: transparent;
+  color: rgb(var(--foreground));
+}
+
+.booking :global([data-layout="online"] #booking-days > div:not([role]):has(> button) > button:hover:not(:disabled)) {
+  border-color: rgb(var(--primary));
+  color: rgb(var(--primary-hover));
+}
+
+.booking :global([data-layout="online"] #booking-days > p[role="status"]) {
+  margin: clamp(6px, 1.4vh, 14px) 0 clamp(4px, 1vh, 10px);
+}
+
+/* The calendar: thin lines between days, no rounded boxes. */
+.booking :global([data-layout="online"] #booking-days fieldset > div) {
+  gap: 0;
+}
+
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child) {
+  border-top: 1px solid rgb(245 245 244 / .14);
+  border-left: 1px solid rgb(245 245 244 / .14);
+}
+
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child > *) {
+  min-height: clamp(44px, 7.5vh, 84px);
+  border: 0;
+  border-right: 1px solid rgb(245 245 244 / .14);
+  border-bottom: 1px solid rgb(245 245 244 / .14);
+  border-radius: 0;
+  background: transparent;
+}
+
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child > label > span:first-child) {
+  font-family: var(--display);
+  font-weight: 600;
+}
+
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child > label:has(input:not(:disabled)):hover) {
+  background: rgb(var(--primary) / .1);
+  color: rgb(var(--primary-hover));
+}
+
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child > label:has(input:checked)) {
+  background: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+}
+
+.booking :global([data-layout="online"] #booking-days > p:not([role])) {
+  margin-top: clamp(6px, 1.2vh, 12px);
+}
+
+/* The "doesn't hold a place" note: one plain line, no box. */
+.booking :global([data-layout="online"] #booking-days > div:last-child) {
+  margin-top: 4px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+@media (max-width: 639px) {
+  .booking :global([data-layout="online"] #booking-days > div:not([role]):has(> button)) {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    margin-top: 8px;
   }
 }

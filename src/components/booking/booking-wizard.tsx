@@ -716,7 +716,7 @@ export function BookingWizard({
 
   // The day step: what is chosen so far, above the calendar.
   const renderMobileSummaryTray = () => (
-    <div className="mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 rounded-xl border border-border bg-muted px-5 py-2 text-sm [&>p]:col-start-1 [&>button]:col-start-2 [&>button]:row-start-1 [&>button]:row-span-2">
+    <div data-part="summary-tray" className="mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 rounded-xl border border-border bg-muted px-5 py-2 text-sm [&>p]:col-start-1 [&>button]:col-start-2 [&>button]:row-start-1 [&>button]:row-span-2">
       <p className="font-bold text-foreground">{vehicle?.name}</p>
       <p className="break-words text-muted-foreground">{servicesSummary || "No service chosen yet"}</p>
       {step === 3 && chosenDay && <p className="text-muted-foreground">{dateLabel(chosenDay)}</p>}
