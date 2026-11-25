@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
+import "@/components/landing/landing.css";
+import "./login.css";
 
 // Messages per status code. 401 uses the server's specific text if provided.
 const ERRORS: Record<number, string> = {
@@ -81,157 +83,102 @@ export function LoginForm({ next }: { next: string }) {
   };
 
   return (
-    <div className="relative flex h-full w-full min-h-screen flex-col items-center justify-center overflow-y-auto bg-background px-4 py-12 text-[#f5f5f4] selection:bg-primary selection:text-black">
-      {/* Ambient background glows */}
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(192,136,24,0.12),transparent_70%)]"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-96 rounded-full bg-primary/10 blur-[120px]"
-        aria-hidden="true"
-      />
+    <div className="landing login">
+      <div className="login-media">
+        {/* Same approved shop photo as the landing closing band; decorative here. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/media/landing/full-detailing.webp" alt="" width="1600" height="1200" decoding="async" />
+        <span className="landing-word" aria-hidden="true">ZEUS</span>
+        <p className="login-media-caption">Car and motorcycle detailing in Tacloban City</p>
+      </div>
 
-      <div className="relative z-10 w-full max-w-[420px]">
-        {/* Brand Header */}
-        <div className="mb-8 flex flex-col items-center text-center">
-          <Link
-            href="/"
-            aria-label="Return to public site"
-            className="group inline-flex min-h-[44px] items-center transition-transform hover:scale-[1.02]"
-          >
-            <Logo priority />
-          </Link>
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span>Authorized Staff Portal</span>
-          </div>
-        </div>
+      <main className="login-panel">
+        <Link href="/" aria-label="Return to public site" className="login-home">
+          <Logo priority />
+        </Link>
 
-        {/* Card Container */}
-        <div className="rounded-2xl border border-white/10 bg-panel/95 p-7 sm:p-9 shadow-2xl ring-1 ring-white/5">
-          <div className="mb-6">
-            <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-              Sign In
-            </h1>
-            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-              Access {brandConfig.shortName} operations, bay board, calendar schedule, and customer records.
-            </p>
-          </div>
+        <span className="login-badge">
+          <ShieldCheck aria-hidden="true" />
+          Authorized staff portal
+        </span>
+        <h1>Staff sign in</h1>
+        <p className="login-lede landing-muted">
+          Access {brandConfig.shortName} operations, bay board, calendar schedule, and customer records.
+        </p>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            {/* Identifier field */}
-            <div>
-              <label
-                htmlFor="staff-identifier"
-                className="block text-xs font-semibold text-zinc-300"
-              >
-                Staff Email or Username
-              </label>
-              <div className="relative mt-1.5">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-zinc-500">
-                  <Mail className="h-4 w-4" aria-hidden="true" />
-                </div>
-                <input
-                  id="staff-identifier"
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="name@zeusauto.ph"
-                  autoComplete="username"
-                  required
-                  className="flex min-h-[44px] w-full rounded-xl border border-zinc-800 bg-card pl-10 pr-3.5 py-2.5 text-xs text-foreground placeholder:text-zinc-600 transition-colors focus:border-primary focus:bg-raised focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
+        <form onSubmit={handleLogin} className="login-form">
+          <div>
+            <label htmlFor="staff-identifier">Staff Email or Username</label>
+            <div className="login-input">
+              <Mail aria-hidden="true" />
+              <input
+                id="staff-identifier"
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="name@zeusauto.ph"
+                autoComplete="username"
+                required
+              />
             </div>
+          </div>
 
-            {/* Password field */}
-            <div>
-              <label
-                htmlFor="staff-password"
-                className="block text-xs font-semibold text-zinc-300"
-              >
-                Password
-              </label>
-              <div className="relative mt-1.5">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-zinc-500">
-                  <Lock className="h-4 w-4" aria-hidden="true" />
-                </div>
-                <input
-                  id="staff-password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  autoComplete="current-password"
-                  required
-                  className="flex min-h-[44px] w-full rounded-xl border border-zinc-800 bg-card pl-10 pr-11 py-2.5 text-xs text-foreground placeholder:text-zinc-600 transition-colors focus:border-primary focus:bg-raised focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex min-h-[44px] min-w-[44px] items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none focus:text-primary"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <Eye className="h-4 w-4" aria-hidden="true" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div
-                role="alert"
-                className="flex items-start gap-2.5 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-400"
-              >
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
-                <span className="leading-relaxed">{error}</span>
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <div className="pt-2">
+          <div>
+            <label htmlFor="staff-password">Password</label>
+            <div className="login-input">
+              <Lock aria-hidden="true" />
+              <input
+                id="staff-password"
+                className="login-has-toggle"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                autoComplete="current-password"
+                required
+              />
               <button
-                type="submit"
-                disabled={loading}
-                className="group relative flex min-h-[46px] w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-black transition-all hover:bg-primary-hover hover:shadow-[0_0_20px_rgba(192,136,24,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="login-toggle"
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    <span>Signing in...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Sign In to Dashboard</span>
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                  </>
-                )}
+                {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
               </button>
             </div>
-          </form>
-
-          {/* Card Footer */}
-          <div className="mt-6 border-t border-zinc-800/80 pt-5 text-center">
-            <Link
-              href="/"
-              className="inline-flex min-h-[44px] items-center gap-1.5 text-xs text-zinc-400 hover:text-foreground transition-colors"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Return to public website</span>
-            </Link>
           </div>
-        </div>
 
-        {/* Security watermark footer */}
-        <p className="mt-6 text-center text-xs text-zinc-600">
+          {error && (
+            <div role="alert" className="login-error">
+              <AlertCircle aria-hidden="true" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <button type="submit" disabled={loading} className="landing-pill landing-gold login-submit">
+            {loading ? (
+              <>
+                <Loader2 className="login-spin" aria-hidden="true" />
+                <span>Signing in...</span>
+              </>
+            ) : (
+              <>
+                <span>Sign in to dashboard</span>
+                <ArrowRight aria-hidden="true" />
+              </>
+            )}
+          </button>
+        </form>
+
+        <Link href="/" className="login-back">
+          <ChevronLeft aria-hidden="true" />
+          Return to public website
+        </Link>
+
+        <p className="login-foot landing-muted">
           Protected shop system · {brandConfig.location} · {brandConfig.timezone}
         </p>
-      </div>
+      </main>
     </div>
   );
 }

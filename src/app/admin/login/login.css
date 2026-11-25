@@ -1,0 +1,44 @@
+/* Staff sign-in in the /preview/landing look: tokens, fonts, outlined word and pills come from landing.css; layout only here. */
+/* The admin layout is fixed and clips overflow, so this page scrolls inside itself, never the document. */
+.landing.login{height:100%;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.login-media{position:relative;flex:none;min-height:200px;overflow:clip;background:var(--card);display:flex;flex-direction:column;justify-content:flex-end;padding:24px var(--edge)}
+.login-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 45%;filter:contrast(1.06) saturate(.86) brightness(.9)}
+.login-media::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,var(--bg) 0%,rgb(9 9 11 / .6) 60%,rgb(9 9 11 / .4) 100%)}
+.login-media .landing-word{position:relative;z-index:1;margin:0;font-size:clamp(72px,22vw,128px);-webkit-text-stroke:1.5px rgb(245 245 244 / .6)}
+.login-media-caption{position:relative;z-index:1;display:none;margin:20px 0 0!important;font-size:18px;max-width:36ch!important;text-wrap:balance}
+.login-panel{flex:1;display:flex;flex-direction:column;justify-content:center;width:100%;max-width:480px;margin:0 auto;padding:24px 24px 40px}
+.login-home{display:inline-flex;align-self:flex-start}
+.login-badge{display:inline-flex;align-items:center;gap:8px;margin-top:28px;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mfg)}
+.login-badge svg{width:16px;height:16px}
+.landing .login-panel h1{font-size:clamp(36px,4vw,48px);margin-top:12px}
+.login-lede{margin:12px 0 0!important}
+.login-form{display:grid;gap:20px;margin-top:32px}
+.login-form label{display:block;font-size:14px;font-weight:600;margin-bottom:8px}
+.login-input{position:relative}
+.login-input>svg{position:absolute;left:16px;top:50%;translate:0 -50%;width:18px;height:18px;color:var(--mfg);pointer-events:none}
+/* 16 px text stops iOS zooming into the field. */
+.login-input input{display:block;width:100%;min-height:52px;padding:12px 16px 12px 46px;border:1px solid var(--line);border-radius:14px;background:var(--card);font-size:16px;transition:border-color .18s}
+.login-input input.login-has-toggle{padding-right:52px}
+.login-input input::placeholder{color:var(--mfg);opacity:.7}
+.login-input input:hover{border-color:var(--mfg)}
+.login-input input:focus{border-color:var(--gold)}
+.login-toggle{position:absolute;right:4px;top:50%;translate:0 -50%;display:grid;place-items:center;min-width:44px;min-height:44px;border:0;border-radius:10px;background:none;color:var(--mfg);cursor:pointer}
+.login-toggle:hover{color:var(--fg)}
+.login-toggle svg{width:18px;height:18px}
+.login-error{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid rgb(244 63 94 / .3);border-radius:14px;background:rgb(244 63 94 / .1);color:#fda4af;font-size:14px;line-height:1.5}
+.login-error svg{flex:none;width:18px;height:18px;margin-top:1px}
+.login-submit{width:100%;margin-top:4px}
+.login-spin{animation:login-spin 1s linear infinite}
+@keyframes login-spin{to{transform:rotate(360deg)}}
+.login-back{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;min-height:44px;margin-top:20px;font-size:15px}
+.login-back svg{width:16px;height:16px}
+.login-foot{margin:24px 0 0!important;padding-top:20px;border-top:1px solid var(--line);font-size:13px}
+@media(min-width:1024px){
+  .landing.login{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(460px,1fr)}
+  .login-media{min-height:100%;padding:56px}
+  .login-media::after{background:linear-gradient(90deg,rgb(9 9 11 / .35) 0%,rgb(9 9 11 / .7) 75%,var(--bg) 100%),linear-gradient(0deg,var(--bg) 0%,transparent 45%)}
+  .login-media .landing-word{font-size:clamp(140px,13vw,220px);-webkit-text-stroke:2px rgb(245 245 244 / .55)}
+  .login-media-caption{display:block}
+  .login-panel{padding:56px 48px}
+}
+@media(prefers-reduced-motion:reduce){.login-spin{animation:none}.login-input input{transition:none}}
