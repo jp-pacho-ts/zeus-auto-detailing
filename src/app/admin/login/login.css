@@ -24,7 +24,7 @@
 .login-media::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,var(--bg),rgb(9 9 11 / .9) 12%,rgb(9 9 11 / .55) 45%,rgb(9 9 11 / .3) 100%)}
 .login-media>p{position:relative;z-index:1}
 .login-media-title{font:600 clamp(36px,10vw,56px)/.92 var(--display);text-transform:uppercase}
-.login-media-sub{margin-top:14px!important;font-size:11px;font-weight:500;line-height:1.6;letter-spacing:.22em;text-transform:uppercase;color:rgb(245 245 244 / .82)}
+.login-media-sub{margin-top:14px!important;font-family:var(--display);font-size:11px;font-weight:500;line-height:1.6;letter-spacing:.22em;text-transform:uppercase;color:rgb(245 245 244 / .82)}
 
 /* Form side */
 .login-panel{flex:1;display:flex;flex-direction:column;justify-content:center;width:100%;max-width:480px;margin:0 auto;padding:28px 24px 40px}
@@ -53,14 +53,14 @@
 
 /* The landing's square-cut gold button: chamfered corners, wide uppercase label, arrow at the far end; turns light on hover. */
 .login-submit{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:space-between;gap:24px;width:100%;min-height:60px;margin-top:6px;padding:14px 26px;border:0;background:none;color:var(--gold-ink);font:500 14px/1.3 var(--display);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:color .3s}
-.login-submit::before,.login-submit::after{content:"";position:absolute;inset:0;z-index:-1;background:var(--gold);clip-path:polygon(0 0,calc(100% - var(--cut)) 0,100% var(--cut),100% 100%,var(--cut) 100%,0 calc(100% - var(--cut)))}
-/* Light fill sweeps in from the left on hover, as on the landing buttons; it also marks the signed-in state. */
-.login-submit::after{background:var(--fg);transform:scaleX(0);transform-origin:left;transition:transform .45s cubic-bezier(.7,0,.2,1)}
-.login-submit:is(:hover:not(:disabled),:focus-visible,[data-state=done])::after{transform:none}
+.login-submit::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(var(--fg),var(--fg)) 0 0/0 100% no-repeat var(--gold);clip-path:polygon(0 0,calc(100% - var(--cut)) 0,100% var(--cut),100% 100%,var(--cut) 100%,0 calc(100% - var(--cut)));transition:background-size .45s cubic-bezier(.7,0,.2,1),background-color .3s}
+/* Light fill sweeps in from the left on hover (and marks signed in). It grows as a background inside the fixed cut shape;
+   scaling the shape itself stretched the lower-left cut corner mid-sweep. */
+.login-submit:is(:hover:not(:disabled),:focus-visible,[data-state=done])::before{background-size:100% 100%}
 .login-submit:is(:hover:not(:disabled),:focus-visible,[data-state=done]){color:var(--bg)}
 .login-submit:disabled{cursor:not-allowed}
 .login-submit[data-state=loading]{cursor:progress}
-.login-submit[data-state=loading]::before{background:var(--gold-hover)}
+.login-submit[data-state=loading]::before{background-color:var(--gold-hover)}
 /* Arrow slides out right and back in from the left on hover. */
 .login-arrow{display:grid;place-items:center;width:20px;height:20px;overflow:hidden}
 @keyframes login-arrow{0%{transform:none}45%{transform:translateX(130%)}46%{transform:translateX(-130%)}100%{transform:none}}
@@ -71,8 +71,11 @@
 .login-spin{animation:login-spin 1s linear infinite}
 @keyframes login-spin{to{transform:rotate(360deg)}}
 
-.login-back{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;min-height:44px;margin-top:20px;font-size:15px}
-.login-back svg{width:16px;height:16px}
+/* The landing's small text link: wide uppercase, thin underline that fills gold from the left on hover. */
+.login .login-back{position:relative;display:inline-flex;align-items:center;gap:8px;align-self:flex-start;min-height:44px;margin-top:20px;font:500 12px/1.5 var(--display);letter-spacing:.06em;text-transform:uppercase;text-decoration:none}
+.login-back::after{content:"";position:absolute;left:0;right:0;bottom:10px;height:1px;background:linear-gradient(var(--gold-hover),var(--gold-hover)) 0 0/0 100% no-repeat,rgb(245 245 244 / .3);transition:background-size .45s cubic-bezier(.2,0,0,1)}
+.login-back:is(:hover,:focus-visible)::after{background-size:100% 100%}
+.login-back svg{width:15px;height:15px;color:var(--gold-hover)}
 
 @media(min-width:1024px){
   .login{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(460px,1fr)}
@@ -85,7 +88,8 @@
   .login-media::before{content:"";position:absolute;inset:0 0 0 20%;z-index:1;background:rgb(9 9 11 / .8);-webkit-backdrop-filter:blur(24px) saturate(.7);backdrop-filter:blur(24px) saturate(.7);-webkit-mask-image:linear-gradient(90deg,rgb(0 0 0 / 0) 0%,rgb(0 0 0 / 0.03) 6.5%,rgb(0 0 0 / 0.1) 13%,rgb(0 0 0 / 0.22) 19.5%,rgb(0 0 0 / 0.36) 26%,rgb(0 0 0 / 0.5) 32.5%,rgb(0 0 0 / 0.64) 39%,rgb(0 0 0 / 0.78) 45.5%,rgb(0 0 0 / 0.9) 52%,rgb(0 0 0 / 0.97) 58.5%,rgb(0 0 0 / 1) 65%);mask-image:linear-gradient(90deg,rgb(0 0 0 / 0) 0%,rgb(0 0 0 / 0.03) 6.5%,rgb(0 0 0 / 0.1) 13%,rgb(0 0 0 / 0.22) 19.5%,rgb(0 0 0 / 0.36) 26%,rgb(0 0 0 / 0.5) 32.5%,rgb(0 0 0 / 0.64) 39%,rgb(0 0 0 / 0.78) 45.5%,rgb(0 0 0 / 0.9) 52%,rgb(0 0 0 / 0.97) 58.5%,rgb(0 0 0 / 1) 65%)}
   .login-media::after{background:linear-gradient(90deg,rgb(0 0 0 / .45),rgb(0 0 0 / .12) 14%,transparent 24%),linear-gradient(90deg,rgb(9 9 11 / 0) 24%,rgb(9 9 11 / 0.02) 29.4%,rgb(9 9 11 / 0.07) 34.8%,rgb(9 9 11 / 0.15) 40.2%,rgb(9 9 11 / 0.25) 45.6%,rgb(9 9 11 / 0.36) 51%,rgb(9 9 11 / 0.47) 56.4%,rgb(9 9 11 / 0.57) 61.8%,rgb(9 9 11 / 0.65) 67.2%,rgb(9 9 11 / 0.7) 72.6%,rgb(9 9 11 / 0.72) 78%),linear-gradient(0deg,var(--bg),rgb(9 9 11 / .72) 16%,rgb(9 9 11 / .2) 36%,transparent 50%),linear-gradient(180deg,rgb(0 0 0 / .55),transparent 35%)}
   .login-media-title{font-size:clamp(56px,6.2vw,104px)}
-  .login-media-sub{font-size:13px}
+  /* One line, sized with the viewport as on the landing hero (the wide face would otherwise orphan "City"). */
+  .login-media>.login-media-sub{max-width:none;white-space:nowrap;font-size:clamp(10px,.9vw,13px)}
   .login-panel{padding:56px 48px}
 }
 /* Laptop screens (768 px tall or less, minus browser chrome): tighter rhythm so the form and an error fit without scrolling. */
@@ -100,4 +104,4 @@
   .login-error{padding-block:10px}
   .login-back{margin-top:8px}
 }
-@media(prefers-reduced-motion:reduce){.login-spin,.login-check,.login-arrow svg{animation:none!important}.login-input input,.login-submit,.login-submit::after,.login-media .zeus-hero-video{transition:none}}
+@media(prefers-reduced-motion:reduce){.login-spin,.login-check,.login-arrow svg{animation:none!important}.login-input input,.login-submit,.login-submit::before,.login-back::after,.login-media .zeus-hero-video{transition:none}}
