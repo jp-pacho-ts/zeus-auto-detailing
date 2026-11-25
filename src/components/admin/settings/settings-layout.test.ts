@@ -21,40 +21,42 @@ function renderSettings(role: string, data: unknown) {
   }
 }
 
-test("Settings: one summary bar, a section list, and the Danger zone last", () => {
+// 2026-11-24 side tabs: one section at a time from a side list, Overview first, Danger zone last. Bays moved to the Bay board.
+test("Settings: side list in order, Danger zone last, Overview shown first", () => {
   const html = renderSettings("ADMIN", settings());
-  const summary = html.match(/<nav aria-label="Settings summary"[\s\S]*?<\/nav>/)?.[0] ?? "";
-  const items = [...summary.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((m) => m[1].replace(/<!-- -->/g, ""));
-  assert.deepEqual(items, ["Site: Live", "Online booking: Open", "Email: Not set up", "Failed emails, 7 days: 2"]);
   const list = html.match(/<nav aria-label="Settings sections"[\s\S]*?<\/nav>/)?.[0] ?? "";
   assert.deepEqual([...list.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1].replace("&amp;", "&")),
-    ["General", "Hours &amp; closed days".replace("&amp;", "&"), "Daily limits", "Email", "Bays", "Danger zone"]);
-  const order = ["settings-general", "settings-hours", "settings-limits", "settings-email", "settings-bays", "settings-danger"].map((id) => html.indexOf(`id="${id}"`));
-  assert.ok(order.every((n, i) => n > 0 && (i === 0 || n > order[i - 1])), "sections in order: " + order);
-  const danger = html.slice(order[5]);
-  assert.match(danger, /aria-label="Customer website"/, "the maintenance switch sits in the Danger zone");
-  assert.match(danger, /id="maintenance-message-input"/, "and its message with it");
-  assert.equal(html.slice(0, order[5]).includes('aria-label="Customer website"'), false, "not before the Danger zone");
-  // Lead QA F1 (P1-77): the summary bar wraps to two rows up to lg (phones and 768), so a jumped-to section keeps the larger margin until lg.
-  for (const id of ["settings-general", "settings-hours", "settings-email", "settings-danger"]) {
-    const tag = html.match(new RegExp(`<[a-z]+ id="${id}"[^>]*>`))?.[0] ?? "";
-    assert.match(tag, /scroll-mt-40/, id);
-    assert.match(tag, /lg:scroll-mt-24/, id);
-    assert.doesNotMatch(tag, /sm:scroll-mt-24/, id);
-  }
-  // Status lives only in the summary bar; no repeated badges, no "Railway".
+    ["Overview", "Hours & closed days", "Daily limits", "Email", "Danger zone"]);
+  assert.match(list, /aria-current="page"[^>]*>Overview</);
+  assert.equal((list.match(/aria-current=/g) ?? []).length, 1, "one section is current");
+  assert.match(html, /id="settings-overview"/);
+  // Review I3: choosing a section focuses its heading, so the heading must take programmatic focus.
+  assert.match(html, /<h2 id="settings-overview-title" tabindex="-1"/);
+  for (const gone of ["settings-email\"", "settings-danger\"", "settings-bays", "Settings summary", "Jump to a section", ">System Settings<"]) assert.equal(html.includes(gone), false, gone);
+  // Status lives in the Overview only; no repeated badges, no "Railway".
   assert.doesNotMatch(html, /Storefront Live|Public Site Live|Bookings Open|SMTP Configured|Setup in Railway|Railway/);
-  assert.match(html, />Which emails go out</);
-  assert.match(html, />2 failed</);
 });
 
-test("Settings: maintenance on and paused show in the summary bar; a server pause keeps the switch locked", () => {
+// 2026-11-25 (LE: Vercel reference): the section title heads the page; each setting is its own card ending in a footer strip.
+test("Settings: a page heading per section, one card per setting with a footer strip, no icon tiles", () => {
+  const html = renderSettings("ADMIN", settings());
+  assert.match(html, /<h2 id="settings-overview-title" tabindex="-1"[^>]*>Overview<\/h2>/);
+  for (const title of ["Online booking", "Shop status"]) assert.match(html, new RegExp(`<h3[^>]*>${title}</h3>`), title);
+  assert.ok((html.match(/data-settings-card-footer/g) ?? []).length >= 2, "each card ends in a footer strip");
+  assert.doesNotMatch(html, /h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-raised/, "no decorative icon tiles");
+});
+
+test("Settings: Overview shows status rows; a server pause locks the booking switch", () => {
   const html = renderSettings("ADMIN", settings({ maintenance: true, bookingPausedByServer: true, email: { configured: true, failedLast7Days: 0, waitingLast7Days: 0 } }));
-  assert.match(html, />Site: Under maintenance</);
-  assert.match(html, />Online booking: Paused</);
-  assert.match(html, />Email: Set up</);
-  const general = html.slice(html.indexOf('id="settings-general"'), html.indexOf('id="settings-hours"'));
-  assert.match(general, /<button type="button" aria-pressed="false" disabled=""[^>]*>Open</, "a server pause cannot be undone here");
+  assert.doesNotMatch(html, /Railway|ONLINE_BOOKING_MODE/, "a server pause is explained in plain words");
+  assert.match(html, /Paused by the website host/);
+  assert.match(html, />Under maintenance</);
+  assert.match(html, />Set up</);
+  assert.match(html, /aria-label="New bookings"/);
+  assert.match(html, /<button type="button" aria-pressed="false" disabled=""[^>]*>Open</, "a server pause cannot be undone here");
+  const failed = renderSettings("ADMIN", settings());
+  assert.match(failed, />Not set up</);
+  assert.match(failed, /Failed emails, 7 days/);
 });
 
 test("Settings: anyone but an admin is told plainly and sees no controls", () => {
@@ -83,18 +85,23 @@ test("Daily limits: one sentence per line of work with Edit; the forms open on E
   }
 });
 
-// CEO 2026-11-14: Bays starts collapsed behind a one-line summary; its toggle is a real button with aria-expanded.
-test("Settings: Bays is collapsed by default with a summary and a Show bays toggle", () => {
-  const html = renderSettings("ADMIN", settings());
-  const bays = html.slice(html.indexOf('id="settings-bays"'), html.indexOf('id="settings-danger"'));
-  const toggle = bays.match(/<button[^>]*>Show bays<\/button>/)?.[0] ?? "";
-  assert.match(toggle, /type="button"/);
-  assert.match(toggle, /aria-expanded="false"/);
-  assert.match(toggle, /aria-controls="settings-bays-panel"/);
-  assert.doesNotMatch(bays, /id="settings-bays-panel"|aria-label="Add a bay"/, "the bay manager is not mounted while closed");
-  const { baySummary } = require("../settings-tab");
-  const bay = (isActive: boolean) => ({ isActive });
-  assert.equal(baySummary(null), "Add, move or bring back bays.");
-  assert.equal(baySummary([bay(true), bay(true), bay(false)]), "2 bays · 1 removed");
-  assert.equal(baySummary([bay(true)]), "1 bay");
+// P1-78 screens (LE 2026-11-25, ported from the UI/UX draft): who changed a setting and when sits in the card's footer strip.
+test("Settings: the Overview cards say when the settings last changed and by whom", () => {
+  const html = renderSettings("ADMIN", settings({ lastChanged: { at: "2026-11-14T07:05:00.000Z", by: "Ana Reyes" }, baysLastChanged: null }));
+  const footers = html.split("data-settings-card-footer").slice(1).map((part) => part.slice(0, 600));
+  assert.ok(footers.some((f) => f.includes("Last changed Nov 14, 2026, 3:05 PM by Ana Reyes")), footers.join(" | "));
+});
+
+test("Daily limits: each line of work says when its limit last changed", () => {
+  const resources = require("../bookings/use-admin-resource");
+  const caps = [{ code: "WASH", name: "Wash", isActive: true, dailyCap: 8, revision: 1, lastChanged: { at: "2026-11-14T07:05:00.000Z", by: "Wash Admin" }, overrides: [], committed: [] }];
+  mock.method(resources, "useAdminResource", () => ({ data: caps, loading: false, error: null, reload: async () => {}, setData: () => {} }));
+  try {
+    const html = renderToStaticMarkup(createElement(require("../bookings/cap-settings").CapSettings, { date: "2026-11-14", onChanged: () => {}, onDateChange: () => {} })).replace(/<!-- -->/g, "");
+    assert.match(html, /Up to 8 cars a day[\s\S]*?Default limit last changed: Nov 14, 2026, 3:05 PM by Wash Admin/);
+    // Polish 2026-11-25: inside its h3 Settings card, the day heading is an h4.
+    assert.match(html, /<h4 id="caps-title"/);
+  } finally {
+    mock.restoreAll();
+  }
 });

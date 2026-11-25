@@ -39,3 +39,33 @@ test("a history row shows the values as they were then, and the reason only when
   assert.equal(historyLine(base), "Changed · ₱150.00 · Rent · 2026-11-01");
   assert.equal(historyLine({ ...base, kind: "VOIDED", payee: "Landlord", reason: "typed twice" }), "Removed · ₱150.00 · Rent · 2026-11-01 · Landlord · Reason: typed twice");
 });
+
+test("expense analytics: bar text and the share of each kind", async () => {
+  const { expenseBarText, kindShares } = await import("./expenses-model");
+  assert.equal(expenseBarText({ future: true, revenueCentavos: 0 }), "Not yet");
+  assert.equal(expenseBarText({ future: false, revenueCentavos: 0 }), "No spending");
+  assert.equal(expenseBarText({ future: false, revenueCentavos: 150000 }), "₱1,500.00");
+  const shares = kindShares({ total: "1000", manual: "500", stockBought: "250", commissionsPaid: "250", commissionsOwed: "0" });
+  assert.deepEqual(shares.map((x) => x.pct), [50, 25, 25]);
+  assert.deepEqual(kindShares({ total: "0", manual: "0", stockBought: "0", commissionsPaid: "0", commissionsOwed: "0" }).map((x) => x.pct), [0, 0, 0]);
+});
+
+test("expense analytics keeps table amounts exact and uses a table for signed or oversized chart values", async () => {
+  const { expenseBucketText, expenseChartRows } = await import("./expenses-model");
+  const bucket = (total: string, future = false) => ({ start: "2026-11-01", end: "2026-11-01", total, future, manual: total, stockBought: "0", commissionsPaid: "0" });
+  assert.equal(expenseBucketText(bucket("9007199254740993")), "₱90,071,992,547,409.93");
+  assert.equal(expenseBucketText(bucket("-2500")), "-₱25.00");
+  assert.equal(expenseBucketText(bucket("0")), "No spending");
+  assert.equal(expenseBucketText(bucket("0", true)), "Not yet");
+  assert.equal(expenseChartRows([bucket("-2500")]), null);
+  assert.equal(expenseChartRows([bucket("9007199254740993")]), null);
+  assert.deepEqual(expenseChartRows([bucket("12345")]), [{ start: "2026-11-01", end: "2026-11-01", future: false, revenueCentavos: 12345, jobs: 0 }]);
+});
+
+test("expense analytics does not claim percentage shares for signed corrections", async () => {
+  const { kindShares } = await import("./expenses-model");
+  for (const totals of [
+    { total: "7500", manual: "10000", stockBought: "0", commissionsPaid: "-2500", commissionsOwed: "0" },
+    { total: "-2500", manual: "0", stockBought: "0", commissionsPaid: "-2500", commissionsOwed: "0" },
+  ]) assert.deepEqual(kindShares(totals).map((s) => s.pct), [null, null, null]);
+});

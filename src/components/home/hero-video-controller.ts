@@ -1,4 +1,4 @@
-import { chooseHeroVideo } from "./hero-video";
+import { chooseHeroVideo, type HeroVideoFiles } from "./hero-video";
 
 // The lifecycle of the background video, with the browser objects injected so it is tested without a browser.
 // Rules: nothing loads before the window load event; the file is chosen by chooseHeroVideo (reduced motion, data-saver
@@ -23,6 +23,7 @@ export type HeroVideoEnv = {
   window: Target;
   motion: Target & { matches: boolean };
   connection?: { saveData?: boolean; effectiveType?: string };
+  files?: HeroVideoFiles;
   /** Runs the callback when the browser is idle (or soon); returns a function that cancels it. */
   schedule: (callback: () => void) => () => void;
 };
@@ -45,7 +46,7 @@ export function attachHeroVideo(video: VideoLike, env: HeroVideoEnv): () => void
       reducedMotion: env.motion.matches,
       saveData: env.connection?.saveData === true,
       effectiveType: env.connection?.effectiveType,
-    });
+    }, env.files);
     if (!file) return;
     if (!video.getAttribute("src")) video.src = file;
     // A refused or failed play leaves the poster in place; there is nothing to retry.

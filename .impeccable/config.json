@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "src/components/landing/landing.css"
+        ],
+        "createdAt": "2026-11-17T09:02:36.554Z",
+        "reason": "LE supplied LuxAuto reference uses a metallic gradient brand word; intentional decorative Zeus branding, not body text"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "src/components/landing/landing-page.test.ts"
+        ],
+        "createdAt": "2026-11-17T09:02:36.754Z",
+        "reason": "False positive: source assertions match image markup; tests do not render placeholder image tags"
+      }
+    ]
+  }
+}

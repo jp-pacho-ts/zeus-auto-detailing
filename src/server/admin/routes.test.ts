@@ -72,6 +72,7 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["POST", `/api/admin/expenses/${ID}/remove`, () => import("@/app/api/admin/expenses/[id]/remove/route"), { id: ID }],
   ["POST", `/api/admin/expenses/${ID}/restore`, () => import("@/app/api/admin/expenses/[id]/restore/route"), { id: ID }],
   ["GET", `/api/admin/expenses/${ID}/history`, () => import("@/app/api/admin/expenses/[id]/history/route"), { id: ID }],
+  ["GET", "/api/admin/expenses/analytics", () => import("@/app/api/admin/expenses/analytics/route"), {}],
   ["GET", "/api/admin/expense-categories", () => import("@/app/api/admin/expense-categories/route"), {}],
   ["POST", "/api/admin/expense-categories", () => import("@/app/api/admin/expense-categories/route"), {}],
   ["PATCH", `/api/admin/expense-categories/${ID}`, () => import("@/app/api/admin/expense-categories/[id]/route"), { id: ID }],
@@ -80,6 +81,8 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   // P1-42 Settings.
   ["GET", "/api/admin/settings", () => import("@/app/api/admin/settings/route"), {}],
   ["PUT", "/api/admin/settings", () => import("@/app/api/admin/settings/route"), {}],
+  ["GET", "/api/admin/settings/email-preview?kind=confirmation", () => import("@/app/api/admin/settings/email-preview/route"), {}],
+  ["POST", "/api/admin/settings/test-email", () => import("@/app/api/admin/settings/test-email/route"), {}],
   // P1-38 Supplies.
   ["GET", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],
   ["POST", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],

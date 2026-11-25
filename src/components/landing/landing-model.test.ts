@@ -38,9 +38,7 @@ test("quote failures map to fixed public messages; a non-JSON body never shows p
   for (const status of [400, 409, 429, 500, 502, 503]) assert.doesNotMatch(quoteFailure(status, null, null).message, /call the shop|unexpected token|json/i);
 });
 test("every booking state gives one label and target, on pills and per-service arrows", () => {
-  assert.deepEqual(bookingAction("OPEN", "+630"), { label: "Book an appointment", href: "/book" });
-  assert.deepEqual(bookingAction("PAUSED", "+630"), { label: "Call to book", href: "tel:+630" });
-  assert.deepEqual(bookingAction("UNKNOWN", "+630"), { label: "Check online booking", href: "/book" });
+  assert.deepEqual(bookingAction(), { label: "Book now", href: "/book" });
   assert.deepEqual(serviceArrow(catalog, size, service, "OPEN", "+630"), { label: "Book Wash", href: "/book?service=wash&vehicle=S" });
   assert.deepEqual(serviceArrow(catalog, undefined, service, "OPEN", "+630"), { label: "Book Wash", href: "/book" });
   assert.deepEqual(serviceArrow(catalog, { ...size, code: "XL" }, service, "OPEN", "+630"), { label: "Book Wash", href: "/book" });
@@ -66,25 +64,20 @@ test("CEO rule A (P1-89): with no size chosen, a price that differs by size read
   assert.equal(servicePrice(priced(offer("MOTOR", 200000), offer("S", 1170000)), { id: "S", code: "S", name: "Small" } as VehicleCategory), "₱11,700");
 });
 
-test("CEO option a (P1-89): the closing band scrolls only on laptop-height laptops; phones and short screens get the static band", () => {
+test("LuxAuto lifecycle keeps motion desktop-only and cleans up smooth scrolling on preference changes/unmount", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { bandScrolls } = require("./landing-model") as { bandScrolls?: (c: { phone: boolean; short: boolean }) => boolean };
-  assert.equal(typeof bandScrolls, "function");
-  assert.equal(bandScrolls!({ phone: false, short: false }), true);
-  assert.equal(bandScrolls!({ phone: true, short: false }), false);
-  assert.equal(bandScrolls!({ phone: false, short: true }), false);
-  assert.equal(bandScrolls!({ phone: true, short: true }), false);
+  const lifecycle = (require("node:fs") as typeof import("node:fs")).readFileSync("src/components/landing/landing-lifecycle.tsx", "utf8");
+  assert.match(lifecycle, /\(min-width: 768px\) and \(prefers-reduced-motion: no-preference\)/);
+  assert.match(lifecycle, /gsap\.ticker\.remove\(tick\); lenis\.destroy\(\)/);
+  assert.match(lifecycle, /media\.revert\(\)/);
+  assert.doesNotMatch(lifecycle, /pin:\s*true|document\.body\.style\.overflow/);
 });
 
-test("CEO option a (P1-89): at 767 px and below the band is natural height, with no sticky stage and no doors", () => {
+test("LuxAuto closing band uses document flow on every screen and never reintroduces doors or sticky traps", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const css = (require("node:fs") as typeof import("node:fs")).readFileSync("src/components/landing/landing.css", "utf8").replace(/\s+/g, "");
-  const start = css.indexOf("@media(max-width:767px){");
-  let depth = 0, end = start;
-  for (let i = css.indexOf("{", start); i < css.length; i++) { if (css[i] === "{") depth++; if (css[i] === "}" && --depth === 0) { end = i; break; } }
-  const phone = css.slice(start, end);
-  assert.match(phone, /\.landing-band\{height:auto\}/);
-  assert.match(phone, /\.landing-band-stage\{position:relative;height:auto/);
-  assert.match(phone, /\.landing-door\{display:none\}/);
-  assert.doesNotMatch(phone, /\.landing-band\{height:150vh\}/);
+  assert.match(css, /\.landing-band\{position:relative/);
+  assert.match(css, /\.landing-band-stage\{position:relative/);
+  assert.doesNotMatch(css, /\.landing-band[^{}]*\{[^}]*position:sticky|\.landing-door/);
+  assert.doesNotMatch(css, /\.landing-band\{[^}]*height:(150|200)vh/);
 });

@@ -373,3 +373,36 @@ test("EX14 ADMIN only: the service refuses STAFF; the totals refuse by themselve
   // A guessed id for someone else's history gets nothing extra: it is the admin's own table, and an unknown id is NOT_FOUND.
   await refused(s.listExpenseHistory(ADMIN, randomUUID(), opts()), "NOT_FOUND", "unknown expense");
 });
+
+test("EX15 expense analytics: buckets add up to the range total, which equals expenseTotals; day/week/month units; future buckets hold nothing; ADMIN only; bad range refused", { skip }, async () => {
+  const rent = (await s.listExpenseCategories(ADMIN, opts())).find((c) => c.name === "Rent")!;
+  await add({ date: "2026-05-04", categoryId: rent.id, amountPesos: "300.00" });
+  await add({ date: "2026-05-04", amountPesos: "12.34" });
+  await add({ date: "2026-05-20", amountPesos: "100.00" });
+  const sum = (b: { total: string }[]) => b.reduce((x, r) => x + BigInt(r.total), BigInt(0));
+  for (const [from, to, unit] of [["2026-05-01", "2026-05-31", "DAY"], ["2026-04-01", "2026-06-30", "WEEK"], ["2026-01-01", "2026-12-31", "MONTH"]] as const) {
+    const a = await s.getExpenseAnalytics(ADMIN, { from, to }, { ...opts(), now: () => new Date("2026-12-31T04:00:00Z") });
+    const t = await totals(from, to);
+    assert.equal(a.unit, unit, `${from} unit`);
+    assert.equal(a.totals.total, String(t.total), `${from} equals expenseTotals`);
+    assert.equal(a.totals.manual, String(t.manual));
+    assert.equal(sum(a.buckets), t.total, `${from} buckets add up`);
+    assert.ok(a.buckets.filter((b) => b.future).every((b) => b.total === "0"), "a future bucket holds nothing");
+    assert.equal(a.byCategory.reduce((x, c) => x + BigInt(c.total), BigInt(0)), t.manual);
+  }
+  const may = await s.getExpenseAnalytics(ADMIN, { from: "2026-05-01", to: "2026-05-31" }, opts());
+  assert.equal(may.buckets.find((b) => b.start === "2026-05-04")!.manual, "31234", "a day bucket holds that day's typed-in expenses");
+  await refused(s.getExpenseAnalytics(STAFF, { from: "2026-05-01", to: "2026-05-31" }, opts()), "FORBIDDEN", "staff");
+  await refused(s.getExpenseAnalytics(ADMIN, { from: "2026-05-31", to: "2026-05-01" }, opts()), "VALIDATION_ERROR", "reversed range");
+  await refused(s.getExpenseAnalytics(ADMIN, { from: "2025-01-01", to: "2026-05-01" }, opts()), "VALIDATION_ERROR", "over a year");
+});
+
+
+test("EX16 expense list range crosses months and matches the selected range totals", { skip }, async () => {
+  const result = await s.getExpenseMonth(ADMIN, { month: "2026-05", from: "2026-05-04", to: "2026-07-31" }, opts());
+  assert.ok(result.expenses.length > 0);
+  assert.ok(result.expenses.every((e) => e.expenseDate >= "2026-05-04" && e.expenseDate <= "2026-07-31"));
+  assert.ok(result.expenses.some((e) => e.expenseDate.startsWith("2026-07")), "includes later-month expenses");
+  assert.equal(result.totals.total, String((await totals("2026-05-04", "2026-07-31")).total));
+  await refused(s.getExpenseMonth(STAFF, { month: "2026-05", from: "2026-05-04", to: "2026-07-31" }, opts()), "FORBIDDEN", "range is admin only");
+});

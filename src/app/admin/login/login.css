@@ -1,0 +1,108 @@
+/* Staff sign-in in the landing redesign look (branch jp-pacho-ts/redesign-landing-page): same OFL faces, brand tokens,
+   uppercase wide display type, gold eyebrow and square-cut gold button. Self-contained so it merges before or after that branch. */
+@font-face{font-family:LoginText;src:url('/fonts/landing/ZalandoSans-Variable.woff2') format('woff2');font-style:normal;font-weight:200 900;font-display:swap}
+@font-face{font-family:LoginGeist;src:url('/fonts/landing/Geist-Variable.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+@font-face{font-family:LoginDisplay;src:url('/fonts/landing/ZalandoSansExpanded-Variable.woff2') format('woff2');font-style:normal;font-weight:200 900;size-adjust:93.1%;font-display:swap}
+.login{--bg:rgb(var(--brand-background));--fg:rgb(var(--brand-foreground));--card:rgb(var(--brand-card));--mfg:rgb(var(--brand-muted-foreground));--line:rgb(var(--brand-border));--gold:rgb(var(--brand-primary));--gold-ink:rgb(var(--brand-primary-foreground));--gold-hover:rgb(var(--brand-primary-hover));--ring:rgb(var(--brand-ring));--display:LoginDisplay,LoginGeist,"Helvetica Neue",Arial,sans-serif;--cut:12px;--edge:max(24px,calc((100% - 1200px)/2))}
+/* The admin layout is fixed and clips overflow, so this page scrolls inside itself, never the document. */
+.login{height:100%;overflow-y:auto;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font:1rem/1.7 LoginText,LoginGeist,"Helvetica Neue",Arial,sans-serif;color-scheme:dark}
+.login *{box-sizing:border-box}
+.login button,.login input{font:inherit;color:inherit}
+.login a{color:inherit;text-underline-offset:5px;text-decoration-thickness:1px}
+.login a:hover{text-decoration-thickness:2px}
+.login :focus-visible{outline:3px solid var(--ring);outline-offset:5px}
+.login p{margin:0}
+.login-gold{color:var(--gold-hover)}
+
+/* Video side: the landing hero's film-poster treatment, hook bottom-left on a dark gradient. */
+.login-media{position:relative;flex:none;min-height:220px;overflow:clip;background:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:24px var(--edge)}
+/* HomeVideo's classes; its own styles live only in the homepage component. The video fades in over the poster once playing. */
+.login-media .zeus-hero-media{position:absolute;inset:0}
+.login-media :is(.zeus-hero-poster,.zeus-hero-video){position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:62% 55%;filter:contrast(1.05) saturate(.85) brightness(.95)}
+.login-media .zeus-hero-video{opacity:0;transition:opacity .8s ease}
+.login-media .zeus-hero-video[data-ready=true]{opacity:1}
+.login-media::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,var(--bg),rgb(9 9 11 / .9) 12%,rgb(9 9 11 / .55) 45%,rgb(9 9 11 / .3) 100%)}
+.login-media>p{position:relative;z-index:1}
+.login-media-title{font:600 clamp(36px,10vw,56px)/.92 var(--display);text-transform:uppercase}
+.login-media-sub{margin-top:14px!important;font-family:var(--display);font-size:11px;font-weight:500;line-height:1.6;letter-spacing:.22em;text-transform:uppercase;color:rgb(245 245 244 / .82)}
+
+/* Form side */
+.login-panel{flex:1;display:flex;flex-direction:column;justify-content:center;width:100%;max-width:480px;margin:0 auto;padding:28px 24px 40px}
+.login-home{display:inline-flex;align-self:flex-start}
+.login h1{margin:40px 0 0;font:600 clamp(34px,4vw,52px)/.94 var(--display);text-transform:uppercase;text-wrap:balance}
+.login-form{display:grid;gap:22px;margin-top:36px}
+.login-form label{display:block;margin-bottom:10px;font:500 12px/1.5 var(--display);letter-spacing:.08em;text-transform:uppercase}
+.login-input{position:relative}
+/* 16 px text stops iOS zooming into the field. */
+.login-input input{display:block;width:100%;min-height:56px;padding:14px 16px;border:1px solid rgb(245 245 244 / .6);border-radius:0;background:var(--card);font-size:16px;transition:border-color .2s}
+/* Field edge at 60 % white: at least 3:1 against the dark veil (WCAG 1.4.11), so an empty field still reads as a box. */
+.login-input input.login-has-toggle{padding-right:56px}
+.login-input input:hover{border-color:var(--fg)}
+/* One focus mark on fields: a 2 px gold edge instead of the page ring floating 5 px outside. */
+.login .login-input input:focus-visible{outline:none}
+.login-input input:focus{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.login-input input[aria-invalid]{border-color:#fb7185}
+.login-input input[aria-invalid]:focus{box-shadow:inset 0 0 0 1px #fb7185}
+.login-field-error{display:flex;align-items:center;gap:8px;margin-top:8px!important;color:#fda4af;font-size:14px;line-height:1.4}
+.login-field-error svg{flex:none;width:16px;height:16px}
+.login-toggle{position:absolute;right:6px;top:50%;translate:0 -50%;display:grid;place-items:center;min-width:44px;min-height:44px;border:0;background:none;color:var(--mfg);cursor:pointer}
+.login-toggle:hover{color:var(--fg)}
+.login-toggle svg{width:18px;height:18px}
+.login-error{display:flex;gap:10px;align-items:flex-start;padding:14px 16px;border:1px solid rgb(244 63 94 / .3);border-left-width:3px;background:rgb(244 63 94 / .1);color:#fda4af;font-size:14px;line-height:1.5}
+.login-error svg{flex:none;width:18px;height:18px;margin-top:1px}
+
+/* The landing's square-cut gold button: chamfered corners, wide uppercase label, arrow at the far end; turns light on hover. */
+.login-submit{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:space-between;gap:24px;width:100%;min-height:60px;margin-top:6px;padding:14px 26px;border:0;background:none;color:var(--gold-ink);font:500 14px/1.3 var(--display);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:color .3s}
+.login-submit::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(var(--fg),var(--fg)) 0 0/0 100% no-repeat var(--gold);clip-path:polygon(0 0,calc(100% - var(--cut)) 0,100% var(--cut),100% 100%,var(--cut) 100%,0 calc(100% - var(--cut)));transition:background-size .45s cubic-bezier(.7,0,.2,1),background-color .3s}
+/* Light fill sweeps in from the left on hover (and marks signed in). It grows as a background inside the fixed cut shape;
+   scaling the shape itself stretched the lower-left cut corner mid-sweep. */
+.login-submit:is(:hover:not(:disabled),:focus-visible,[data-state=done])::before{background-size:100% 100%}
+.login-submit:is(:hover:not(:disabled),:focus-visible,[data-state=done]){color:var(--bg)}
+.login-submit:disabled{cursor:not-allowed}
+.login-submit[data-state=loading]{cursor:progress}
+.login-submit[data-state=loading]::before{background-color:var(--gold-hover)}
+/* Arrow slides out right and back in from the left on hover. */
+.login-arrow{display:grid;place-items:center;width:20px;height:20px;overflow:hidden}
+@keyframes login-arrow{0%{transform:none}45%{transform:translateX(130%)}46%{transform:translateX(-130%)}100%{transform:none}}
+.login-submit:is(:hover,:focus-visible) .login-arrow svg{animation:login-arrow .55s cubic-bezier(.2,0,0,1)}
+.login-check{animation:login-check .35s cubic-bezier(.2,0,0,1.4)}
+@keyframes login-check{from{transform:scale(0);opacity:0}}
+.login-submit svg{width:18px;height:18px;flex:none}
+.login-spin{animation:login-spin 1s linear infinite}
+@keyframes login-spin{to{transform:rotate(360deg)}}
+
+/* The landing's small text link: wide uppercase, thin underline that fills gold from the left on hover. */
+.login .login-back{position:relative;display:inline-flex;align-items:center;gap:8px;align-self:flex-start;min-height:44px;margin-top:20px;font:500 12px/1.5 var(--display);letter-spacing:.06em;text-transform:uppercase;text-decoration:none}
+.login-back::after{content:"";position:absolute;left:0;right:0;bottom:10px;height:1px;background:linear-gradient(var(--gold-hover),var(--gold-hover)) 0 0/0 100% no-repeat,rgb(245 245 244 / .3);transition:background-size .45s cubic-bezier(.2,0,0,1)}
+.login-back:is(:hover,:focus-visible)::after{background-size:100% 100%}
+.login-back svg{width:15px;height:15px;color:var(--gold-hover)}
+
+@media(min-width:1024px){
+  .login{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(460px,1fr)}
+  /* Full-screen video under both columns; a blurred, darkened veil fades in on an eased (smoothstep) curve from the left fifth to carry the form. */
+  .login-media{grid-area:1/1/2/-1;min-height:100%;padding:56px}
+  .login-panel{grid-area:1/2;position:relative;z-index:1}
+  .login-media>p{max-width:46%;z-index:2}
+  /* Shift the footage left so the car sits nearer the middle of the clear side. The box stays full width (112 %, 12 % off
+     the left edge): an empty right strip rendered grey under the blur in GPU-composited Chrome. */
+  .login-media .zeus-hero-media{inset:0 0 0 -12%}
+  .login-media::before{content:"";position:absolute;inset:0 0 0 20%;z-index:1;background:rgb(9 9 11 / .8);-webkit-backdrop-filter:blur(24px) saturate(.7);backdrop-filter:blur(24px) saturate(.7);-webkit-mask-image:linear-gradient(90deg,rgb(0 0 0 / 0) 0%,rgb(0 0 0 / 0.03) 6.5%,rgb(0 0 0 / 0.1) 13%,rgb(0 0 0 / 0.22) 19.5%,rgb(0 0 0 / 0.36) 26%,rgb(0 0 0 / 0.5) 32.5%,rgb(0 0 0 / 0.64) 39%,rgb(0 0 0 / 0.78) 45.5%,rgb(0 0 0 / 0.9) 52%,rgb(0 0 0 / 0.97) 58.5%,rgb(0 0 0 / 1) 65%);mask-image:linear-gradient(90deg,rgb(0 0 0 / 0) 0%,rgb(0 0 0 / 0.03) 6.5%,rgb(0 0 0 / 0.1) 13%,rgb(0 0 0 / 0.22) 19.5%,rgb(0 0 0 / 0.36) 26%,rgb(0 0 0 / 0.5) 32.5%,rgb(0 0 0 / 0.64) 39%,rgb(0 0 0 / 0.78) 45.5%,rgb(0 0 0 / 0.9) 52%,rgb(0 0 0 / 0.97) 58.5%,rgb(0 0 0 / 1) 65%)}
+  .login-media::after{background:linear-gradient(90deg,rgb(0 0 0 / .45),rgb(0 0 0 / .12) 14%,transparent 24%),linear-gradient(90deg,rgb(9 9 11 / 0) 24%,rgb(9 9 11 / 0.02) 29.4%,rgb(9 9 11 / 0.07) 34.8%,rgb(9 9 11 / 0.15) 40.2%,rgb(9 9 11 / 0.25) 45.6%,rgb(9 9 11 / 0.36) 51%,rgb(9 9 11 / 0.47) 56.4%,rgb(9 9 11 / 0.57) 61.8%,rgb(9 9 11 / 0.65) 67.2%,rgb(9 9 11 / 0.7) 72.6%,rgb(9 9 11 / 0.72) 78%),linear-gradient(0deg,var(--bg),rgb(9 9 11 / .72) 16%,rgb(9 9 11 / .2) 36%,transparent 50%),linear-gradient(180deg,rgb(0 0 0 / .55),transparent 35%)}
+  .login-media-title{font-size:clamp(56px,6.2vw,104px)}
+  /* One line, sized with the viewport as on the landing hero (the wide face would otherwise orphan "City"). */
+  .login-media>.login-media-sub{max-width:none;white-space:nowrap;font-size:clamp(10px,.9vw,13px)}
+  .login-panel{padding:56px 48px}
+}
+/* Laptop screens (768 px tall or less, minus browser chrome): tighter rhythm so the form and an error fit without scrolling. */
+@media(min-width:1024px) and (max-height:760px){
+  .login-panel{padding-block:28px}
+  .login h1{margin-top:28px;font-size:clamp(30px,2.6vw,40px)}
+  .login-media-title{font-size:clamp(48px,5vw,80px)}
+  .login-form{gap:16px;margin-top:24px}
+  .login-form label{margin-bottom:6px}
+  .login-input input{min-height:48px;padding-block:10px}
+  .login-submit{min-height:52px}
+  .login-error{padding-block:10px}
+  .login-back{margin-top:8px}
+}
+@media(prefers-reduced-motion:reduce){.login-spin,.login-check,.login-arrow svg{animation:none!important}.login-input input,.login-submit,.login-submit::before,.login-back::after,.login-media .zeus-hero-video{transition:none}}

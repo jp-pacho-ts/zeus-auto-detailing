@@ -1,8 +1,8 @@
 // Shop photos for the service cards (P1-88 17.13, UI/UX rulings on the CEO picks, 2026-11-16).
-// One photo per service it shows, never a whole category; a service without an entry keeps the "Photo coming soon" frame.
+// One photo per service it shows. Services without an entry use a compact price row.
 // Keyed by catalog slug, which the public projection already carries; files are 4:3 1600x1200 WebP in public/media/landing,
 // re-encoded from the shop's photos with no EXIF, GPS, XMP or ICC data (sources, crops and blur: P1-88 implementation handoff).
-// position: the 4:5 card crop (UI/UX identity 5.2, tested on each derivative); contain: shown whole on a dark mat (Kenzo kit).
+// position: focal point for the card crop; contain: shown whole on a dark mat (Kenzo kit).
 export type LandingPhoto = { src: string; alt: string; position?: string; contain?: true };
 
 export const LANDING_PHOTOS: Record<string, LandingPhoto> = {
