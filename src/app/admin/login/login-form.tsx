@@ -6,15 +6,11 @@ import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   ChevronLeft,
-  ShieldCheck,
-  Mail,
-  Lock,
   Eye,
   EyeOff,
   AlertCircle,
   Loader2,
 } from "lucide-react";
-import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
 import "./login.css";
 
@@ -96,26 +92,17 @@ export function LoginForm({ next }: { next: string }) {
           <Logo priority />
         </Link>
 
-        <p className="login-eyebrow">
-          <ShieldCheck aria-hidden="true" />
-          Authorized staff portal
-        </p>
-        <h1>Staff sign in<span className="login-gold">.</span></h1>
-        <p className="login-lede login-muted">
-          Access {brandConfig.shortName} operations, bay board, calendar schedule, and customer records.
-        </p>
+        <h1>Staff sign in</h1>
 
         <form onSubmit={handleLogin} className="login-form">
           <div>
             <label htmlFor="staff-identifier">Staff Email or Username</label>
             <div className="login-input">
-              <Mail aria-hidden="true" />
               <input
                 id="staff-identifier"
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="name@zeusauto.ph"
                 autoComplete="username"
                 required
               />
@@ -125,14 +112,12 @@ export function LoginForm({ next }: { next: string }) {
           <div>
             <label htmlFor="staff-password">Password</label>
             <div className="login-input">
-              <Lock aria-hidden="true" />
               <input
                 id="staff-password"
                 className="login-has-toggle"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
                 autoComplete="current-password"
                 required
               />
@@ -162,7 +147,7 @@ export function LoginForm({ next }: { next: string }) {
               </>
             ) : (
               <>
-                <span>Sign in to dashboard</span>
+                <span>Sign in</span>
                 <ArrowRight aria-hidden="true" />
               </>
             )}
@@ -171,12 +156,8 @@ export function LoginForm({ next }: { next: string }) {
 
         <Link href="/" className="login-back">
           <ChevronLeft aria-hidden="true" />
-          Return to public website
+          Back to website
         </Link>
-
-        <p className="login-foot login-muted">
-          Protected shop system · {brandConfig.location} · {brandConfig.timezone}
-        </p>
       </main>
     </div>
   );
