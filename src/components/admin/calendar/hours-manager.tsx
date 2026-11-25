@@ -8,6 +8,7 @@ import { shopDate } from "../bookings/model";
 import { dateClass, fieldBare, fieldClass, LoadState, useAdminResource } from "../bookings/use-admin-resource";
 import { addDay } from "./calendar-model";
 import { useAdminWrite, WriteFeedback } from "./use-admin-write";
+import { SettingsCard } from "../settings/section-card";
 
 // P1-20: ADMIN opening hours per weekday and closed dates. Customers only see open or closed
 // days; the closed-date reason stays with staff. The server refuses to close a day that has
@@ -17,7 +18,8 @@ const longDay = (day: string) =>
   new Intl.DateTimeFormat(brandConfig.locale, { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(day + "T00:00:00Z"));
 
 type Write = ReturnType<typeof useAdminWrite>;
-const ROW = "grid grid-cols-[7.5rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 py-1.5 sm:grid-cols-[9rem_10rem_10rem]";
+// The day takes the free width; the times sit on the right like every other Settings control.
+const ROW = "grid grid-cols-[7.5rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 py-1.5 sm:grid-cols-[minmax(0,1fr)_10rem_10rem]";
 const timeClass = fieldBare;
 
 // A refused save keeps the edits on screen (the server says why); a saved one reloads.
@@ -28,26 +30,36 @@ function WeekForm({ schedule, write, onSaved }: { schedule: AdminSchedule; write
     setDays((all) => all.map((d) => (d.dayOfWeek === dayOfWeek ? { ...d, ...change } : d)));
   const today = shopDate();
   return (
-    <section aria-label="Opening hours" className="space-y-4 rounded border border-border bg-panel p-4">
-      <div>
-        <h2 className="font-bold">Opening hours</h2>
-        <p className="text-xs text-muted-foreground">
-          {schedule.startsOn === null
-            ? "No opening hours yet: customers see every day as closed until you save."
-            : schedule.startsOn > today
-              ? `Customers can book from ${longDay(schedule.startsOn)}.`
-              : "Customers can book any open day."}
-        </p>
-      </div>
-      <form
-        className="space-y-3"
-        onSubmit={async (e) => {
+    <form
+      onSubmit={async (e) => {
           e.preventDefault();
           const ok = await run("Opening hours saved.", () =>
             adminRequest("/api/admin/schedule/hours", { method: "PUT", body: { expectedVersion: schedule.version, days } }),
           );
           if (ok) await onSaved();
         }}
+    >
+      <SettingsCard
+        id="settings-hours-week"
+        title="Opening hours"
+        description={
+          schedule.startsOn === null
+            ? "No opening hours yet: customers see every day as closed until you save."
+            : schedule.startsOn > today
+              ? `Customers can book from ${longDay(schedule.startsOn)}.`
+              : "Customers can book any open day."
+        }
+        hint={message || error ? <WriteFeedback message={message} error={error} /> : "Tick a day to open it. Times go in 30-minute steps."}
+        action={
+          <>
+            <Button type="button" variant="outline" className="min-h-[44px]" disabled={busy} onClick={() => void onSaved()}>
+              Reload saved hours
+            </Button>
+            <Button type="submit" className="min-h-[44px]" disabled={busy}>
+              Save opening hours
+            </Button>
+          </>
+        }
       >
         {/* P1-77: one compact row per day (day, opens, closes) under one header. */}
         <div aria-hidden="true" className={ROW + " pb-0 text-xs font-semibold text-muted-foreground"}>
@@ -78,17 +90,8 @@ function WeekForm({ schedule, write, onSaved }: { schedule: AdminSchedule; write
             </li>
           ))}
         </ul>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={busy}>
-            Save opening hours
-          </Button>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => void onSaved()}>
-            Reload saved hours
-          </Button>
-        </div>
-        <WriteFeedback message={message} error={error} />
-      </form>
-    </section>
+      </SettingsCard>
+    </form>
   );
 }
 
@@ -96,11 +99,13 @@ function ClosedDates({ schedule, write, onSaved }: { schedule: AdminSchedule; wr
   const { busy, message, error, run } = write;
   const today = shopDate();
   return (
-    <section aria-label="Closed days" className="space-y-4 rounded border border-border bg-panel p-4">
-      <div>
-        <h2 className="font-bold">Closed days</h2>
-        <p className="text-xs text-muted-foreground">Holidays and other days the shop is shut. Customers only see the day as closed.</p>
-      </div>
+    <SettingsCard
+      id="settings-hours-closed"
+      title="Closed days"
+      description="Holidays and other days the shop is shut."
+      hint={message || error ? <WriteFeedback message={message} error={error} /> : "Customers only see the day as closed; the note stays with staff."}
+    >
+      <div className="space-y-4">
       <form
         className="flex flex-wrap items-end gap-3"
         onSubmit={async (e) => {
@@ -125,7 +130,6 @@ function ClosedDates({ schedule, write, onSaved }: { schedule: AdminSchedule; wr
           Close this day
         </Button>
       </form>
-      <WriteFeedback message={message} error={error} />
       {schedule.closedDates.length === 0 ? (
         <p className="text-sm text-muted-foreground">No closed days coming up.</p>
       ) : (
@@ -151,7 +155,8 @@ function ClosedDates({ schedule, write, onSaved }: { schedule: AdminSchedule; wr
           ))}
         </ul>
       )}
-    </section>
+      </div>
+    </SettingsCard>
   );
 }
 

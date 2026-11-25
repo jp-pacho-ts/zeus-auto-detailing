@@ -44,7 +44,7 @@ import { UsersTab } from "./users-tab";
 import { UserSettingsModal, applyAdminTheme } from "./user-settings-modal";
 import { THEME_STORAGE_KEY, type AdminThemeMode, resolveEffectiveTheme } from "./user-settings/user-settings-model";
 import { NotificationPopover } from "./notifications/notification-popover";
-import { MAINTENANCE_BANNER } from "./settings/settings-model";
+import { leaveSettingsUrl, MAINTENANCE_BANNER } from "./settings/settings-model";
 import { useKeptResource } from "./team/use-kept-resource";
 import type { StaffSessionView } from "@/server/auth/types";
 import type { AdminShopSettings } from "@/types/admin-contracts";
@@ -115,6 +115,14 @@ export function AdminPortal({ initialTab }: { initialTab?: AdminTab }) {
             ? initialTab!
             : "Dashboard",
   );
+  // Polish 2026-11-25: Settings keeps its section in the address. On any other tab, drop it (and ?tab=System Settings), so a
+  // refresh opens the tab the admin is on. Idempotent, so React's dev double-run of effects is harmless.
+  React.useEffect(() => {
+    if (tab === "System Settings") return;
+    const { pathname, search } = window.location;
+    const next = leaveSettingsUrl(pathname, search);
+    if (next !== pathname + search) window.history.replaceState(null, "", next);
+  }, [tab]);
   const session = useAdminResource<StaffSessionView>("/api/admin/auth/session");
   // The banner: a site left in maintenance must be impossible to miss on any admin screen.
   const shopSettings = useKeptResource<AdminShopSettings>(session.data?.role === "ADMIN" ? "/api/admin/settings" : null);

@@ -30,6 +30,7 @@ import { closedDay, committed } from "./capacity";
 import { decodeCursor, encodeCursor, filterHash } from "./cursor";
 import { AdminServiceError, fieldError } from "./errors";
 import { bookingInclude, loadDetail, toQueueBooking } from "./views";
+import { lastChangedOf, staffNames } from "./shop-settings";
 
 // Staff reads (STAFF or ADMIN): one STAFF_READ permit, one read transaction each.
 function read<T>(
@@ -315,12 +316,15 @@ export async function getCaps(
       },
       orderBy: [{ queueCode: "asc" }, { bookingDate: "asc" }],
     });
+    // P1-78: who changed a default cap is shown to ADMIN only (STAFF may read caps); the name only.
+    const names = actor.role === "ADMIN" ? await staffNames(tx, queues.map((q) => q.updatedByStaffId)) : new Map<string, string>();
     return queues.map((q) => ({
       code: q.code,
       name: q.name,
       isActive: q.isActive,
       dailyCap: q.dailyCap,
       revision: q.revision,
+      lastChanged: lastChangedOf(q.updatedAt, q.updatedByStaffId, names),
       overrides: overrides
         .filter((o) => o.queueCode === q.code)
         .map((o) => ({

@@ -1,0 +1,531 @@
+@font-face {
+  font-family: KioskBody;
+  src: url("/fonts/home/DMSans.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+.booking {
+  font-family: KioskBody, Arial, sans-serif;
+}
+
+/* Welcome = the live landing hero (landing.css), held to one tablet screen with no scrolling. */
+.welcome {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100svh;
+  min-height: 0;
+  overflow: clip;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* landing.css pads the page bottom for its phone call bar; the kiosk has none. */
+.welcome:global(.landing) {
+  padding-bottom: 0;
+}
+
+/* Letterbox bars for the exit: parked off screen until a tap starts the order. */
+.welcome::before,
+.welcome::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  height: 14svh;
+  background: #000;
+  pointer-events: none;
+}
+
+.welcome::before {
+  top: 0;
+  transform: translateY(-100%);
+}
+
+.welcome::after {
+  bottom: 0;
+  transform: translateY(100%);
+}
+
+/* A centre scrim on top of the landing grade, so centred copy reads over any frame of the footage. */
+.art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(ellipse 70% 55% at 50% 55%, rgb(9 9 11 / .72), rgb(9 9 11 / .2) 70%, transparent);
+}
+
+.top,
+.center,
+.bar {
+  position: relative;
+  z-index: 2;
+}
+
+.top {
+  justify-self: center;
+  padding-top: max(32px, env(safe-area-inset-top));
+}
+
+.top img {
+  display: block;
+  width: 200px;
+  height: auto;
+}
+
+.center {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(32px, 6svh, 64px);
+  padding-inline: 24px;
+  text-align: center;
+}
+
+.welcome .title {
+  font-size: clamp(56px, 9vw, 132px);
+  line-height: .9;
+}
+
+.sub {
+  display: block;
+  margin-top: clamp(16px, 2.4svh, 28px);
+  color: rgb(245 245 244 / .85);
+  font-size: clamp(13px, 1.4vw, 18px);
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: .22em;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 88px;
+  margin: 0;
+  padding: 0 0 max(8px, env(safe-area-inset-bottom));
+  border: 0;
+  background: none;
+  cursor: inherit;
+  /* The start control, quiet in the landing's "Discover Zeus" style; a tap anywhere on the screen also starts. */
+  color: rgb(245 245 244 / .85);
+  font-family: LandingDisplay, LandingGeist, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+/* landing.css resets button fonts (.landing button{font:inherit}); keep the cue in the display face. */
+.welcome .bar {
+  font-family: LandingDisplay, LandingGeist, "Helvetica Neue", Arial, sans-serif;
+}
+
+.bar:focus-visible {
+  outline: 3px solid rgb(var(--brand-ring));
+  outline-offset: -6px;
+}
+
+
+/* Booking flow in the landing's type: expanded uppercase display for headings, steps and actions (fonts from landing.css). */
+.booking {
+  --display: LandingDisplay, LandingGeist, "Helvetica Neue", Arial, sans-serif;
+  --cut: 12px;
+  font-family: LandingText, LandingGeist, KioskBody, Arial, sans-serif;
+}
+
+/* Type follows /preview/landing: Zalando Sans text up to 600, Zalando Sans Expanded uppercase for section headings,
+   and no monospace (the booking reference uses the display face). */
+.booking :global(:is(.font-bold, .font-extrabold, .font-black, strong, b)) {
+  font-weight: 600;
+}
+
+.booking :global(h2) {
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.booking :global(.font-mono) {
+  font-family: var(--display);
+  letter-spacing: .04em;
+}
+
+.booking :global(#wizard-step-title) {
+  font-family: var(--display);
+  font-size: clamp(32px, 4.6vw, 60px);
+  font-weight: 600;
+  line-height: .95;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.booking :global(#wizard-step-title)::after {
+  content: ".";
+  color: rgb(var(--primary-hover));
+}
+
+/* Progress rail: a thin line over each step that fills with gold as the customer moves forward. */
+.booking :global(ol[aria-label="Booking steps"] li) {
+  position: relative;
+  gap: 10px;
+  border-radius: 0;
+  background: none;
+  color: rgb(245 245 244 / .5);
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.booking :global(ol[aria-label="Booking steps"] li)::before,
+.booking :global(ol[aria-label="Booking steps"] li)::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: rgb(245 245 244 / .12);
+}
+
+.booking :global(ol[aria-label="Booking steps"] li)::after {
+  background: rgb(var(--primary));
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.booking :global(ol[aria-label="Booking steps"] li:has(svg))::after,
+.booking :global(ol[aria-label="Booking steps"] li[aria-current="step"])::after {
+  transform: scaleX(1);
+}
+
+.booking :global(ol[aria-label="Booking steps"] li[aria-current="step"]) {
+  color: rgb(var(--foreground));
+}
+
+.booking :global([data-part="step-number"]) {
+  color: rgb(var(--primary-hover));
+}
+
+/* The landing's cut-corner buttons: gold for the main action, outline for Back and End session. */
+.booking :global(:is([data-part="primary"], [data-part="back"], [data-part="end-session"])) {
+  position: relative;
+  isolation: isolate;
+  min-height: 60px;
+  padding-inline: 26px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.booking :global(:is([data-part="primary"], [data-part="back"], [data-part="end-session"]))::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgb(var(--primary));
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+  transition: background-color .3s;
+}
+
+.booking :global([data-part="primary"]) {
+  min-width: 212px;
+  justify-content: space-between;
+  gap: 40px;
+  color: rgb(var(--primary-foreground));
+}
+
+.booking :global([data-part="primary"]:hover:not(:disabled))::before {
+  background: rgb(var(--primary-hover));
+}
+
+.booking :global(:is([data-part="back"], [data-part="end-session"])) {
+  min-height: 52px;
+  color: rgb(var(--foreground));
+}
+
+.booking :global(:is([data-part="back"], [data-part="end-session"]))::before {
+  background: rgb(245 245 244 / .4);
+  /* Outline only: the same cut shape with a 1 px hole. */
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)), 0 0, 1px 1px, 1px calc(100% - var(--cut) - .41px), calc(var(--cut) + .41px) calc(100% - 1px), calc(100% - 1px) calc(100% - 1px), calc(100% - 1px) calc(var(--cut) + .41px), calc(100% - var(--cut) - .41px) 1px, 1px 1px);
+}
+
+.booking :global(:is([data-part="back"], [data-part="end-session"]):hover:not(:disabled))::before {
+  background: rgb(var(--primary-hover));
+}
+
+.booking :global(:is([data-part="primary"], [data-part="back"], [data-part="end-session"]):focus-visible) {
+  outline: 3px solid rgb(var(--ring));
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+/* End session confirmation: dark glass with the landing heading type. */
+.booking :global([data-part="end-dialog"]) {
+  border-color: rgb(var(--primary) / .35);
+  background-color: rgb(16 16 18 / .92);
+}
+
+.booking :global([data-part="end-dialog"] h2) {
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.booking :global([data-part="end-dialog"])::backdrop {
+  backdrop-filter: blur(6px);
+}
+
+/* Stage: the darkened shop still behind every step; the flow sits on see-through dark glass. */
+.booking {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  background: #09090b;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: clip;
+}
+
+.backdrop img {
+  object-fit: cover;
+  object-position: 50% 54%;
+  filter: saturate(.7) contrast(1.05) brightness(.5) blur(2px);
+  transform: scale(1.06);
+}
+
+.backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 90% 70% at 50% 40%, rgb(9 9 11 / .55), rgb(9 9 11 / .92) 75%), linear-gradient(0deg, #09090b, transparent 45%);
+}
+
+.booking :global(.wizard-root) {
+  background: transparent;
+}
+
+.booking :global([data-part="panel"]) > div:first-child,
+.booking :global(#wizard-action-bar) {
+  border-color: rgb(245 245 244 / .1);
+  background-color: rgb(9 9 11 / .62);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.booking :global(#wizard-action-bar) {
+  border-radius: 0;
+  box-shadow: inset 0 1px rgb(var(--primary) / .35);
+}
+
+.booking :global(:is(.bg-card, .bg-muted)) {
+  background-color: rgb(20 20 23 / .58);
+  backdrop-filter: blur(14px);
+}
+
+.booking :global(:is(.border-input, .border-border)) {
+  border-color: rgb(245 245 244 / .14);
+}
+
+/* Picked cards: a gold edge and a soft inner light, and the vehicle drawing lifts a little. */
+.booking :global(:is([data-part="vehicle-card"], [data-part="menu-tile"]):has(input:checked)) {
+  border-color: rgb(var(--primary));
+  background-color: rgb(var(--primary) / .1);
+  box-shadow: inset 0 0 0 1px rgb(var(--primary)), 0 18px 48px -24px rgb(var(--primary) / .55);
+}
+
+/* The gold edge shows the pick; the radio stays for keyboard and screen readers, focus shows on the whole card. */
+.booking :global([data-part="vehicle-card"] input[type="radio"]) {
+  opacity: 0;
+}
+
+/* Current category: glass with a gold edge, so Continue stays the one solid gold action. */
+.booking :global([data-part="menu-category"][aria-pressed="true"]) {
+  border-color: rgb(var(--primary) / .7);
+  background-color: rgb(var(--primary) / .12);
+  color: rgb(var(--foreground));
+  box-shadow: inset 3px 0 rgb(var(--primary));
+}
+
+.booking :global([data-part="vehicle-mark"] svg) {
+  transition: transform .5s cubic-bezier(.2, .7, .2, 1);
+}
+
+.booking :global([data-part="vehicle-card"]:has(input:checked) [data-part="vehicle-mark"] svg) {
+  transform: translateY(-4px) scale(1.06);
+}
+
+.booking :global([data-part="menu-tile"] img) {
+  transition: transform .8s cubic-bezier(.2, .7, .2, 1);
+}
+
+.booking :global([data-part="menu-tile"]:has(input:checked) img) {
+  transform: scale(1.05);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The camera pushes in slowly while the customer books. */
+  .backdrop img {
+    animation: push 40s ease-out both;
+  }
+
+  /* One moment per step: the heading wipes up, then the choices settle in, one after another. */
+  .booking :global(#wizard-step-title) {
+    animation: wipe-up .9s cubic-bezier(.2, .7, .2, 1) both;
+  }
+
+  .booking :global(:is([data-part="vehicle-card"], [data-part="menu-tile"], [data-part="menu-category"])) {
+    animation: settle .7s cubic-bezier(.2, .7, .2, 1) both;
+    animation-delay: calc(.25s + var(--i, 0) * 70ms);
+  }
+
+  .booking :global(:is(li, label):nth-child(2) > [data-part]),
+  .booking :global([data-part]:nth-child(2)) { --i: 1; }
+  .booking :global(:is(li, label):nth-child(3) > [data-part]),
+  .booking :global([data-part]:nth-child(3)) { --i: 2; }
+  .booking :global(:is(li, label):nth-child(4) > [data-part]),
+  .booking :global([data-part]:nth-child(4)) { --i: 3; }
+  .booking :global(:is(li, label):nth-child(5) > [data-part]),
+  .booking :global([data-part]:nth-child(5)) { --i: 4; }
+  .booking :global(:is(li, label):nth-child(n + 6) > [data-part]),
+  .booking :global([data-part]:nth-child(n + 6)) { --i: 5; }
+
+  .booking :global(ol[aria-label="Booking steps"] li)::after {
+    transition: transform .8s cubic-bezier(.2, .7, .2, 1) .15s;
+  }
+}
+
+@keyframes push {
+  from { transform: scale(1.06); }
+  to { transform: scale(1.16); }
+}
+
+@keyframes wipe-up {
+  from { clip-path: inset(0 0 100% 0); transform: translateY(.35em); opacity: 0; }
+  to { clip-path: inset(0 0 -10% 0); transform: none; opacity: 1; }
+}
+
+@keyframes settle {
+  from { opacity: 0; transform: translateY(18px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Tap to start: the letterbox closes, the footage pushes in and goes dark, the copy lifts away,
+   then the booking fades up from black into its own opening. Total 950 ms (EXIT_MS in kiosk.tsx). */
+@media (prefers-reduced-motion: no-preference) {
+  .welcome[data-leaving] {
+    pointer-events: none;
+  }
+
+  .welcome[data-leaving]::before,
+  .welcome[data-leaving]::after {
+    animation: letterbox .55s cubic-bezier(.7, 0, .2, 1) forwards;
+  }
+
+  .welcome[data-leaving] .art {
+    animation: push-out .95s cubic-bezier(.55, 0, .2, 1) forwards;
+  }
+
+  .welcome[data-leaving] .title {
+    animation: lift-away .6s cubic-bezier(.55, 0, .2, 1) forwards;
+  }
+
+  .welcome[data-leaving] :is(.top, .bar) {
+    animation: fade-out .3s ease forwards;
+  }
+
+  .booking {
+    animation: from-black .7s ease-out both;
+  }
+
+  /* Ending: the letterbox closes over the booking, which fades while the footage pushes into black. */
+  .booking[data-ending] {
+    pointer-events: none;
+  }
+
+  .booking[data-ending]::before,
+  .booking[data-ending]::after {
+    content: "";
+    position: fixed;
+    z-index: 60;
+    left: 0;
+    right: 0;
+    height: 14svh;
+    background: #000;
+    animation: letterbox .55s cubic-bezier(.7, 0, .2, 1) forwards;
+  }
+
+  .booking[data-ending]::before {
+    top: 0;
+    transform: translateY(-100%);
+  }
+
+  .booking[data-ending]::after {
+    bottom: 0;
+    transform: translateY(100%);
+  }
+
+  /* Opacity only: a transform or filter here would re-anchor the fixed action bar. */
+  .booking[data-ending] :global(.wizard-root) {
+    animation: fade-out .45s ease forwards;
+  }
+
+  .booking[data-ending] .backdrop {
+    animation: push-out .9s cubic-bezier(.55, 0, .2, 1) forwards;
+  }
+
+  /* The welcome fades up from black, its headline rising into place. */
+  .welcome {
+    animation: from-black .8s ease-out both;
+  }
+
+  .welcome .title {
+    animation: rise-in 1s cubic-bezier(.2, .7, .2, 1) .15s both;
+  }
+
+  .booking :global([data-part="end-dialog"][open]) {
+    animation: settle .35s cubic-bezier(.2, .7, .2, 1) both;
+  }
+}
+
+@keyframes letterbox {
+  to { transform: none; }
+}
+
+@keyframes push-out {
+  0% { transform: scale(1); filter: brightness(1); opacity: 1; }
+  60% { opacity: 1; }
+  100% { transform: scale(1.14); filter: brightness(.35); opacity: 0; }
+}
+
+@keyframes lift-away {
+  to { opacity: 0; transform: translateY(-18px) scale(1.04); letter-spacing: .06em; filter: blur(6px); }
+}
+
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(24px); letter-spacing: .06em; filter: blur(6px); }
+}
+
+@keyframes from-black {
+  from { opacity: 0; }
+}
