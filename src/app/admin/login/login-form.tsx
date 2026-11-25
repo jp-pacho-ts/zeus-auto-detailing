@@ -29,6 +29,10 @@ export function LoginForm({ next }: { next: string }) {
   const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
+  // Our own inline messages replace the browser's validation bubbles (form is noValidate).
+  const [fieldErrors, setFieldErrors] = React.useState<{ identifier?: string; password?: string }>({});
+  const identifierRef = React.useRef<HTMLInputElement>(null);
+  const passwordRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     document.documentElement.classList.remove("light");
@@ -39,8 +43,13 @@ export function LoginForm({ next }: { next: string }) {
     e.preventDefault();
     setError(null);
 
-    if (!identifier.trim() || password.length === 0) {
-      setError("Please enter your staff email and password.");
+    const missing = {
+      identifier: identifier.trim() ? undefined : "Enter your staff email or username.",
+      password: password.length > 0 ? undefined : "Enter your password.",
+    };
+    setFieldErrors(missing);
+    if (missing.identifier || missing.password) {
+      (missing.identifier ? identifierRef : passwordRef).current?.focus();
       return;
     }
 
@@ -94,32 +103,50 @@ export function LoginForm({ next }: { next: string }) {
 
         <h1>Staff sign in</h1>
 
-        <form onSubmit={handleLogin} className="login-form">
+        <form onSubmit={handleLogin} className="login-form" noValidate>
           <div>
             <label htmlFor="staff-identifier">Staff Email or Username</label>
             <div className="login-input">
               <input
+                ref={identifierRef}
                 id="staff-identifier"
                 type="text"
                 value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                onChange={(e) => {
+                  setIdentifier(e.target.value);
+                  setFieldErrors((f) => ({ ...f, identifier: undefined }));
+                }}
                 autoComplete="username"
                 required
+                aria-invalid={fieldErrors.identifier ? true : undefined}
+                aria-describedby={fieldErrors.identifier ? "staff-identifier-error" : undefined}
               />
             </div>
+            {fieldErrors.identifier && (
+              <p id="staff-identifier-error" className="login-field-error">
+                <AlertCircle aria-hidden="true" />
+                {fieldErrors.identifier}
+              </p>
+            )}
           </div>
 
           <div>
             <label htmlFor="staff-password">Password</label>
             <div className="login-input">
               <input
+                ref={passwordRef}
                 id="staff-password"
                 className="login-has-toggle"
                 type={showPassword ? "text" : "password"}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setFieldErrors((f) => ({ ...f, password: undefined }));
+                }}
                 autoComplete="current-password"
                 required
+                aria-invalid={fieldErrors.password ? true : undefined}
+                aria-describedby={fieldErrors.password ? "staff-password-error" : undefined}
               />
               <button
                 type="button"
@@ -130,6 +157,12 @@ export function LoginForm({ next }: { next: string }) {
                 {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
               </button>
             </div>
+            {fieldErrors.password && (
+              <p id="staff-password-error" className="login-field-error">
+                <AlertCircle aria-hidden="true" />
+                {fieldErrors.password}
+              </p>
+            )}
           </div>
 
           {error && (
