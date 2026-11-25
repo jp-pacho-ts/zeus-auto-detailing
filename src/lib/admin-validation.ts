@@ -425,6 +425,11 @@ export const UserUpdateSchema = z
 
 export const UserResetPasswordSchema = z.object({}).strict().optional().default({});
 
+// confirmEmail: the admin types the account's email to confirm; the database compares it to the stored one.
+export const UserDeleteSchema = z
+  .object({ expectedRevision: Revision, confirmEmail: z.string().trim().min(1, "Type the account's email to confirm.").max(120) })
+  .strict();
+
 export const UserChangePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, "Enter your current password."),
