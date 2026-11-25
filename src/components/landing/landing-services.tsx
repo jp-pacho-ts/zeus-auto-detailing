@@ -1,14 +1,15 @@
 "use client";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, type ReactElement, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
-import { ArrowUpRight, Check, ChevronLeft, ChevronRight, CircleAlert, Minus, Plus } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Check, ChevronLeft, ChevronRight, CircleAlert, Minus, Plus } from "lucide-react";
 import type { BookingCatalog, BookingQuote, CatalogSelection, ServicePackage, VehicleBodyType } from "@/types/catalog-contracts";
 import { BODY_TYPES_BY_SIZE, BODY_TYPE_LABEL, MAX_SELECTION_LINES } from "@/types/catalog-contracts";
 import { brandConfig } from "@/config/brand";
 import type { LandingStatus } from "@/server/landing/status";
-import { bookingAction, bookingHref, estimateLabels, money, pruneSelection, quoteFailure, selectionKey, serviceArrow, servicePrice, type QuoteAnswer } from "./landing-model";
+import { bookingAction, bookingHref, estimateLabels, money, pruneSelection, quoteFailure, selectionKey, serviceArrow, type QuoteAnswer } from "./landing-model";
 import { LandingCard } from "./landing-card";
-import { landingPhoto } from "./landing-photos";
+import { PriceTag } from "./landing-price-tag";
+import { landingPhoto, type LandingPhoto } from "./landing-photos";
 
 export type DisplayCatalog = Omit<BookingCatalog, "catalogReleaseId" | "catalogVersion">;
 const CATEGORIES = ["WASH", "DETAILING", "GRAPHENE", "TINT", "PPF", "REPAINT"] as const;
@@ -31,7 +32,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
   const tabs = useRef<HTMLDivElement>(null);
   const revision = useRef(0);
   const [version, setVersion] = useState(0);
-  const booking = bookingAction(status, phone);
+  const booking = bookingAction();
   const size = catalog.vehicleCategories.find((s) => s.id === sizeId);
   const bodies = size ? BODY_TYPES_BY_SIZE[size.code] : undefined;
   const key = selectionKey(sizeId, body, lines);
@@ -56,6 +57,10 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
   }, [remaining]);
   const edit = () => { revision.current++; setVersion(revision.current); setError(""); setNote(""); };
   const setVehicle = (id: string) => { edit(); setSizeId(id); setBody(undefined); };
+  const vehicleFilters = (prefix: string) => <div className="landing-filter-selects">
+    <label className="landing-select" htmlFor={`${prefix}-size`}><span>Vehicle size</span><select id={`${prefix}-size`} value={sizeId} onChange={(e) => setVehicle(e.target.value)}><option value="">Choose a size</option>{catalog.vehicleCategories.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+    {bodies && <label className="landing-select" htmlFor={`${prefix}-body`}><span>Body type</span><select id={`${prefix}-body`} value={body ?? ""} onChange={(e) => { edit(); setBody(e.target.value as VehicleBodyType || undefined); }}><option value="">Choose a body type</option>{bodies.map((b) => <option key={b} value={b}>{BODY_TYPE_LABEL[b]}</option>)}</select></label>}
+  </div>;
   const toggle = (service: ServicePackage, checked: boolean) => {
     edit();
     if (checked && lines.length >= MAX_SELECTION_LINES) { setError("Choose at most 10 services."); return; }
@@ -72,7 +77,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
     tab?.focus({ preventScroll: true });
     if (tab && tabs.current) tabs.current.scrollLeft += tab.offsetLeft - tabs.current.offsetLeft - 12;
   };
-  const card = (service: ServicePackage) => {
+  const card = (service: ServicePackage, photo?: LandingPhoto) => {
     const offer = service.offers.find((o) => o.vehicleCategoryId === sizeId);
     const picked = lines.find((l) => l.serviceId === service.id);
     const compatible = service.type === "BASE" || catalog.addOnCompatibility.some((c) => c.addOnServiceId === service.id && lines.some((l) => l.serviceId === c.baseServiceId));
@@ -80,7 +85,7 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
     const reason = picked || !enhanced ? null : !compatible ? "Add a main service first" : lines.length >= MAX_SELECTION_LINES ? "Limit of 10 reached" : null;
     const unavailable = !picked && offer?.onlineBooking === "UNAVAILABLE";
     const duration = offer?.duration.kind === "TIMED" ? `About ${offer.duration.minutes} min` : offer?.duration.kind === "MULTI_DAY" ? "Multi-day" : null;
-    return <LandingCard key={service.id} anchor={`service-${service.slug}`} chip={service.type === "ADD_ON" ? "Add-on" : LABELS[service.category]} duration={duration} title={service.name} price={servicePrice(service, size, body)} priceId={`landing-price-${service.id}`} arrow={serviceArrow(catalog, size, service, status, phone)} photo={landingPhoto(service.slug)}
+    return <LandingCard key={service.id} anchor={`service-${service.slug}`} addOn={service.type === "ADD_ON"} duration={duration} title={service.name} priceTag={<PriceTag service={service} size={size} body={body} id={`landing-price-${service.id}`} />} arrow={serviceArrow(catalog, size, service, status, phone)} photo={photo}
       action={<button type="button" className="landing-toggle" aria-pressed={!!picked} disabled={!enhanced || !!reason || unavailable} aria-describedby={unavailable ? `landing-price-${service.id}` : undefined} onClick={() => toggle(service, !picked)}>{picked ? <><Check aria-hidden="true" />In estimate</> : reason ?? <><Plus aria-hidden="true" />Add to estimate</>}</button>}>
       {picked && service.unit === "PANEL" && <label className="landing-panels">Panels, 1 to 20<input aria-label={`Panels, 1 to 20, for ${service.name}`} type="number" min="1" max="20" value={picked.quantity} onChange={(e) => { edit(); setLines(lines.map((l) => l.serviceId === service.id ? { ...l, quantity: Math.max(1, Math.min(20, Math.trunc(Number(e.target.value) || 1))) } : l)); }} /></label>}
       {service.description && <p className="landing-card-text">{service.description}</p>}
@@ -118,57 +123,96 @@ export function LandingServices({ catalog, phone, messenger, status }: { catalog
   // UI/UX F1: only packages whose catalog lists inclusions are compared; an empty list would read as "includes nothing".
   const compared = graphene.filter((s) => s.inclusions.length > 0);
   const inclusions = [...new Set(compared.flatMap((s) => s.inclusions))];
+  const shared = inclusions.filter((item) => compared.every((s) => s.inclusions.includes(item)));
+  const differences = inclusions.filter((item) => !shared.includes(item));
   const durationFor = (s: ServicePackage) => { const o = s.offers.find((offer) => offer.vehicleCategoryId === sizeId); return o?.duration.kind === "TIMED" ? `About ${o.duration.minutes} min` : o?.duration.kind === "MULTI_DAY" ? "Multi-day" : null; };
   const included = <><Check aria-hidden="true" /><span className="landing-sr">Included</span></>, notIncluded = <><Minus aria-hidden="true" /><span className="landing-sr">Not included</span></>;
   const step = (by: number) => { const i = CATEGORIES.indexOf(category as typeof CATEGORIES[number]); chooseTab(CATEGORIES[(i + by + 6) % 6]); focusTab(i + by); };
   return <>
-    <section id="services" className="landing-section landing-wrap landing-ground-muted">
-      <div className="landing-filter-head"><h2>Services and prices</h2><p className="landing-muted">Choose your vehicle size to see its price.</p></div>
+    <section id="services" className="landing-section landing-wrap landing-ground-muted landing-catalog" aria-labelledby="landing-catalog-title">
+      <div className="landing-filter-head"><div><p className="landing-eyebrow">The price list</p><h2 id="landing-catalog-title">Services and prices<span className="landing-gold-dot" aria-hidden="true">.</span></h2></div><p className="landing-muted landing-care-lede">Choose your vehicle size to see prices. Add services to build an estimate.</p></div>
       {/* P1-90 option P1: the size control sticks under the header while Services is on screen, so "Price depends on size" has its control at hand. */}
-      <div className="landing-size-bar"><div className="landing-filter-selects">
-          <label className="landing-select" htmlFor="landing-size"><span>Vehicle size</span><select id="landing-size" value={sizeId} onChange={(e) => setVehicle(e.target.value)}><option value="">Choose a size</option>{catalog.vehicleCategories.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-          {bodies && <label className="landing-select" htmlFor="landing-body"><span>Body type</span><select id="landing-body" value={body ?? ""} onChange={(e) => { edit(); setBody(e.target.value as VehicleBodyType || undefined); }}><option value="">Choose a body type</option>{bodies.map((b) => <option key={b} value={b}>{BODY_TYPE_LABEL[b]}</option>)}</select></label>}
-      </div></div>
-      <div className="landing-tab-row"><button className="landing-tab-step" hidden={!enhanced} type="button" aria-label="Previous category" onClick={() => step(-1)}><ChevronLeft aria-hidden="true" /></button><div ref={tabs} className="landing-tabs" role={enhanced ? "tablist" : undefined} aria-label={enhanced ? "Service categories" : undefined}>{CATEGORIES.map((c, i) => <a key={c} id={`tab-${c}`} href={`#services-${c}`} aria-label={LABELS[c]} role={enhanced ? "tab" : undefined} aria-selected={enhanced ? category === c : undefined} aria-controls={enhanced ? `services-${c}` : undefined} tabIndex={enhanced ? category === c ? 0 : -1 : undefined} onClick={(e) => { if (enhanced) { e.preventDefault(); chooseTab(c); } }} onKeyDown={(e) => { if (!enhanced) return; if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); focusTab(i + (e.key === "ArrowRight" ? 1 : -1)); } if (e.key === "Home" || e.key === "End") { e.preventDefault(); focusTab(e.key === "Home" ? 0 : 5); } if (e.key === " ") { e.preventDefault(); chooseTab(c); } }}>{enhanced && category === c && <Check aria-hidden="true" />}{LABELS[c]}</a>)}</div><button className="landing-tab-step" hidden={!enhanced} type="button" aria-label="Next category" onClick={() => step(1)}><ChevronRight aria-hidden="true" /></button></div>
-      {CATEGORIES.map((c) => <div key={c} id={`services-${c}`} className="landing-panel" role={enhanced ? "tabpanel" : undefined} aria-labelledby={enhanced ? `tab-${c}` : undefined} hidden={enhanced && category !== c}><h3>{LABELS[c]}</h3><div className="landing-grid">{catalog.services.filter((s) => s.category === c).map(card)}</div>{!catalog.services.some((s) => s.category === c) && <p>Nothing listed here yet. Call us and ask.</p>}</div>)}
-      <p className="landing-muted landing-small">Inspection prices are estimates. The shop confirms the price after seeing your vehicle.</p>
+      <div className="landing-size-bar">{vehicleFilters("landing")}</div>
+      <div className="landing-tab-row"><button className="landing-tab-step" hidden={!enhanced} type="button" aria-label="Previous category" onClick={() => step(-1)}><ChevronLeft aria-hidden="true" /></button><div ref={tabs} className="landing-tabs" role={enhanced ? "tablist" : undefined} aria-label={enhanced ? "Service categories" : undefined}>{CATEGORIES.map((c, i) => <a key={c} id={`tab-${c}`} href={`#services-${c}`} aria-label={LABELS[c]} role={enhanced ? "tab" : undefined} aria-selected={enhanced ? category === c : undefined} aria-controls={enhanced ? `services-${c}` : undefined} tabIndex={enhanced ? category === c ? 0 : -1 : undefined} onClick={(e) => { if (enhanced) { e.preventDefault(); chooseTab(c); } }} onKeyDown={(e) => { if (!enhanced) return; if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); focusTab(i + (e.key === "ArrowRight" ? 1 : -1)); } if (e.key === "Home" || e.key === "End") { e.preventDefault(); focusTab(e.key === "Home" ? 0 : 5); } if (e.key === " ") { e.preventDefault(); chooseTab(c); } }}>{LABELS[c]}</a>)}</div><button className="landing-tab-step" hidden={!enhanced} type="button" aria-label="Next category" onClick={() => step(1)}><ChevronRight aria-hidden="true" /></button></div>
+      {CATEGORIES.map((c) => {
+        const photographed: ReactElement[] = [];
+        const compact: ReactElement[] = [];
+        for (const service of catalog.services.filter((s) => s.category === c)) {
+          const photo = landingPhoto(service.slug);
+          (photo ? photographed : compact).push(card(service, photo));
+        }
+        return <div key={c} id={`services-${c}`} className="landing-panel" role={enhanced ? "tabpanel" : undefined} aria-labelledby={enhanced ? `tab-${c}` : undefined} hidden={enhanced && category !== c}>
+          <h3 className="landing-sr">{LABELS[c]}</h3>
+          {photographed.length > 0 && <div className="landing-grid">{photographed}</div>}
+          {compact.length > 0 && <div className="landing-rate-list">{compact}</div>}
+          {photographed.length + compact.length === 0 && <p>Contact us for options in this category.</p>}
+        </div>;
+      })}
+      <div className="landing-catalog-footer"><p className="landing-muted landing-small">The shop confirms inspection prices after seeing your vehicle.</p><a className="landing-text-link" href="#estimate">View estimate{lines.length > 0 && ` (${lines.length})`}<ArrowDown aria-hidden="true" /></a></div>
     </section>
-    <section id="estimate" className="landing-section landing-wrap landing-ground-muted landing-estimate-section"><div className="landing-card landing-estimate"><div><h2>Estimate your price</h2><p className="landing-muted">Pick a size and services above, then get an estimate from the current price list. Nothing is booked or held, and you choose your services again when you book.</p><p>{lines.length} of {MAX_SELECTION_LINES} selected{size ? ` · ${size.name}` : ""}{body ? ` · ${BODY_TYPE_LABEL[body]}` : ""}</p>{note && <p role="status">{note}</p>}
+    <section id="estimate" className="landing-section landing-wrap landing-ground-muted landing-estimate-section"><div className="landing-card landing-estimate"><div><h2>Build your estimate</h2><p className="landing-muted">See a breakdown of your selected services using the current price list. When you’re ready, book a separate appointment.</p><p className="landing-estimate-selection">{lines.length} of {MAX_SELECTION_LINES} selected{size ? ` · ${size.name}` : ""}{body ? ` · ${BODY_TYPE_LABEL[body]}` : ""}</p>{note && <p role="status">{note}</p>}
       <button className="landing-pill landing-solid" type="button" disabled={!enhanced || busy || remaining > 0} onClick={getEstimate}>{busy ? "Getting estimate…" : remaining > 0 ? `Try again in ${remaining}s` : "Get estimate"}</button><noscript><p>The estimate needs JavaScript. Prices and booking links above still work.</p></noscript>{error && <p className="landing-error" role="alert"><CircleAlert aria-hidden="true" /><span>{error} <a href={`tel:${phone}`}>Call {brandConfig.displayPhone}</a></span></p>}</div>
       <div id="landing-estimate-result" className="landing-estimate-result" aria-live="polite" aria-atomic="true">{result && labels ? <>{stale && <p className="landing-stale">Out of date. Get a new estimate.</p>}<h3>{stale ? "Previous estimate" : "Your estimate"}</h3><p className="landing-small landing-muted">For: {result.vehicle}</p><ul>{result.quote.lines.map((l) => <li key={l.serviceId}><span>{l.name}{l.quantity > 1 ? ` × ${l.quantity}` : ""}</span><span>{l.priceStatus === "PRICED" ? money(l.subtotalCentavos!) : l.referenceUnitPriceCentavos === null ? "Price on inspection" : `Price on inspection · about ${money(l.referenceUnitPriceCentavos)}${l.unit === "PANEL" ? ` per panel × ${l.quantity}` : ""}`}</span></li>)}</ul><p className="landing-total">{labels.subtotal}<strong>{money(result.quote.totalPriceCentavos)}</strong></p>{labels.estimate && <p className="landing-total">Estimated total incl. inspection items<strong>{labels.estimate}</strong></p>}<p className="landing-small landing-muted">From the current price list. This is an estimate, not a booking.</p><div className="landing-actions"><a className="landing-pill landing-gold" href={stale ? booking.href : href}>{booking.label}</a><a href={messenger}>Message us about this estimate</a></div></> : <><h3>Your estimate shows here.</h3><p className="landing-muted">Fixed prices and inspection items are listed separately.</p></>}</div>
     </div></section>
     <section id="coatings" className="landing-coatings">
       <CoatingsBleed />
       <div className="landing-wrap landing-compare">
-        {compared.length >= 2 && <>
-          <div className="landing-compare-head"><h3>Compare graphene packages</h3><p className="landing-muted">{size ? `Prices for ${size.name}.` : "Choose your vehicle size to see prices."}</p></div>
-          <div className="landing-compare-scroll"><table className="landing-compare-table">
+        {/* LE 2026-11-21: one spec sheet (Porsche model compare): labels in the first column, a column per package, and
+            the shared items and differences line up under each package. --n sets the package columns. */}
+        {compared.length >= 2 && <div className="landing-compare-sheet" style={{ "--n": compared.length } as CSSProperties}>
+          <div id="graphene-comparison" className="landing-compare-head">
+            <p className="landing-eyebrow">Graphene coating</p>
+            <h3>Compare graphene packages</h3>
+            {vehicleFilters("landing-compare")}
+          </div>
+          <div className="landing-compare-packages">{compared.map((s) => {
+            const action = serviceArrow(catalog, size, s, status, phone);
+            const photo = landingPhoto(s.slug);
+            const duration = durationFor(s);
+            return <article className="landing-compare-package" key={s.id}>
+              <div className="landing-compare-poster">
+                {photo && <div className={photo.contain ? "landing-compare-photo landing-compare-photo-contain" : "landing-compare-photo"}>
+                  <Image src={photo.src} alt={photo.alt} width={1600} height={1200} sizes="(max-width: 580px) 100vw, (max-width: 950px) 50vw, 33vw" style={photo.position ? { objectPosition: photo.position } : undefined} />
+                </div>}
+                <h4>{s.name}</h4>
+              </div>
+              <div className="landing-compare-rate" aria-live="polite">
+                <PriceTag service={s} size={size} body={body} />
+                {duration && <p className="landing-small landing-muted">{duration}</p>}
+              </div>
+              <a className="landing-text-link" href={action.href}>{action.label}<ArrowUpRight aria-hidden="true" /></a>
+            </article>;
+          })}</div>
+          {shared.length > 0 && <div className="landing-compare-shared">
+            <h4>Included in every package</h4>
+            <ul className="landing-check-list">{shared.map((item) => <li key={item}><Check aria-hidden="true" />{item}</li>)}</ul>
+          </div>}
+          {differences.length > 0 && <div className="landing-compare-scroll" role="region" aria-label="Package differences" tabIndex={0}><table className="landing-compare-table">
+            <caption>Package differences</caption>
             <thead><tr><td />{compared.map((s) => <th scope="col" key={s.id}>{s.name}</th>)}</tr></thead>
-            <tbody>
-              <tr><th scope="row">Price</th>{compared.map((s) => <td key={s.id} className="landing-price">{servicePrice(s, size, body)}</td>)}</tr>
-              {size && <tr><th scope="row">Time</th>{compared.map((s) => <td key={s.id}>{durationFor(s)}</td>)}</tr>}
-              {inclusions.map((item) => <tr key={item}><th scope="row">{item}</th>{compared.map((s) => <td key={s.id}>{s.inclusions.includes(item) ? included : notIncluded}</td>)}</tr>)}
-              <tr><td />{compared.map((s) => { const a = serviceArrow(catalog, size, s, status, phone); return <td key={s.id}><a className="landing-arrow" href={a.href} aria-label={a.label}><ArrowUpRight aria-hidden="true" /></a></td>; })}</tr>
-            </tbody>
-          </table></div>
-          <div className="landing-compare-blocks">{compared.map((s) => { const a = serviceArrow(catalog, size, s, status, phone); return <article className="landing-card" key={s.id}>
-            <h4>{s.name}</h4><p className="landing-price">{servicePrice(s, size, body)}</p>{size && durationFor(s) && <p className="landing-muted">{durationFor(s)}</p>}
-            {s.inclusions.length > 0 && <ul className="landing-check-list">{s.inclusions.map((item) => <li key={item}><Check aria-hidden="true" />{item}</li>)}</ul>}
-            <a className="landing-arrow" href={a.href} aria-label={a.label}><ArrowUpRight aria-hidden="true" /></a>
-          </article>; })}</div>
-        </>}
-        {films.length > 0 && <><h3>Window tint and paint protection film</h3><ul className="landing-chip-list">{films.map((s) => <li className="landing-chip" key={s.id}>{s.name}</li>)}</ul></>}
-        <p><a href={messenger}>Ask about coatings on Messenger</a></p>
+            <tbody>{differences.map((item) => <tr key={item}><th scope="row">{item}</th>{compared.map((s) => <td key={s.id}>{s.inclusions.includes(item) ? included : notIncluded}</td>)}</tr>)}</tbody>
+          </table></div>}
+        </div>}
+        {films.length > 0 && <div className="landing-compare-films"><h3>Window tint and paint protection film</h3><ul className="landing-chip-list">{films.map((s) => <li className="landing-chip" key={s.id}>{s.name}</li>)}</ul></div>}
+        <p className="landing-compare-ask"><a className="landing-text-link" href={messenger}>Ask about coatings on Messenger<ArrowUpRight aria-hidden="true" /></a></p>
       </div>
     </section>
   </>;
 }
 
-// The page's one full-bleed photo after the hero (P1-90 identity 9.3, C1). Shared with the no-catalog fallback.
-export function CoatingsBleed() {
+// Shared with the no-catalog fallback so the scene and its copy are present before animation mounts.
+// The no-catalog fallback passes `messenger` so its only action sits in the scene instead of a near-empty block below.
+export function CoatingsBleed({ messenger }: { messenger?: string } = {}) {
   const photo = landingPhoto("eclipse-graphene")!;
   return <div className="landing-bleed">
     <div className="landing-bleed-media"><Image src={photo.src} alt={photo.alt} width={1600} height={1200} sizes="100vw" /></div>
-    <div className="landing-wrap landing-bleed-copy"><h2>Coatings and films</h2><p>Ask us which coating or film suits your vehicle.</p></div>
+    <div className="landing-wrap landing-bleed-copy">
+      <h2 aria-label="Coatings and films">
+        <span className="landing-bleed-line" aria-hidden="true"><span className="landing-bleed-text">Coatings</span></span>{" "}
+        <span className="landing-bleed-line" aria-hidden="true"><span className="landing-bleed-text">and films<span className="landing-gold-dot">.</span></span></span>
+      </h2>
+      <p>Ask us which coating or film suits your vehicle.</p>
+      {messenger && <a className="landing-text-link landing-bleed-link" href={messenger}>Ask about coatings on Messenger<ArrowUpRight aria-hidden="true" /></a>}
+    </div>
   </div>;
 }

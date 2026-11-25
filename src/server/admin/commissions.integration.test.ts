@@ -110,6 +110,40 @@ const shiftDay = (day: string, n: number) => new Date(Date.parse(day + "T00:00:0
 const aroundToday = () => ({ from: shiftDay(manilaDay(new Date()), -1), to: shiftDay(manilaDay(new Date()), 1) });
 const count = async (table: string, where = "TRUE") => Number((await db.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*) AS n FROM ${table} WHERE ${where}`))[0].n);
 
+test("service deduction: editable defaults reduce commissions without posting to Expenses", { skip }, async () => {
+  const list = await s.listAdminServices(ADMIN, opts());
+  const coating = list.services.find((v) => v.slug === "eclipse-graphene")!;
+  assert.equal((coating as typeof coating & { expenseDeductionCentavos: number }).expenseDeductionCentavos, 150_000);
+  const tint = list.services.find((v) => v.slug === "regular-tint")!;
+  const save = (amount: number, sizeDeductions?: { S: number; MOTOR: number }) => s.updateAdminService(ADMIN, tint.id, {
+    name: tint.name, description: tint.description, category: tint.category, offers: [], expenseDeductionCentavos: amount, sizeDeductions,
+  }, opts());
+  try {
+    await save(150_000, { S: 25_050, MOTOR: 0 });
+    assert.deepEqual((await s.listAdminServices(ADMIN, opts())).services.find((v) => v.id === tint.id)?.sizeDeductions, { S: 25_050, MOTOR: 0 });
+    const before = await s.expenseTotals(ADMIN, aroundToday(), opts());
+    const job = await inProgress([], 100_000);
+    assert.equal(await count("service_cost_snapshots", `"bookingId" = ${lit(job.id)}`), 0);
+    await finish(job);
+    assert.equal((await header(job.id))!.serviceTotalCentavos, 74_950);
+    const after = await s.expenseTotals(ADMIN, aroundToday(), opts());
+    assert.equal(after.total, before.total, "the deduction never changes expense totals");
+    const month = manilaDay(new Date()).slice(0, 7);
+    const expenses = await s.getExpenseMonth(ADMIN, { month }, opts());
+    assert.equal(expenses.expenses.some((e) => e.note?.includes(job.reference)), false);
+    assert.equal(await count("service_cost_snapshots", `"bookingId" = ${lit(job.id)} AND recorded`), 0);
+    await save(150_000, { S: 0, MOTOR: 0 });
+    await db.$executeRawUnsafe('SELECT commission_accrue($1)', job.id);
+    assert.equal((await header(job.id))!.serviceTotalCentavos, 74_950, "recorded cost is retained after editing the default");
+    assert.equal((await s.expenseTotals(ADMIN, aroundToday(), opts())).total, after.total, "retry cannot duplicate a cost");
+    const zero = await completed([], 100_000);
+    assert.equal((await header(zero.id))!.serviceTotalCentavos, 100_000);
+    assert.equal((await s.expenseTotals(ADMIN, aroundToday(), opts())).total, after.total, "disabled service creates no expense");
+    await assert.rejects(app.$executeRawUnsafe('SELECT admin_service_set_expense_deduction($1,$2,$3::integer)', "missing-actor", tint.id, 1));
+    await assert.rejects(app.$executeRawUnsafe('UPDATE service_cost_snapshots SET "amountCentavos" = 1 WHERE "bookingId" = $1', job.id));
+  } finally { await save(0, { S: 0, MOTOR: 0 }); }
+});
+
 async function refused(p: Promise<unknown>, code: string, label: string, check?: (e: AdminServiceError) => void) {
   await assert.rejects(p, (e: unknown) => {
     const err = e as AdminServiceError;
@@ -1055,4 +1089,42 @@ test("L3 paid commission is never changed by a late worker", { skip }, async () 
   await s.assignWorker(ADMIN, job.id, late.id, { expectedRevision: await rev(job.id) }, at(job.day));
   assert.deepEqual(await entries(job.id), before, "the paid entry and its amount are untouched; nobody else is credited");
   assert.deepEqual((await s.getBookingDetail(ADMIN, job.id, opts())).assignedWorkers.map((x) => x.staffId).sort(), [w.id, late.id].sort(), "the name is still recorded");
+});
+test("paid booking: preview and save a one-line deduction correction without rewriting payments", { skip }, async () => {
+  const worker = await person("Deduction Correction Worker", "20");
+  const tint = bySlug(r0(), "regular-tint").id;
+  const previous = await db.service.findUniqueOrThrow({ where: { id: tint }, select: { expenseDeductionCentavos: true, sizeDeductions: true } });
+  await db.$executeRaw`UPDATE services SET "expenseDeductionCentavos" = 150000, "sizeDeductions" = '{}'::jsonb WHERE id = ${tint}`;
+  try {
+    const job = await shopCompleted([worker.id], [{ slug: "regular-tint", price: 200_000 }], { keepWash: false });
+    const line = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: job.id, serviceId: tint } });
+    const [original] = await entries(job.id);
+    assert.equal(original.amountCentavos, 10_000);
+    await s.setCommissionsPaid(ADMIN, { ids: [original.id], paid: true }, opts());
+    const input = { lineId: line.id, deductionCentavos: 0 };
+    const preview = await s.correctBookingDeduction(ADMIN, job.id, input, opts());
+    assert.deepEqual(preview.rows.map((r) => [r.paidCentavos, r.correctedCentavos, r.differenceCentavos]), [[10_000, 40_000, 30_000]]);
+    assert.equal(await db.commissionAdjustment.count({ where: { entryId: original.id } }), 0);
+    const save = { ...input, expected: preview.token };
+    await s.correctBookingDeduction(ADMIN, job.id, save, opts());
+    await refused(s.correctBookingDeduction(ADMIN, job.id, save, opts()), "VERSION_CONFLICT", "stale preview cannot duplicate the correction");
+    const [settled] = await entries(job.id);
+    assert.deepEqual([settled.id, settled.amountCentavos, !!settled.paidAt], [original.id, 10_000, true]);
+    assert.deepEqual((await db.commissionAdjustment.findMany({ where: { entryId: original.id } })).map((a) => [Number(a.amountCentavos), a.paidAt]), [[30_000, null]]);
+    const another = await shopCompleted([worker.id], [{ slug: "regular-tint", price: 200_000 }], { keepWash: false });
+    const [anotherEntry] = await entries(another.id);
+    await s.setCommissionsPaid(ADMIN, { ids: [anotherEntry.id], paid: true }, opts());
+    await db.$executeRaw`UPDATE services SET "sizeDeductions" = '{"S":0}'::jsonb WHERE id=${tint}`;
+    const alreadyCorrected = await s.recalculateCommission(ADMIN, job.id, opts());
+    assert.deepEqual([alreadyCorrected.before[0].amountCentavos, alreadyCorrected.after[0].amountCentavos], [40_000, 40_000]);
+    const updated = await s.recalculateCommission(ADMIN, another.id, opts());
+    assert.deepEqual([updated.before[0].amountCentavos, updated.after[0].amountCentavos], [10_000, 40_000]);
+    assert.equal((await entries(another.id))[0].amountCentavos, 10_000, "the settled payment keeps its original amount");
+    const anotherLine = await db.bookingLineItem.findFirstOrThrow({ where: { bookingId: another.id, serviceId: tint } });
+    assert.equal((await db.bookingDeductionOverride.findUniqueOrThrow({ where: { lineId: anotherLine.id } })).amountCentavos, 0);
+    await s.recalculateCommission(ADMIN, another.id, opts());
+    assert.equal(await db.commissionAdjustment.count({ where: { entryId: anotherEntry.id } }), 1, "retry cannot duplicate the correction");
+  } finally {
+    await db.$executeRaw`UPDATE services SET "expenseDeductionCentavos" = ${previous.expenseDeductionCentavos}, "sizeDeductions" = ${JSON.stringify(previous.sizeDeductions)}::jsonb WHERE id = ${tint}`;
+  }
 });

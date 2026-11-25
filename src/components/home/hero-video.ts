@@ -19,9 +19,11 @@ export type HeroVideoInput = {
   effectiveType: string | undefined;
 };
 
+export type HeroVideoFiles = Readonly<{ desktop: string; phone: string }>;
+
 /** Returns the file to load, or null when only the poster should show (reduced motion, data-saver, 2G). */
-export function chooseHeroVideo({ width, reducedMotion, saveData, effectiveType }: HeroVideoInput): string | null {
+export function chooseHeroVideo({ width, reducedMotion, saveData, effectiveType }: HeroVideoInput, files: HeroVideoFiles = HERO_VIDEO_FILES): string | null {
   if (reducedMotion || saveData) return null;
   if (effectiveType === "slow-2g" || effectiveType === "2g") return null;
-  return width <= HERO_PHONE_MAX_WIDTH ? HERO_VIDEO_FILES.phone : HERO_VIDEO_FILES.desktop;
+  return width <= HERO_PHONE_MAX_WIDTH ? files.phone : files.desktop;
 }

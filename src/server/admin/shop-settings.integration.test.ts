@@ -141,3 +141,33 @@ test("S11 the email state is a yes or no and two counts, with no address or secr
     assert.equal(typeof v.email.configured, "boolean");
   } finally { process.env = keep; }
 });
+
+// P1-78 "last changed", per row: when and by whom (the staff name only, never email or phone). Read as zeus_app.
+test("S12 P1-78 last changed: the settings row, a queue's default cap and the bay list each show the time and the staff name only", { skip }, async () => {
+  const phone = "+63 900 000 0178", email = `p178-${randomUUID()}@example.test`;
+  const named = await db.staff.create({ data: { name: "P1-78 Settings Admin", phone, email, role: "ADMIN" } });
+  const actor: StaffActor = { staffId: named.id, role: "ADMIN", sessionId: randomUUID() };
+  const v0 = await s.getShopSettings(ADMIN, opts());
+  await s.setShopSettings(actor, body(v0.revision, { maintenance: !v0.maintenance }), opts());
+  const row = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+  const v1 = await s.getShopSettings(ADMIN, opts());
+  assert.deepEqual(v1.lastChanged, { at: row.updatedAt.toISOString(), by: "P1-78 Settings Admin" });
+  assert.equal(v1.baysLastChanged, null, "no bay change yet");
+
+  const wash = await db.bookingQueue.findUniqueOrThrow({ where: { code: "WASH" } });
+  await s.setDefaultCap(actor, "WASH", { expectedRevision: wash.revision, dailyCap: 9 }, opts());
+  const day = { from: "2031-01-01", to: "2031-01-01" };
+  const caps = (await s.getCaps(ADMIN, day, opts())).find((q) => q.code === "WASH")!;
+  const queue = await db.bookingQueue.findUniqueOrThrow({ where: { code: "WASH" } });
+  assert.deepEqual(caps.lastChanged, { at: queue.updatedAt.toISOString(), by: "P1-78 Settings Admin" });
+  const staffView = (await s.getCaps({ ...ADMIN, role: "STAFF" }, day, opts())).find((q) => q.code === "WASH")!;
+  assert.deepEqual(staffView.lastChanged, { at: queue.updatedAt.toISOString(), by: null }, "STAFF may read caps but not who changed them");
+
+  await s.createBay(actor, { name: "P1-78 Bay", sortOrder: 99, bayType: "WASH" }, opts());
+  const audit = await db.bookingAuditEvent.findFirstOrThrow({ where: { action: "BAY_LIST_CHANGED" }, orderBy: { createdAt: "desc" } });
+  const v2 = await s.getShopSettings(ADMIN, opts());
+  assert.deepEqual(v2.baysLastChanged, { at: audit.createdAt.toISOString(), by: "P1-78 Settings Admin" });
+
+  const text = JSON.stringify([v1, v2, caps, staffView]);
+  assert.ok(!text.includes(phone) && !text.includes(email), "no staff phone or email in any answer");
+});

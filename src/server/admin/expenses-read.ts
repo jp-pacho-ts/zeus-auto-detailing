@@ -1,7 +1,9 @@
 import "server-only";
-import { ExpenseTotalsSchema } from "@/lib/admin-validation";
+import { AnalyticsQuerySchema, ExpenseTotalsSchema } from "@/lib/admin-validation";
+import type { AdminExpenseAnalytics } from "@/types/admin-contracts";
 import { withStaffDb, type StaffTx } from "@/server/auth/db-admission";
-import { authorize, parse, type AdminOptions, type StaffActor } from "./context";
+import { bucketsFor } from "./analytics-model";
+import { authorize, manilaDate, parse, type AdminOptions, type StaffActor } from "./context";
 
 // P1-39: the one place that says what counts as an expense. P1-40 reads this function, never its own copy of the rules, so Sales & Analytics profit
 // equals the Expenses page. Stock bought and commissions paid are read from where they live (no copied rows), so nothing can be counted twice.
@@ -56,4 +58,29 @@ export async function expenseTotals(actor: StaffActor, input: { from: string; to
   authorize(actor, "EXPENSE_READ");
   const v = parse(ExpenseTotalsSchema, input);
   return withStaffDb("STAFF_READ", (tx) => totalsIn(tx, v.from, v.to), { access: "read", db: options.db, signal: options.signal });
+}
+
+// Expense analytics: the Expenses page's own period view. Same period rules and day/week/month calendar as Sales & Analytics,
+// and every figure comes from totalsIn, so a bucket, the range total and the Expenses month can never disagree.
+// shortcut: one totalsIn per bucket (at most 32 buckets, a year by month or a month by day); fold into one grouped statement if it slows down.
+export async function getExpenseAnalytics(actor: StaffActor, input: unknown, options: AdminOptions = {}): Promise<AdminExpenseAnalytics> {
+  authorize(actor, "EXPENSE_READ");
+  const { from, to } = parse(AnalyticsQuerySchema, input);
+  const today = manilaDate(options.now?.() ?? new Date());
+  const { unit, rows } = bucketsFor(from, to, today);
+  return withStaffDb("STAFF_READ", async (tx) => {
+    const t = await totalsIn(tx, from, to);
+    const buckets = [];
+    for (const b of rows) {
+      const x = b.future ? null : await totalsIn(tx, b.start, b.end);
+      buckets.push({ start: b.start, end: b.end, future: b.future, total: String(x?.total ?? 0), manual: String(x?.manual ?? 0), stockBought: String(x?.stockBought ?? 0), commissionsPaid: String(x?.commissionsPaid ?? 0) });
+    }
+    return {
+      from, to, today, unit, buckets,
+      totals: { total: String(t.total), manual: String(t.manual), stockBought: String(t.stockBought), commissionsPaid: String(t.commissionsPaid), commissionsOwed: String(t.commissionsOwed) },
+      byCategory: t.byCategory.map((c) => ({ categoryId: c.categoryId, name: c.name, total: String(c.total) })),
+      pricedStockIns: t.pricedStockIns,
+      unpricedStockIns: t.unpricedStockIns,
+    };
+  }, { access: "read", db: options.db, signal: options.signal });
 }

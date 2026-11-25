@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { withStaffDb, type StaffTx } from "@/server/auth/db-admission";
 import { authorize, parse, type AdminOptions, type StaffActor } from "./context";
 import { AdminServiceError } from "./errors";
@@ -16,6 +17,17 @@ import type {
 const setPickupPrices = (tx: StaffTx, actor: StaffActor, serviceId: string, offers: { sizeCode: string; pickupPriceCentavos: number | null }[]) =>
   tx.$executeRawUnsafe("SELECT admin_service_set_pickup_prices($1, $2, $3::jsonb)", actor.staffId, serviceId,
     JSON.stringify(offers.map((o) => ({ sizeCode: o.sizeCode, pickupPriceCentavos: o.pickupPriceCentavos }))));
+
+const setExpenseDeduction = async (tx: StaffTx, actor: StaffActor, serviceId: string, amount: number | undefined) => {
+  if (amount === undefined) return;
+  await tx.$executeRawUnsafe("SELECT admin_service_set_expense_deduction($1, $2, $3::integer)", actor.staffId, serviceId, amount);
+};
+
+// A missing set leaves the saved vehicle overrides in place for older clients.
+const setSizeDeductions = async (tx: StaffTx, actor: StaffActor, serviceId: string, values: AdminServiceList["services"][number]["sizeDeductions"]) => {
+  if (values === undefined) return;
+  await tx.$executeRaw`SELECT public.admin_service_set_size_deductions(${actor.staffId}, ${serviceId}, ${JSON.stringify(values)}::jsonb)`;
+};
 
 // Same transaction: the per-size commission. Left alone when the request does not mention it.
 const setSizeCommissions = async (tx: StaffTx, actor: StaffActor, serviceId: string,
@@ -36,7 +48,14 @@ export async function listAdminServices(
       const rows = await tx.$queryRaw<{ admin_service_list: AdminServiceList }[]>`
         SELECT admin_service_list(${actor.staffId})
       `;
-      return rows[0]?.admin_service_list ?? { services: [], vehicleCategories: [] };
+      const result = rows[0]?.admin_service_list ?? { services: [], vehicleCategories: [] };
+      if (!result.services.length) return result;
+      const settings = await tx.$queryRaw<{ id: string; sizeDeductions: AdminServiceList["services"][number]["sizeDeductions"] }[]>`
+        SELECT id, "sizeDeductions" FROM public.services
+        WHERE id IN (${Prisma.join(result.services.map((service) => service.id))})
+      `;
+      const byId = new Map(settings.map((row) => [row.id, row.sizeDeductions]));
+      return { ...result, services: result.services.map((service) => ({ ...service, sizeDeductions: byId.get(service.id) })) };
     },
     { access: "read", db: options.db, signal: options.signal },
   );
@@ -72,6 +91,8 @@ export async function updateAdminService(
         );
         await setPickupPrices(tx, actor, serviceId, input.offers);
         await setSizeCommissions(tx, actor, serviceId, input);
+        await setExpenseDeduction(tx, actor, serviceId, input.expenseDeductionCentavos);
+        await setSizeDeductions(tx, actor, serviceId, input.sizeDeductions);
         return { ok: true, serviceId };
       } catch (error) {
         const text = error instanceof Error ? error.message : "";
@@ -115,6 +136,8 @@ export async function createAdminService(
         if (!serviceId) throw new AdminServiceError("INTERNAL_ERROR", "Failed to create service");
         await setPickupPrices(tx, actor, serviceId, input.offers);
         await setSizeCommissions(tx, actor, serviceId, input);
+        await setExpenseDeduction(tx, actor, serviceId, input.expenseDeductionCentavos ?? 0);
+        await setSizeDeductions(tx, actor, serviceId, input.sizeDeductions);
         return { ok: true, serviceId };
       } catch (error) {
         const text = error instanceof Error ? error.message : "";
@@ -154,4 +177,33 @@ export async function toggleAdminService(
     },
     { access: "write", db: options.db, signal: options.signal },
   );
+}
+
+// Prisma messages can contain minified source excerpts, including unrelated error
+// codes. Only the structured database SQLSTATE identifies the actual failure.
+export function serviceDeleteFailure(error: unknown): AdminServiceError | null {
+  const code = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2010"
+    ? error.meta?.code : null;
+  if (code === "ZT004") return new AdminServiceError("FORBIDDEN");
+  if (code === "ZT001") return new AdminServiceError("NOT_FOUND", "This service has already been deleted. Refresh the list.");
+  if (code === "ZT003") return new AdminServiceError("NOT_ALLOWED", "This service has bookings or other linked records. Deactivate it instead to keep that history.");
+  if (code === "ZT006") return new AdminServiceError("VALIDATION_ERROR");
+  return null;
+}
+
+export async function deleteAdminService(
+  actor: StaffActor,
+  rawServiceId: unknown,
+  options: AdminOptions = {},
+): Promise<{ ok: true }> {
+  authorize(actor, "SETTINGS_WRITE");
+  const serviceId = parse(AdminIdSchema, rawServiceId);
+  return withStaffDb("STAFF_MUTATION", async (tx: StaffTx) => {
+    try {
+      await tx.$executeRawUnsafe("SELECT admin_service_delete($1, $2)", actor.staffId, serviceId);
+      return { ok: true };
+    } catch (error) {
+      throw serviceDeleteFailure(error) ?? error;
+    }
+  }, { access: "write", db: options.db, signal: options.signal });
 }
