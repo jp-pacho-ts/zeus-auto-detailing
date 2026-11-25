@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
+  Check,
   ChevronLeft,
   Eye,
   EyeOff,
@@ -12,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { HomeVideo } from "@/components/home/home-video";
 import "./login.css";
 
 // Messages per status code. 401 uses the server's specific text if provided.
@@ -29,6 +31,7 @@ export function LoginForm({ next }: { next: string }) {
   const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
+  const [signedIn, setSignedIn] = React.useState(false);
   // Our own inline messages replace the browser's validation bubbles (form is noValidate).
   const [fieldErrors, setFieldErrors] = React.useState<{ identifier?: string; password?: string }>({});
   const identifierRef = React.useRef<HTMLInputElement>(null);
@@ -72,6 +75,7 @@ export function LoginForm({ next }: { next: string }) {
       if (response.ok) {
         await response.json().catch(() => null);
         setPassword("");
+        setSignedIn(true);
         router.replace(next);
         return;
       }
@@ -95,9 +99,8 @@ export function LoginForm({ next }: { next: string }) {
   return (
     <div className="login">
       <div className="login-media">
-        {/* Same approved shop photo as the landing closing band; decorative here. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/media/landing/full-detailing.webp" alt="" width="1600" height="1200" decoding="async" />
+        {/* The homepage's shop footage and its tested playback rules (poster only for reduced motion, data-saver, 2G). */}
+        <HomeVideo />
         <p className="login-media-title">Beyond clean<span className="login-gold">.</span></p>
         <p className="login-media-sub">Premium car &amp; motorcycle detailing in Tacloban City</p>
       </div>
@@ -181,8 +184,18 @@ export function LoginForm({ next }: { next: string }) {
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="login-submit">
-            {loading ? (
+          <button
+            type="submit"
+            disabled={loading || signedIn}
+            className="login-submit"
+            data-state={signedIn ? "done" : loading ? "loading" : undefined}
+          >
+            {signedIn ? (
+              <>
+                <span>Signed in</span>
+                <Check className="login-check" aria-hidden="true" />
+              </>
+            ) : loading ? (
               <>
                 <span>Signing in...</span>
                 <Loader2 className="login-spin" aria-hidden="true" />
@@ -190,7 +203,9 @@ export function LoginForm({ next }: { next: string }) {
             ) : (
               <>
                 <span>Sign in</span>
-                <ArrowRight aria-hidden="true" />
+                <span className="login-arrow">
+                  <ArrowRight aria-hidden="true" />
+                </span>
               </>
             )}
           </button>
