@@ -1,4 +1,4 @@
--- Migration: 20261125000000_user_delete
+-- Migration: 20261125010000_user_delete
 -- User Management: delete an admin account (LE 2026-11-25: erase it, confirm by typing the email, Super Admin included).
 -- An admin account always has append-only audit rows (USER_CREATED at least, RESTRICT foreign keys), so the row
 -- itself stays as an anonymous tombstone: name 'Deleted user', email and phone erased, password dropped, every session

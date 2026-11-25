@@ -80,13 +80,13 @@ BEGIN
   ELSIF migrated THEN
     RAISE EXCEPTION 'delete_booking(text, text, integer, text) is missing: run this after prisma migrate deploy completes';
   END IF;
-  -- User Management delete (20261125000000_user_delete). A database migrated only to an older release skips it;
+  -- User Management delete (20261125010000_user_delete). A database migrated only to an older release skips it;
   -- once that migration is recorded, a missing function stops the script like every other entry.
   IF to_regprocedure('public.admin_user_delete(text, text, integer, text)') IS NOT NULL THEN
     REVOKE ALL ON FUNCTION admin_user_delete(text, text, integer, text) FROM PUBLIC;
     GRANT EXECUTE ON FUNCTION admin_user_delete(text, text, integer, text) TO zeus_app;
   ELSIF migrated THEN
-    IF EXISTS(SELECT 1 FROM public._prisma_migrations WHERE migration_name = '20261125000000_user_delete' AND rolled_back_at IS NULL) THEN
+    IF EXISTS(SELECT 1 FROM public._prisma_migrations WHERE migration_name = '20261125010000_user_delete' AND rolled_back_at IS NULL) THEN
       RAISE EXCEPTION 'admin_user_delete(text, text, integer, text) is missing: run this after prisma migrate deploy completes';
     END IF;
   END IF;
