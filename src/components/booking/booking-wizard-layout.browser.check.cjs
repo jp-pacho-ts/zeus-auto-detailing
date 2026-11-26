@@ -131,10 +131,23 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       assert.equal(await page.locator('form [data-part=review]').count(), 1, 'the review is inside the details step');
       const order = await page.evaluate(() => { const y = (s) => document.querySelector(s).getBoundingClientRect().top; return [y('#customerFirstName'), y('#vehicleModel'), y('[data-part=review]'), y('#turnstileToken')]; });
       if (width >= 1024) {
-        // CEO 2026-11-26 (no scrolling): on laptops the step is three columns, About you | Your vehicle | the review, with
-        // the security check under the review, so it fits one screen.
+        // CEO 2026-11-27 (follow HCI principles): on laptops a checkout layout. The form is one column (About you over
+        // Your vehicle); the review, with the security check under it, is pinned beside the form and stays in view.
         const x = await page.evaluate(() => ['#customerFirstName', '#vehicleModel', '[data-part=review]', '#turnstileToken'].map((s) => document.querySelector(s).getBoundingClientRect().left));
-        assert.ok(x[0] < x[1] && x[1] < x[2] && Math.abs(x[2] - x[3]) < 2 && order[3] > order[2], `${width}px three columns: you, vehicle, then the review over the security check`);
+        assert.ok(Math.abs(x[0] - x[1]) < 2 && order[1] > order[0] && x[2] > x[0] && Math.abs(x[2] - x[3]) < 2 && order[3] > order[2], `${width}px one form column (you over vehicle), the review over the security check beside it`);
+        const aside = await page.evaluate(() => { const el = document.querySelector('[data-part=details-aside]'); const top0 = el.getBoundingClientRect().top; window.scrollTo(0, document.scrollingElement.scrollHeight); const top1 = el.getBoundingClientRect().top; window.scrollTo(0, 0); return { sticky: getComputedStyle(el).position, scrolls: document.scrollingElement.scrollHeight > innerHeight, top0, top1 }; });
+        assert.equal(aside.sticky, 'sticky', `${width}px the review is pinned`);
+        if (aside.scrolls) {
+          assert.ok(aside.top1 >= 0, `${width}px the review stays in view when the form scrolls`);
+          // Regression: the smooth scroll took the mouse wheel and never moved the page (no frame loop).
+          const y0 = await page.evaluate(() => window.scrollY);
+          await page.mouse.move(width / 3, 400);
+          for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(80); }
+          await page.waitForFunction((y) => window.scrollY > y, y0, { timeout: 3000 });
+          await page.waitForTimeout(1200); // let the glide finish before measuring anything else
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await page.waitForFunction(() => window.scrollY === 0);
+        }
       } else {
         assert.ok(order[2] > order[0] && order[3] > order[0] && order[2] >= order[1] && order[3] >= order[1], `${width}px the review and the security check come after the fields`);
       }

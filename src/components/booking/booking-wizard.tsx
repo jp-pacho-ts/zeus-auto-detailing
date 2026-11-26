@@ -1609,7 +1609,9 @@ export function BookingWizard({
                         </div>
 
                         {/* One Submit on this step (LE 2026-11-06, safe default): the review sits under the fields, the security check
-                            under the review, and the Submit button is the panel's action (the bar on phones). */}
+                            under the review, and the Submit button is the panel's action (the bar on phones). Online laptops pin
+                            this pair beside a one-column form (CEO 2026-11-27, checkout layout); kiosk keeps them side by side. */}
+                        <div data-part="details-aside" className="space-y-8 lg:col-span-2 lg:grid lg:grid-cols-2 lg:gap-x-[clamp(24px,3vw,48px)] lg:space-y-0">
                         <section data-part="review" aria-labelledby="review-title" className="rounded-2xl border border-border bg-card p-4 sm:p-6">
                           <h2 id="review-title" className="text-base font-bold text-foreground">
                             Check your booking
@@ -1638,10 +1640,11 @@ export function BookingWizard({
                           {errorFor("turnstileToken") && errorFor("turnstileToken") !== message && (
                             <p className="mt-1.5 text-sm text-destructive">{errorFor("turnstileToken")}</p>
                           )}
-                          {/* Under the security check, beside the fields on laptops, so the step fits one screen. */}
+                          {/* Under the security check, so it is read right before Submit. */}
                           <p className="mt-6 text-sm text-muted-foreground">
                             Sending adds your car to that day&apos;s list as a request. The shop reviews it and contacts you to confirm.
                           </p>
+                        </div>
                         </div>
                         </div>
                       </fieldset>

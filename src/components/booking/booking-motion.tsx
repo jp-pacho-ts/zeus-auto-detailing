@@ -96,11 +96,14 @@ export function BookingMotion() {
 
     // Lenis, as on the landing: wheel scrolling glides on laptops and desktops; touch scrolling stays native.
     media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference) and (pointer: fine)", () => {
-      const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, allowNestedScroll: true, prevent: (node) => !!node.closest("dialog, select") });
+      // Driven by GSAP's ticker, as on the landing. Without a frame loop Lenis takes the wheel and never moves the page.
+      const lenis = new Lenis({ duration: .85, smoothWheel: true, syncTouch: false, autoRaf: false, allowNestedScroll: true, prevent: (node) => !!node.closest("dialog, select") });
+      const tick = (seconds: number) => lenis.raf(seconds * 1000);
+      gsap.ticker.add(tick);
       // The wizard jumps to each new step's heading and brings focused fields into view; Lenis takes that position over.
       const settle = () => lenis.scrollTo(window.scrollY, { immediate: true, force: true });
       stage.addEventListener("focusin", settle);
-      return () => { stage.removeEventListener("focusin", settle); lenis.destroy(); };
+      return () => { stage.removeEventListener("focusin", settle); gsap.ticker.remove(tick); lenis.destroy(); };
     });
     return () => media.revert();
   }, []);

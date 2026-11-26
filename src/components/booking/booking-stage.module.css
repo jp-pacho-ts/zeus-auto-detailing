@@ -1446,125 +1446,48 @@
   }
 }
 
-/* Step 4, Your details, in the menu's language (CEO 2026-11-26: "broken", then "no scrolling"). On laptops it is three
-   columns so the step fits one screen: About you | Your vehicle | the review with the security check under it. */
+/* Step 4, Your details. CEO 2026-11-27 ("follow HCI UI/UX principles"): on laptops a checkout layout. The form is one
+   column read top to bottom (single-column forms are filled in faster and with fewer skipped fields than the earlier
+   three columns); the booking, the security check and the note are pinned beside it, so the total and the Change links
+   stay in view while the form scrolls. This step may scroll; every other step still fits one screen. */
 @media (min-width: 1024px) {
   .booking :global([data-layout="online"] #booking-details fieldset > div) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-areas: "you vehicle review" "you vehicle check";
-    grid-template-rows: auto 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    column-gap: clamp(40px, 5vw, 80px);
+    row-gap: 40px;
     align-items: start;
-    row-gap: 18px;
   }
 
-  .booking :global([data-layout="online"] #booking-details fieldset > div > div:nth-child(1)) { grid-area: you; }
-  .booking :global([data-layout="online"] #booking-details fieldset > div > div:nth-child(2)) { grid-area: vehicle; }
-  .booking :global([data-layout="online"] #booking-details fieldset > div > [data-part="review"]) { grid-area: review; }
-  .booking :global([data-layout="online"] #booking-details fieldset > div > #turnstileToken) { grid-area: check; }
-
-  /* Tighter fields and gaps, so the tallest column fits a 768 px laptop. */
-  .booking :global([data-layout="online"] #booking-details .space-y-5 > * + *) {
-    margin-top: 12px;
+  .booking :global([data-layout="online"] #booking-details fieldset > div > div:nth-child(-n + 2)) {
+    grid-column: 1;
   }
 
-  .booking :global([data-layout="online"] #booking-details .gap-5) {
-    gap: 12px;
+  .booking :global([data-layout="online"] #booking-details [data-part="details-aside"]) {
+    display: block;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    position: sticky;
+    top: 24px;
   }
 
-  /* 40 px fields with a mouse (well over the 24 px target minimum); touch laptops keep 44 px. */
-  .booking :global([data-layout="online"] #booking-details input:not([type="radio"]):not([type="checkbox"])) {
-    min-height: 44px;
-    padding-block: 8px;
+  .booking :global([data-layout="online"] #booking-details [data-part="details-aside"] > * + *) {
+    margin-top: 28px;
   }
 
-  .booking :global([data-layout="online"] #booking-details textarea) {
-    height: 60px;
-    min-height: 0;
-  }
-
-  /* Payment options stack: side by side in a third of the page, each wrapped to three lines (CEO 2026-11-27: "too cramp"). */
+  /* Payment choices as a vertical list, one line each: a list scans faster than two wrapped cards side by side. */
   .booking :global([data-layout="online"] #booking-details [role="radiogroup"]) {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
 
-  /* Wide screens: the details step uses more of the width, so the three columns breathe; the heading lines up with it. */
-  .booking :global([data-layout="online"]:has(#booking-details) main > div) {
-    max-width: 1280px;
-  }
-
-  .booking :global([data-layout="online"]:has(#booking-details) .max-w-6xl) {
-    max-width: calc(1280px + 4rem);
-  }
-
-  .booking :global([data-layout="online"]:has(#booking-details) #wizard-action-bar :is(.max-w-5xl, > p)) {
-    max-width: 1280px;
-  }
-
-  .booking :global([data-layout="online"] #booking-details fieldset > div) {
-    column-gap: clamp(32px, 3vw, 56px);
-  }
-
-  /* CEO 2026-11-27 "still scrolling": the space under the page is the bar's measured height plus a gap (the fixed
-     112 px was 27 px more than the bar, so the page scrolled for nothing), and the step starts closer to its heading. */
+  /* CEO 2026-11-27 "still scrolling": the space under the page is the bar's measured height plus a gap (a fixed
+     112 px was 27 px more than the bar, so short steps scrolled for nothing). */
   .booking :global([data-layout="online"] main) {
     padding-bottom: calc(var(--bar-h, 100px) + 12px);
   }
 
-  .booking :global([data-layout="online"]:has(#booking-details) main) {
-    padding-top: 8px;
-  }
-
-  .booking :global([data-layout="online"] #booking-details [role="radio"]) {
-    align-items: flex-start;
-  }
-
-  .booking :global([data-layout="online"] #booking-details [role="radio"] > div:last-child > span:first-child) {
-    font-size: 12px;
-  }
-
-  .booking :global([data-layout="online"] #booking-details :is(label[for], label.block)) {
-    letter-spacing: .06em;
-  }
-
-  .booking :global([data-layout="online"] #booking-details h2) {
-    margin-bottom: 12px;
-  }
-
-  .booking :global([data-layout="online"] #booking-details [role="radio"]) {
-    min-height: 0;
-    padding-block: 7px;
-  }
-
-  .booking :global([data-layout="online"] #booking-details [data-part="review"] > p) {
-    display: none;
-  }
-
-  .booking :global([data-layout="online"] #booking-details [data-part="review"] > h2) {
-    margin-bottom: 8px;
-  }
-
-  .booking :global([data-layout="online"] #booking-details [data-part="review"] dl > div + div) {
-    margin-top: 6px;
-    padding-top: 6px;
-  }
-
   .booking :global([data-layout="online"] #turnstileToken > p:last-child) {
-    margin-top: 14px;
-  }
-}
-
-@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
-  .booking :global([data-layout="online"] #booking-details input:not([type="radio"]):not([type="checkbox"])) {
-    min-height: 40px;
-    padding-block: 6px;
-  }
-}
-
-/* Short laptop screens: Your details drops the line under its heading, so the three columns fit above the bar. */
-@media (min-width: 1024px) and (max-height: 820px) {
-  .booking :global([data-layout="online"]:has(#booking-details) #wizard-step-title + p) {
-    display: none;
+    margin-top: 16px;
   }
 }
 

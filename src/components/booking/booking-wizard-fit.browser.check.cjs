@@ -134,9 +134,10 @@ test('the booking wizard fits the screen by height: bands, panel and type on lap
         await page.getByRole('heading', { name: 'Your details' }).waitFor();
         await page.waitForTimeout(500);
         await panelState('step 4');
-        // The details form uses two columns on desktop: About you beside Your vehicle.
-        const cols = await page.evaluate(() => { const a = document.querySelector('#customerFirstName').getBoundingClientRect(), b = document.querySelector('#vehicleModel').getBoundingClientRect(); return { sameRow: Math.abs(a.top - b.top) < 24, right: b.left > a.right - 1 }; });
-        expect(`${key} step 4 two columns`, cols.sameRow && cols.right, `first name and vehicle model are not side by side: ${JSON.stringify(cols)}`);
+        // CEO 2026-11-27 (follow HCI principles): a checkout layout on desktop. The form is one column (About you over
+        // Your vehicle) and the review sits beside it.
+        const cols = await page.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); const a = r('#customerFirstName'), b = r('#vehicleModel'), c = r('[data-part=review]'); return { oneColumn: Math.abs(a.left - b.left) < 2 && b.top > a.bottom, reviewBeside: c.left > Math.max(a.right, b.right) }; });
+        expect(`${key} step 4 checkout layout`, cols.oneColumn && cols.reviewBeside, `the form is not one column with the review beside it: ${JSON.stringify(cols)}`);
         await shot(page, `p153-4-details-${key}`);
         row.deep = steps;
       }
