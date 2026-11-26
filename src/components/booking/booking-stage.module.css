@@ -1307,11 +1307,28 @@
   background: rgb(var(--primary));
 }
 
-/* The line under the step heading, as on the landing's page headings (.landing-soon-text): muted, a size up on wide
-   screens, one line where it fits, and air between it and the heading (less on short laptops, so the day step still fits). */
+/* The small text in the headings' wide face, in spaced capitals like the landing's hero line (CEO 2026-11-26 picked
+   this over plain text): the line under each step heading, and the size step's kinds and example cars. Air under the
+   heading shrinks on short laptops so the day step still fits. */
+.booking :global([data-layout="online"] :is(#wizard-step-title + p, [data-part="vehicle-kinds"], [data-part="vehicle-examples"])) {
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
 .booking :global([data-layout="online"] #wizard-step-title + p) {
-  max-width: 62ch;
-  margin-top: clamp(6px, 1.2vh, 22px);
-  font-size: clamp(15px, min(1.3vw, 2.4vh), 18px);
-  line-height: 1.6;
+  max-width: none;
+  margin-top: clamp(8px, 1.6vh, 22px);
+  font-size: clamp(12px, .95vw, 14px);
+}
+
+/* Phones: tighter letter spacing (the size stays at the 12 px floor), so the kinds and example cars wrap less. */
+@media (max-width: 639px) {
+  .booking :global([data-layout="online"] :is(#wizard-step-title + p, [data-part="vehicle-kinds"], [data-part="vehicle-examples"])) {
+    font-size: 12px;
+    letter-spacing: .04em;
+  }
 }
