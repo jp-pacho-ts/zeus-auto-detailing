@@ -1306,3 +1306,12 @@
 .booking :global([data-layout="online"] [data-part="primary"][aria-disabled]:hover)::before {
   background: rgb(var(--primary));
 }
+
+/* The line under the step heading, as on the landing's page headings (.landing-soon-text): muted, a size up on wide
+   screens, one line where it fits, and air between it and the heading (less on short laptops, so the day step still fits). */
+.booking :global([data-layout="online"] #wizard-step-title + p) {
+  max-width: 62ch;
+  margin-top: clamp(6px, 1.2vh, 22px);
+  font-size: clamp(15px, min(1.3vw, 2.4vh), 18px);
+  line-height: 1.6;
+}
