@@ -985,7 +985,8 @@
 
 .booking :global([data-layout="online"] [data-part="feature-photo"] img) {
   object-fit: cover;
-  filter: saturate(.8) contrast(1.05);
+  /* Darkened so a white car never washes out the gold prices and rings over it. */
+  filter: saturate(.8) contrast(1.05) brightness(.5);
 }
 
 @media (prefers-reduced-motion: no-preference) {
