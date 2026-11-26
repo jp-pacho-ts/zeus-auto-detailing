@@ -1482,8 +1482,27 @@
     min-height: 0;
   }
 
+  /* Payment options stack: side by side in a third of the page, each wrapped to three lines (CEO 2026-11-27: "too cramp"). */
   .booking :global([data-layout="online"] #booking-details [role="radiogroup"]) {
-    gap: 0 16px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  /* Wide screens: the details step uses more of the width, so the three columns breathe; the heading lines up with it. */
+  .booking :global([data-layout="online"]:has(#booking-details) main > div) {
+    max-width: 1280px;
+  }
+
+  .booking :global([data-layout="online"]:has(#booking-details) .max-w-6xl) {
+    max-width: calc(1280px + 4rem);
+  }
+
+  .booking :global([data-layout="online"]:has(#booking-details) #wizard-action-bar :is(.max-w-5xl, > p)) {
+    max-width: 1280px;
+  }
+
+  .booking :global([data-layout="online"] #booking-details fieldset > div) {
+    column-gap: clamp(32px, 4vw, 64px);
   }
 
   .booking :global([data-layout="online"] #booking-details [role="radio"]) {
