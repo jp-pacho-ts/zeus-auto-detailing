@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   UserChangePasswordSchema,
   UserCreateSchema,
+  UserDeleteSchema,
   UserResetPasswordSchema,
   UserUpdateSchema,
 } from "@/lib/admin-validation";
@@ -90,6 +91,16 @@ test("UserResetPasswordSchema: accepts empty or missing object strictly", () => 
   ok(UserResetPasswordSchema, {});
   ok(UserResetPasswordSchema, undefined);
   bad(UserResetPasswordSchema, { password: "foo" });
+});
+
+test("UserDeleteSchema: requires a positive expectedRevision and the typed confirmation email", () => {
+  ok(UserDeleteSchema, { expectedRevision: 1, confirmEmail: "alex@example.test" });
+  bad(UserDeleteSchema, {});
+  bad(UserDeleteSchema, { expectedRevision: 1 });
+  bad(UserDeleteSchema, { expectedRevision: 1, confirmEmail: "   " });
+  bad(UserDeleteSchema, { expectedRevision: 0, confirmEmail: "alex@example.test" });
+  bad(UserDeleteSchema, { expectedRevision: "1", confirmEmail: "alex@example.test" });
+  bad(UserDeleteSchema, { expectedRevision: 1, confirmEmail: "alex@example.test", hard: true });
 });
 
 test("generateTemporaryPassword produces a valid password meeting all policy checks", () => {

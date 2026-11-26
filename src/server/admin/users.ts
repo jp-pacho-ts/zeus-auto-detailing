@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { AdminUser, AdminUserCreateResult, AdminUserResetPasswordResult } from "@/types/admin-contracts";
-import { AdminIdSchema, UserCreateSchema, UserUpdateSchema } from "@/lib/admin-validation";
+import { AdminIdSchema, UserCreateSchema, UserDeleteSchema, UserUpdateSchema } from "@/lib/admin-validation";
 import { withStaffDb, type StaffTx } from "@/server/auth/db-admission";
 import { hashStaffPassword } from "@/server/auth/hash";
 import { loadPasswordBlocklist } from "@/server/auth/blocklist";
@@ -31,6 +31,8 @@ function mapUserError(error: unknown): never {
   if (text.includes("ZT006")) throw new AdminServiceError("VALIDATION_ERROR");
   if (text.includes("ZT007")) throw fieldError("email", "That email is already used.");
   if (text.includes("ZT008")) throw new AdminServiceError("NOT_ALLOWED", "You cannot deactivate your own account.");
+  if (text.includes("ZT012")) throw new AdminServiceError("NOT_ALLOWED", "You cannot delete the last Super Admin.");
+  if (text.includes("ZT013")) throw fieldError("confirmEmail", "The email you typed does not match this account.");
   throw error;
 }
 
@@ -161,6 +163,30 @@ export async function resetUserPassword(
       );
 
       return { ok: true, temporaryPassword };
+    } catch (error) {
+      return mapUserError(error);
+    }
+  }, { access: "write", db: options.db, signal: options.signal });
+}
+
+// Erases the account: name, email, phone and password wiped, sessions revoked, hidden everywhere. An anonymous
+// row stays because the append-only audit log points at it.
+export async function deleteUser(
+  actor: StaffActor,
+  rawUserId: unknown,
+  rawInput: unknown,
+  options: AdminOptions = {},
+): Promise<{ id: string; deleted: true }> {
+  authorize(actor, "USER_WRITE");
+  const targetId = parse(AdminIdSchema, rawUserId);
+  const input = parse(UserDeleteSchema, rawInput);
+  // The database refuses this too (ZT008); checked here for a delete-specific message.
+  if (actor.staffId === targetId) throw new AdminServiceError("NOT_ALLOWED", "You cannot delete your own account.");
+
+  return withStaffDb("STAFF_MUTATION", async (tx: StaffTx) => {
+    try {
+      await tx.$executeRaw`SELECT admin_user_delete(${actor.staffId}, ${targetId}, ${input.expectedRevision}::integer, ${input.confirmEmail})`;
+      return { id: targetId, deleted: true as const };
     } catch (error) {
       return mapUserError(error);
     }
