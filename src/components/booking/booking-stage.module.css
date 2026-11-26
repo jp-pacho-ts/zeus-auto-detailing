@@ -594,12 +594,38 @@
 /* Compact choices on the name line, with a little more room above the example cars. */
 .booking :global([data-layout="online"] [data-part="vehicle-kind"][data-inline] label) {
   min-height: 30px;
-  padding-inline: 14px;
-  font-size: 13px;
 }
 
-.booking :global([data-layout="online"] [data-part="vehicle-kind"][data-inline] > div) {
-  gap: 6px;
+/* The body types read like the written kinds they replace: wide spaced capitals, no pills (CEO 2026-11-26: the
+   pills looked generated). The chosen one turns white with a gold underline, as the service categories do. */
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] > div) {
+  gap: 4px 22px;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label) {
+  padding-inline: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgb(245 245 244 / .55);
+  text-decoration: underline 2px transparent;
+  text-underline-offset: 7px;
+  transition: color .2s, text-decoration-color .2s;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label:hover) {
+  color: rgb(var(--foreground));
+  text-decoration-color: rgb(var(--primary) / .5);
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label:has(input:checked)) {
+  color: rgb(var(--foreground));
+  text-decoration-color: rgb(var(--primary));
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-card"]:has(+ [data-part="vehicle-kind"][data-inline]) [data-part="vehicle-examples"]) {
