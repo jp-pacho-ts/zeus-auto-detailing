@@ -597,12 +597,14 @@
 }
 
 /* The body types read like the written kinds they replace: wide spaced capitals, no pills (CEO 2026-11-26: the
-   pills looked generated). The chosen one turns white with a gold underline, as the service categories do. */
+   pills looked generated). Each has the same small ring as the size lines, so it is clear they are choices; the
+   chosen ring fills gold and its word turns white. */
 .booking :global([data-layout="online"] [data-part="vehicle-kind"] > div) {
-  gap: 4px 22px;
+  gap: 4px 24px;
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-kind"] label) {
+  gap: 9px;
   padding-inline: 0;
   border: 0;
   border-radius: 0;
@@ -612,20 +614,44 @@
   font-weight: 500;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: rgb(245 245 244 / .55);
-  text-decoration: underline 2px transparent;
-  text-underline-offset: 7px;
-  transition: color .2s, text-decoration-color .2s;
+  color: rgb(245 245 244 / .7);
+  transition: color .2s;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label)::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid rgb(245 245 244 / .45);
+  border-radius: 50%;
+  transition: border-color .2s, background .2s;
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-kind"] label:hover) {
   color: rgb(var(--foreground));
-  text-decoration-color: rgb(var(--primary) / .5);
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label:hover)::before {
+  border-color: rgb(var(--primary));
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-kind"] label:has(input:checked)) {
   color: rgb(var(--foreground));
-  text-decoration-color: rgb(var(--primary));
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label:has(input:checked))::before {
+  border-color: rgb(var(--primary));
+  background: radial-gradient(circle, rgb(var(--primary)) 0 3.5px, transparent 4.5px);
+}
+
+/* Continue pressed before a body type is chosen: its rings glow with the reminder. */
+.booking :global([data-layout="online"][data-nudge="a"] [data-part="vehicle-kind"] label)::before {
+  animation: nudge-a 1.1s ease 2;
+}
+
+.booking :global([data-layout="online"][data-nudge="b"] [data-part="vehicle-kind"] label)::before {
+  animation: nudge-b 1.1s ease 2;
 }
 
 .booking :global([data-layout="online"] [data-part="vehicle-card"]:has(+ [data-part="vehicle-kind"][data-inline]) [data-part="vehicle-examples"]) {
@@ -1356,5 +1382,12 @@
   .booking :global([data-layout="online"] :is(#wizard-step-title + p, [data-part="vehicle-kinds"], [data-part="vehicle-examples"])) {
     font-size: 12px;
     letter-spacing: .04em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking :global([data-layout="online"][data-nudge] [data-part="vehicle-kind"] label)::before {
+    animation: none;
+    border-color: rgb(var(--primary));
   }
 }
