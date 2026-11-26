@@ -1502,7 +1502,17 @@
   }
 
   .booking :global([data-layout="online"] #booking-details fieldset > div) {
-    column-gap: clamp(32px, 4vw, 64px);
+    column-gap: clamp(32px, 3vw, 56px);
+  }
+
+  /* CEO 2026-11-27 "still scrolling": the space under the page is the bar's measured height plus a gap (the fixed
+     112 px was 27 px more than the bar, so the page scrolled for nothing), and the step starts closer to its heading. */
+  .booking :global([data-layout="online"] main) {
+    padding-bottom: calc(var(--bar-h, 100px) + 12px);
+  }
+
+  .booking :global([data-layout="online"]:has(#booking-details) main) {
+    padding-top: 8px;
   }
 
   .booking :global([data-layout="online"] #booking-details [role="radio"]) {
@@ -1594,7 +1604,7 @@
 
 .booking :global([data-layout="online"] #booking-details [role="radio"]) {
   align-items: center;
-  padding: 10px 0;
+  padding: 8px 0;
   border: 0;
   border-bottom: 1px solid rgb(245 245 244 / .14);
   border-radius: 0;

@@ -64,7 +64,9 @@ const g = globalThis as Record<string, unknown>;
 const saved = { window: g.window, document: g.document, fetch: globalThis.fetch, ResizeObserver: g.ResizeObserver, Element: g.Element };
 // The fixed action bar's measured height (QA F1) and the narrow-screen media query (QA F2).
 let barHeight = 129;
-let rootStyle: { scrollPaddingBottom?: string } = {};
+type RootStyle = { scrollPaddingBottom?: string; vars: Record<string, string>; setProperty(name: string, value: string): void; removeProperty(name: string): void };
+const newRootStyle = (): RootStyle => ({ vars: {}, setProperty(name, value) { this.vars[name] = value; }, removeProperty(name) { delete this.vars[name]; } });
+let rootStyle: RootStyle = newRootStyle();
 let resized: (() => void)[] = [];
 let narrowListeners: (() => void)[] = [];
 let focusListeners: ((e: { target: unknown }) => void)[] = [];
@@ -87,7 +89,7 @@ beforeEach(() => {
   revealed = [];
   windowWidth = 390;
   barHeight = 129;
-  rootStyle = {};
+  rootStyle = newRootStyle();
   resized = [];
   narrowListeners = [];
   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "wizard-test-site-key";
@@ -458,6 +460,7 @@ test("QA F1: keyboard focus scrolling keeps clear of the fixed action bar, at it
   barHeight = 177; // e.g. the security-check reason wraps to two lines
   for (const fn of resized) fn();
   assert.equal(rootStyle.scrollPaddingBottom, "193px");
+  assert.equal(rootStyle.vars["--bar-h"], "177px", "the stage reserves the bar's measured height under the page");
   // A focused control (e.g. a tall text box the browser left partly under the bar) is brought fully
   // into the padded view, instantly; the bar's own buttons are left alone.
   const textBox = new FakeElement();
@@ -473,6 +476,7 @@ test("QA F1: keyboard focus scrolling keeps clear of the fixed action bar, at it
   assert.deepEqual(desktopField.scrolls, [], "no extra scrolling without the bar");
   h.unmount();
   assert.equal(rootStyle.scrollPaddingBottom, "", "cleared when the wizard leaves the page");
+  assert.equal(rootStyle.vars["--bar-h"], undefined);
   assert.equal(resized.length, 0);
   assert.equal(focusListeners.length, 0);
 });

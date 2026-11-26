@@ -379,6 +379,8 @@ export function BookingWizard({
     const root = document.documentElement;
     const apply = () => {
       root.style.scrollPaddingBottom = bar.offsetHeight ? bar.offsetHeight + 16 + "px" : "";
+      // The online stage reserves exactly the bar's height under the page, not a fixed guess that scrolls for nothing.
+      root.style.setProperty("--bar-h", bar.offsetHeight + "px");
     };
     apply();
     const observer = new ResizeObserver(apply);
@@ -394,6 +396,7 @@ export function BookingWizard({
       observer.disconnect();
       document.removeEventListener("focusin", keepClear);
       root.style.scrollPaddingBottom = "";
+      root.style.removeProperty("--bar-h");
     };
   }, [barShown]);
 
