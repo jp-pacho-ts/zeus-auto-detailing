@@ -252,6 +252,28 @@ test("W1: every Continue opens the next step at its top with focus on its headin
   h.unmount();
 });
 
+test("Continue before a choice stays on the step and names what is missing", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await h.settle();
+  const nudge = () => h.all().find((e) => e.props["data-part"] === "nudge");
+  const button = primary(h, "Continue")!;
+  assert.equal(button.props.disabled, false, "no blocked cursor");
+  assert.equal(button.props["aria-disabled"], true);
+  assert.equal(nudge(), undefined, "no reminder before a press");
+  fire(button, "onClick", { preventDefault() {} });
+  await h.settle();
+  assert.equal(currentStep(h), 1);
+  assert.equal(textOf(nudge()!.props.children), "Choose your vehicle size first.");
+  await toServices(h);
+  assert.equal(nudge(), undefined, "the reminder does not follow to the next step");
+  fire(primary(h, "Continue"), "onClick", { preventDefault() {} });
+  await h.settle();
+  assert.equal(currentStep(h), 2);
+  assert.equal(textOf(nudge()!.props.children), "Add at least one service first.");
+  h.unmount();
+});
+
 test("W3: services are grouped by category; only the open category is listed; not-offered services are hidden", async () => {
   network();
   const h = mountHooks(BookingWizard, {});

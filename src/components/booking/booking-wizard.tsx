@@ -160,6 +160,8 @@ export function BookingWizard({
   const [openCategory, setOpenCategory] = React.useState<CatalogServiceKind | null>(null);
   const [panelDrafts, setPanelDrafts] = React.useState<Record<string, string>>({});
   const [linkWarning, setLinkWarning] = React.useState("");
+  // Online: pressing Continue before choosing shows a reminder on that step (n restarts its animation).
+  const [nudge, setNudge] = React.useState({ step: 0, n: 0 });
   const [copied, setCopied] = React.useState(false);
   const [fromDate, setFromDate] = React.useState(todayInManila);
   const [day, setDay] = React.useState("");
@@ -603,6 +605,14 @@ export function BookingWizard({
     (step === 3 && (!day || dayState !== "AVAILABLE")) ||
     (step === 4 && (!challenge.token || (!uncertain && !quote)));
   const showPrimary = step < 5 && !(step === 3 && paused);
+  // Online steps 1-3: Continue stays pressable before a choice is made, and says what is missing instead of blocking.
+  const reminder =
+    !kioskOnExit && primaryDisabled && !pending && catalog && !catalogError
+      ? step === 1 ? (vehicleId ? "Choose your vehicle's body type first." : "Choose your vehicle size first.")
+        : step === 2 ? "Add at least one service first."
+          : step === 3 ? "Choose an available day first." : ""
+      : "";
+  const nudging = Boolean(reminder) && nudge.step === step && nudge.n > 0;
 
   const renderPrimary = () => (
     <button
@@ -610,16 +620,22 @@ export function BookingWizard({
       data-part="primary"
       form={step === 4 ? "booking-details" : undefined}
       onClick={(event) => {
+        if (reminder) {
+          event.preventDefault();
+          setNudge((n) => ({ step, n: n.n + 1 }));
+          return;
+        }
         if (step !== 4) {
           event.preventDefault();
           void next();
         }
       }}
-      disabled={primaryDisabled}
-      className={actionHeight + " inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"}
+      disabled={primaryDisabled && !reminder}
+      aria-disabled={reminder ? true : undefined}
+      className={actionHeight + " inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-50"}
     >
-      {pending ? "Submitting request…" : step === 4 ? (uncertain ? "Retry same submission" : "Submit booking request") : "Continue"}
-      <ArrowRight aria-hidden="true" className="h-4 w-4" />
+      <span data-part="primary-label"><span>{pending ? "Submitting request…" : step === 4 ? (uncertain ? "Retry same submission" : "Submit booking request") : "Continue"}</span></span>
+      <span data-part="primary-arrow"><ArrowRight aria-hidden="true" className="h-4 w-4" /></span>
     </button>
   );
   const renderBack = () =>
@@ -650,7 +666,9 @@ export function BookingWizard({
       </span>
     </>
   );
-  const renderReason = () => (submitReason ? <p className="mt-2 text-sm text-muted-foreground" role="status">{submitReason}</p> : null);
+  const renderReason = () =>
+    submitReason ? <p className="mt-2 text-sm text-muted-foreground" role="status">{submitReason}</p>
+      : nudging ? <p key={nudge.n} data-part="nudge" className="mt-2 text-sm font-semibold text-primary" role="status">{reminder}</p> : null;
 
   // The single review, under the details fields (L2, P1-52). Each Change returns to its step.
   const renderReview = () => (
@@ -1110,7 +1128,7 @@ export function BookingWizard({
     ) : null;
 
   return (
-    <div className="wizard-root min-h-screen bg-background text-foreground" data-layout={kioskOnExit ? "kiosk" : "online"}>
+    <div className="wizard-root min-h-screen bg-background text-foreground" data-layout={kioskOnExit ? "kiosk" : "online"} data-nudge={nudging ? (nudge.n % 2 ? "a" : "b") : undefined}>
       <style>{printCss}</style>
       {kioskOnExit && confirmEnd && !pending && step < 5 && <KioskEndDialog onKeep={() => setConfirmEnd(false)} onEnd={() => { setConfirmEnd(false); kioskOnExit(); }} />}
       {kioskOnExit && kioskWarning !== null && !pending && step < 5 && (
