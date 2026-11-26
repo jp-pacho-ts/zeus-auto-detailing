@@ -121,6 +121,8 @@ function formatPhilippinePhone(raw: string): string {
 
 // L4: four steps the customer acts on; the receipt is not a step.
 const STEP_LABELS = ["Vehicle size", "Services", "Day", "Your details"];
+// Your details' fields top to bottom; the error summary follows this order.
+const FIELD_ORDER = ["customerFirstName", "customerLastName", "customerPhone", "customerEmail", "vehicleModel", "vehiclePlate", "paymentPreference", "specialRequests", "turnstileToken"];
 const HEADINGS = ["Choose your vehicle size", "Choose your services", "Choose your day", "Your details", "Booking received"];
 // Online /book (CEO 2026-11-24): common cars on Philippine roads for each size, so people can tell which size theirs is.
 const SIZE_EXAMPLES: Record<string, string> = {
@@ -1081,6 +1083,8 @@ export function BookingWizard({
           <p className="font-semibold">{message}</p>
           {Object.entries(fieldErrors)
             .filter(([, errors]) => errors.join(" ") !== message)
+            // In the order the fields appear, so the summary reads like the form; unknown fields go last.
+            .sort(([a], [b]) => (FIELD_ORDER.indexOf(a) >>> 0) - (FIELD_ORDER.indexOf(b) >>> 0))
             .map(([field, errors]) => (
               <p key={field} className="mt-1">
                 <a className="inline-flex min-h-[44px] items-center underline" href={step === 4 ? "#" + field : "#booking-days"}>
@@ -1176,7 +1180,16 @@ export function BookingWizard({
                 </button>
               )}
               {!kioskOnExit && !locked && (
-                <Link href="/" aria-label="Cancel and return to home" className={pillLink + " col-start-2 row-start-1 h-11 w-11 justify-self-end lg:col-start-3"}>
+                <Link
+                  href="/"
+                  aria-label="Cancel and return to home"
+                  // Typed details are lost on leaving, so the X asks first; an untouched form leaves at once.
+                  onClick={(event) => {
+                    const typed = Object.entries(form).some(([field, value]) => field !== "paymentPreference" && value.trim() !== "");
+                    if (typed && !window.confirm("Leave this page? Your booking request has not been sent, and the details you typed will be lost.")) event.preventDefault();
+                  }}
+                  className={pillLink + " col-start-2 row-start-1 h-11 w-11 justify-self-end lg:col-start-3"}
+                >
                   <X aria-hidden="true" className="h-5 w-5" />
                 </Link>
               )}

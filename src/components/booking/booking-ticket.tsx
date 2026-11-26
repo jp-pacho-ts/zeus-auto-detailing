@@ -38,11 +38,12 @@ export function BookingTicket({
       aria-labelledby="reference-title"
       className="print-receipt-card grid overflow-hidden rounded-2xl border border-border bg-card md:grid-cols-[minmax(0,1fr)_330px]"
     >
-      <div className="min-w-0 p-5 sm:p-8">
+      <div className="@container min-w-0 p-5 sm:p-8">
         <p className="text-sm text-muted-foreground">Booking reference</p>
+        {/* One line, sized to its column: customers read this code out or type it, and a code split in two invites mistakes. */}
         <h2
           id="reference-title"
-          className="mt-1 break-all font-mono text-3xl font-extrabold tracking-wider text-foreground sm:text-4xl"
+          className="mt-1 whitespace-nowrap font-mono text-[min(2.25rem,9cqi)] font-extrabold tracking-wider text-foreground"
         >
           {booking.referenceCode}
         </h2>

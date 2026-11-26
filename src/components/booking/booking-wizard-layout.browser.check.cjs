@@ -184,6 +184,9 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       const ref = page.locator('#reference-title');
       assert.equal((await ref.innerText()).trim(), 'ZEUS-K7M4QX');
       assert.match(await ref.evaluate((e) => getComputedStyle(e).fontFamily), /LandingDisplay/, 'the reference is set in the display face (no monospace)');
+      // The code is read out or typed at the counter: one line, never split, never wider than its card.
+      const fit = await ref.evaluate((e) => ({ height: e.getBoundingClientRect().height, size: parseFloat(getComputedStyle(e).fontSize), over: e.scrollWidth - e.clientWidth }));
+      assert.ok(fit.height < fit.size * 2 && fit.over <= 0, `${width}px the reference stays on one line inside its card: ${JSON.stringify(fit)}`);
       await page.getByRole('button', { name: 'Copy booking reference' }).waitFor();
       await page.getByRole('button', { name: 'Print receipt' }).waitFor();
       assert.equal(await page.getByText('Waiting for confirmation').first().isVisible(), true);

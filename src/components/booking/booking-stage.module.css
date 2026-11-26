@@ -824,7 +824,12 @@
 .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:nth-child(2):not(:last-child)) {
   grid-column: 1;
   margin-top: 6px;
-  -webkit-line-clamp: 1;
+  /* The whole description shows: people tell the washes apart by what is included (CEO 2026-11-27 review). */
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: none;
+  max-width: 52ch;
+  text-wrap: pretty;
 }
 
 .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:last-child) {
@@ -1439,10 +1444,37 @@
   flex: 1;
 }
 
-/* Small phones: once there is a total, the bar shows it and the order opens from it; the cut-off order line goes. */
+/* Small phones: once there is a total, the bar shows it and the order opens from it; the cut-off order line goes.
+   CEO 2026-11-27 review: Back sits on the left as everywhere else, and the order button says what it is ("Your order")
+   instead of a bare arrow. */
 @media (max-width: 479px) {
   .booking :global([data-layout="online"] #wizard-action-bar [data-part="order-toggle"] [data-part="order-line"]) {
     display: none;
+  }
+
+  .booking :global([data-layout="online"] #wizard-action-bar div:has(> [data-part="back"])) {
+    order: 0;
+  }
+
+  /* The label over the total, right-aligned, so both fit beside Back on a 320 px phone. */
+  .booking :global([data-layout="online"] #wizard-action-bar [data-part="order-toggle"] > span:last-child) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .booking :global([data-layout="online"] #wizard-action-bar [data-part="order-toggle"] [data-part="order-label"]) {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    font-family: var(--display);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .1em;
+    color: rgb(245 245 244 / .8);
   }
 }
 

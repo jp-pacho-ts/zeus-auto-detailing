@@ -338,6 +338,9 @@ test("W4: one round of checking with plain words; no browser bubble, no programm
   assert.match(t, /Enter a Philippine mobile number, like 0917 000 0000\./);
   assert.match(t, /Enter your car's make and model/);
   assert.doesNotMatch(t, /Too small|expected|>=|string/);
+  // The summary lists the problems in the order the fields appear, so it reads like the form (CEO 2026-11-27 review).
+  const links = h.all().filter((e) => e.type === "a" && /^#(customer|vehicle)/.test(String(e.props.href))).map((e) => e.props.href);
+  assert.deepEqual(links, ["#customerFirstName", "#customerLastName", "#customerPhone", "#vehicleModel"]);
   h.unmount();
 });
 
@@ -768,4 +771,27 @@ test("online editorial menu: the order opens from the bottom bar as a sheet and 
   await kiosk.settle();
   assert.equal(kiosk.all().find((e) => e.props["data-part"] === "order-toggle"), undefined, "the kiosk keeps its order panel beside the menu");
   kiosk.unmount();
+});
+
+test("Leaving with typed details asks first; an untouched form leaves at once (CEO 2026-11-27 review)", async () => {
+  network();
+  const asked: string[] = [];
+  let answer = false;
+  (g.window as Record<string, unknown>).confirm = (text: string) => { asked.push(text); return answer; };
+  const h = mountHooks(BookingWizard, {});
+  await toDetails(h);
+  const leave = () => {
+    let stopped = false;
+    fire(h.all().find((e) => e.props["aria-label"] === "Cancel and return to home"), "onClick", { preventDefault() { stopped = true; } });
+    return stopped;
+  };
+  assert.equal(leave(), false, "nothing typed: the X leaves without a question");
+  assert.deepEqual(asked, []);
+  h.all().find((e) => e.props.id === "customerFirstName")!.props.onChange({ target: { value: "Ana" } });
+  await h.settle();
+  assert.equal(leave(), true, "typed details and the customer says stay: the page stays");
+  assert.match(asked[0], /not been sent/);
+  answer = true;
+  assert.equal(leave(), false, "the customer confirms: the X leaves");
+  h.unmount();
 });
