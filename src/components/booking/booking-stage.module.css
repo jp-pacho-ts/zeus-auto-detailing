@@ -1207,11 +1207,11 @@
   animation: nudge-text .3s ease both;
 }
 
-.booking :global([data-layout="online"][data-nudge="a"] :is([data-part="vehicle-card"] input[type="radio"], [data-part="menu-add"], #booking-days fieldset label:has(input:not(:disabled)))) {
+.booking :global([data-layout="online"][data-nudge="a"] :is([data-part="vehicle-card"] input[type="radio"], [data-part="menu-add"])) {
   animation: nudge-a 1.1s ease 2;
 }
 
-.booking :global([data-layout="online"][data-nudge="b"] :is([data-part="vehicle-card"] input[type="radio"], [data-part="menu-add"], #booking-days fieldset label:has(input:not(:disabled)))) {
+.booking :global([data-layout="online"][data-nudge="b"] :is([data-part="vehicle-card"] input[type="radio"], [data-part="menu-add"])) {
   animation: nudge-b 1.1s ease 2;
 }
 
@@ -1231,7 +1231,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .booking :global([data-layout="online"][data-nudge] :is([data-part="vehicle-card"] input[type="radio"], [data-part="menu-add"], #booking-days fieldset label:has(input:not(:disabled)))) {
+  .booking :global([data-layout="online"][data-nudge] :is([data-part="vehicle-card"] input[type="radio"], [data-part="menu-add"])) {
     animation: none;
     border-color: rgb(var(--primary));
   }
@@ -1248,4 +1248,61 @@
     margin-inline: auto;
     text-align: right;
   }
+}
+
+/* Day step reminder: the open days fill with a soft gold tint twice; the calendar lines stay as they are. */
+.booking :global([data-layout="online"][data-nudge="a"] #booking-days fieldset > div:last-child > label:has(input:not(:disabled))) {
+  animation: nudge-day-a 1.1s ease 2;
+}
+
+.booking :global([data-layout="online"][data-nudge="b"] #booking-days fieldset > div:last-child > label:has(input:not(:disabled))) {
+  animation: nudge-day-b 1.1s ease 2;
+}
+
+@keyframes nudge-day-a {
+  0%, 100% { background-color: transparent; color: inherit; }
+  35% { background-color: rgb(var(--primary) / .16); color: rgb(var(--primary-hover)); }
+}
+
+@keyframes nudge-day-b {
+  0%, 100% { background-color: transparent; color: inherit; }
+  35% { background-color: rgb(var(--primary) / .16); color: rgb(var(--primary-hover)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking :global([data-layout="online"][data-nudge] #booking-days fieldset > div:last-child > label:has(input:not(:disabled))) {
+    animation: none;
+    background-color: rgb(var(--primary) / .12);
+  }
+}
+
+/* Continue on hover, as on the landing: a light fill sweeps in along the cut shape, then the gold turns light too. */
+.booking :global([data-layout="online"] [data-part="primary"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgb(var(--foreground));
+  clip-path: polygon(0 0, 0 0, 0 0, -30% 100%, -30% 100%, -30% 100%);
+  transition: clip-path .55s cubic-bezier(.7, 0, .2, 1);
+  -webkit-mask-image: linear-gradient(45deg, transparent calc(var(--cut) * .7071), #000 0), linear-gradient(225deg, transparent calc(var(--cut) * .7071), #000 0);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(45deg, transparent calc(var(--cut) * .7071), #000 0), linear-gradient(225deg, transparent calc(var(--cut) * .7071), #000 0);
+  mask-composite: intersect;
+}
+
+@media (hover: hover) {
+  .booking :global([data-layout="online"] [data-part="primary"]:hover:not(:disabled, [aria-disabled]))::after {
+    clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+  }
+
+  .booking :global([data-layout="online"] [data-part="primary"]:hover:not(:disabled, [aria-disabled]))::before {
+    background: rgb(var(--foreground));
+    transition: background-color 0s .5s;
+  }
+}
+
+/* Not ready yet: hover leaves it as it is, so only a ready Continue answers the pointer. */
+.booking :global([data-layout="online"] [data-part="primary"][aria-disabled]:hover)::before {
+  background: rgb(var(--primary));
 }
