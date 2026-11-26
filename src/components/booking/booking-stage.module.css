@@ -1446,19 +1446,97 @@
   }
 }
 
-/* Step 4, Your details, in the menu's language (CEO 2026-11-26: "broken"). On laptops the review fills the space under
-   About you instead of leaving a hole; Your vehicle and then the security check run down the right. */
+/* Step 4, Your details, in the menu's language (CEO 2026-11-26: "broken", then "no scrolling"). On laptops it is three
+   columns so the step fits one screen: About you | Your vehicle | the review with the security check under it. */
 @media (min-width: 1024px) {
   .booking :global([data-layout="online"] #booking-details fieldset > div) {
-    grid-template-areas: "you vehicle" "review vehicle" "review check";
-    grid-template-rows: auto auto 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas: "you vehicle review" "you vehicle check";
+    grid-template-rows: auto 1fr;
     align-items: start;
+    row-gap: 18px;
   }
 
   .booking :global([data-layout="online"] #booking-details fieldset > div > div:nth-child(1)) { grid-area: you; }
   .booking :global([data-layout="online"] #booking-details fieldset > div > div:nth-child(2)) { grid-area: vehicle; }
   .booking :global([data-layout="online"] #booking-details fieldset > div > [data-part="review"]) { grid-area: review; }
   .booking :global([data-layout="online"] #booking-details fieldset > div > #turnstileToken) { grid-area: check; }
+
+  /* Tighter fields and gaps, so the tallest column fits a 768 px laptop. */
+  .booking :global([data-layout="online"] #booking-details .space-y-5 > * + *) {
+    margin-top: 12px;
+  }
+
+  .booking :global([data-layout="online"] #booking-details .gap-5) {
+    gap: 12px;
+  }
+
+  /* 40 px fields with a mouse (well over the 24 px target minimum); touch laptops keep 44 px. */
+  .booking :global([data-layout="online"] #booking-details input:not([type="radio"]):not([type="checkbox"])) {
+    min-height: 44px;
+    padding-block: 8px;
+  }
+
+  .booking :global([data-layout="online"] #booking-details textarea) {
+    height: 60px;
+    min-height: 0;
+  }
+
+  .booking :global([data-layout="online"] #booking-details [role="radiogroup"]) {
+    gap: 0 16px;
+  }
+
+  .booking :global([data-layout="online"] #booking-details [role="radio"]) {
+    align-items: flex-start;
+  }
+
+  .booking :global([data-layout="online"] #booking-details [role="radio"] > div:last-child > span:first-child) {
+    font-size: 12px;
+  }
+
+  .booking :global([data-layout="online"] #booking-details :is(label[for], label.block)) {
+    letter-spacing: .06em;
+  }
+
+  .booking :global([data-layout="online"] #booking-details h2) {
+    margin-bottom: 12px;
+  }
+
+  .booking :global([data-layout="online"] #booking-details [role="radio"]) {
+    min-height: 0;
+    padding-block: 7px;
+  }
+
+  .booking :global([data-layout="online"] #booking-details [data-part="review"] > p) {
+    display: none;
+  }
+
+  .booking :global([data-layout="online"] #booking-details [data-part="review"] > h2) {
+    margin-bottom: 8px;
+  }
+
+  .booking :global([data-layout="online"] #booking-details [data-part="review"] dl > div + div) {
+    margin-top: 6px;
+    padding-top: 6px;
+  }
+
+  .booking :global([data-layout="online"] #turnstileToken > p:last-child) {
+    margin-top: 14px;
+  }
+}
+
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .booking :global([data-layout="online"] #booking-details input:not([type="radio"]):not([type="checkbox"])) {
+    min-height: 40px;
+    padding-block: 6px;
+  }
+}
+
+/* Short laptop screens: Your details drops the line under its heading, so the three columns fit above the bar. */
+@media (min-width: 1024px) and (max-height: 820px) {
+  .booking :global([data-layout="online"]:has(#booking-details) #wizard-step-title + p) {
+    display: none;
+  }
 }
 
 /* Labels in the wide capitals the rest of the page uses for small text. */

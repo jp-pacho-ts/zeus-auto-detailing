@@ -1635,13 +1635,13 @@ export function BookingWizard({
                           {errorFor("turnstileToken") && errorFor("turnstileToken") !== message && (
                             <p className="mt-1.5 text-sm text-destructive">{errorFor("turnstileToken")}</p>
                           )}
+                          {/* Under the security check, beside the fields on laptops, so the step fits one screen. */}
+                          <p className="mt-6 text-sm text-muted-foreground">
+                            Sending adds your car to that day&apos;s list as a request. The shop reviews it and contacts you to confirm.
+                          </p>
                         </div>
                         </div>
                       </fieldset>
-
-                      <p className="mt-6 text-sm text-muted-foreground">
-                        Sending adds your car to that day&apos;s list as a request. The shop reviews it and contacts you to confirm.
-                      </p>
                     </form>
                   )}
                 </div>

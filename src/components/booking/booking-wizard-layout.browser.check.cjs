@@ -130,7 +130,14 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       assert.equal(await page.getByRole('button', { name: 'Submit booking request' }).filter({ visible: true }).count(), 1, `${width}px one visible Submit`);
       assert.equal(await page.locator('form [data-part=review]').count(), 1, 'the review is inside the details step');
       const order = await page.evaluate(() => { const y = (s) => document.querySelector(s).getBoundingClientRect().top; return [y('#customerFirstName'), y('#vehicleModel'), y('[data-part=review]'), y('#turnstileToken')]; });
-      assert.ok(order[2] > order[0] && order[3] > order[0] && order[2] >= order[1] && order[3] >= order[1], `${width}px the review and the security check come after the fields (side by side on desktop)`);
+      if (width >= 1024) {
+        // CEO 2026-11-26 (no scrolling): on laptops the step is three columns, About you | Your vehicle | the review, with
+        // the security check under the review, so it fits one screen.
+        const x = await page.evaluate(() => ['#customerFirstName', '#vehicleModel', '[data-part=review]', '#turnstileToken'].map((s) => document.querySelector(s).getBoundingClientRect().left));
+        assert.ok(x[0] < x[1] && x[1] < x[2] && Math.abs(x[2] - x[3]) < 2 && order[3] > order[2], `${width}px three columns: you, vehicle, then the review over the security check`);
+      } else {
+        assert.ok(order[2] > order[0] && order[3] > order[0] && order[2] >= order[1] && order[3] >= order[1], `${width}px the review and the security check come after the fields`);
+      }
       assert.deepEqual(await page.locator('form h2').allTextContents(), ['About you', 'Your vehicle', 'Check your booking']);
       const a = await page.locator('#customerFirstName').boundingBox(), b = await page.locator('#customerLastName').boundingBox();
       if (width >= 640) assert.ok(Math.abs(a.y - b.y) < 4 && b.x > a.x, `${width}px the two names sit side by side`);
