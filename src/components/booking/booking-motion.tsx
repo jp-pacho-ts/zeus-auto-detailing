@@ -1,6 +1,6 @@
 "use client";
-// The booking stage's motion, in the landing's language. Three pointer effects adapted from React Bits by David Haz
-// (SpotlightCard, Magnet, CountUp; see src/components/landing/react-bits-magnet.LICENSE), plus the landing's Lenis
+// The booking stage's motion, in the landing's language. Two effects adapted from React Bits by David Haz
+// (SpotlightCard, CountUp; see src/components/landing/react-bits-magnet.LICENSE), plus the landing's Lenis
 // smooth scroll. They are delegated from the stage, so the wizard's markup only carries data attributes. Nothing here
 // runs with reduced motion, and the pointer effects and Lenis only run with a mouse or trackpad.
 import { useEffect, useRef } from "react";
@@ -67,9 +67,8 @@ export function BookingMotion() {
 
     media.add("(prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine)", () => {
       // SpotlightCard: a soft gold light follows the pointer across the size and service cards (the CSS draws it).
-      // Magnet: the gold action leans toward a pointer that comes within 26 px, as the landing's Book button does.
+      // (The Magnet pull on Continue was removed: the CEO did not like it moving. Hover only changes its colour.)
       let frame = 0, pointer: { x: number; y: number } | null = null;
-      const pulled = new Set<HTMLElement>();
       const update = () => {
         frame = 0;
         if (!pointer) return;
@@ -79,19 +78,6 @@ export function BookingMotion() {
           card.style.setProperty("--spot-x", `${pointer.x - box.left}px`);
           card.style.setProperty("--spot-y", `${pointer.y - box.top}px`);
         }
-        stage.querySelectorAll<HTMLButtonElement>('[data-part="primary"]').forEach((button) => {
-          const box = button.getBoundingClientRect();
-          const dx = pointer!.x - (box.left + box.width / 2), dy = pointer!.y - (box.top + box.height / 2);
-          const outside = Math.hypot(Math.max(0, Math.abs(dx) - box.width / 2), Math.max(0, Math.abs(dy) - box.height / 2));
-          const near = box.width > 0 && !button.disabled && outside <= 26 && !button.matches(":focus-visible");
-          if (near) {
-            pulled.add(button);
-            const clamp = (v: number) => Math.max(-8, Math.min(8, v / 3));
-            gsap.to(button, { x: clamp(dx), y: clamp(dy), scale: 1.02, duration: .45, ease: "power3.out", overwrite: "auto" });
-          } else if (pulled.delete(button)) {
-            gsap.to(button, { x: 0, y: 0, scale: 1, duration: .8, ease: "elastic.out(1, .45)", overwrite: "auto" });
-          }
-        });
       };
       const move = (event: PointerEvent) => {
         if (event.pointerType === "touch") return;
@@ -105,7 +91,6 @@ export function BookingMotion() {
         cancelAnimationFrame(frame);
         window.removeEventListener("pointermove", move);
         document.documentElement.removeEventListener("pointerleave", leave);
-        pulled.forEach((button) => gsap.set(button, { clearProps: "transform" }));
       };
     });
 
