@@ -643,6 +643,11 @@ export function BookingWizard({
       <span data-part="primary-arrow"><ArrowRight aria-hidden="true" className="h-4 w-4" /></span>
     </button>
   );
+  // Typed details are lost on leaving, so the X and the logo ask first; an untouched form leaves at once.
+  const confirmLeave = (event: React.MouseEvent) => {
+    const typed = Object.entries(form).some(([field, value]) => field !== "paymentPreference" && value.trim() !== "");
+    if (typed && !window.confirm("Leave this page? Your booking request has not been sent, and the details you typed will be lost.")) event.preventDefault();
+  };
   const renderBack = () =>
     step > 1 && step < 5 ? (
       <button
@@ -1160,7 +1165,7 @@ export function BookingWizard({
           <div data-part="panel" className="no-print">
             <div className="grid grid-cols-2 items-center gap-3 border-b border-border bg-muted px-4 py-3 sm:px-8 lg:grid-cols-[1fr_auto_1fr]">
               {kioskOnExit ? <Logo className="col-start-1 row-start-1" /> : (
-                <Link href="/" aria-label="Return to home" className="col-start-1 row-start-1 inline-flex min-h-[44px] items-center justify-self-start rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <Link href="/" aria-label="Return to home" onClick={confirmLeave} className="col-start-1 row-start-1 inline-flex min-h-[44px] items-center justify-self-start rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <Logo />
                 </Link>
               )}
@@ -1169,8 +1174,19 @@ export function BookingWizard({
                   <li key={label} aria-current={index + 1 === step ? "step" : undefined}
                     className={"flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 text-center text-xs font-semibold sm:px-3 sm:text-sm " +
                       (index + 1 === step ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
-                    {index + 1 < step ? <Check className="size-4 shrink-0 text-primary" aria-hidden="true" /> : <span data-part="step-number">{index + 1}</span>}
-                    <span data-part="step-label">{label}</span>
+                    {/* Online, a finished step is a button back to it (Jakob's law: people click a step bar to go back). */}
+                    {index + 1 < step && !kioskOnExit && !locked ? (
+                      <button type="button" data-part="step-link" onClick={() => goTo(index + 1)}
+                        className="flex h-full w-full items-center justify-center gap-[inherit] rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span data-part="step-label">{label}</span>
+                      </button>
+                    ) : (
+                      <>
+                        {index + 1 < step ? <Check className="size-4 shrink-0 text-primary" aria-hidden="true" /> : <span data-part="step-number">{index + 1}</span>}
+                        <span data-part="step-label">{label}</span>
+                      </>
+                    )}
                   </li>
                 ))}
               </ol>
@@ -1183,11 +1199,7 @@ export function BookingWizard({
                 <Link
                   href="/"
                   aria-label="Cancel and return to home"
-                  // Typed details are lost on leaving, so the X asks first; an untouched form leaves at once.
-                  onClick={(event) => {
-                    const typed = Object.entries(form).some(([field, value]) => field !== "paymentPreference" && value.trim() !== "");
-                    if (typed && !window.confirm("Leave this page? Your booking request has not been sent, and the details you typed will be lost.")) event.preventDefault();
-                  }}
+                  onClick={confirmLeave}
                   className={pillLink + " col-start-2 row-start-1 h-11 w-11 justify-self-end lg:col-start-3"}
                 >
                   <X aria-hidden="true" className="h-5 w-5" />
@@ -1672,7 +1684,7 @@ export function BookingWizard({
 
       {/* Step 5: booking received (L10), as a ticket like Manage booking: status and next step, then how to manage it, then help */}
       {step === 5 && ticket && booking && (
-        <div className="mx-auto max-w-3xl px-4 pb-14 pt-3 sm:px-6">
+        <div data-part="confirmation" className="mx-auto max-w-3xl px-4 pb-14 pt-3 sm:px-6">
           <header className="no-print flex items-center justify-between gap-3">
             {kioskOnExit ? <Logo /> : <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <Logo />

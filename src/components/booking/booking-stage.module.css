@@ -1626,3 +1626,71 @@
     text-align: right;
   }
 }
+
+/* One type system on every step (CEO 2026-11-27: "consistent fonts from step to step"). Five roles, nothing else:
+   - Step heading: the big display capitals (#wizard-step-title, above).
+   - Section title: display capitals, 15 px, gold. Extras, Available days, About you, Check your booking, and the
+     confirmation's Booking details, Manage your booking, Paying a deposit and Questions.
+   - Label: display capitals, 12 px, .1em tracking. The step bar, size examples and kinds, form labels, the order
+     line, the calendar's weekdays.
+   - Action: display capitals, 14 px, .08em tracking. Back and Continue, and every other button or button-like link.
+   - Body and numbers: the text face (descriptions, hints, prices, totals). */
+.booking :global([data-layout="online"] :is([data-part="menu-title"], #days-title, #booking-details h2, [data-part="confirmation"] :is(h2:not(#reference-title), h3, details > summary))) {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: rgb(var(--primary));
+}
+
+.booking :global([data-layout="online"] :is(ol[aria-label="Booking steps"] li, [data-part="vehicle-kinds"], [data-part="vehicle-examples"], #wizard-action-bar [data-part="order-line"], #booking-days fieldset > div:first-of-type > span)) {
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.booking :global([data-layout="online"] :is(#booking-days > div:not([role]):has(> button) > button, [data-part="confirmation"] :is(a, button):not(.underline, [aria-label="Return to home"]))) {
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* The calendar's days outside the bookable range use the same face and size as the bookable ones, only dimmer. */
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child > div[aria-hidden="true"]) {
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+@media (min-width: 640px) {
+  .booking :global([data-layout="online"] #booking-days fieldset > div:last-child > div[aria-hidden="true"]) {
+    font-size: 24px;
+  }
+}
+
+.booking :global([data-layout="online"] [data-part="step-link"]:hover) {
+  color: rgb(var(--primary-hover));
+}
+
+/* The label role, finished: a step-bar button keeps the bar's capitals (buttons do not inherit them), and the body-type
+   and payment choices use the same 12 px, .1em label as everything else. Totals share one tracking. */
+.booking :global([data-layout="online"] [data-part="step-link"]) {
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.booking :global([data-layout="online"] :is([data-part="vehicle-kind"] label, #booking-details [role="radio"] > div:last-child > span:first-child)) {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .1em;
+}
+
+.booking :global([data-layout="online"] [data-count]) {
+  letter-spacing: 0;
+}

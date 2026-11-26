@@ -795,3 +795,31 @@ test("Leaving with typed details asks first; an untouched form leaves at once (C
   assert.equal(leave(), false, "the customer confirms: the X leaves");
   h.unmount();
 });
+
+test("Finished steps in the header go back to that step; the current and later steps are not buttons (CEO 2026-11-27 review)", async () => {
+  network();
+  const h = mountHooks(BookingWizard, {});
+  await toDay(h);
+  const links = () => h.all().filter((e) => e.type === "button" && e.props["data-part"] === "step-link");
+  assert.deepEqual(links().map((e) => textOf(e.props.children)), ["Vehicle size", "Services"], "only the two finished steps");
+  fire(links()[1], "onClick");
+  await h.settle();
+  assert.equal(heading(h), "Choose your services");
+  assert.equal(currentStep(h), 2);
+  h.unmount();
+});
+
+test("The logo asks before leaving with typed details, like the X", async () => {
+  network();
+  const asked: string[] = [];
+  (g.window as Record<string, unknown>).confirm = (text: string) => { asked.push(text); return false; };
+  const h = mountHooks(BookingWizard, {});
+  await toDetails(h);
+  h.all().find((e) => e.props.id === "customerPhone")!.props.onChange({ target: { value: "0917" } });
+  await h.settle();
+  let stopped = false;
+  fire(h.all().find((e) => e.props["aria-label"] === "Return to home"), "onClick", { preventDefault() { stopped = true; } });
+  assert.equal(stopped, true);
+  assert.equal(asked.length, 1);
+  h.unmount();
+});
