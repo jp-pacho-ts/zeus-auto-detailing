@@ -1391,3 +1391,57 @@
     border-color: rgb(var(--primary));
   }
 }
+
+/* The bottom bar as a menu line (CEO 2026-11-26): a hairline over the page's black instead of a frosted strip, no
+   "Your order" label on screen (screen readers keep it), the order in the wide capitals on the left after Back, and
+   the total and Continue on the right. */
+.booking :global([data-layout="online"] #wizard-action-bar) {
+  border-top: 1px solid rgb(245 245 244 / .14);
+  background-color: rgb(9 9 11);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar [data-part="order-label"]) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar [data-part="order-line"]) {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar :is(:has(> [data-part="order-label"]), [data-part="order-toggle"])) {
+  text-align: left;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar :is(span:has(> [data-part="order-line"]), [data-part="order-toggle"])) {
+  justify-content: flex-start;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar div:has(> [data-part="order-toggle"], > [data-part="order-label"])) {
+  text-align: left;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar [data-part="order-line"] ~ :is(strong, [role="status"])) {
+  margin-left: auto;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar [data-part="order-toggle"] > span:last-child) {
+  flex: 1;
+}
+
+/* Small phones: once there is a total, the bar shows it and the order opens from it; the cut-off order line goes. */
+@media (max-width: 479px) {
+  .booking :global([data-layout="online"] #wizard-action-bar [data-part="order-toggle"] [data-part="order-line"]) {
+    display: none;
+  }
+}

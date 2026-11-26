@@ -654,11 +654,16 @@ export function BookingWizard({
   // Kiosk: one running order line (size, services, total), like a counter ordering screen.
   const renderKioskOrder = () => (
     <>
-      <span className="block text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</span>
+      <span data-part="order-label" className="block text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</span>
       {/* On a narrow tablet only the description shortens; the total always shows in full. */}
       <span className="flex min-w-0 items-baseline justify-end gap-3 text-base text-foreground">
-        <span className="min-w-0 truncate">
-          {[vehicle?.name ?? "Choose a size", lines.length ? `${lines.length} ${lines.length === 1 ? "service" : "services"}` : ""].filter(Boolean).join(" · ")}
+        <span data-part="order-line" className="min-w-0 truncate">
+          {[
+            !vehicle ? "Choose a size" : kioskOnExit ? vehicle.name : splitSizeName(vehicle.name).head,
+            // Online: the body type chosen, not every kind the size covers.
+            !kioskOnExit && bodyType ? bodyLabel(bodyType) : "",
+            lines.length ? `${lines.length} ${lines.length === 1 ? "service" : "services"}` : "",
+          ].filter(Boolean).join(" · ")}
         </span>
         {lines.length > 0 && (total
           ? <strong className="shrink-0 text-xl font-extrabold tabular-nums">{total.amount}</strong>
@@ -927,6 +932,7 @@ export function BookingWizard({
 
   // Large and X-Large cover more than one kind of vehicle, so the chosen one asks which. Online /book shows it on the
   // chosen size's line (CEO 2026-11-24); the kiosk shows it under the sizes.
+  const bodyLabel = (type: keyof typeof BODY_TYPE_LABEL) => (vehicle?.code === "XL" && type === "SUV" ? "Full-size SUV" : BODY_TYPE_LABEL[type]);
   const renderBodyChoices = (className = "") =>
     bodyChoices.length > 0 && (
       <fieldset ref={revealKind} data-part="vehicle-kind" className={className}>
@@ -951,7 +957,7 @@ export function BookingWizard({
                 }}
                 className="sr-only"
               />
-              {vehicle?.code === "XL" && type === "SUV" ? "Full-size SUV" : BODY_TYPE_LABEL[type]}
+              {bodyLabel(type)}
             </label>
           ))}
         </div>
