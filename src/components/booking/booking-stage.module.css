@@ -1445,3 +1445,122 @@
     display: none;
   }
 }
+
+/* Step 4, Your details, in the menu's language (CEO 2026-11-26: "broken"). On laptops the review fills the space under
+   About you instead of leaving a hole; Your vehicle and then the security check run down the right. */
+@media (min-width: 1024px) {
+  .booking :global([data-layout="online"] #booking-details fieldset > div) {
+    grid-template-areas: "you vehicle" "review vehicle" "review check";
+    grid-template-rows: auto auto 1fr;
+    align-items: start;
+  }
+
+  .booking :global([data-layout="online"] #booking-details fieldset > div > div:nth-child(1)) { grid-area: you; }
+  .booking :global([data-layout="online"] #booking-details fieldset > div > div:nth-child(2)) { grid-area: vehicle; }
+  .booking :global([data-layout="online"] #booking-details fieldset > div > [data-part="review"]) { grid-area: review; }
+  .booking :global([data-layout="online"] #booking-details fieldset > div > #turnstileToken) { grid-area: check; }
+}
+
+/* Labels in the wide capitals the rest of the page uses for small text. */
+.booking :global([data-layout="online"] #booking-details :is(label[for], label.block, #turnstileToken > span)) {
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: rgb(245 245 244 / .8);
+}
+
+.booking :global([data-layout="online"] #booking-details label span) {
+  letter-spacing: .04em;
+  text-transform: none;
+}
+
+/* Fields: the same 12 px corners, but quiet: a hairline over the black, gold when typing. */
+.booking :global([data-layout="online"] #booking-details :is(input:not([type="radio"]):not([type="checkbox"]), textarea)) {
+  border-color: rgb(245 245 244 / .16);
+  background: rgb(245 245 244 / .03);
+  backdrop-filter: none;
+}
+
+.booking :global([data-layout="online"] #booking-details :is(input, textarea):focus-visible) {
+  border-color: rgb(var(--primary));
+  box-shadow: none;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+}
+
+/* Payment: two lines with the page's ring instead of two boxed cards with icon tiles. */
+.booking :global([data-layout="online"] #booking-details [role="radiogroup"]) {
+  gap: 0 28px;
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"]) {
+  align-items: center;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid rgb(245 245 244 / .14);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"] > div:first-child) {
+  display: none;
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"])::before {
+  content: "";
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid rgb(245 245 244 / .45);
+  border-radius: 50%;
+  transition: border-color .2s, background .2s;
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"]:hover)::before {
+  border-color: rgb(var(--primary));
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"][aria-checked="true"]) {
+  border-bottom-color: rgb(var(--primary) / .6);
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"][aria-checked="true"])::before {
+  border-color: rgb(var(--primary));
+  background: radial-gradient(circle, rgb(var(--primary)) 0 4px, transparent 5px);
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"] > div:last-child > span:first-child) {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* The review is a section of the form, not a box: its title matches About you and Your vehicle. */
+.booking :global([data-layout="online"] #booking-details [data-part="review"]) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.booking :global([data-layout="online"] #booking-details [data-part="review"] > h2) {
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgb(245 245 244 / .14);
+  font-size: 14px;
+  color: rgb(var(--primary));
+}
+
+/* The bar's reason line ("Waiting for the security check…") sits under Submit, like the reminder. */
+@media (min-width: 480px) {
+  .booking :global([data-layout="online"] #wizard-action-bar > p) {
+    max-width: 64rem;
+    margin-inline: auto;
+    text-align: right;
+  }
+}
