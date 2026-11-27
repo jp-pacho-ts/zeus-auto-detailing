@@ -2,8 +2,8 @@ import { pendingAlertLevel } from "./bookings-alerts";
 import "server-only";
 import { randomInt } from "node:crypto";
 import { Prisma, type BookingOperation, type PrismaClient, type Booking } from "@prisma/client";
-import { CreateDayBookingSchema } from "@/lib/validation";
-import type { CreateDayBookingRequest, DayBookingResponse } from "@/types/contracts";
+import { CreateAdminDayBookingSchema, CreateDayBookingSchema } from "@/lib/validation";
+import type { CreateAdminDayBookingRequest, CreateDayBookingRequest, DayBookingResponse } from "@/types/contracts";
 import type { LifecycleError } from "@/types/catalog-contracts";
 import { checkAcceptedQuote } from "./catalog-quote";
 import { prisma } from "./db";
@@ -52,11 +52,15 @@ type Counts = {
         outcome: string;
     }[];
 };
+// Admin walk-in and phone bookings (2026-11-27) share one ledger marker. operation_shape allows only a sha256 or NULL, and
+// no trusted client key (a normalized IP, "local" or "untrusted") hashes to it.
+export const ADMIN_CLIENT_HASH = sha256("zeus-admin-walk-in");
 async function counts(tx: Prisma.TransactionClient, now: Date): Promise<Counts> {
     const since = new Date(now.getTime() - 86400000);
-    const rows = await tx.bookingOperation.findMany({ where: { kind: "CREATE", createdAt: { gt: since } }, select: {
+    // Admin bookings never use up the online budgets. Filtered here, not in SQL: NOT LIKE/<> would also drop NULL legacy rows.
+    const rows = (await tx.bookingOperation.findMany({ where: { kind: "CREATE", createdAt: { gt: since } }, select: {
             outcome: true, createdAt: true, clientHash: true
-        } });
+        } })).filter(r => r.clientHash !== ADMIN_CLIENT_HASH);
     return { committed: rows.filter(r => r.outcome === "COMMITTED"), anonymous: rows.filter(r => r.outcome !== "COMMITTED") };
 }
 function waitFor(rows: {
@@ -127,7 +131,7 @@ export { credentials as issueBookingCredentials };
 type Replay = BookingCommit | {
     refresh: true;
 } | null;
-async function replay(tx: Prisma.TransactionClient, op: BookingOperation | null, r: CreateDayBookingRequest, hash: string, now: Date, c: BookingConfiguration, write = false): Promise<Replay> {
+async function replay(tx: Prisma.TransactionClient, op: BookingOperation | null, r: CreateAdminDayBookingRequest, hash: string, now: Date, c: BookingConfiguration, write = false): Promise<Replay> {
     if (!op)
         return null;
     if (op.kind !== "CREATE" || (op.requestHash !== null && op.requestHash !== hash))
@@ -153,15 +157,25 @@ async function replay(tx: Prisma.TransactionClient, op: BookingOperation | null,
 export function checkBookingOrigin(headers: Headers, c: BookingConfiguration): boolean {
     return headers.get("origin") === c.origin && headers.get("x-zeus-booking") === "1" && headers.get("sec-fetch-site") !== "cross-site";
 }
-export async function createDayBooking(input: unknown, options: CreateDayBookingOptions = {}): Promise<BookingCommit> {
+export function createDayBooking(input: unknown, options: CreateDayBookingOptions = {}): Promise<BookingCommit> {
+    return commitDayBooking(input, options, false);
+}
+// The admin's walk-in and phone bookings. The caller has already authorized an ADMIN session (src/server/admin/create-booking.ts);
+// this skips only the anti-stranger checks: origin header, per-client admission and budgets, the shop daily budget, the online
+// pause and the challenge. Every booking rule (quote, day window, phone limit, day state, queue order) still holds.
+export function createAdminDayBooking(input: unknown, options: Omit<CreateDayBookingOptions, "headers" | "turnstileEndpoint"> = {}): Promise<BookingCommit> {
+    return commitDayBooking(input, options, true);
+}
+async function commitDayBooking(input: unknown, options: CreateDayBookingOptions, admin: boolean): Promise<BookingCommit> {
     let leave: (() => void) | undefined;
     const db = options.db ?? prisma;
     try {
         const c = options.config ?? parseBookingConfiguration(), headers = options.headers ?? new Headers();
-        if (!checkBookingOrigin(headers, c))
+        if (!admin && !checkBookingOrigin(headers, c))
             return fail(bookingError("FORBIDDEN", "This booking request could not be accepted.", { commitState: "UNKNOWN" }));
-        const client = trustedClientKey(headers, c.identity), clientHash = sha256(client);
-        leave = enterBooking(createAdmission, clientHash);
+        const client = admin ? "" : trustedClientKey(headers, c.identity), clientHash = admin ? ADMIN_CLIENT_HASH : sha256(client);
+        if (!admin)
+            leave = enterBooking(createAdmission, clientHash);
         let text: string | undefined;
         try {
             text = JSON.stringify(input);
@@ -169,10 +183,11 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
         catch { /* reject unserializable input */ }
         if (!text || Buffer.byteLength(text) > 16384)
             return fail(bookingError("VALIDATION_ERROR", "Booking details must fit within 16 KiB."));
-        const parsed = CreateDayBookingSchema.safeParse(input);
+        const parsed = (admin ? CreateAdminDayBookingSchema : CreateDayBookingSchema).safeParse(input);
         if (!parsed.success)
             return fail(bookingError(input && typeof input === "object" && "contractVersion" in input && input.contractVersion === 4 ? "VALIDATION_ERROR" : "CLIENT_UPGRADE_REQUIRED", "Refresh the booking page and check the booking details."));
         const r = parsed.data, hash = bookingRequestHash(r), keyHash = sha256(r.idempotencyKey);
+        const token = admin ? null : (r as CreateDayBookingRequest).turnstileToken;
         const preflight = await withBookingDb(db, "PREFLIGHT", async (tx) => {
             const now = options.now ?? await bookingDbNow(tx), op = await tx.bookingOperation.findUnique({ where: { keyHash } });
             const prior = await replay(tx, op, r, hash, now, c);
@@ -180,17 +195,19 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
                 return { prior };
             if (await tx.booking.findFirst({ where: { idempotencyKey: { equals: r.idempotencyKey, mode: "insensitive" } }, select: { id: true } }))
                 return { prior: fail(bookingError("IDEMPOTENCY_CONFLICT", "This retry key belongs to a previous submission.")) };
+            if (admin)
+                return {};
             return { budget: newEffectBudget(await counts(tx, now), clientHash, c.shopDailyBudget, now), databasePaused: await databaseBookingPaused(tx) };
         }, options.signal);
         if ("prior" in preflight && preflight.prior && !("refresh" in preflight.prior))
             return preflight.prior;
         const refresh = "prior" in preflight && preflight.prior && "refresh" in preflight.prior;
-        if (!refresh) {
+        if (!refresh && !admin) {
             if (effectiveBookingMode(c.mode, "databasePaused" in preflight && Boolean(preflight.databasePaused)) === "PAUSED")
                 return fail(paused(300));
             if ("budget" in preflight && preflight.budget)
                 return fail(preflight.budget);
-            const verification = await verifyTurnstile(r.turnstileToken, c.challenge, {
+            const verification = await verifyTurnstile(token!, c.challenge, {
                 endpoint: options.turnstileEndpoint, remoteip: turnstileRemoteIp(client), signal: options.signal
             });
             if (verification !== "VERIFIED")
@@ -206,22 +223,26 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
             if (await tx.booking.findFirst({ where: { idempotencyKey: { equals: r.idempotencyKey, mode: "insensitive" } }, select: { id: true } }))
                 return fail(bookingError("IDEMPOTENCY_CONFLICT", "This retry key belongs to a previous submission."));
             // Under the shop lock, as the switch is: once a pause has committed, no later booking gets through.
-            if (!prior && await databaseBookingPaused(tx))
+            if (!admin && !prior && await databaseBookingPaused(tx))
                 return fail(paused(300));
-            const cts = await counts(tx, now), budget = newEffectBudget(cts, clientHash, Infinity, now);
-            if (budget)
-                return fail(budget);
-            if (await tx.bookingTurnstileUse.findUnique({ where: { tokenHash: sha256(r.turnstileToken) } }))
-                return fail(bookingError("CHALLENGE_FAILED", "Complete the security check again.", { retryable: true, fieldErrors: { turnstileToken: ["Complete the security check again."] } }));
+            const cts = await counts(tx, now);
+            if (!admin) {
+                const budget = newEffectBudget(cts, clientHash, Infinity, now);
+                if (budget)
+                    return fail(budget);
+                if (await tx.bookingTurnstileUse.findUnique({ where: { tokenHash: sha256(token!) } }))
+                    return fail(bookingError("CHALLENGE_FAILED", "Complete the security check again.", { retryable: true, fieldErrors: { turnstileToken: ["Complete the security check again."] } }));
+            }
             async function terminal(error: LifecycleError): Promise<BookingCommit> {
-                if (!rejectionBudget(cts, clientHash, now))
+                if (!admin && !rejectionBudget(cts, clientHash, now))
                     return fail(unavailable());
                 const op = await tx.bookingOperation.create({ data: {
                         keyHash, kind: "CREATE", requestHash: hash, outcome: "REJECTED", rejectionCode: error.code, rejectionData: JSON.parse(JSON.stringify(error)) as Prisma.InputJsonValue, clientHash, recoveryExpiresAt: new Date(now.getTime() + 86400000)
                     } });
-                await tx.bookingTurnstileUse.create({ data: {
-                        tokenHash: sha256(r.turnstileToken), operationId: op.id, createdAt: now, expiresAt: new Date(now.getTime() + 300000)
-                    } });
+                if (token)
+                    await tx.bookingTurnstileUse.create({ data: {
+                            tokenHash: sha256(token), operationId: op.id, createdAt: now, expiresAt: new Date(now.getTime() + 300000)
+                        } });
                 return fail(error);
             }
             const accepted = await checkAcceptedQuote(tx, r.acceptedQuote, { ring: c.quote, now: () => now });
@@ -233,12 +254,12 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
                     customerPhone: r.customerPhone, status: { in: ["PENDING", "CONFIRMED", "IN_PROGRESS"] }, endsAt: { gt: now }
                 } });
             if (phone >= 2)
-                return terminal(reject("BOOKING_LIMIT_REACHED", "We can't take another online booking for these details. Please call the shop."));
+                return terminal(reject("BOOKING_LIMIT_REACHED", admin ? "This phone number already has 2 active bookings." : "We can't take another online booking for these details. Please call the shop."));
             const state = (await readDayStates(tx, accepted.priced.queueId, r.bookingDate, r.bookingDate, now))[0].state;
             if (state !== "AVAILABLE")
                 return terminal(reject(state === "CLOSED" ? "DAY_CLOSED" : "FULLY_BOOKED", state === "CLOSED" ? "The shop is closed on this day. Choose another day." : "This day is fully booked. Choose another day."));
             // A full/closed selected day has the fixed terminal business outcome, including a last-unit race.
-            const dailyBudget = newEffectBudget(cts, clientHash, c.shopDailyBudget, now);
+            const dailyBudget = admin ? null : newEffectBudget(cts, clientHash, c.shopDailyBudget, now);
             if (dailyBudget)
                 return fail(dailyBudget);
             const q = accepted.priced, size = accepted.release.sizes.find(s => s.id === q.vehicleCategoryId)!;
@@ -251,9 +272,10 @@ export async function createDayBooking(input: unknown, options: CreateDayBooking
             const op = await tx.bookingOperation.create({ data: {
                     keyHash, kind: "CREATE", bookingId: b.id, requestHash: hash, outcome: "COMMITTED", resultingRevision: b.revision, credentialVersion: b.managementTokenVersion, clientHash, committedAt: now, recoveryExpiresAt: new Date(now.getTime() + 86400000)
                 } });
-            await tx.bookingTurnstileUse.create({ data: {
-                    tokenHash: sha256(r.turnstileToken), operationId: op.id, createdAt: now, expiresAt: new Date(now.getTime() + 300000)
-                } });
+            if (token)
+                await tx.bookingTurnstileUse.create({ data: {
+                        tokenHash: sha256(token), operationId: op.id, createdAt: now, expiresAt: new Date(now.getTime() + 300000)
+                    } });
             await tx.bookingNotificationOutbox.create({ data: { bookingId: b.id, ...shopNotificationMessage(b, c.origin) } });
             const authority = await credentials(tx, b, now, c, true);
             if (!authority)

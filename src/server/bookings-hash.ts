@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import type { CreateBookingRequest, CreateDayBookingRequest } from "@/types/contracts";
+import type { CreateAdminDayBookingRequest, CreateBookingRequest, CreateDayBookingRequest } from "@/types/contracts";
 export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 // Do not change: existing raw legacy receipts bind precisely this release-1 array.
 export function legacyRequestHash(r: CreateBookingRequest): string {
@@ -8,7 +8,8 @@ export function legacyRequestHash(r: CreateBookingRequest): string {
         r.vehicleCategoryId, r.serviceId, r.bookingDate, r.startTime, r.customerName, r.customerPhone, r.customerEmail ?? null, r.vehicleModel, r.vehiclePlate ?? null, r.specialRequests ?? null
     ]));
 }
-export function bookingRequestHash(r: CreateDayBookingRequest): string {
+// The challenge token is never hashed, so a public and an admin body hash alike.
+export function bookingRequestHash(r: CreateDayBookingRequest | CreateAdminDayBookingRequest): string {
     const q = r.acceptedQuote;
     return sha256(JSON.stringify([
         r.contractVersion, r.vehicleCategoryId, r.lines.map(l => [l.serviceId, l.quantity]), r.bookingDate,
