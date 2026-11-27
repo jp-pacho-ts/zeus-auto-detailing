@@ -1,6 +1,5 @@
 "use client";
 import * as React from "react";
-import Link from "next/link";
 import {
   Search,
   Calendar as CalendarIcon,
@@ -33,6 +32,7 @@ import {
   useAdminResource,
 } from "./bookings/use-admin-resource";
 import { BookingDetail } from "./bookings/booking-detail";
+import { NewBookingDialog } from "./bookings/new-booking-dialog";
 import { CalendarTab } from "./calendar-tab";
 
 function BookingRows({
@@ -284,7 +284,9 @@ function BookingsList({
     [filter, setFilter] = React.useState("ALL"),
     [selected, setSelected] = React.useState<string | null>(null),
     [busy, setBusy] = React.useState(false),
-    [error, setError] = React.useState<string | null>(null);
+    [error, setError] = React.useState<string | null>(null),
+    [creating, setCreating] = React.useState(false),
+    [saved, setSaved] = React.useState<string | null>(null);
 
   const [mode, setMode] = React.useState<"DAY" | "SEARCH" | "HISTORY">(historyOnly ? "HISTORY" : "DAY");
   const [q, setQ] = React.useState("");
@@ -538,15 +540,36 @@ function BookingsList({
                 <CalendarIcon className="h-4 w-4" aria-hidden="true" />
                 Calendar
               </Button>
-              <Link
-                href="/book"
-                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                New booking
-              </Link>
+              {role === "ADMIN" && (
+                <button
+                  type="button"
+                  onClick={() => { setSaved(null); setCreating(true); }}
+                  className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  New booking
+                </button>
+              )}
             </div>
           </div>
+          {role === "ADMIN" && (
+            <NewBookingDialog
+              open={creating}
+              onOpenChange={setCreating}
+              onCreated={(booking) => {
+                setCreating(false);
+                setSaved(`Booking ${booking.referenceCode} saved as Pending.`);
+                setMode("DAY");
+                if (booking.bookingDate === date) void day.reload();
+                else goDay(booking.bookingDate);
+              }}
+            />
+          )}
+          {saved && (
+            <p role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
+              {saved}
+            </p>
+          )}
 
           <section className="overflow-hidden rounded-xl border border-border bg-panel">
             {mode === "DAY" && (

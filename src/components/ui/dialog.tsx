@@ -8,9 +8,12 @@ export interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
+  // The panel's own classes (for example a wider max-width) and the id of its title.
+  className?: string;
+  labelledBy?: string;
 }
 
-export function Dialog({ open, onOpenChange, children }: DialogProps) {
+export function Dialog({ open, onOpenChange, children, className, labelledBy }: DialogProps) {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -35,6 +38,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
     <div
       role="dialog"
       aria-modal="true"
+      aria-labelledby={labelledBy}
       className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm p-4 sm:p-6 grid place-items-center"
     >
       <div
@@ -42,7 +46,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />
-      <div className="relative z-10 my-auto w-full max-w-lg max-h-[calc(100vh-3rem)] overflow-y-auto rounded-xl border border-border/90 bg-white dark:bg-[#18181b] p-6 text-foreground shadow-2xl before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30">
+      <div className={cn("relative z-10 my-auto w-full max-w-lg max-h-[calc(100vh-3rem)] overflow-y-auto rounded-xl border border-border/90 bg-white dark:bg-[#18181b] p-6 text-foreground shadow-2xl before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-primary/50 before:to-transparent before:z-30", className)}>
         <button
           onClick={() => onOpenChange(false)}
           className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-stone-100 dark:hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
