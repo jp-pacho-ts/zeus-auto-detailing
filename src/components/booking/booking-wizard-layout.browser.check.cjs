@@ -135,18 +135,26 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
         // Your vehicle); the review, with the security check under it, is pinned beside the form and stays in view.
         const x = await page.evaluate(() => ['#customerFirstName', '#vehicleModel', '[data-part=review]', '#turnstileToken'].map((s) => document.querySelector(s).getBoundingClientRect().left));
         assert.ok(Math.abs(x[0] - x[1]) < 2 && order[1] > order[0] && x[2] > x[0] && Math.abs(x[2] - x[3]) < 2 && order[3] > order[2], `${width}px one form column (you over vehicle), the review over the security check beside it`);
-        const aside = await page.evaluate(() => { const el = document.querySelector('[data-part=details-aside]'); const top0 = el.getBoundingClientRect().top; window.scrollTo(0, document.scrollingElement.scrollHeight); const top1 = el.getBoundingClientRect().top; window.scrollTo(0, 0); return { sticky: getComputedStyle(el).position, scrolls: document.scrollingElement.scrollHeight > innerHeight, top0, top1 }; });
-        assert.equal(aside.sticky, 'sticky', `${width}px the review is pinned`);
+        // CEO 2026-11-27: the scroll starts right under the header, and the review column does not move. The page itself
+        // never scrolls; the step scrolls in a pane between the header and the bar.
+        const aside = await page.evaluate(() => {
+          const el = document.querySelector('[data-part=details-aside]'), pane = document.querySelector('[data-part=pane]');
+          const head = document.querySelector('[data-part=panel] > div').getBoundingClientRect().bottom;
+          const top0 = el.getBoundingClientRect().top; pane.scrollTo(0, pane.scrollHeight); const top1 = el.getBoundingClientRect().top; pane.scrollTo(0, 0);
+          return { docScroll: document.scrollingElement.scrollHeight - innerHeight, paneTop: pane.getBoundingClientRect().top, paneBottom: pane.getBoundingClientRect().bottom, barTop: document.getElementById('wizard-action-bar').getBoundingClientRect().top, head, scrolls: pane.scrollHeight > pane.clientHeight, top0, top1, asideBottom: el.getBoundingClientRect().bottom };
+        });
+        assert.ok(aside.docScroll <= 0, `${width}px the page itself does not scroll (${aside.docScroll})`);
+        assert.ok(Math.abs(aside.paneTop - aside.head) < 1 && Math.abs(aside.paneBottom - aside.barTop) < 1, `${width}px the scrolling pane runs from the header to the bar`);
+        assert.ok(Math.abs(aside.top1 - aside.top0) < 1, `${width}px the review column does not move when the form scrolls (${aside.top0} -> ${aside.top1})`);
+        assert.ok(aside.asideBottom <= aside.barTop, `${width}px the review column is fully above the bar`);
         if (aside.scrolls) {
-          assert.ok(aside.top1 >= 0, `${width}px the review stays in view when the form scrolls`);
-          // Regression: the smooth scroll took the mouse wheel and never moved the page (no frame loop).
-          const y0 = await page.evaluate(() => window.scrollY);
+          // Regression: the smooth scroll took the mouse wheel and never moved the form (no frame loop).
           await page.mouse.move(width / 3, 400);
           for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(80); }
-          await page.waitForFunction((y) => window.scrollY > y, y0, { timeout: 3000 });
+          await page.waitForFunction(() => document.querySelector('[data-part=pane]').scrollTop > 0, null, { timeout: 3000 });
           await page.waitForTimeout(1200); // let the glide finish before measuring anything else
-          await page.evaluate(() => window.scrollTo(0, 0));
-          await page.waitForFunction(() => window.scrollY === 0);
+          await page.evaluate(() => document.querySelector('[data-part=pane]').scrollTo(0, 0));
+          await page.waitForFunction(() => document.querySelector('[data-part=pane]').scrollTop === 0);
         }
       } else {
         assert.ok(order[2] > order[0] && order[3] > order[0] && order[2] >= order[1] && order[3] >= order[1], `${width}px the review and the security check come after the fields`);

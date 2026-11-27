@@ -455,6 +455,21 @@
   backdrop-filter: none;
 }
 
+/* The header bar (logo, steps, close) stays at the top while the step scrolls under it. The panel steps out of the
+   box tree so the bar's sticky range is the whole page, not just the panel; screen only, so print still hides it. */
+@media screen {
+  .booking :global([data-layout="online"] [data-part="panel"]) {
+    display: contents;
+  }
+
+  .booking :global([data-layout="online"] [data-part="panel"] > div:first-child) {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background-color: #0a0a0b;
+  }
+}
+
 .booking :global([data-layout="online"] #wizard-step-title) {
   font-size: clamp(32px, min(4.4vw, 7.4vh), 60px);
 }
@@ -1298,13 +1313,18 @@
   }
 }
 
-/* The reminder sits under Continue, not at the far left of the bar. */
-@media (min-width: 480px) {
-  .booking :global([data-layout="online"] #wizard-action-bar [data-part="nudge"]) {
-    max-width: 64rem;
-    margin-inline: auto;
-    text-align: right;
-  }
+/* The reminder sits under Continue in the label role (display capitals, 12 px, .1em), centred and wrapped to the
+   button's width: width 0 + min-width 100% keeps the text from widening Continue's column. */
+.booking :global([data-layout="online"] [data-part="nudge"]) {
+  width: 0;
+  min-width: 100%;
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  line-height: 1.5;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 /* Day step reminder: the open days fill with a soft gold tint twice; the calendar lines stay as they are. */
@@ -1483,23 +1503,60 @@
    three columns); the booking, the security check and the note are pinned beside it, so the total and the Change links
    stay in view while the form scrolls. This step may scroll; every other step still fits one screen. */
 @media (min-width: 1024px) {
-  .booking :global([data-layout="online"] #booking-details fieldset > div) {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-    column-gap: clamp(40px, 5vw, 80px);
-    row-gap: 40px;
-    align-items: start;
+  /* CEO 2026-11-27: the scroll starts right under the header, and the booking column does not scroll. The page is one
+     screen tall (less the bar); the step scrolls in a pane under the header. The pane, main, form and fieldset step out
+     of the box tree, so the heading, the form groups and the booking column share one grid: the heading and the form
+     on the left scroll, the booking column on the right sits at the top of the pane and never moves. */
+  .booking :global([data-layout="online"] [data-part="shell"]:has(#booking-details)) {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--bar-h, 0px));
   }
 
-  .booking :global([data-layout="online"] #booking-details fieldset > div > div:nth-child(-n + 2)) {
+  .booking :global([data-layout="online"] [data-part="shell"]:has(#booking-details) [data-part="panel"] > div:first-child) {
+    flex: none;
+  }
+
+  .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details)) {
+    --pane-top: clamp(16px, 3vh, 40px);
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    column-gap: clamp(40px, 5vw, 80px);
+    align-content: start;
+    padding: var(--pane-top) max(32px, calc((100% - 1080px) / 2)) 32px;
+  }
+
+  .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details) :is(main, main > div, main > div > div:has(> #booking-details), #booking-details, #booking-details > fieldset, #booking-details > fieldset > div)) {
+    display: contents;
+  }
+
+  .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details) :is([data-part="step-head"], main > div > *, main > div > div > *, #booking-details > *, #booking-details > fieldset > *, #booking-details > fieldset > div > *)) {
     grid-column: 1;
   }
 
-  .booking :global([data-layout="online"] #booking-details [data-part="details-aside"]) {
+  .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details) [data-part="step-head"]) {
+    max-width: none;
+    margin: 0 0 clamp(12px, 2.5vh, 32px);
+    padding: 0;
+  }
+
+  .booking :global([data-layout="online"] #booking-details > fieldset > div > div:nth-child(2)) {
+    margin-top: 40px;
+  }
+
+  /* Sticky at the very place it starts, so it never moves while the left column scrolls. */
+  .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details) #booking-details [data-part="details-aside"]) {
     display: block;
     grid-column: 2;
-    grid-row: 1 / span 2;
+    grid-row: 1 / span 8;
+    align-self: start;
     position: sticky;
-    top: 24px;
+    top: 0; /* measured from the pane's padding edge, which is where it starts */
   }
 
   .booking :global([data-layout="online"] #booking-details [data-part="details-aside"] > * + *) {

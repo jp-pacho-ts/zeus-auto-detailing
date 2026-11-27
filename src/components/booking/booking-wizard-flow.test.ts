@@ -351,6 +351,9 @@ test("W5: a disabled Submit says why: security check pending, expired or failed"
   const submit = () => h.all().find((e) => e.type === "button" && /Submit booking request/.test(textOf(e.props.children)))!;
   assert.equal(submit().props.disabled, true);
   assert.match(h.text(), /Waiting for the security check/);
+  // The reason sits under the check itself; the footer bar stays clear of it.
+  assert.match(textOf(h.all().find((e) => e.props.id === "turnstileToken")!), /Waiting for the security check/);
+  assert.doesNotMatch(textOf(h.all().find((e) => e.props.id === "wizard-action-bar")!), /security check/);
   fire(h.child(TurnstileChallenge), "onStatus", "expired");
   await h.settle();
   assert.match(h.text(), /The security check expired/);

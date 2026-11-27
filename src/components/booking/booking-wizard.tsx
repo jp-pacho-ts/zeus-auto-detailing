@@ -586,21 +586,21 @@ export function BookingWizard({
   const servicesSummary = lines.map((l) => serviceById(l.serviceId)?.name).filter(Boolean).join(", ");
   const quoteLines = quote?.lines ?? [];
 
-  // W5: a disabled Submit always says why.
+  // W5: a disabled Submit always says why. The security check's own state shows under the check, not in the footer.
+  const challengeReason =
+    step !== 4 || pending || !turnstileSiteKey || challenge.token
+      ? ""
+      : challengeStatus === "expired"
+        ? "The security check expired. It restarts by itself; then send your request."
+        : challengeStatus === "failed"
+          ? "The security check didn't load. Check your connection, then reload the page."
+          : "Waiting for the security check…";
   const submitReason =
     step !== 4 || pending
       ? ""
       : !turnstileSiteKey
         ? `Online booking is not available right now. Please call the shop at ${brandConfig.displayPhone}.`
-        : !challenge.token
-          ? challengeStatus === "expired"
-            ? "The security check expired. It restarts by itself; then send your request."
-            : challengeStatus === "failed"
-              ? "The security check didn't load. Check your connection, then reload the page."
-              : "Waiting for the security check…"
-          : !uncertain && !quote
-            ? "Updating the price…"
-            : "";
+        : challengeReason || (!uncertain && !quote ? "Updating the price…" : "");
   const primaryDisabled =
     pending ||
     !catalog ||
@@ -682,8 +682,10 @@ export function BookingWizard({
     </>
   );
   const renderReason = () =>
-    submitReason ? <p className="mt-2 text-sm text-muted-foreground" role="status">{submitReason}</p>
-      : nudging ? <p key={nudge.n} data-part="nudge" className="mt-2 text-sm font-semibold text-primary" role="status">{reminder}</p> : null;
+    submitReason && !challengeReason ? <p className="mt-2 text-sm text-muted-foreground" role="status">{submitReason}</p> : null;
+  // The reminder sits in Continue's own column, so it wraps to the button's width instead of hanging past it.
+  const renderNudge = () =>
+    !submitReason && nudging ? <p key={nudge.n} data-part="nudge" className="mt-2 text-primary" role="status">{reminder}</p> : null;
 
   // The single review, under the details fields (L2, P1-52). Each Change returns to its step.
   const renderReview = () => (
@@ -897,7 +899,7 @@ export function BookingWizard({
           <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</p>
           {renderOrderBody()}
           <div className="mt-4 hidden space-y-2 lg:block [&>button]:w-full">{renderPrimary()}{renderBack()}</div>
-          <div className="hidden lg:block">{renderReason()}</div>
+          <div className="hidden lg:block">{renderReason()}{renderNudge()}</div>
         </aside>
       </div>
     );
@@ -1159,7 +1161,7 @@ export function BookingWizard({
         </div>
       )}
       {step < 5 && (
-        <div>
+        <div data-part="shell">
           {/* The booking header (the kiosk ordering screen, LE): logo, the four steps on a gold rail, and End session on the
               kiosk or Close online. The step heading sits under it. */}
           <div data-part="panel" className="no-print">
@@ -1206,7 +1208,11 @@ export function BookingWizard({
                 </Link>
               )}
             </div>
-            <div className="mx-auto max-w-6xl px-4 pb-1 pt-7 sm:px-8 sm:pt-10 lg:pt-[clamp(16px,3vh,40px)]">
+          </div>
+
+          {/* The step scrolls under the header: on a laptop, Your details scrolls in this pane, the header stays above it. */}
+          <div data-part="pane">
+            <div data-part="step-head" className="no-print mx-auto max-w-6xl px-4 pb-1 pt-7 sm:px-8 sm:pt-10 lg:pt-[clamp(16px,3vh,40px)]">
               <h1
                 key={step}
                 id="wizard-step-title"
@@ -1220,7 +1226,6 @@ export function BookingWizard({
               </h1>
               {intro && <p className="mt-2 text-base text-muted-foreground">{intro}</p>}
             </div>
-          </div>
 
           <main className="mx-auto w-full px-4 pb-48 pt-6 sm:px-8 sm:pt-8 lg:pb-28 lg:pt-[clamp(12px,2.5vh,32px)]">
             <div className="mx-auto w-full max-w-[760px] lg:max-w-[1080px]">
@@ -1662,6 +1667,7 @@ export function BookingWizard({
                               </p>
                             )}
                           </div>
+                          {challengeReason && <p className="mt-1.5 text-sm text-muted-foreground" role="status">{challengeReason}</p>}
                           {errorFor("turnstileToken") && errorFor("turnstileToken") !== message && (
                             <p className="mt-1.5 text-sm text-destructive">{errorFor("turnstileToken")}</p>
                           )}
@@ -1679,6 +1685,7 @@ export function BookingWizard({
               )}
             </div>
           </main>
+          </div>
         </div>
       )}
 
@@ -1782,7 +1789,7 @@ export function BookingWizard({
               )}
             </div>
             {showPrimary && (
-              <div className="order-3 basis-full min-[480px]:basis-auto [&>button]:w-full min-[480px]:[&>button]:w-auto">{renderPrimary()}</div>
+              <div className="order-3 basis-full min-[480px]:basis-auto [&>button]:w-full min-[480px]:[&>button]:w-auto">{renderPrimary()}{renderNudge()}</div>
             )}
           </div>
           {renderReason()}
