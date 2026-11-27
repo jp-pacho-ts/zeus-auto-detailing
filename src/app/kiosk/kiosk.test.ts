@@ -34,7 +34,7 @@ test("the kiosk flow is an ordering screen in the landing's style", () => {
   assert.match(wizard, /md:grid-cols-\[repeat\(auto-fit,minmax\(200px,1fr\)\)\]/);
   for (const part of ["primary", "back", "end-session", "step-number"]) assert.match(wizard, new RegExp(`data-part="${part}"`));
   // Tablet (iPad mini portrait): the bar's total never truncates; only the description shortens.
-  assert.match(wizard, /<span className="min-w-0 truncate">/);
+  assert.match(wizard, /<span data-part="order-line" className="min-w-0 truncate">/);
   assert.match(wizard, /<strong className="shrink-0 text-xl font-extrabold tabular-nums">\{total\.amount\}<\/strong>/);
   // Idle (LE): 10 minutes without activity returns to the start; the last minute is a countdown dialog, not a banner.
   assert.match(wizard, /const KIOSK_IDLE_MS = 10 \* 60_000;/);
