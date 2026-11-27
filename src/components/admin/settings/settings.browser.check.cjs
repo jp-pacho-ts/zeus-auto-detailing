@@ -29,7 +29,7 @@ async function open(email, password, viewport, label) {
   const page = await context.newPage();
   page.on('pageerror', (e) => problems.push(label + ' pageerror: ' + e.message));
   await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-  await page.getByLabel('Staff Email or ID').fill(email);
+  await page.getByLabel('Staff email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: /sign in/i }).click();
   await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();

@@ -44,7 +44,7 @@ test('an uncertain move stays locked while the board reload fails, and unlocks o
     });
 
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or Username').fill(process.env.P120_TEST_EMAIL);
+    await page.getByLabel('Staff email', { exact: true }).fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();

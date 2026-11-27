@@ -165,7 +165,7 @@ test('temporary homepage: responsive, settled motion, reduced-motion/no-JS, cont
     const guardPage = await guardContext.newPage();
     await guardPage.goto(upstream.origin + '/admin', { waitUntil: 'networkidle' });
     assert.ok(guardPage.url().startsWith(upstream.origin + '/admin/login'), 'protected admin redirects unauthenticated visitors to login');
-    await guardPage.getByLabel('Staff Email or ID').waitFor();
+    await guardPage.getByLabel('Staff email', { exact: true }).waitFor();
     await guardContext.close();
     results.checks.push('protected admin remains guarded');
     assert.deepEqual(results.errors, []);

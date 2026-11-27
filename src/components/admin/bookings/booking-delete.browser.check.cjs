@@ -33,7 +33,7 @@ test('only an ADMIN can delete a booking, after typing its reference code', { ti
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or Username').fill(email);
+    await page.getByLabel('Staff email', { exact: true }).fill(email);
     await page.getByLabel('Password', { exact: true }).fill(password);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();

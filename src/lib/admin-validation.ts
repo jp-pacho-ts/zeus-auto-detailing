@@ -408,6 +408,10 @@ export const EmailSwitchSchema = z
   .object({ expectedRevision: Revision, kind: z.enum(["confirmation", "reminder", "car_ready", "shop_alerts"]), enabled: z.boolean() })
   .strict();
 
+// P1-78: the notification preview takes only the kind; the test email takes an empty object, so no input can name a recipient.
+export const EmailPreviewQuerySchema = z.object({ kind: z.enum(["confirmation", "reminder", "car_ready", "turn_notice"]) }).strict();
+export const TestEmailSchema = z.object({}).strict();
+
 // P1-41: User management and password change
 export const UserRoleSchema = z.enum(["SUPERADMIN", "ADMIN"]);
 
@@ -432,6 +436,11 @@ export const UserUpdateSchema = z
   .strict();
 
 export const UserResetPasswordSchema = z.object({}).strict().optional().default({});
+
+// confirmEmail: the admin types the account's email to confirm; the database compares it to the stored one.
+export const UserDeleteSchema = z
+  .object({ expectedRevision: Revision, confirmEmail: z.string().trim().min(1, "Type the account's email to confirm.").max(120) })
+  .strict();
 
 export const UserChangePasswordSchema = z
   .object({

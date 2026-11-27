@@ -81,6 +81,8 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   // P1-42 Settings.
   ["GET", "/api/admin/settings", () => import("@/app/api/admin/settings/route"), {}],
   ["PUT", "/api/admin/settings", () => import("@/app/api/admin/settings/route"), {}],
+  ["GET", "/api/admin/settings/email-preview?kind=confirmation", () => import("@/app/api/admin/settings/email-preview/route"), {}],
+  ["POST", "/api/admin/settings/test-email", () => import("@/app/api/admin/settings/test-email/route"), {}],
   // P1-38 Supplies.
   ["GET", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],
   ["POST", "/api/admin/supplies", () => import("@/app/api/admin/supplies/route"), {}],
@@ -94,6 +96,7 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["POST", "/api/admin/users", () => import("@/app/api/admin/users/route"), {}],
   ["PATCH", `/api/admin/users/${ID}`, () => import("@/app/api/admin/users/[id]/route"), { id: ID }],
   ["POST", `/api/admin/users/${ID}/reset-password`, () => import("@/app/api/admin/users/[id]/reset-password/route"), { id: ID }],
+  ["POST", `/api/admin/users/${ID}/delete`, () => import("@/app/api/admin/users/[id]/delete/route"), { id: ID }],
   ["POST", "/api/admin/auth/change-password", () => import("@/app/api/admin/auth/change-password/route"), {}],
 ];
 const call = async (method: string, target: string, load: () => Promise<Record<string, unknown>>, params: Record<string, string>, headers: Record<string, string>, body?: string) => {

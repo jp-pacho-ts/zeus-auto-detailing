@@ -39,7 +39,7 @@ test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and 
     });
     page = await context.newPage();
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
+    await page.getByLabel('Staff email', { exact: true }).fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
@@ -125,8 +125,9 @@ test('add-bay modal and remove-bay confirmation contain Tab/Shift+Tab focus and 
     await page.getByRole('menuitem', { name: 'Remove', exact: true }).click();
     await page.getByRole('button', { name: 'Remove bay', exact: true }).click();
     await trigger.waitFor({ state: 'detached' });
-    await page.getByRole('group', { name: 'Bay board sections' }).getByRole('button', { name: 'Bays', exact: true }).click();
-    await page.getByRole('button', { name: 'Bring back ' + name, exact: true }).waitFor();
+    // 2026-11-24: a removed bay comes back from the board's Removed bays list (Settings no longer manages bays).
+    await page.getByText(/^Removed bays \(\d+\)$/).click();
+    await page.getByRole('list', { name: 'Removed bays' }).getByRole('button', { name: 'Bring back ' + name, exact: true }).waitFor();
     for (const width of [1280, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });
       const size = await page.locator('#admin-content').evaluate((element) => ({ client: element.clientWidth, scroll: element.scrollWidth }));

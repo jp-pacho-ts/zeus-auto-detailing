@@ -39,7 +39,7 @@ async function open(email, password, viewport, label) {
   const expected = { detailer: /status of 403/, desktop: /ERR_FAILED|status of 404/ }[label];
   page.on('console', (m) => { if (m.type() === 'error' && !(expected && expected.test(m.text()))) problems.push(label + ' console: ' + m.text()); });
   await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-  await page.getByLabel('Staff Email or ID').fill(email);
+  await page.getByLabel('Staff email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: /sign in/i }).click();
   await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();

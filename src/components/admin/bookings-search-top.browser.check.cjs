@@ -39,7 +39,7 @@ test('Find bookings is first on the Bookings page, with one Status filter, and t
       const page = await context.newPage();
       page.on('pageerror', (error) => errors.push(error.message));
       await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-      await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
+      await page.getByLabel('Staff email', { exact: true }).fill(process.env.P120_TEST_EMAIL);
       await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
       await page.getByRole('button', { name: /sign in/i }).click();
       await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();

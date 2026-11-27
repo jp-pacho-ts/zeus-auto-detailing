@@ -161,6 +161,8 @@ export interface AdminQueueCaps {
   isActive: boolean;
   dailyCap: number | null;
   revision: number;
+  /** P1-78: when the default cap was last changed, and by whom (staff name only). */
+  lastChanged: AdminLastChanged;
   overrides: AdminCapDay[];
   committed: { date: LocalDate; count: number }[];
 }
@@ -630,7 +632,19 @@ export interface AdminShopSettings {
   email: { configured: boolean; failedLast7Days: number; waitingLast7Days: number };
   /** Each kind of email can be switched off from Settings; all are on by default. */
   emails: Record<EmailKind, boolean>;
+  /** P1-78: one value for the row, so status and the email switches share it. */
+  lastChanged: AdminLastChanged;
+  /** P1-78: the latest bay list change; null before any. */
+  baysLastChanged: AdminLastChanged | null;
 }
+/** P1-78: when a Settings row last changed. by is the staff member's name (never email or phone); null when unknown. */
+export interface AdminLastChanged { at: ISOInstant; by: string | null }
+/** P1-78 notification preview: a fixed synthetic booking, never customer data. html is null for the text-only turn notice. */
+export type AdminEmailPreviewKind = "confirmation" | "reminder" | "car_ready" | "turn_notice";
+export interface AdminEmailPreview { kind: AdminEmailPreviewKind; subject: string; text: string; html: string | null }
+/** P1-78 test email: always to the configured shop address; the answer is "sent" or a reason class, never the address. */
+export type AdminTestEmailResult = "sent" | "config_missing" | "auth_rejected" | "timeout" | "unreachable" | "tls_failed" | "refused" | "error";
+export interface AdminTestEmail { result: AdminTestEmailResult; at: ISOInstant }
 export type EmailKind = "confirmation" | "reminder" | "car_ready" | "shop_alerts";
 
 // -----------------------------------------------------------------------------

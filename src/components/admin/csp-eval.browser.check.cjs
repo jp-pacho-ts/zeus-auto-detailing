@@ -55,7 +55,7 @@ test('no page reports any CSP violation (the Zod eval probe included), and the p
 
     // Sign in, then open every admin tab (each one loads its own forms and schemas).
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or Username').fill(process.env.P120_TEST_EMAIL);
+    await page.getByLabel('Staff email', { exact: true }).fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();

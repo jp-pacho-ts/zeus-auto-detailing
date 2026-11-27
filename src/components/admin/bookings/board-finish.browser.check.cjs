@@ -47,7 +47,7 @@ test('the Bay board: a car is finished by dropping it on Done, or from its move 
     page.on('dialog', async (d) => { dialogs.push(d.message()); await (answer ? d.accept() : d.dismiss()); });
 
     await page.goto(origin + '/admin/login', { waitUntil: 'networkidle' });
-    await page.getByLabel('Staff Email or ID').fill(process.env.P120_TEST_EMAIL);
+    await page.getByLabel('Staff email', { exact: true }).fill(process.env.P120_TEST_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(process.env.P120_TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('heading', { name: 'Bookings', exact: true }).waitFor();
