@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import type {
   AdminCommissionAdjustment,
+  AdminBookingDeductionPreview,
   AdminCommissionEntry,
   AdminCommissionLine,
   AdminCommissionPaidResult,
@@ -9,7 +10,7 @@ import type {
   AdminCommissionSettings,
   AdminCommissionSummary,
 } from "@/types/admin-contracts";
-import { AdminIdSchema, CommissionAdjustSchema, CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema } from "@/lib/admin-validation";
+import { AdminIdSchema, BookingDeductionCorrectionSchema, CommissionAdjustSchema, CommissionDefaultSchema, CommissionListSchema, CommissionPaidSchema } from "@/lib/admin-validation";
 import { percentToBasisPoints, safeCentavos } from "@/lib/commission";
 import { withStaffDb, type StaffTx } from "@/server/auth/db-admission";
 import { authorize, parse, type AdminOptions, type StaffActor } from "./context";
@@ -218,5 +219,25 @@ export async function recalculateCommission(actor: StaffActor, rawBookingId: unk
     adminEvent("admin.commission.recalculated", { actorStaffId: actor.staffId });
     const num = (rows: CommissionRecalculation["before"]) => rows.map((r) => ({ ...r, rateBp: Number(r.rateBp), amountCentavos: Number(r.amountCentavos) }));
     return { before: num(result.before), after: num(result.after) };
+  });
+}
+
+export async function correctBookingDeduction(actor: StaffActor, rawBookingId: unknown, input: unknown, options: AdminOptions = {}): Promise<AdminBookingDeductionPreview> {
+  authorize(actor, "COMMISSION_WRITE");
+  const bookingId = parse(AdminIdSchema, rawBookingId);
+  const v = parse(BookingDeductionCorrectionSchema, input);
+  return mutate(options, "commission_deduction_correct", async (tx) => {
+    try {
+      const [row] = await tx.$queryRaw<{ r: AdminBookingDeductionPreview }[]>`
+        SELECT public.admin_booking_deduction_correct(${actor.staffId}, ${bookingId}, ${v.lineId}, ${v.deductionCentavos}::integer, ${v.expected ?? null}::text) AS r
+      `;
+      return row.r;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("ZC010")) throw new AdminServiceError("VALIDATION_ERROR", "Only a completed booking can use a deduction override.");
+      if (message.includes("ZC012")) throw new AdminServiceError("VALIDATION_ERROR", "The booking needs commission entries for its assigned crew before you can correct the deduction.");
+      if (message.includes("ZT002")) throw new AdminServiceError("VERSION_CONFLICT", "The commission changed. Preview the correction again.");
+      return mapError(error);
+    }
   });
 }

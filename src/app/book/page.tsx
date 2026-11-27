@@ -2,6 +2,7 @@ import * as React from "react";
 import type { Metadata } from "next";
 import { brandConfig } from "@/config/brand";
 import { BookingWizard } from "@/components/booking/booking-wizard";
+import { BookingStage } from "@/components/booking/booking-stage";
 
 export const metadata: Metadata = {
   title: `Book an Appointment | ${brandConfig.businessName}`,
@@ -15,9 +16,8 @@ interface BookPageProps {
 export default async function BookPage({ searchParams }: BookPageProps) {
   const params = await searchParams;
   return (
-    <BookingWizard
-      initialServiceId={params.service}
-      initialVehicleName={params.vehicle}
-    />
+    <BookingStage>
+      <BookingWizard initialServiceId={params.service} initialVehicleName={params.vehicle} />
+    </BookingStage>
   );
 }

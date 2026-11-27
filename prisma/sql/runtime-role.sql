@@ -80,6 +80,16 @@ BEGIN
   ELSIF migrated THEN
     RAISE EXCEPTION 'delete_booking(text, text, integer, text) is missing: run this after prisma migrate deploy completes';
   END IF;
+  -- User Management delete (20261125010000_user_delete). A database migrated only to an older release skips it;
+  -- once that migration is recorded, a missing function stops the script like every other entry.
+  IF to_regprocedure('public.admin_user_delete(text, text, integer, text)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION admin_user_delete(text, text, integer, text) FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION admin_user_delete(text, text, integer, text) TO zeus_app;
+  ELSIF migrated THEN
+    IF EXISTS(SELECT 1 FROM public._prisma_migrations WHERE migration_name = '20261125010000_user_delete' AND rolled_back_at IS NULL) THEN
+      RAISE EXCEPTION 'admin_user_delete(text, text, integer, text) is missing: run this after prisma migrate deploy completes';
+    END IF;
+  END IF;
   -- P1-37: the ADMIN writes of the Team and Commissions screens. Each is SECURITY DEFINER, re-checks an active
   -- ADMIN or MANAGER actor and writes its audit row itself; zeus_app has no write privilege on staff or on the
   -- commission tables. The internal functions (accrual, consistency check, trigger functions, commission_split,
@@ -131,6 +141,12 @@ BEGIN
       RAISE EXCEPTION '% is missing: run this after prisma migrate deploy completes', fn;
     END IF;
   END LOOP;
+  -- Optional during staged upgrades: the service-delete migration may not have run yet.
+  -- The migration grants this too when zeus_app already exists.
+  IF to_regprocedure('public.admin_service_delete(text,text)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION public.admin_service_delete(text,text) FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.admin_service_delete(text,text) TO zeus_app;
+  END IF;
   FOREACH g SLICE 1 IN ARRAY ARRAY[
     -- Catalog and schedule: read (schedule writes follow).
     ['catalog_releases', 'SELECT'], ['catalog_head', 'SELECT'], ['catalog_service_versions', 'SELECT'],
@@ -207,6 +223,26 @@ BEGIN
       RAISE EXCEPTION 'table % is missing: run this after prisma migrate deploy completes', g[1];
     END IF;
   END LOOP;
+END $$;
+
+-- Service costs are optional on historical schemas used by migration repair tooling.
+DO $$ BEGIN
+  IF to_regclass('public.service_cost_snapshots') IS NOT NULL THEN
+    GRANT SELECT ON public.expense_rows TO zeus_app;
+    GRANT EXECUTE ON FUNCTION public.admin_service_set_expense_deduction(text,text,integer) TO zeus_app;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF to_regprocedure('public.admin_service_set_size_deductions(text,text,jsonb)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.admin_service_set_size_deductions(text,text,jsonb) TO zeus_app;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF to_regprocedure('public.admin_booking_deduction_correct(text,text,text,integer,text)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.admin_booking_deduction_correct(text,text,text,integer,text) TO zeus_app;
+  END IF;
 END $$;
 
 -- No privileges at all: _prisma_migrations, catalog_publishers, catalog_publication_events,

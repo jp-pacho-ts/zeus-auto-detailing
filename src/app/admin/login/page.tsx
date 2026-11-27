@@ -4,11 +4,12 @@ import type { StaffSession } from "@/server/auth/types";
 import { LoginForm } from "./login-form";
 
 interface AdminLoginPageProps {
-  searchParams: Promise<{ next?: string | string[] }>;
+  searchParams: Promise<{ next?: string | string[]; signedOut?: string | string[] }>;
 }
 
 export default async function AdminLoginPage({ searchParams }: AdminLoginPageProps) {
-  const next = safeNextPath((await searchParams).next) ?? "/admin";
+  const params = await searchParams;
+  const next = safeNextPath(params.next) ?? "/admin";
   let session: StaffSession | null = null;
   try {
     session = await getStaffSession();
@@ -16,5 +17,5 @@ export default async function AdminLoginPage({ searchParams }: AdminLoginPagePro
     // Session check unavailable: show the form; a sign-in attempt reports the outage.
   }
   if (session) redirect(next);
-  return <LoginForm next={next} />;
+  return <LoginForm next={next} signedOut={params.signedOut === "1"} />;
 }

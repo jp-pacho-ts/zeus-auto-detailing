@@ -30,19 +30,20 @@ export function BookingTicket({
 }: {
   booking: TicketBooking;
   copied: boolean;
-  onCopy: () => void;
-  onPrint: () => void;
+  onCopy?: () => void;
+  onPrint?: () => void;
 }) {
   return (
     <section
       aria-labelledby="reference-title"
       className="print-receipt-card grid overflow-hidden rounded-2xl border border-border bg-card md:grid-cols-[minmax(0,1fr)_330px]"
     >
-      <div className="min-w-0 p-5 sm:p-8">
+      <div className="@container min-w-0 p-5 sm:p-8">
         <p className="text-sm text-muted-foreground">Booking reference</p>
+        {/* One line, sized to its column: customers read this code out or type it, and a code split in two invites mistakes. */}
         <h2
           id="reference-title"
-          className="mt-1 break-all font-mono text-3xl font-extrabold tracking-wider text-foreground sm:text-4xl"
+          className="mt-1 whitespace-nowrap font-mono text-[min(2.25rem,9cqi)] font-extrabold tracking-wider text-foreground"
         >
           {booking.referenceCode}
         </h2>
@@ -54,8 +55,8 @@ export function BookingTicket({
           <strong>{booking.dayLabel}.</strong> {booking.arrival}
           {booking.multiDay && " This job takes more than one day: this is your drop-off day, and the shop tells you when your car is ready."}
         </p>
-        <div className="no-print mt-5 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={onCopy} className={action} aria-label="Copy booking reference">
+        {(onCopy || onPrint) && <div className="no-print mt-5 flex flex-wrap items-center gap-2">
+          {onCopy && <button type="button" onClick={onCopy} className={action} aria-label="Copy booking reference">
             {copied ? (
               <>
                 <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" />
@@ -67,12 +68,12 @@ export function BookingTicket({
                 <span>Copy reference</span>
               </>
             )}
-          </button>
-          <button type="button" onClick={onPrint} className={action}>
+          </button>}
+          {onPrint && <button type="button" onClick={onPrint} className={action}>
             <Printer className="h-4 w-4" aria-hidden="true" />
             <span>Print receipt</span>
-          </button>
-        </div>
+          </button>}
+        </div>}
       </div>
       <div
         data-part="stub"

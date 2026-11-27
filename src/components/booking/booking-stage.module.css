@@ -1,0 +1,1759 @@
+/* The booking stage shared by /book and /kiosk: the darkened shop still behind every step, the landing's type, the gold
+   progress rail and the cut-corner actions. The kiosk adds its welcome screen and session endings in kiosk.module.css. */
+@font-face {
+  font-family: KioskBody;
+  src: url("/fonts/home/DMSans.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+.booking {
+  font-family: KioskBody, Arial, sans-serif;
+}
+
+/* Booking flow in the landing's type: expanded uppercase display for headings, steps and actions (fonts from landing.css). */
+.booking {
+  --display: LandingDisplay, LandingGeist, "Helvetica Neue", Arial, sans-serif;
+  --cut: 12px;
+  font-family: LandingText, LandingGeist, KioskBody, Arial, sans-serif;
+}
+
+/* Type follows /preview/landing: Zalando Sans text up to 600, Zalando Sans Expanded uppercase for section headings,
+   and no monospace (the booking reference uses the display face). */
+.booking :global(:is(.font-bold, .font-extrabold, .font-black, strong, b)) {
+  font-weight: 600;
+}
+
+.booking :global(h2) {
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.booking :global(.font-mono) {
+  font-family: var(--display);
+  letter-spacing: .04em;
+}
+
+.booking :global(#wizard-step-title) {
+  font-family: var(--display);
+  font-size: clamp(32px, 4.6vw, 60px);
+  font-weight: 600;
+  line-height: .95;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.booking :global(#wizard-step-title)::after {
+  content: ".";
+  color: rgb(var(--primary-hover));
+}
+
+/* Each heading word sits in its own mask, so it can rise into view (the motion block below). */
+.booking :global([data-part="title-word"]) {
+  display: inline-block;
+  overflow: clip;
+  padding-block: .08em;
+  margin-block: -.08em;
+  vertical-align: top;
+  perspective: 600px;
+}
+
+.booking :global([data-part="title-word"] > span) {
+  display: inline-block;
+  transform-origin: 50% 100%;
+}
+
+/* Progress rail: a thin line over each step that fills with gold as the customer moves forward. */
+.booking :global(ol[aria-label="Booking steps"] li) {
+  position: relative;
+  gap: 10px;
+  border-radius: 0;
+  background: none;
+  color: rgb(245 245 244 / .5);
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.booking :global(ol[aria-label="Booking steps"] li)::before,
+.booking :global(ol[aria-label="Booking steps"] li)::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: rgb(245 245 244 / .12);
+}
+
+.booking :global(ol[aria-label="Booking steps"] li)::after {
+  background: rgb(var(--primary));
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.booking :global(ol[aria-label="Booking steps"] li:has(svg))::after,
+.booking :global(ol[aria-label="Booking steps"] li[aria-current="step"])::after {
+  transform: scaleX(1);
+}
+
+.booking :global(ol[aria-label="Booking steps"] li[aria-current="step"]) {
+  color: rgb(var(--foreground));
+}
+
+.booking :global([data-part="step-number"]) {
+  color: rgb(var(--primary-hover));
+}
+
+/* The landing's cut-corner buttons: gold for the main action, outline for Back and End session. */
+.booking :global(:is([data-part="primary"], [data-part="back"], [data-part="end-session"])) {
+  position: relative;
+  isolation: isolate;
+  min-height: 60px;
+  padding-inline: 26px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.booking :global(:is([data-part="primary"], [data-part="back"], [data-part="end-session"]))::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgb(var(--primary));
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+  transition: background-color .3s;
+}
+
+.booking :global([data-part="primary"]) {
+  min-width: 212px;
+  justify-content: space-between;
+  gap: clamp(12px, 4vw, 40px);
+  white-space: nowrap;
+  color: rgb(var(--primary-foreground));
+}
+
+/* 320 px phones: "Submit booking request" stays on one line, so the action keeps Back's height (P1-55). */
+@media (max-width: 359px) {
+  .booking :global([data-part="primary"]) {
+    min-width: 0;
+    padding-inline: 18px;
+    font-size: 12px;
+    letter-spacing: .04em;
+  }
+}
+
+.booking :global([data-part="primary"]:hover:not(:disabled))::before {
+  background: rgb(var(--primary-hover));
+}
+
+/* P1-55 (LE): Back is as tall as the main action; End session is the smaller header control. */
+.booking :global([data-part="end-session"]) {
+  min-height: 52px;
+}
+
+.booking :global([data-part="back"]) {
+  min-height: 60px;
+}
+
+.booking :global(:is([data-part="back"], [data-part="end-session"])) {
+  color: rgb(var(--foreground));
+}
+
+.booking :global(:is([data-part="back"], [data-part="end-session"]))::before {
+  background: rgb(245 245 244 / .4);
+  /* Outline only: the same cut shape with a 1 px hole. */
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)), 0 0, 1px 1px, 1px calc(100% - var(--cut) - .41px), calc(var(--cut) + .41px) calc(100% - 1px), calc(100% - 1px) calc(100% - 1px), calc(100% - 1px) calc(var(--cut) + .41px), calc(100% - var(--cut) - .41px) 1px, 1px 1px);
+}
+
+.booking :global(:is([data-part="back"], [data-part="end-session"]):hover:not(:disabled))::before {
+  background: rgb(var(--primary-hover));
+}
+
+.booking :global(:is([data-part="primary"], [data-part="back"], [data-part="end-session"]):focus-visible) {
+  outline: 3px solid rgb(var(--ring));
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+/* End session confirmation: dark glass with the landing heading type. */
+.booking :global([data-part="end-dialog"]) {
+  border-color: rgb(var(--primary) / .35);
+  background-color: rgb(16 16 18 / .92);
+}
+
+.booking :global([data-part="end-dialog"] h2) {
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.booking :global([data-part="end-dialog"])::backdrop {
+  backdrop-filter: blur(6px);
+}
+
+/* Stage: the darkened shop still behind every step; the flow sits on see-through dark glass. */
+.booking {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  background: #09090b;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: clip;
+}
+
+.backdrop img {
+  object-fit: cover;
+  object-position: 50% 54%;
+  filter: saturate(.7) contrast(1.05) brightness(.5) blur(2px);
+  transform: scale(1.06);
+}
+
+.backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 90% 70% at 50% 40%, rgb(9 9 11 / .55), rgb(9 9 11 / .92) 75%), linear-gradient(0deg, #09090b, transparent 45%);
+}
+
+.booking :global(.wizard-root) {
+  background: transparent;
+}
+
+.booking :global([data-part="panel"]) > div:first-child,
+.booking :global(#wizard-action-bar) {
+  border-color: rgb(245 245 244 / .1);
+  background-color: rgb(9 9 11 / .62);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.booking :global(#wizard-action-bar) {
+  border-radius: 0;
+  box-shadow: inset 0 1px rgb(var(--primary) / .35);
+}
+
+.booking :global(:is(.bg-card, .bg-muted)) {
+  background-color: rgb(20 20 23 / .58);
+  backdrop-filter: blur(14px);
+}
+
+.booking :global(:is(.border-input, .border-border)) {
+  border-color: rgb(245 245 244 / .14);
+}
+
+/* Spotlight (React Bits SpotlightCard): a soft gold light under the pointer; booking-motion.tsx moves it. */
+@media (hover: hover) and (pointer: fine) {
+  .booking :global(:is([data-part="vehicle-card"], [data-part="menu-tile"]))::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(280px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgb(var(--primary) / .18), transparent 70%);
+    transition: opacity .35s ease;
+  }
+
+  .booking :global(:is([data-part="vehicle-card"], [data-part="menu-tile"]):hover)::after {
+    opacity: 1;
+  }
+}
+
+/* Picked cards: a gold edge and a soft inner light, and the vehicle drawing lifts a little. */
+.booking :global(:is([data-part="vehicle-card"], [data-part="menu-tile"]):has(input:checked)) {
+  border-color: rgb(var(--primary));
+  background-color: rgb(var(--primary) / .1);
+  box-shadow: inset 0 0 0 1px rgb(var(--primary)), 0 18px 48px -24px rgb(var(--primary) / .55);
+}
+
+/* The gold edge shows the pick; the radio stays for keyboard and screen readers, focus shows on the whole card. */
+.booking :global([data-part="vehicle-card"] input[type="radio"]) {
+  opacity: 0;
+}
+
+/* Current category: glass with a gold edge, so Continue stays the one solid gold action. */
+.booking :global([data-part="menu-category"][aria-pressed="true"]) {
+  border-color: rgb(var(--primary) / .7);
+  background-color: rgb(var(--primary) / .12);
+  color: rgb(var(--foreground));
+  box-shadow: inset 3px 0 rgb(var(--primary));
+}
+
+.booking :global([data-part="vehicle-mark"] svg) {
+  transition: transform .5s cubic-bezier(.2, .7, .2, 1);
+}
+
+.booking :global([data-part="vehicle-card"]:has(input:checked) [data-part="vehicle-mark"] svg) {
+  transform: translateY(-4px) scale(1.06);
+}
+
+.booking :global([data-part="menu-tile"] img) {
+  transition: transform .8s cubic-bezier(.2, .7, .2, 1);
+}
+
+.booking :global([data-part="menu-tile"]:has(input:checked) img) {
+  transform: scale(1.05);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The camera pushes in slowly while the customer books. */
+  .backdrop img {
+    animation: push 40s ease-out both;
+  }
+
+  /* One moment per step: the heading rises word by word (as the landing's section titles do), the gold dot lands,
+     then the choices settle in, one after another. */
+  .booking :global([data-part="title-word"] > span) {
+    animation: wipe-up 1s cubic-bezier(.2, .7, .2, 1) both;
+    animation-delay: calc(var(--w, 0) * 90ms);
+  }
+
+  .booking :global(#wizard-step-title)::after {
+    animation: from-black .5s ease-out .5s both;
+  }
+
+  .booking :global(:is([data-part="vehicle-card"], [data-part="menu-tile"], [data-part="menu-category"])) {
+    animation: settle .7s cubic-bezier(.2, .7, .2, 1) both;
+    animation-delay: calc(.25s + var(--i, 0) * 70ms);
+  }
+
+  .booking :global(:is(li, label):nth-child(2) > [data-part]),
+  .booking :global([data-part]:nth-child(2)) { --i: 1; }
+  .booking :global(:is(li, label):nth-child(3) > [data-part]),
+  .booking :global([data-part]:nth-child(3)) { --i: 2; }
+  .booking :global(:is(li, label):nth-child(4) > [data-part]),
+  .booking :global([data-part]:nth-child(4)) { --i: 3; }
+  .booking :global(:is(li, label):nth-child(5) > [data-part]),
+  .booking :global([data-part]:nth-child(5)) { --i: 4; }
+  .booking :global(:is(li, label):nth-child(n + 6) > [data-part]),
+  .booking :global([data-part]:nth-child(n + 6)) { --i: 5; }
+
+  .booking :global(ol[aria-label="Booking steps"] li)::after {
+    transition: transform .8s cubic-bezier(.2, .7, .2, 1) .15s;
+  }
+}
+
+@keyframes push {
+  from { transform: scale(1.06); }
+  to { transform: scale(1.16); }
+}
+
+@keyframes wipe-up {
+  from { transform: translateY(110%) rotateX(-65deg) scaleY(1.5); opacity: .2; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes settle {
+  from { opacity: 0; transform: translateY(18px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The booking fades up from black. */
+  .booking {
+    animation: from-black .7s ease-out both;
+  }
+
+  /* Ending: the letterbox closes over the booking, which fades while the footage pushes into black. */
+  .booking[data-ending] {
+    pointer-events: none;
+  }
+
+  .booking[data-ending]::before,
+  .booking[data-ending]::after {
+    content: "";
+    position: fixed;
+    z-index: 60;
+    left: 0;
+    right: 0;
+    height: 14svh;
+    background: #000;
+    animation: letterbox .55s cubic-bezier(.7, 0, .2, 1) forwards;
+  }
+
+  .booking[data-ending]::before {
+    top: 0;
+    transform: translateY(-100%);
+  }
+
+  .booking[data-ending]::after {
+    bottom: 0;
+    transform: translateY(100%);
+  }
+
+  /* Opacity only: a transform or filter here would re-anchor the fixed action bar. */
+  .booking[data-ending] :global(.wizard-root) {
+    animation: fade-out .45s ease forwards;
+  }
+
+  .booking[data-ending] .backdrop {
+    animation: push-out .9s cubic-bezier(.55, 0, .2, 1) forwards;
+  }
+
+  .booking :global([data-part="end-dialog"][open]) {
+    animation: settle .35s cubic-bezier(.2, .7, .2, 1) both;
+  }
+}
+
+@keyframes letterbox {
+  to { transform: none; }
+}
+
+@keyframes push-out {
+  0% { transform: scale(1); filter: brightness(1); opacity: 1; }
+  60% { opacity: 1; }
+  100% { transform: scale(1.14); filter: brightness(.35); opacity: 0; }
+}
+
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+
+@keyframes from-black {
+  from { opacity: 0; }
+}
+
+/* Print: the receipt prints on white paper, without the shop photo. */
+@media print {
+  .booking {
+    background: #fff;
+  }
+
+  .backdrop {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   /book (online) is an editorial menu, unlike the kiosk's ordering board: a deep black page with no shop photo and
+   choices as big type on hairline rules, each line's picture faded in behind its text, and the order opening from
+   the bottom bar. Everything below is scoped to the online wizard, so the kiosk keeps its board. */
+.booking:has(:global([data-layout="online"])) {
+  background: #0a0a0b;
+}
+
+.booking:has(:global([data-layout="online"])) .backdrop {
+  display: none;
+}
+
+.booking :global([data-layout="online"] [data-part="panel"] > div) {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+/* The header bar (logo, steps, close) stays at the top while the step scrolls under it. The panel steps out of the
+   box tree so the bar's sticky range is the whole page, not just the panel; screen only, so print still hides it. */
+@media screen {
+  .booking :global([data-layout="online"] [data-part="panel"]) {
+    display: contents;
+  }
+
+  .booking :global([data-layout="online"] [data-part="panel"] > div:first-child) {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background-color: #0a0a0b;
+  }
+}
+
+.booking :global([data-layout="online"] #wizard-step-title) {
+  font-size: clamp(32px, min(4.4vw, 7.4vh), 60px);
+  /* A new step opens at the top of the page (reveal scrolls the heading to the start). The header is sticky, so the
+     margin covers its height (125 px on a phone, two rows) plus the gap above the heading: the page lands at 0. */
+  scroll-margin-top: 200px;
+}
+
+/* Rows share one look: no box, a hairline under each, the name in the display face. */
+.booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"])) {
+  flex-direction: row;
+  align-items: center;
+  border-width: 0 0 1px;
+  border-color: rgb(245 245 244 / .14);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: padding-left .45s cubic-bezier(.2, .7, .2, 1), border-color .3s;
+}
+
+.booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"]):is(:hover, :has(input:checked))) {
+  border-color: rgb(var(--primary) / .6);
+  background: transparent;
+  box-shadow: none;
+}
+
+.booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"]))::after {
+  display: none;
+}
+
+.booking :global([data-layout="online"] div:has(> [data-part="vehicle-card"])),
+.booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] ul) {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  border-top: 1px solid rgb(245 245 244 / .14);
+}
+
+/* Step 1: one line per size (name, its kinds of car, the starting price) and a ring that fills when chosen. */
+.booking :global([data-layout="online"] [data-part="vehicle-card"]) {
+  --ic: 44px;
+  gap: 18px;
+  padding: clamp(6px, 1.2vh, 18px) 56px clamp(6px, 1.2vh, 18px) 4px;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"] > span:not([data-part])) {
+  position: relative;
+  z-index: 1;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"] > span:not([data-part])) {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 14px;
+  padding: 0;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"] > span:not([data-part]) > span:first-child) {
+  font-family: var(--display);
+  font-size: clamp(20px, min(2.4vw, 4.4vh), 34px);
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-description"]) {
+  display: none;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-from"]) {
+  margin: 0 0 0 auto;
+}
+
+/* Example cars on their own line under the name, so people can tell which size theirs is. */
+.booking :global([data-layout="online"] [data-part="vehicle-examples"]) {
+  flex-basis: 100%;
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+/* Large and X-Large ask what kind of vehicle inside the chosen line: the line's gold rule moves under the choices. */
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked):has(+ [data-part="vehicle-kind"])) {
+  border-bottom-color: transparent;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 0 56px clamp(8px, 1.4vh, 16px) 4px;
+  border-bottom: 1px solid rgb(var(--primary) / .6);
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] > legend) {
+  float: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgb(var(--primary-hover));
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] > div) {
+  margin: 0;
+}
+
+/* Tablet and up: the choices take the place of the chosen line's written kinds, on the name line (CEO 2026-11-24).
+   The script places them at the written kinds (--kind-x/--kind-y); the line keeps its gold rule and stays still. */
+.booking :global([data-layout="online"] div:has(> [data-part="vehicle-card"])) {
+  position: relative;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"][data-inline]) {
+  position: absolute;
+  top: var(--kind-y);
+  left: var(--kind-x);
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  translate: 0 -50%;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"][data-inline] > legend) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked):has(+ [data-part="vehicle-kind"][data-inline])) {
+  border-bottom-color: rgb(var(--primary) / .6);
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(+ [data-part="vehicle-kind"][data-inline]) [data-part="vehicle-kinds"]) {
+  visibility: hidden;
+}
+
+/* Compact choices on the name line, with a little more room above the example cars. */
+.booking :global([data-layout="online"] [data-part="vehicle-kind"][data-inline] label) {
+  min-height: 30px;
+}
+
+/* The body types read like the written kinds they replace: wide spaced capitals, no pills (CEO 2026-11-26: the
+   pills looked generated). Each has the same small ring as the size lines, so it is clear they are choices; the
+   chosen ring fills gold and its word turns white. */
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] > div) {
+  gap: 4px 24px;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label) {
+  gap: 9px;
+  padding-inline: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgb(245 245 244 / .7);
+  transition: color .2s;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label)::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid rgb(245 245 244 / .45);
+  border-radius: 50%;
+  transition: border-color .2s, background .2s;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label:hover) {
+  color: rgb(var(--foreground));
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label:hover)::before {
+  border-color: rgb(var(--primary));
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label:has(input:checked)) {
+  color: rgb(var(--foreground));
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-kind"] label:has(input:checked))::before {
+  border-color: rgb(var(--primary));
+  background: radial-gradient(circle, rgb(var(--primary)) 0 3.5px, transparent 4.5px);
+}
+
+/* Continue pressed before a body type is chosen: its rings glow with the reminder. */
+.booking :global([data-layout="online"][data-nudge="a"] [data-part="vehicle-kind"] label)::before {
+  animation: nudge-a 1.1s ease 2;
+}
+
+.booking :global([data-layout="online"][data-nudge="b"] [data-part="vehicle-kind"] label)::before {
+  animation: nudge-b 1.1s ease 2;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(+ [data-part="vehicle-kind"][data-inline]) [data-part="vehicle-examples"]) {
+  margin-top: 8px;
+}
+
+/* With a mouse the choices can be a little shorter (still well above the 24 px minimum target), so the opened line fits
+   a laptop screen; touch screens keep 44 px. */
+@media (hover: hover) and (pointer: fine) {
+  .booking :global([data-layout="online"] [data-part="vehicle-kind"] label) {
+    min-height: 36px;
+  }
+}
+
+/* Laptop screens up to 700 px tall: tighter lines and names, so an opened X-Large line still fits above the bar. */
+@media (max-height: 700px) {
+  .booking :global([data-layout="online"] [data-part="vehicle-card"]) {
+    padding-block: 4px;
+  }
+
+  .booking :global([data-layout="online"] [data-part="vehicle-card"] > span:not([data-part]) > span:first-child) {
+    font-size: clamp(18px, 3.4vh, 34px);
+  }
+
+  .booking :global([data-layout="online"] [data-part="vehicle-kind"]) {
+    padding-bottom: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="vehicle-kind"]) {
+    animation: kind-open .35s cubic-bezier(.2, .7, .2, 1) both;
+  }
+}
+
+@keyframes kind-open {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"] input[type="radio"]) {
+  top: 50%;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0;
+  appearance: none;
+  border: 1.5px solid rgb(245 245 244 / .35);
+  border-radius: 50%;
+  opacity: 1;
+  transition: border-color .2s, background .2s;
+}
+
+.booking :global([data-layout="online"] [data-part="vehicle-card"] input[type="radio"]:checked) {
+  border-color: rgb(var(--primary));
+  background: radial-gradient(circle, rgb(var(--primary)) 0 5px, transparent 6px);
+}
+
+/* A chosen row's name turns gold. */
+.booking :global([data-layout="online"] [data-part="vehicle-card"]:has(input:checked) > span:not([data-part]) > span:first-child),
+.booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) > span:nth-child(2) > span:first-child) {
+  color: rgb(var(--primary-hover));
+}
+
+/* Step 2: the categories as words with a gold underline, the services as menu lines (name, a short note, price, add);
+   the order sits under them as a receipt and the bottom bar keeps the total and Continue on every screen. */
+.booking :global([data-layout="online"] div:has(> nav[aria-label="Service categories"])) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.booking :global([data-layout="online"] nav[aria-label="Service categories"]) {
+  position: static;
+  flex-direction: row;
+  gap: clamp(18px, 3vw, 36px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-category"]) {
+  min-height: 48px;
+  border-width: 0 0 2px;
+  border-color: transparent;
+  border-radius: 0;
+  padding: 0 2px;
+  background: transparent;
+  font-family: var(--display);
+  font-size: 15px;
+  text-transform: uppercase;
+  color: rgb(245 245 244 / .55);
+}
+
+.booking :global([data-layout="online"] [data-part="menu-category"]:hover),
+.booking :global([data-layout="online"] [data-part="menu-category"][aria-pressed="true"]) {
+  border-color: transparent transparent rgb(var(--primary));
+  background: transparent;
+  box-shadow: none;
+  color: rgb(var(--foreground));
+}
+
+/* The open category's name is the underlined word above, so its heading stays for screen readers only. */
+.booking :global([data-layout="online"] #kiosk-menu-title) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Service lines match the size lines: no box, a hairline under each, the service's photo faded in on the right. No frosted glass either: it showed as blurred boxes over the backdrop photo. */
+.booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"], [data-part="menu-category"])) {
+  backdrop-filter: none;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]) {
+  padding: clamp(8px, 1.6vh, 20px) 4px;
+}
+
+/* The service's photo fills the line's right side behind the text and fades out toward the name. */
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:first-child) {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 0;
+  width: min(62%, 560px);
+  aspect-ratio: auto;
+  background: none;
+  opacity: .3;
+  -webkit-mask-image: linear-gradient(to left, #000 35%, transparent);
+  mask-image: linear-gradient(to left, #000 35%, transparent);
+  pointer-events: none;
+  transition: opacity .5s ease;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:first-child > :not(img)) {
+  display: none;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]:is(:hover, :has(:focus-visible)) > span:first-child) {
+  opacity: .55;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]:has(input:checked) > span:first-child) {
+  opacity: .5;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2)) {
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 1px 14px rgb(0 0 0 / .85);
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2)) {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 24px;
+  padding: 0;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:first-child) {
+  grid-column: 1;
+  font-family: var(--display);
+  font-size: clamp(20px, min(2.6vw, 4.2vh), 40px);
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:nth-child(2):not(:last-child)) {
+  grid-column: 1;
+  margin-top: 6px;
+  /* The whole description shows: people tell the washes apart by what is included (CEO 2026-11-27 review). */
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: none;
+  max-width: 52ch;
+  text-wrap: pretty;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:last-child) {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+  padding: 0;
+  gap: 18px;
+}
+
+/* Laptops: the menu fits the screen with no page scroll. The services and their extras sit side by side; a category
+   without extras runs its services across both columns. Names are a step smaller to fit a column. */
+@media (min-width: 1024px) {
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"]) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    column-gap: clamp(28px, 4vw, 64px);
+  }
+
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] > ul:first-of-type) {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: inherit;
+  }
+
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"]:has(> h3) > ul:first-of-type) {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] > h3) {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0 0 10px;
+    font-size: 15px;
+    text-transform: uppercase;
+    color: rgb(var(--primary-hover));
+  }
+
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] > h3 + ul) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .booking :global([data-layout="online"] section[aria-labelledby="kiosk-menu-title"] > p) {
+    grid-column: 1 / -1;
+    margin-top: 12px;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:first-child) {
+    font-size: clamp(18px, min(1.8vw, 3.6vh), 30px);
+  }
+}
+
+/* The order lives in the sheet that opens from the bottom bar, not under the menu. */
+.booking :global([data-layout="online"] aside[aria-label="Your order"]) {
+  display: none;
+}
+
+.booking :global([data-layout="online"] [data-part="order-sheet"]) {
+  scrollbar-width: thin;
+}
+
+.booking :global([data-layout="online"] [data-part="order-sheet"] ul li) {
+  font-size: 16px;
+}
+
+.booking :global([data-layout="online"] [data-part="order-toggle"]:hover > span:first-child) {
+  border-color: rgb(var(--primary));
+  color: rgb(var(--primary-hover));
+}
+
+@media (min-width: 1024px) {
+  .booking :global([data-layout="online"] #wizard-action-bar) {
+    display: block;
+  }
+}
+
+/* With a mouse, a size line slides in a little under the pointer, like a finger running down a printed menu. */
+@media (hover: hover) and (pointer: fine) {
+  .booking :global([data-layout="online"] [data-part="vehicle-card"]:hover:not(:has(+ [data-part="vehicle-kind"]))),
+  .booking :global([data-layout="online"] [data-part="menu-tile"]:hover) {
+    padding-left: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="order-sheet"]) {
+    animation: sheet-up .4s cubic-bezier(.2, .7, .2, 1) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking :global([data-layout="online"] :is([data-part="vehicle-card"], [data-part="menu-tile"] > span:first-child)) {
+    transition: none;
+  }
+}
+
+@keyframes sheet-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Adding a service turns the plus into a gold check: the circle fills and the check settles in, nothing more
+   (CEO 2026-11-26: the spark burst read as slop). */
+.booking :global([data-layout="online"] [data-part="menu-add"]) {
+  transition: background-color .22s ease, border-color .22s ease, color .22s ease;
+}
+
+.booking :global([data-layout="online"] [data-part="menu-tile"]:hover [data-part="menu-add"]:not(:has(.lucide-check))) {
+  border-color: rgb(var(--primary));
+  color: rgb(var(--primary-hover));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="menu-add"] svg) {
+    animation: add-swap .22s cubic-bezier(.2, .7, .2, 1) both;
+  }
+}
+
+@keyframes add-swap {
+  from { opacity: 0; transform: scale(.7); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Loading /book: the size lines as quiet bars on the same hairlines, with a slow light passing over them. */
+.booking :global([data-layout="online"] [data-part="skeleton-lines"]) {
+  border-top: 1px solid rgb(245 245 244 / .14);
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"]) {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: clamp(10px, 1.8vh, 22px) 4px;
+  border-bottom: 1px solid rgb(245 245 244 / .14);
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] > span) {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] > span > div:first-child) {
+  height: clamp(22px, 3.6vh, 34px);
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] > span > div:last-child) {
+  width: 34%;
+  height: 12px;
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] > div:nth-child(2)) {
+  width: 96px;
+  height: 14px;
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] > div:last-child) {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.booking :global([data-layout="online"] [data-part="skeleton-line"] div) {
+  border-radius: 2px;
+  background: rgb(245 245 244 / .06);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="skeleton-line"] div) {
+    background: linear-gradient(90deg, rgb(245 245 244 / .05) 30%, rgb(245 245 244 / .12) 50%, rgb(245 245 244 / .05) 70%) 0 0 / 300% 100%;
+    animation: skeleton-sweep 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+/* Short laptop screens (640 px and less): tighter service lines so the largest category still fits above the bar. */
+@media (min-width: 1024px) and (max-height: 640px) {
+  .booking :global([data-layout="online"] [data-part="menu-tile"]) {
+    padding-block: 6px;
+  }
+
+  .booking :global([data-layout="online"] [data-part="menu-tile"] > span:nth-child(2) > span:nth-child(2):not(:last-child)) {
+    margin-top: 3px;
+    font-size: 13px;
+  }
+}
+
+/* /book: the chosen service's shop photo, faded in behind the menu on the right, so the page is never bare black.
+   It changes as services are added (the shop still on step 1) and fades away under the type on the left. */
+.booking :global([data-layout="online"] [data-part="feature-photo"]) {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: -1;
+  width: min(62vw, 1000px);
+  opacity: .34;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 60%), linear-gradient(0deg, transparent 4%, #000 45%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent, #000 60%), linear-gradient(0deg, transparent 4%, #000 45%);
+  mask-composite: intersect;
+}
+
+.booking :global([data-layout="online"] [data-part="feature-photo"] img) {
+  object-fit: cover;
+  /* Darkened so a white car never washes out the gold prices and rings over it. */
+  filter: saturate(.8) contrast(1.05) brightness(.5);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="feature-photo"] img) {
+    animation: feature-in 1.1s cubic-bezier(.2, .7, .2, 1) both;
+  }
+}
+
+@keyframes feature-in {
+  from { opacity: 0; transform: scale(1.06); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Phones: the photo sits across the top behind the heading, and the step rail names only the current step
+   (the others keep their names for screen readers), so the four steps fit one line. */
+@media (max-width: 639px) {
+  .booking :global([data-layout="online"] [data-part="feature-photo"]) {
+    inset: 0 0 auto;
+    width: 100%;
+    height: 52svh;
+    opacity: .22;
+    -webkit-mask-image: linear-gradient(0deg, transparent, #000 70%);
+    mask-image: linear-gradient(0deg, transparent, #000 70%);
+  }
+
+  .booking :global([data-layout="online"] ol[aria-label="Booking steps"]) {
+    display: flex;
+  }
+
+  .booking :global([data-layout="online"] ol[aria-label="Booking steps"] li) {
+    flex: none;
+    min-width: 44px;
+  }
+
+  .booking :global([data-layout="online"] ol[aria-label="Booking steps"] li[aria-current="step"]) {
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  .booking :global([data-layout="online"] ol[aria-label="Booking steps"] li:not([aria-current]) [data-part="step-label"]) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Step 3 (/book): the day picker in the menu's language. No boxes: the order is one plain line, the date range and the
+   Earlier/Later buttons share the top line, and the days sit on a grid of thin lines with the chosen day in gold.
+   Cells follow the screen height, so the step fits a 650 px laptop screen without scrolling. */
+.booking :global([data-layout="online"] [data-part="summary-tray"]) {
+  margin-bottom: clamp(8px, 1.6vh, 16px);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.booking :global([data-layout="online"] [data-part="summary-tray"] > button) {
+  min-height: 36px;
+}
+
+.booking :global([data-layout="online"] #booking-days) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 16px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.booking :global([data-layout="online"] #booking-days > *) {
+  grid-column: 1 / -1;
+}
+
+.booking :global([data-layout="online"] #booking-days > div:first-child) {
+  grid-column: 1;
+  grid-row: 1;
+  border: 0;
+  padding: 0;
+}
+
+.booking :global([data-layout="online"] #booking-days > div:first-child > h2) {
+  font-size: 15px;
+  color: rgb(var(--primary-hover));
+}
+
+/* Earlier / Later: quiet outline buttons on the range's line. */
+.booking :global([data-layout="online"] #booking-days > div:not([role]):has(> button)) {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  gap: 8px;
+}
+
+.booking :global([data-layout="online"] #booking-days > div:not([role]):has(> button) > button) {
+  border-color: rgb(245 245 244 / .18);
+  background: transparent;
+  color: rgb(var(--foreground));
+}
+
+.booking :global([data-layout="online"] #booking-days > div:not([role]):has(> button) > button:hover:not(:disabled)) {
+  border-color: rgb(var(--primary));
+  color: rgb(var(--primary-hover));
+}
+
+.booking :global([data-layout="online"] #booking-days > p[role="status"]) {
+  margin: clamp(6px, 1.4vh, 14px) 0 clamp(4px, 1vh, 10px);
+}
+
+/* The calendar: thin lines between days, no rounded boxes. */
+.booking :global([data-layout="online"] #booking-days fieldset > div) {
+  gap: 0;
+}
+
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child) {
+  border-top: 1px solid rgb(245 245 244 / .14);
+  border-left: 1px solid rgb(245 245 244 / .14);
+}
+
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child > *) {
+  min-height: clamp(44px, 7.5vh, 84px);
+  border: 0;
+  border-right: 1px solid rgb(245 245 244 / .14);
+  border-bottom: 1px solid rgb(245 245 244 / .14);
+  border-radius: 0;
+  background: transparent;
+}
+
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child > label > span:first-child) {
+  font-family: var(--display);
+  font-weight: 600;
+}
+
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child > label:has(input:not(:disabled)):hover) {
+  background: rgb(var(--primary) / .1);
+  color: rgb(var(--primary-hover));
+}
+
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child > label:has(input:checked)) {
+  background: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+}
+
+.booking :global([data-layout="online"] #booking-days > p:not([role])) {
+  margin-top: clamp(6px, 1.2vh, 12px);
+}
+
+/* The "doesn't hold a place" note: one plain line, no box. */
+.booking :global([data-layout="online"] #booking-days > div:last-child) {
+  margin-top: 4px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+@media (max-width: 639px) {
+  .booking :global([data-layout="online"] #booking-days > div:not([role]):has(> button)) {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    margin-top: 8px;
+  }
+}
+
+/* Continue moves like the landing's Book button on hover: the label rolls up to a copy of itself and the arrow
+   flies out and back in. Nothing follows the pointer (CEO 2026-11-26). */
+.booking :global([data-layout="online"] [data-part="primary-label"]) {
+  display: block;
+  height: 1.3em;
+  overflow: hidden;
+  line-height: 1.3;
+}
+
+.booking :global([data-layout="online"] [data-part="primary-label"] > span) {
+  display: block;
+  text-shadow: 0 1.3em currentColor;
+  transition: transform .5s cubic-bezier(.7, 0, .2, 1);
+}
+
+.booking :global([data-layout="online"] [data-part="primary-arrow"]) {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  overflow: hidden;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .booking :global([data-layout="online"] [data-part="primary"]:hover:not(:disabled, [aria-disabled]) [data-part="primary-label"] > span) {
+    transform: translateY(-1.3em);
+  }
+
+  .booking :global([data-layout="online"] [data-part="primary"]:hover:not(:disabled, [aria-disabled]) [data-part="primary-arrow"] svg) {
+    animation: primary-arrow .55s cubic-bezier(.2, 0, 0, 1);
+  }
+}
+
+@keyframes primary-arrow {
+  0% { transform: none; }
+  45% { transform: translateX(130%); }
+  46% { transform: translateX(-130%); }
+  100% { transform: none; }
+}
+
+/* Continue before a choice: no blocked cursor; pressing it names what is missing and the choices on the step
+   glow gold twice, so the eye goes to them. data-nudge flips between a and b so every press replays the glow. */
+.booking :global([data-layout="online"] [data-part="primary"][aria-disabled]) {
+  cursor: pointer;
+}
+
+.booking :global([data-layout="online"] [data-part="nudge"]) {
+  animation: nudge-text .3s ease both;
+}
+
+.booking :global([data-layout="online"][data-nudge="a"] :is([data-part="vehicle-card"] input[type="radio"], [data-part="menu-add"])) {
+  animation: nudge-a 1.1s ease 2;
+}
+
+.booking :global([data-layout="online"][data-nudge="b"] :is([data-part="vehicle-card"] input[type="radio"], [data-part="menu-add"])) {
+  animation: nudge-b 1.1s ease 2;
+}
+
+@keyframes nudge-a {
+  0%, 100% { border-color: rgb(245 245 244 / .35); box-shadow: 0 0 0 0 rgb(var(--primary) / 0); }
+  35% { border-color: rgb(var(--primary)); box-shadow: 0 0 0 6px rgb(var(--primary) / .25); }
+}
+
+@keyframes nudge-b {
+  0%, 100% { border-color: rgb(245 245 244 / .35); box-shadow: 0 0 0 0 rgb(var(--primary) / 0); }
+  35% { border-color: rgb(var(--primary)); box-shadow: 0 0 0 6px rgb(var(--primary) / .25); }
+}
+
+@keyframes nudge-text {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking :global([data-layout="online"][data-nudge] :is([data-part="vehicle-card"] input[type="radio"], [data-part="menu-add"])) {
+    animation: none;
+    border-color: rgb(var(--primary));
+  }
+
+  .booking :global([data-layout="online"] [data-part="nudge"]) {
+    animation: none;
+  }
+}
+
+/* The reminder sits under Continue in the label role (display capitals, 12 px, .1em), centred and wrapped to the
+   button's width: width 0 + min-width 100% keeps the text from widening Continue's column. */
+.booking :global([data-layout="online"] [data-part="nudge"]) {
+  width: 0;
+  min-width: 100%;
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  line-height: 1.5;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* Day step reminder: the open days fill with a soft gold tint twice; the calendar lines stay as they are. */
+.booking :global([data-layout="online"][data-nudge="a"] #booking-days fieldset > div:last-child > label:has(input:not(:disabled))) {
+  animation: nudge-day-a 1.1s ease 2;
+}
+
+.booking :global([data-layout="online"][data-nudge="b"] #booking-days fieldset > div:last-child > label:has(input:not(:disabled))) {
+  animation: nudge-day-b 1.1s ease 2;
+}
+
+@keyframes nudge-day-a {
+  0%, 100% { background-color: transparent; color: inherit; }
+  35% { background-color: rgb(var(--primary) / .16); color: rgb(var(--primary-hover)); }
+}
+
+@keyframes nudge-day-b {
+  0%, 100% { background-color: transparent; color: inherit; }
+  35% { background-color: rgb(var(--primary) / .16); color: rgb(var(--primary-hover)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking :global([data-layout="online"][data-nudge] #booking-days fieldset > div:last-child > label:has(input:not(:disabled))) {
+    animation: none;
+    background-color: rgb(var(--primary) / .12);
+  }
+}
+
+/* Continue on hover, as on the landing: a light fill sweeps in along the cut shape, then the gold turns light too. */
+.booking :global([data-layout="online"] [data-part="primary"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgb(var(--foreground));
+  clip-path: polygon(0 0, 0 0, 0 0, -30% 100%, -30% 100%, -30% 100%);
+  transition: clip-path .55s cubic-bezier(.7, 0, .2, 1);
+  -webkit-mask-image: linear-gradient(45deg, transparent calc(var(--cut) * .7071), #000 0), linear-gradient(225deg, transparent calc(var(--cut) * .7071), #000 0);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(45deg, transparent calc(var(--cut) * .7071), #000 0), linear-gradient(225deg, transparent calc(var(--cut) * .7071), #000 0);
+  mask-composite: intersect;
+}
+
+@media (hover: hover) {
+  .booking :global([data-layout="online"] [data-part="primary"]:hover:not(:disabled, [aria-disabled]))::after {
+    clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+  }
+
+  .booking :global([data-layout="online"] [data-part="primary"]:hover:not(:disabled, [aria-disabled]))::before {
+    background: rgb(var(--foreground));
+    transition: background-color 0s .5s;
+  }
+}
+
+/* Not ready yet: hover leaves it as it is, so only a ready Continue answers the pointer. */
+.booking :global([data-layout="online"] [data-part="primary"][aria-disabled]:hover)::before {
+  background: rgb(var(--primary));
+}
+
+/* The small text in the headings' wide face, in spaced capitals like the landing's hero line (CEO 2026-11-26 picked
+   this over plain text): the line under each step heading, and the size step's kinds and example cars. Air under the
+   heading shrinks on short laptops so the day step still fits. */
+.booking :global([data-layout="online"] :is(#wizard-step-title + p, [data-part="vehicle-kinds"], [data-part="vehicle-examples"])) {
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.booking :global([data-layout="online"] #wizard-step-title + p) {
+  max-width: none;
+  margin-top: clamp(8px, 1.6vh, 22px);
+  font-size: clamp(12px, .95vw, 14px);
+}
+
+/* Phones: tighter letter spacing (the size stays at the 12 px floor), so the kinds and example cars wrap less. */
+@media (max-width: 639px) {
+  .booking :global([data-layout="online"] :is(#wizard-step-title + p, [data-part="vehicle-kinds"], [data-part="vehicle-examples"])) {
+    font-size: 12px;
+    letter-spacing: .04em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking :global([data-layout="online"][data-nudge] [data-part="vehicle-kind"] label)::before {
+    animation: none;
+    border-color: rgb(var(--primary));
+  }
+}
+
+/* The bottom bar as a menu line (CEO 2026-11-26): a hairline over the page's black instead of a frosted strip, no
+   "Your order" label on screen (screen readers keep it), the order in the wide capitals on the left after Back, and
+   the total and Continue on the right. */
+.booking :global([data-layout="online"] #wizard-action-bar) {
+  border-top: 1px solid rgb(245 245 244 / .14);
+  background-color: rgb(9 9 11);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar [data-part="order-label"]) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar [data-part="order-line"]) {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar :is(:has(> [data-part="order-label"]), [data-part="order-toggle"])) {
+  text-align: left;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar :is(span:has(> [data-part="order-line"]), [data-part="order-toggle"])) {
+  justify-content: flex-start;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar div:has(> [data-part="order-toggle"], > [data-part="order-label"])) {
+  text-align: left;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar [data-part="order-line"] ~ :is(strong, [role="status"])) {
+  margin-left: auto;
+}
+
+.booking :global([data-layout="online"] #wizard-action-bar [data-part="order-toggle"] > span:last-child) {
+  flex: 1;
+}
+
+/* Small phones: once there is a total, the bar shows it and the order opens from it; the cut-off order line goes.
+   CEO 2026-11-27 review: Back sits on the left as everywhere else, and the order button says what it is ("Your order")
+   instead of a bare arrow. */
+@media (max-width: 479px) {
+  .booking :global([data-layout="online"] #wizard-action-bar [data-part="order-toggle"] [data-part="order-line"]) {
+    display: none;
+  }
+
+  .booking :global([data-layout="online"] #wizard-action-bar div:has(> [data-part="back"])) {
+    order: 0;
+  }
+
+  /* The label over the total, right-aligned, so both fit beside Back on a 320 px phone. */
+  .booking :global([data-layout="online"] #wizard-action-bar [data-part="order-toggle"] > span:last-child) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .booking :global([data-layout="online"] #wizard-action-bar [data-part="order-toggle"] [data-part="order-label"]) {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    font-family: var(--display);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .1em;
+    color: rgb(245 245 244 / .8);
+  }
+}
+
+/* Step 4, Your details. CEO 2026-11-27 ("follow HCI UI/UX principles"): on laptops a checkout layout. The form is one
+   column read top to bottom (single-column forms are filled in faster and with fewer skipped fields than the earlier
+   three columns); the booking, the security check and the note are pinned beside it, so the total and the Change links
+   stay in view while the form scrolls. This step may scroll; every other step still fits one screen. */
+@media (min-width: 1024px) {
+  /* CEO 2026-11-27: the scroll starts right under the header, and the booking column does not scroll. The page is one
+     screen tall (less the bar); the step scrolls in a pane under the header. The pane, main, form and fieldset step out
+     of the box tree, so the heading, the form groups and the booking column share one grid: the heading and the form
+     on the left scroll, the booking column on the right sits at the top of the pane and never moves. */
+  .booking :global([data-layout="online"] [data-part="shell"]:has(#booking-details)) {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--bar-h, 0px));
+  }
+
+  .booking :global([data-layout="online"] [data-part="shell"]:has(#booking-details) [data-part="panel"] > div:first-child) {
+    flex: none;
+  }
+
+  .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details)) {
+    --pane-top: clamp(16px, 3vh, 40px);
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    column-gap: clamp(40px, 5vw, 80px);
+    align-content: start;
+    padding: var(--pane-top) max(32px, calc((100% - 1080px) / 2)) 0;
+  }
+
+  .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details) :is(main, main > div, main > div > div:has(> #booking-details), #booking-details, #booking-details > fieldset, #booking-details > fieldset > div)) {
+    display: contents;
+  }
+
+  .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details) :is([data-part="step-head"], main > div > *, main > div > div > *, #booking-details > *, #booking-details > fieldset > *, #booking-details > fieldset > div > *)) {
+    grid-column: 1;
+  }
+
+  .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details) [data-part="step-head"]) {
+    max-width: none;
+    margin: 0 0 clamp(12px, 2.5vh, 32px);
+    padding: 0;
+  }
+
+  /* The space under the form is a margin inside the grid, not pane padding, so the booking column's sticky range
+     reaches the pane's bottom and it never shifts at the end of the scroll. */
+  .booking :global([data-layout="online"] #booking-details > fieldset > div > div:nth-child(2)) {
+    margin-top: 40px;
+    margin-bottom: 32px;
+  }
+
+  /* Sticky at the very place it starts, so it never moves while the left column scrolls. */
+  .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details) #booking-details [data-part="details-aside"]) {
+    display: block;
+    grid-column: 2;
+    grid-row: 1 / span 8;
+    align-self: start;
+    position: sticky;
+    top: 0; /* measured from the pane's padding edge, which is where it starts */
+  }
+
+  .booking :global([data-layout="online"] #booking-details [data-part="details-aside"] > * + *) {
+    margin-top: 28px;
+  }
+
+  /* Payment choices as a vertical list, one line each: a list scans faster than two wrapped cards side by side. */
+  .booking :global([data-layout="online"] #booking-details [role="radiogroup"]) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  /* CEO 2026-11-27 "still scrolling": the space under the page is the bar's measured height plus a gap (a fixed
+     112 px was 27 px more than the bar, so short steps scrolled for nothing). */
+  .booking :global([data-layout="online"] main) {
+    padding-bottom: calc(var(--bar-h, 100px) + 12px);
+  }
+
+  .booking :global([data-layout="online"] #turnstileToken > p:last-child) {
+    margin-top: 16px;
+  }
+}
+
+/* Labels in the wide capitals the rest of the page uses for small text. */
+.booking :global([data-layout="online"] #booking-details :is(label[for], label.block, #turnstileToken > span)) {
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: rgb(245 245 244 / .8);
+}
+
+.booking :global([data-layout="online"] #booking-details label span) {
+  letter-spacing: .04em;
+  text-transform: none;
+}
+
+/* Fields: the same 12 px corners, but quiet: a hairline over the black, gold when typing. */
+.booking :global([data-layout="online"] #booking-details :is(input:not([type="radio"]):not([type="checkbox"]), textarea)) {
+  border-color: rgb(245 245 244 / .16);
+  background: rgb(245 245 244 / .03);
+  backdrop-filter: none;
+}
+
+.booking :global([data-layout="online"] #booking-details :is(input, textarea):focus-visible) {
+  border-color: rgb(var(--primary));
+  box-shadow: none;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+}
+
+/* Payment: two lines with the page's ring instead of two boxed cards with icon tiles. */
+.booking :global([data-layout="online"] #booking-details [role="radiogroup"]) {
+  gap: 0 28px;
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"]) {
+  align-items: center;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid rgb(245 245 244 / .14);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"] > div:first-child) {
+  display: none;
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"])::before {
+  content: "";
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid rgb(245 245 244 / .45);
+  border-radius: 50%;
+  transition: border-color .2s, background .2s;
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"]:hover)::before {
+  border-color: rgb(var(--primary));
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"][aria-checked="true"]) {
+  border-bottom-color: rgb(var(--primary) / .6);
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"][aria-checked="true"])::before {
+  border-color: rgb(var(--primary));
+  background: radial-gradient(circle, rgb(var(--primary)) 0 4px, transparent 5px);
+}
+
+.booking :global([data-layout="online"] #booking-details [role="radio"] > div:last-child > span:first-child) {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* The review is a section of the form, not a box: its title matches About you and Your vehicle. */
+.booking :global([data-layout="online"] #booking-details [data-part="review"]) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.booking :global([data-layout="online"] #booking-details [data-part="review"] > h2) {
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgb(245 245 244 / .14);
+  font-size: 14px;
+  color: rgb(var(--primary));
+}
+
+/* The bar's reason line ("Waiting for the security check…") sits under Submit, like the reminder. */
+@media (min-width: 480px) {
+  .booking :global([data-layout="online"] #wizard-action-bar > p) {
+    max-width: 64rem;
+    margin-inline: auto;
+    text-align: right;
+  }
+}
+
+/* One type system on every step (CEO 2026-11-27: "consistent fonts from step to step"). Five roles, nothing else:
+   - Step heading: the big display capitals (#wizard-step-title, above).
+   - Section title: display capitals, 15 px, gold. Extras, Available days, About you, Check your booking, and the
+     confirmation's Booking details, Manage your booking, Paying a deposit and Questions.
+   - Label: display capitals, 12 px, .1em tracking. The step bar, size examples and kinds, form labels, the order
+     line, the calendar's weekdays.
+   - Action: display capitals, 14 px, .08em tracking. Back and Continue, and every other button or button-like link.
+   - Body and numbers: the text face (descriptions, hints, prices, totals). */
+.booking :global([data-layout="online"] :is([data-part="menu-title"], #days-title, #booking-details h2, [data-part="confirmation"] :is(h2:not(#reference-title), h3, details > summary))) {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: rgb(var(--primary));
+}
+
+.booking :global([data-layout="online"] :is(ol[aria-label="Booking steps"] li, [data-part="vehicle-kinds"], [data-part="vehicle-examples"], #wizard-action-bar [data-part="order-line"], #booking-days fieldset > div:first-of-type > span)) {
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.booking :global([data-layout="online"] :is(#booking-days > div:not([role]):has(> button) > button, [data-part="confirmation"] :is(a, button):not(.underline, [aria-label="Return to home"]))) {
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* The calendar's days outside the bookable range use the same face and size as the bookable ones, only dimmer. */
+.booking :global([data-layout="online"] #booking-days fieldset > div:last-child > div[aria-hidden="true"]) {
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+@media (min-width: 640px) {
+  .booking :global([data-layout="online"] #booking-days fieldset > div:last-child > div[aria-hidden="true"]) {
+    font-size: 24px;
+  }
+}
+
+.booking :global([data-layout="online"] [data-part="step-link"]:hover) {
+  color: rgb(var(--primary-hover));
+}
+
+/* The label role, finished: a step-bar button keeps the bar's capitals (buttons do not inherit them), and the body-type
+   and payment choices use the same 12 px, .1em label as everything else. Totals share one tracking. */
+.booking :global([data-layout="online"] [data-part="step-link"]) {
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.booking :global([data-layout="online"] :is([data-part="vehicle-kind"] label, #booking-details [role="radio"] > div:last-child > span:first-child)) {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .1em;
+}
+
+.booking :global([data-layout="online"] [data-count]) {
+  letter-spacing: 0;
+}

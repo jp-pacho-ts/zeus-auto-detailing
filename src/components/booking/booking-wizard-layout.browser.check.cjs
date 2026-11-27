@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-// P1-52 real-browser check of the booking wizard's Showroom layout at 390, 1280 and 1907 (and no sideways scroll at 320): the side
-// panel and its progress (list on desktop, segmented bar on phones), one submit on the details step with the review under the
+// P1-52 real-browser check of the booking wizard at 390, 1280 and 1907 (and no sideways scroll at 320), in the ordering-screen layout
+// /book shares with the kiosk (CEO 2026-11-22): the header with its step rail and the bottom bar, one submit on the details step with the review under the
 // fields, the month calendar, the Manage booking corner family (no 4 px corners) and the ticket confirmation with its dashed
 // tear-off edge, its notches and a clean print view. Catalog, quote, days and create are stubbed in the browser; the Cloudflare
 // script is stubbed too. Loopback app only; never loads .env. Optional P152_SHOTS: a screenshot folder.
@@ -31,7 +31,6 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
   const shot = async (page, name) => { if (process.env.P152_SHOTS) await page.screenshot({ path: path.join(process.env.P152_SHOTS, name + '.png'), fullPage: true }); };
   try {
     for (const width of [320, 390, 1280, 1907]) {
-      const desktop = width >= 1024;
       const context = await browser.newContext({ viewport: { width, height: width < 600 ? 844 : 900 } });
       const creates = [];
       await context.route('**/*', async (route) => {
@@ -61,43 +60,50 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       await page.goto(origin + '/book', { waitUntil: 'networkidle' });
       await page.getByRole('heading', { name: 'Choose your vehicle size' }).waitFor();
 
-      // The panel: logo, step, one h1; list of steps on desktop, segmented bar on phones; never both.
+      // The header: logo, the step rail (current step marked) on every screen, one h1 under it; the bottom bar on every screen.
       assert.equal(await page.locator('h1').count(), 1, `${width}px one page heading`);
-      assert.match(await page.locator('[data-part=panel]').innerText(), /Step 1 of 4/);
-      assert.equal(await page.getByRole('list', { name: 'Progress steps' }).isVisible(), desktop, `${width}px step list shows on desktop only`);
-      assert.equal(await page.getByRole('progressbar', { name: 'Booking progress' }).isVisible(), !desktop, `${width}px segmented bar shows on phones only`);
-      if (desktop) assert.equal(await page.locator('[data-part=panel]').evaluate((e) => getComputedStyle(e).position), 'sticky', 'the panel stays in view');
-      const bar = await page.locator('#wizard-action-bar').isVisible();
-      assert.equal(bar, !desktop, `${width}px the bottom bar is a phone thing`);
+      const rail = page.getByRole('list', { name: 'Booking steps' });
+      assert.equal(await rail.isVisible(), true, `${width}px the step rail shows`);
+      assert.equal(await rail.locator('li').count(), 4);
+      assert.match(await rail.locator('li[aria-current=step]').innerText(), /Vehicle size/i);
+      assert.equal(await page.locator('#wizard-action-bar').isVisible(), true, `${width}px the bottom bar shows on step 1`);
       await noSideways('step 1');
-      // Bands: one drawing per size, a 12 px radius.
-      assert.equal(await page.locator('label:has(input[name="vehicle-category"]) svg').count(), 2);
-      const bandRadius = await page.locator('label:has(input[name="vehicle-category"])').first().evaluate((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius));
-      assert.ok(bandRadius >= 15 && bandRadius <= 21, `${width}px size tiles are 16 to 20 px rounded cards, got ${bandRadius}`); // P1-54: tiles, not bands
-      // Gold extruded icons: one gradient on the page, eight layers per icon, decorative, big enough to read.
-      assert.equal(await page.locator('#zeus-gold-3d').count(), 1, 'the gold gradient is defined once');
+      // Menu rows (the editorial menu, CEO 2026-11-23): no box, a hairline under each row. Words only, no size drawings (CEO 2026-11-24).
+      assert.equal(await page.locator('label:has(input[name="vehicle-category"])').count(), 2);
+      assert.equal(await page.locator('[data-part=vehicle-mark], #zeus-gold-3d').count(), 0, 'no size drawings online');
+      const row = await page.locator('label:has(input[name="vehicle-category"])').first().evaluate((e) => { const s = getComputedStyle(e); return { radius: parseFloat(s.borderTopLeftRadius), under: parseFloat(s.borderBottomWidth), over: parseFloat(s.borderTopWidth) }; });
+      assert.deepEqual(row, { radius: 0, under: 1, over: 0 }, `${width}px size rows are menu lines`);
       assert.equal(await page.locator('[id]').evaluateAll((els) => els.length - new Set(els.map((e) => e.id)).size), 0, 'no duplicate ids on the page');
-      for (const mark of await page.locator('[data-part=vehicle-mark] svg').all()) {
-        assert.equal(await mark.getAttribute('aria-hidden'), 'true');
-        assert.equal(await mark.locator('path').count(), 8);
-        const box = await mark.boundingBox();
-        assert.ok(box.width >= 40 && box.height >= 40, `${width}px the icon is at least 40 px (got ${Math.round(box.width)})`); // P1-53: 40 on short laptop screens (52 px tile), 44 and up elsewhere
-      }
       await shot(page, `p152-1-size-empty-${width}`);
       await page.getByLabel(/^Small/).check();
       await shot(page, `p152-1-size-${width}`);
       await cont().click();
       await page.getByRole('heading', { name: 'Choose your services' }).waitFor();
       assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.id), 'wizard-step-title', 'focus moves to the step heading');
+      // The heading rises word by word, each word in its own mask, and still reads as one heading.
+      assert.equal(await page.locator('#wizard-step-title [data-part=title-word]').count(), 3, 'one mask per heading word');
       await page.getByRole('button', { name: /Premium Carwash/ }).click();
-      await page.getByLabel(/^Basic Wash/).check();
-      await page.getByLabel(/Engine Bay Wash/).check();
+      await page.locator('[data-part=menu-tile]', { hasText: 'Basic Wash' }).click();
+      await page.locator('[data-part=menu-tile]', { hasText: 'Engine Bay Wash' }).click();
       await page.waitForTimeout(500);
       await noSideways('step 2');
-      if (desktop) {
-        assert.match(await page.locator('[data-part=panel]').innerText(), /₱550.00/, 'the big total is in the panel');
-        assert.ok((await page.getByRole('button', { name: 'Change vehicle size' }).filter({ visible: true }).count()) === 1, 'a Change for the finished step');
-      }
+      // The order: the total in the bottom bar on every screen; the bar opens the order (each service, its price, remove)
+      // as a sheet. Back and Continue stay together in the bar.
+      const orderBox = page.locator('#wizard-action-bar');
+      // The total rolls up to its new amount (booking-motion.tsx), so wait for the roll to land before reading it.
+      await orderBox.getByText(/₱550\.00/).first().waitFor({ timeout: 3000 }).catch(() => {});
+      assert.match(await orderBox.innerText(), /₱550.00/, `${width}px the total is in the order`);
+      const toggle = orderBox.locator('[data-part=order-toggle]');
+      assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+      await toggle.click();
+      const sheet = page.getByRole('region', { name: 'Your order' });
+      await sheet.waitFor();
+      assert.equal(await sheet.getByRole('button', { name: 'Remove Basic Wash' }).isVisible(), true, `${width}px the sheet lists each service with a way to remove it`);
+      await page.keyboard.press('Escape');
+      await sheet.waitFor({ state: 'detached' });
+      const bar = page.locator('#wizard-action-bar');
+      assert.equal(await bar.getByRole('button', { name: 'Back' }).isVisible(), true, `${width}px Back sits with Continue in the bar`);
+      assert.equal(await bar.getByRole('button', { name: 'Continue', exact: true }).isVisible(), true, `${width}px Continue is in the bar`);
       await shot(page, `p152-2-services-${width}`);
       await cont().click();
       await page.getByRole('heading', { name: 'Choose your day' }).waitFor();
@@ -109,18 +115,54 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       if (width >= 640) assert.equal(await page.locator('#booking-days').getByText('Chosen', { exact: true }).isVisible(), true);
       await noSideways('step 3');
       const radii = async (locators) => { for (const [name, loc] of locators) { const r = await loc.first().evaluate((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius)); assert.ok(r >= 10 && r <= 14, `${width}px ${name} is 12 px rounded, not a pill (got ${r})`); } };
-      await radii([['Back', page.getByRole('button', { name: 'Back' }).filter({ visible: true })], ['Earlier days', page.getByRole('button', { name: 'Earlier days' })], ['Later days', page.getByRole('button', { name: 'Later days' })], ['Continue', cont()]]);
+      await radii([['Earlier days', page.getByRole('button', { name: 'Earlier days' })], ['Later days', page.getByRole('button', { name: 'Later days' })]]);
+      // Back and Continue take the landing's cut-corner shape (kiosk and /book, CEO 2026-11-22): square box, clipped corners.
+      for (const [name, loc] of [['Back', page.getByRole('button', { name: 'Back' }).filter({ visible: true })], ['Continue', cont()]]) {
+        const cut = await loc.first().evaluate((e) => getComputedStyle(e, '::before').clipPath);
+        assert.match(cut, /^polygon/, `${width}px ${name} has the cut-corner shape`);
+      }
       await shot(page, `p152-3-day-${width}`);
       await cont().click();
       await page.getByRole('heading', { name: 'Your details' }).waitFor();
+      // Regression: the step opened with its heading scrolled under the sticky header on phones.
+      const under = await page.evaluate(() => ({ title: document.getElementById('wizard-step-title').getBoundingClientRect().top, head: document.querySelector('[data-part=panel] > div').getBoundingClientRect().bottom }));
+      assert.ok(under.title >= under.head, `${width}px the step heading opens below the header (${under.title} < ${under.head})`);
 
       // One form, one submit: the review sits under the fields, the security check under the review.
       assert.equal(await page.locator('form').count(), 1, `${width}px one form`);
       assert.equal(await page.getByRole('button', { name: 'Submit booking request' }).filter({ visible: true }).count(), 1, `${width}px one visible Submit`);
       assert.equal(await page.locator('form [data-part=review]').count(), 1, 'the review is inside the details step');
       const order = await page.evaluate(() => { const y = (s) => document.querySelector(s).getBoundingClientRect().top; return [y('#customerFirstName'), y('#vehicleModel'), y('[data-part=review]'), y('#turnstileToken')]; });
-      assert.ok(order[2] > order[0] && order[3] > order[0] && order[2] >= order[1] && order[3] >= order[1], `${width}px the review and the security check come after the fields (side by side on desktop)`);
-      assert.deepEqual(await page.locator('form h2').allInnerTexts(), ['About you', 'Your vehicle', 'Check your booking']);
+      if (width >= 1024) {
+        // CEO 2026-11-27 (follow HCI principles): on laptops a checkout layout. The form is one column (About you over
+        // Your vehicle); the review, with the security check under it, is pinned beside the form and stays in view.
+        const x = await page.evaluate(() => ['#customerFirstName', '#vehicleModel', '[data-part=review]', '#turnstileToken'].map((s) => document.querySelector(s).getBoundingClientRect().left));
+        assert.ok(Math.abs(x[0] - x[1]) < 2 && order[1] > order[0] && x[2] > x[0] && Math.abs(x[2] - x[3]) < 2 && order[3] > order[2], `${width}px one form column (you over vehicle), the review over the security check beside it`);
+        // CEO 2026-11-27: the scroll starts right under the header, and the review column does not move. The page itself
+        // never scrolls; the step scrolls in a pane between the header and the bar.
+        const aside = await page.evaluate(() => {
+          const el = document.querySelector('[data-part=details-aside]'), pane = document.querySelector('[data-part=pane]');
+          const head = document.querySelector('[data-part=panel] > div').getBoundingClientRect().bottom;
+          const top0 = el.getBoundingClientRect().top; pane.scrollTo(0, pane.scrollHeight); const top1 = el.getBoundingClientRect().top; pane.scrollTo(0, 0);
+          return { docScroll: document.scrollingElement.scrollHeight - innerHeight, paneTop: pane.getBoundingClientRect().top, paneBottom: pane.getBoundingClientRect().bottom, barTop: document.getElementById('wizard-action-bar').getBoundingClientRect().top, head, scrolls: pane.scrollHeight > pane.clientHeight, top0, top1, asideBottom: el.getBoundingClientRect().bottom };
+        });
+        assert.ok(aside.docScroll <= 0, `${width}px the page itself does not scroll (${aside.docScroll})`);
+        assert.ok(Math.abs(aside.paneTop - aside.head) < 1 && Math.abs(aside.paneBottom - aside.barTop) < 1, `${width}px the scrolling pane runs from the header to the bar`);
+        assert.ok(Math.abs(aside.top1 - aside.top0) < 1, `${width}px the review column does not move when the form scrolls (${aside.top0} -> ${aside.top1})`);
+        assert.ok(aside.asideBottom <= aside.barTop, `${width}px the review column is fully above the bar`);
+        if (aside.scrolls) {
+          // Regression: the smooth scroll took the mouse wheel and never moved the form (no frame loop).
+          await page.mouse.move(width / 3, 400);
+          for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(80); }
+          await page.waitForFunction(() => document.querySelector('[data-part=pane]').scrollTop > 0, null, { timeout: 3000 });
+          await page.waitForTimeout(1200); // let the glide finish before measuring anything else
+          await page.evaluate(() => document.querySelector('[data-part=pane]').scrollTo(0, 0));
+          await page.waitForFunction(() => document.querySelector('[data-part=pane]').scrollTop === 0);
+        }
+      } else {
+        assert.ok(order[2] > order[0] && order[3] > order[0] && order[2] >= order[1] && order[3] >= order[1], `${width}px the review and the security check come after the fields`);
+      }
+      assert.deepEqual(await page.locator('form h2').allTextContents(), ['About you', 'Your vehicle', 'Check your booking']);
       const a = await page.locator('#customerFirstName').boundingBox(), b = await page.locator('#customerLastName').boundingBox();
       if (width >= 640) assert.ok(Math.abs(a.y - b.y) < 4 && b.x > a.x, `${width}px the two names sit side by side`);
       else assert.ok(b.y > a.y + a.height - 1, `${width}px the two names stack`);
@@ -148,11 +190,14 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       assert.equal(creates[0].customerName, 'Ana dela Cruz');
       assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.id), 'wizard-step-title');
 
-      // The ticket: the reference in mono on the main side, the details on a stub past a dashed edge with two notches.
+      // The ticket: the reference in the landing's display face on the main side, the details on a stub past a dashed edge with two notches.
       const ticket = page.locator('section.print-receipt-card').first();
       const ref = page.locator('#reference-title');
       assert.equal((await ref.innerText()).trim(), 'ZEUS-K7M4QX');
-      assert.match(await ref.evaluate((e) => getComputedStyle(e).fontFamily), /mono/i, 'the reference is set in a monospace face');
+      assert.match(await ref.evaluate((e) => getComputedStyle(e).fontFamily), /LandingDisplay/, 'the reference is set in the display face (no monospace)');
+      // The code is read out or typed at the counter: one line, never split, never wider than its card.
+      const fit = await ref.evaluate((e) => ({ height: e.getBoundingClientRect().height, size: parseFloat(getComputedStyle(e).fontSize), over: e.scrollWidth - e.clientWidth }));
+      assert.ok(fit.height < fit.size * 2 && fit.over <= 0, `${width}px the reference stays on one line inside its card: ${JSON.stringify(fit)}`);
       await page.getByRole('button', { name: 'Copy booking reference' }).waitFor();
       await page.getByRole('button', { name: 'Print receipt' }).waitFor();
       assert.equal(await page.getByText('Waiting for confirmation').first().isVisible(), true);
@@ -177,6 +222,7 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       assert.equal(printed.bg, 'rgb(255, 255, 255)');
       assert.equal(parseFloat(printed.radius), 0);
       assert.equal(printed.stub, 'none');
+      assert.equal(await page.locator('[class*=backdrop]').first().isVisible().catch(() => false), false, 'the shop photo does not print');
       await page.emulateMedia({ media: 'screen' });
       await context.unrouteAll({ behavior: 'ignoreErrors' });
       await context.close();

@@ -425,7 +425,8 @@ export async function sendSmtpClassified(
         return "sent";
       }
       const data = (await res.json().catch(() => ({}))) as { message?: string; name?: string };
-      console.warn(JSON.stringify({ event: "resend.error", status: res.status, data }));
+      // P1-78 R1: the provider's message can quote the recipient address, so only the status and the error name are logged.
+      console.warn(JSON.stringify({ event: "resend.error", status: res.status, name: typeof data.name === "string" ? data.name.slice(0, 60) : null }));
       if (res.status === 401 || res.status === 403) return "auth_rejected";
       if (res.status === 408 || res.status === 504) return "timeout";
       if (res.status >= 500) return "unreachable";

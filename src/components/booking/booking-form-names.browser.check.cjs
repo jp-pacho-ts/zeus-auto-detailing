@@ -37,7 +37,7 @@ test('the booking form asks for a first and a last name, and sends both', { time
       await page.goto(origin + '/book?vehicle=sedan&service=basic-wash', { waitUntil: 'networkidle' });
       // The link opens the services step with Basic Wash chosen: Continue, pick the first open day, Continue.
       const first = page.locator('#customerFirstName');
-      const next = () => page.getByRole('button', { name: 'Continue', exact: true }).first();
+      const next = () => page.getByRole('button', { name: 'Continue', exact: true }).filter({ visible: true }).first();
       await next().click();
       const day = page.locator('input[name="booking-day"]:not([disabled])').first();
       await day.waitFor({ state: 'attached', timeout: 30_000 });

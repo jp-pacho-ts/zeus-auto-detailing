@@ -55,6 +55,18 @@ test("the login form posts JSON to the auth route and leaves paste and autofill 
   assert.match(form, /if \(response\.ok\) \{[^}]*await response\.json\(\)[^}]*router\.replace\(next\)/);
 });
 
+test("the login form shows its own field errors, not the browser's validation bubbles", () => {
+  const form = fs.readFileSync(path.join(loginDir, "login-form.tsx"), "utf8");
+  assert.match(form, /<form [^>]*noValidate/);
+  // Staff sign in by email only (StaffLoginSchema); no username field.
+  assert.match(form, /id="staff-identifier"\s+type="email"/);
+  assert.doesNotMatch(form, /username"?\s*<|Username/);
+  for (const id of ["staff-identifier", "staff-password"]) {
+    assert.match(form, new RegExp(`aria-describedby=\\{[^}]*"${id}-error"`));
+    assert.match(form, new RegExp(`id="${id}-error"`));
+  }
+});
+
 test("?next= accepts admin paths only (no open redirects)", () => {
   for (const ok of ["/admin", "/admin/bookings", "/admin/bay-calendar"]) assert.equal(safeNextPath(ok), ok);
   for (const bad of ["/admin/login", "//evil.example", "https://evil.example/admin", "/admin/../api", "/admin/Bookings",

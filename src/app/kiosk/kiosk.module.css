@@ -1,0 +1,183 @@
+/* Welcome = the live landing hero (landing.css), held to one tablet screen with no scrolling. */
+.welcome {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100svh;
+  min-height: 0;
+  overflow: clip;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* landing.css pads the page bottom for its phone call bar; the kiosk has none. */
+.welcome:global(.landing) {
+  padding-bottom: 0;
+}
+
+/* Letterbox bars for the exit: parked off screen until a tap starts the order. */
+.welcome::before,
+.welcome::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  height: 14svh;
+  background: #000;
+  pointer-events: none;
+}
+
+.welcome::before {
+  top: 0;
+  transform: translateY(-100%);
+}
+
+.welcome::after {
+  bottom: 0;
+  transform: translateY(100%);
+}
+
+/* A centre scrim on top of the landing grade, so centred copy reads over any frame of the footage. */
+.art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(ellipse 70% 55% at 50% 55%, rgb(9 9 11 / .72), rgb(9 9 11 / .2) 70%, transparent);
+}
+
+.top,
+.center,
+.bar {
+  position: relative;
+  z-index: 2;
+}
+
+.top {
+  justify-self: center;
+  padding-top: max(32px, env(safe-area-inset-top));
+}
+
+.top img {
+  display: block;
+  width: 200px;
+  height: auto;
+}
+
+.center {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(32px, 6svh, 64px);
+  padding-inline: 24px;
+  text-align: center;
+}
+
+.welcome .title {
+  font-size: clamp(56px, 9vw, 132px);
+  line-height: .9;
+}
+
+.sub {
+  display: block;
+  margin-top: clamp(16px, 2.4svh, 28px);
+  color: rgb(245 245 244 / .85);
+  font-size: clamp(13px, 1.4vw, 18px);
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: .22em;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 88px;
+  margin: 0;
+  padding: 0 0 max(8px, env(safe-area-inset-bottom));
+  border: 0;
+  background: none;
+  cursor: inherit;
+  /* The start control, quiet in the landing's "Discover Zeus" style; a tap anywhere on the screen also starts. */
+  color: rgb(245 245 244 / .85);
+  font-family: LandingDisplay, LandingGeist, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+/* landing.css resets button fonts (.landing button{font:inherit}); keep the cue in the display face. */
+.welcome .bar {
+  font-family: LandingDisplay, LandingGeist, "Helvetica Neue", Arial, sans-serif;
+}
+
+.bar:focus-visible {
+  outline: 3px solid rgb(var(--brand-ring));
+  outline-offset: -6px;
+}
+
+
+/* Tap to start: the letterbox closes, the footage pushes in and goes dark, the copy lifts away,
+   then the booking fades up from black into its own opening. Total 950 ms (EXIT_MS in kiosk.tsx). */
+@media (prefers-reduced-motion: no-preference) {
+  .welcome[data-leaving] {
+    pointer-events: none;
+  }
+
+  .welcome[data-leaving]::before,
+  .welcome[data-leaving]::after {
+    animation: letterbox .55s cubic-bezier(.7, 0, .2, 1) forwards;
+  }
+
+  .welcome[data-leaving] .art {
+    animation: push-out .95s cubic-bezier(.55, 0, .2, 1) forwards;
+  }
+
+  .welcome[data-leaving] .title {
+    animation: lift-away .6s cubic-bezier(.55, 0, .2, 1) forwards;
+  }
+
+  .welcome[data-leaving] :is(.top, .bar) {
+    animation: fade-out .3s ease forwards;
+  }
+
+  /* The welcome fades up from black, its headline rising into place. */
+  .welcome {
+    animation: from-black .8s ease-out both;
+  }
+
+  .welcome .title {
+    animation: rise-in 1s cubic-bezier(.2, .7, .2, 1) .15s both;
+  }
+}
+
+@keyframes letterbox {
+  to { transform: none; }
+}
+
+@keyframes push-out {
+  0% { transform: scale(1); filter: brightness(1); opacity: 1; }
+  60% { opacity: 1; }
+  100% { transform: scale(1.14); filter: brightness(.35); opacity: 0; }
+}
+
+@keyframes lift-away {
+  to { opacity: 0; transform: translateY(-18px) scale(1.04); letter-spacing: .06em; filter: blur(6px); }
+}
+
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(24px); letter-spacing: .06em; filter: blur(6px); }
+}
+
+@keyframes from-black {
+  from { opacity: 0; }
+}

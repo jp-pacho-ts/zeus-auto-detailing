@@ -1,15 +1,17 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   AlertCircle,
   ArrowRight,
   Check,
-  ChevronDown,
   ChevronLeft,
+  ChevronUp,
   Droplets,
   MessageSquare,
+  Plus,
   Phone,
   QrCode,
   ShieldCheck,
@@ -20,14 +22,18 @@ import {
 } from "lucide-react";
 import { brandConfig } from "@/config/brand";
 import { Logo } from "@/components/ui/logo";
+import { Skeleton } from "@/components/ui/skeleton";
 import { TurnstileChallenge, type ChallengeStatus } from "@/components/booking/turnstile";
-import { DayPicker, DAYS_PER_PAGE, dateLabel, shortDayLabel, todayInManila } from "@/components/booking/day-picker";
+import { DayPicker, DAYS_PER_PAGE, dateLabel, todayInManila } from "@/components/booking/day-picker";
 import { BookingTicket } from "@/components/booking/booking-ticket";
+import { KioskEndDialog, KioskIdleDialog } from "@/components/booking/kiosk-end-dialog";
 import { VehicleDrawing, VehicleDrawingDefs } from "@/components/booking/vehicle-drawing";
 import { ManagementCode } from "@/components/booking/management-code";
 import { PaymentInstructions } from "@/components/booking/payment-instructions";
 import { bookingStatusWords } from "@/components/booking/manage-booking";
 import { reveal } from "@/components/booking/reveal";
+import { landingPhoto } from "@/components/landing/landing-photos";
+import { HERO_POSTER_FILES } from "@/components/home/hero-video";
 import {
   CATEGORY_NAMES,
   CATEGORY_ORDER,
@@ -83,10 +89,6 @@ const control =
   "mt-2 min-h-[52px] w-full rounded-xl border border-input bg-card px-4 py-3 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60 transition-colors";
 // L9: less padding on phones so the security check fits a 320 px screen.
 const panel = "rounded-2xl border border-border bg-card p-4 sm:p-8";
-// L5: option bands have a visible edge (input token, 6.9:1) and a focus ring on the whole band. The picked band gets a second inner line.
-const optionCard = (selected: boolean) =>
-  "flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:p-5 lg:px-5 lg:py-[clamp(8px,1.5vh,20px)] " +
-  (selected ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary");
 const changeLink =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-end rounded-xl px-2 text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 // P1-55 (LE): Back is as tall as Continue and Submit: both use this height.
@@ -119,16 +121,33 @@ function formatPhilippinePhone(raw: string): string {
 
 // L4: four steps the customer acts on; the receipt is not a step.
 const STEP_LABELS = ["Vehicle size", "Services", "Day", "Your details"];
+// Your details' fields top to bottom; the error summary follows this order.
+const FIELD_ORDER = ["customerFirstName", "customerLastName", "customerPhone", "customerEmail", "vehicleModel", "vehiclePlate", "paymentPreference", "specialRequests", "turnstileToken"];
 const HEADINGS = ["Choose your vehicle size", "Choose your services", "Choose your day", "Your details", "Booking received"];
+// Online /book (CEO 2026-11-24): common cars on Philippine roads for each size, so people can tell which size theirs is.
+const SIZE_EXAMPLES: Record<string, string> = {
+  MOTOR: "e.g. Honda Click, Yamaha NMAX",
+  S: "e.g. Toyota Vios, Honda City",
+  M: "e.g. Toyota Corolla Cross, Honda HR-V",
+  L: "e.g. Toyota Fortuner, Toyota Hilux",
+  XL: "e.g. Toyota Land Cruiser, Ford Ranger Raptor, Toyota HiAce",
+};
 // The normal security-check widget is a fixed 300 px wide; below this it is rendered compact.
 const NARROW_QUERY = "(max-width: 359px)";
+// Kiosk idle timeout (LE): a booking with no taps or typing for 10 minutes returns to the start; the last minute shows a countdown.
+const KIOSK_IDLE_MS = 10 * 60_000;
+const KIOSK_WARNING_MS = 60_000;
+// Kiosk menu tiles: a service without its own shop photo shows its category's photo.
+const KIOSK_CATEGORY_PHOTO: Partial<Record<string, string>> = { WASH: "signature-wash", DETAILING: "full-detailing", GRAPHENE: "arcane-graphene" };
 
 export function BookingWizard({
   initialServiceId,
   initialVehicleName,
+  kioskOnExit,
 }: {
   initialServiceId?: string;
   initialVehicleName?: string;
+  kioskOnExit?: () => void;
 }) {
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
   const [step, setStep] = React.useState(1);
@@ -143,6 +162,8 @@ export function BookingWizard({
   const [openCategory, setOpenCategory] = React.useState<CatalogServiceKind | null>(null);
   const [panelDrafts, setPanelDrafts] = React.useState<Record<string, string>>({});
   const [linkWarning, setLinkWarning] = React.useState("");
+  // Online: pressing Continue before choosing shows a reminder on that step (n restarts its animation).
+  const [nudge, setNudge] = React.useState({ step: 0, n: 0 });
   const [copied, setCopied] = React.useState(false);
   const [fromDate, setFromDate] = React.useState(todayInManila);
   const [day, setDay] = React.useState("");
@@ -166,6 +187,13 @@ export function BookingWizard({
   const [message, setMessage] = React.useState("");
   const [pending, setPending] = React.useState(false);
   const [uncertain, setUncertain] = React.useState(false);
+  // The countdown deadline while the idle warning shows; null otherwise.
+  const [kioskWarning, setKioskWarning] = React.useState<number | null>(null);
+  const [confirmEnd, setConfirmEnd] = React.useState(false);
+  // Online: the order opens from the bottom bar as a sheet; it belongs to the step it was opened on, so it closes on the next.
+  const [orderOpenAt, setOrderOpenAt] = React.useState(0);
+  const orderOpen = orderOpenAt === step;
+  const kioskKeepBooking = React.useRef<(() => void) | null>(null);
   // The management code stays in memory only (ADR-002): never in the URL or browser storage.
   const [booking, setBooking] = React.useState<{ view: DayBookingView; access: ManagementAccessGrant | null; vehicleModel: string; vehiclePlate: string | null; customerName: string; customerPhone: string; multiDay: boolean } | null>(null);
 
@@ -174,6 +202,46 @@ export function BookingWizard({
   const errorSummary = React.useRef<HTMLDivElement>(null);
   const deepLinkHandled = React.useRef(false);
   const shownStep = React.useRef(step);
+
+  React.useEffect(() => {
+    if (!kioskOnExit || pending) return;
+    if (step === 5) {
+      const timer = window.setTimeout(kioskOnExit, 45_000);
+      return () => window.clearTimeout(timer);
+    }
+
+    let warning: number;
+    let expiration: number;
+    let warned = false;
+    const renew = () => {
+      warned = false;
+      setKioskWarning(null);
+      window.clearTimeout(warning);
+      window.clearTimeout(expiration);
+      warning = window.setTimeout(() => {
+        warned = true;
+        setConfirmEnd(false);
+        setKioskWarning(Date.now() + KIOSK_WARNING_MS);
+      }, KIOSK_IDLE_MS - KIOSK_WARNING_MS);
+      expiration = window.setTimeout(kioskOnExit, KIOSK_IDLE_MS);
+    };
+    const onActivity = () => {
+      if (!warned) renew();
+    };
+    kioskKeepBooking.current = renew;
+    renew();
+    window.addEventListener("pointerdown", onActivity);
+    window.addEventListener("keydown", onActivity);
+    window.addEventListener("input", onActivity);
+    return () => {
+      window.clearTimeout(warning);
+      window.clearTimeout(expiration);
+      window.removeEventListener("pointerdown", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("input", onActivity);
+      kioskKeepBooking.current = null;
+    };
+  }, [kioskOnExit, pending, step]);
   // L9 / QA F2: below 360 px the security check is compact. It follows the window as it resizes,
   // not only when something else happens to re-render the form.
   const [narrow, setNarrow] = React.useState(
@@ -221,6 +289,10 @@ export function BookingWizard({
   const bases = catalog?.services.filter((s) => s.type === "BASE") ?? [];
   const picked = (id: string) => picks.find((p) => p.serviceId === id);
   const offered = (s: ServicePackage) => Boolean(vehicleId) && offerLabel(s, vehicleId).bookable;
+  const fromPrice = (sizeId: string) => {
+    const cents = bases.flatMap((s) => s.offers.filter((o) => o.vehicleCategoryId === sizeId && o.onlineBooking === "PRICED" && o.unitPriceCentavos !== null && offerLabel(s, sizeId).bookable).map((o) => o.unitPriceCentavos!));
+    return cents.length ? money(Math.min(...cents)) : "";
+  };
 
   // Inline validation checks for Step 4
   const isPhoneValid = /^(09\d{9}|\+639\d{9})$/.test(form.customerPhone.replace(/[\s()\-]/g, ""));
@@ -309,6 +381,8 @@ export function BookingWizard({
     const root = document.documentElement;
     const apply = () => {
       root.style.scrollPaddingBottom = bar.offsetHeight ? bar.offsetHeight + 16 + "px" : "";
+      // The online stage reserves exactly the bar's height under the page, not a fixed guess that scrolls for nothing.
+      root.style.setProperty("--bar-h", bar.offsetHeight + "px");
     };
     apply();
     const observer = new ResizeObserver(apply);
@@ -324,6 +398,7 @@ export function BookingWizard({
       observer.disconnect();
       document.removeEventListener("focusin", keepClear);
       root.style.scrollPaddingBottom = "";
+      root.style.removeProperty("--bar-h");
     };
   }, [barShown]);
 
@@ -456,6 +531,7 @@ export function BookingWizard({
         headers: BOOKING_HEADERS,
         body: JSON.stringify(attempt.current),
         cache: "no-store",
+        signal: kioskOnExit ? AbortSignal.timeout(30_000) : undefined,
       });
       const result: DayBookingResponse = await response.json();
       if (result.ok) {
@@ -510,21 +586,21 @@ export function BookingWizard({
   const servicesSummary = lines.map((l) => serviceById(l.serviceId)?.name).filter(Boolean).join(", ");
   const quoteLines = quote?.lines ?? [];
 
-  // W5: a disabled Submit always says why.
+  // W5: a disabled Submit always says why. The security check's own state shows under the check, not in the footer.
+  const challengeReason =
+    step !== 4 || pending || !turnstileSiteKey || challenge.token
+      ? ""
+      : challengeStatus === "expired"
+        ? "The security check expired. It restarts by itself; then send your request."
+        : challengeStatus === "failed"
+          ? "The security check didn't load. Check your connection, then reload the page."
+          : "Waiting for the security check…";
   const submitReason =
     step !== 4 || pending
       ? ""
       : !turnstileSiteKey
         ? `Online booking is not available right now. Please call the shop at ${brandConfig.displayPhone}.`
-        : !challenge.token
-          ? challengeStatus === "expired"
-            ? "The security check expired. It restarts by itself; then send your request."
-            : challengeStatus === "failed"
-              ? "The security check didn't load. Check your connection, then reload the page."
-              : "Waiting for the security check…"
-          : !uncertain && !quote
-            ? "Updating the price…"
-            : "";
+        : challengeReason || (!uncertain && !quote ? "Updating the price…" : "");
   const primaryDisabled =
     pending ||
     !catalog ||
@@ -534,28 +610,49 @@ export function BookingWizard({
     (step === 3 && (!day || dayState !== "AVAILABLE")) ||
     (step === 4 && (!challenge.token || (!uncertain && !quote)));
   const showPrimary = step < 5 && !(step === 3 && paused);
+  // Online steps 1-3: Continue stays pressable before a choice is made, and says what is missing instead of blocking.
+  const reminder =
+    !kioskOnExit && primaryDisabled && !pending && catalog && !catalogError
+      ? step === 1 ? (vehicleId ? "Choose your vehicle's body type first." : "Choose your vehicle size first.")
+        : step === 2 ? "Add at least one service first."
+          : step === 3 ? "Choose an available day first." : ""
+      : "";
+  const nudging = Boolean(reminder) && nudge.step === step && nudge.n > 0;
 
   const renderPrimary = () => (
     <button
       type={step === 4 ? "submit" : "button"}
+      data-part="primary"
       form={step === 4 ? "booking-details" : undefined}
       onClick={(event) => {
+        if (reminder) {
+          event.preventDefault();
+          setNudge((n) => ({ step, n: n.n + 1 }));
+          return;
+        }
         if (step !== 4) {
           event.preventDefault();
           void next();
         }
       }}
-      disabled={primaryDisabled}
-      className={actionHeight + " inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"}
+      disabled={primaryDisabled && !reminder}
+      aria-disabled={reminder ? true : undefined}
+      className={actionHeight + " inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-50"}
     >
-      {pending ? "Submitting request…" : step === 4 ? (uncertain ? "Retry same submission" : "Submit booking request") : "Continue"}
-      <ArrowRight aria-hidden="true" className="h-4 w-4" />
+      <span data-part="primary-label"><span>{pending ? "Submitting request…" : step === 4 ? (uncertain ? "Retry same submission" : "Submit booking request") : "Continue"}</span></span>
+      <span data-part="primary-arrow"><ArrowRight aria-hidden="true" className="h-4 w-4" /></span>
     </button>
   );
+  // Typed details are lost on leaving, so the X and the logo ask first; an untouched form leaves at once.
+  const confirmLeave = (event: React.MouseEvent) => {
+    const typed = Object.entries(form).some(([field, value]) => field !== "paymentPreference" && value.trim() !== "");
+    if (typed && !window.confirm("Leave this page? Your booking request has not been sent, and the details you typed will be lost.")) event.preventDefault();
+  };
   const renderBack = () =>
     step > 1 && step < 5 ? (
       <button
         type="button"
+        data-part="back"
         disabled={locked}
         onClick={() => goTo(step - 1)}
         className={outlineButton + " " + actionHeight}
@@ -564,20 +661,33 @@ export function BookingWizard({
         Back
       </button>
     ) : null;
-  const renderTotal = () =>
-    step === 1 ? (
-      <span className="text-sm text-muted-foreground">{vehicle ? vehicle.name : "Choose a size"}</span>
-    ) : lines.length ? (
-      <>
-        <span className="block text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</span>
-        <span className="block text-lg font-extrabold tabular-nums text-foreground">{total ? total.amount : "Pricing…"}</span>
-      </>
-    ) : (
-      <span className="text-sm text-muted-foreground">Nothing chosen yet</span>
-    );
-  const renderReason = () => (submitReason ? <p className="mt-2 text-sm text-muted-foreground" role="status">{submitReason}</p> : null);
+  // Kiosk: one running order line (size, services, total), like a counter ordering screen.
+  const renderKioskOrder = () => (
+    <>
+      <span data-part="order-label" className="block text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</span>
+      {/* On a narrow tablet only the description shortens; the total always shows in full. */}
+      <span className="flex min-w-0 items-baseline justify-end gap-3 text-base text-foreground">
+        <span data-part="order-line" className="min-w-0 truncate">
+          {[
+            !vehicle ? "Choose a size" : kioskOnExit ? vehicle.name : splitSizeName(vehicle.name).head,
+            // Online: the body type chosen, not every kind the size covers.
+            !kioskOnExit && bodyType ? bodyLabel(bodyType) : "",
+            lines.length ? `${lines.length} ${lines.length === 1 ? "service" : "services"}` : "",
+          ].filter(Boolean).join(" · ")}
+        </span>
+        {lines.length > 0 && (total
+          ? <strong className="shrink-0 text-xl font-extrabold tabular-nums">{total.amount}</strong>
+          : <span role="status" className="shrink-0 self-center"><span className="sr-only">Pricing…</span><Skeleton className="h-6 w-24" /></span>)}
+      </span>
+    </>
+  );
+  const renderReason = () =>
+    submitReason && !challengeReason ? <p className="mt-2 text-sm text-muted-foreground" role="status">{submitReason}</p> : null;
+  // The reminder sits in Continue's own column, so it wraps to the button's width instead of hanging past it.
+  const renderNudge = () =>
+    !submitReason && nudging ? <p key={nudge.n} data-part="nudge" className="mt-2 text-primary" role="status">{reminder}</p> : null;
 
-  // The single review, under the details fields (L2, P1-52). Each Change returns to its step; on desktop the side panel has them.
+  // The single review, under the details fields (L2, P1-52). Each Change returns to its step.
   const renderReview = () => (
     <dl className="space-y-3 text-sm">
       <div className="flex items-start justify-between gap-3">
@@ -585,7 +695,7 @@ export function BookingWizard({
           <dt className="text-muted-foreground">Vehicle size</dt>
           <dd className="font-bold text-foreground">{vehicle?.name ?? "—"}</dd>
         </div>
-        <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink + " lg:hidden"} aria-label="Change vehicle size">
+        <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink} aria-label="Change vehicle size">
           Change
         </button>
       </div>
@@ -612,7 +722,7 @@ export function BookingWizard({
             </dd>
           </div>
           {step > 2 && (
-            <button type="button" onClick={() => goTo(2)} disabled={locked} className={changeLink + " lg:hidden"} aria-label="Change services">
+            <button type="button" onClick={() => goTo(2)} disabled={locked} className={changeLink} aria-label="Change services">
               Change
             </button>
           )}
@@ -625,7 +735,7 @@ export function BookingWizard({
             <dd className="font-bold text-foreground">{chosenDay ? dateLabel(chosenDay) : "Not chosen yet"}</dd>
           </div>
           {step > 3 && (
-            <button type="button" onClick={() => goTo(3)} disabled={locked} className={changeLink + " lg:hidden"} aria-label="Change day">
+            <button type="button" onClick={() => goTo(3)} disabled={locked} className={changeLink} aria-label="Change day">
               Change
             </button>
           )}
@@ -633,50 +743,15 @@ export function BookingWizard({
       )}
       <div className="border-t border-border pt-3">
         <dt className="text-muted-foreground">{total?.label ?? "Estimated total"}</dt>
-        <dd className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : lines.length ? "Pricing…" : "—"}</dd>
+        <dd data-count="" className="text-2xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : lines.length ? "Pricing…" : "—"}</dd>
         {total?.note && <p className="mt-1 text-sm text-muted-foreground">{total.note}</p>}
       </div>
     </dl>
   );
 
-  // P1-52: the build sheet in the side panel: the four steps, what is chosen so far and a Change for each finished one.
-  const renderSheet = () => {
-    const values = [vehicle?.name ?? "", servicesSummary, chosenDay ? shortDayLabel(chosenDay) : "", ""];
-    return (
-      <ol aria-label="Progress steps" className="mt-6 border-t border-border lg:mt-[clamp(10px,3vh,32px)]">
-        {STEP_LABELS.map((label, index) => {
-          const n = index + 1;
-          const state = n < step ? "done" : n === step ? "current" : "next";
-          return (
-            <li key={label} aria-current={state === "current" ? "step" : undefined} className="flex items-start gap-3 border-b border-border py-3 text-sm lg:py-[clamp(6px,1.1vh,12px)]">
-              <span aria-hidden="true" className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center">
-                {state === "done" ? (
-                  <Check className="h-4 w-4 text-primary" />
-                ) : (
-                  <span className={"h-2.5 w-2.5 rounded-full border-2 " + (state === "current" ? "border-primary bg-primary" : "border-muted-foreground/60")} />
-                )}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className={"block " + (state === "current" ? "font-bold text-foreground" : "text-muted-foreground")}>{label}</span>
-                {state === "done" && values[index] && <span className="block break-words font-bold text-foreground">{values[index]}</span>}
-                {state === "done" && <span className="sr-only">(done)</span>}
-                {state === "current" && <span className="sr-only">(current step)</span>}
-              </span>
-              {state === "done" && (
-                <button type="button" onClick={() => goTo(n)} disabled={locked} className={changeLink} aria-label={"Change " + label.toLowerCase()}>
-                  Change
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    );
-  };
-
-  // Phones, services and day steps: what is chosen so far, above the choices.
+  // The day step: what is chosen so far, above the calendar.
   const renderMobileSummaryTray = () => (
-    <div className="mb-6 rounded-xl border border-border bg-muted p-4 text-sm lg:hidden">
+    <div data-part="summary-tray" className="mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 rounded-xl border border-border bg-muted px-5 py-2 text-sm [&>p]:col-start-1 [&>button]:col-start-2 [&>button]:row-start-1 [&>button]:row-span-2">
       <p className="font-bold text-foreground">{vehicle?.name}</p>
       <p className="break-words text-muted-foreground">{servicesSummary || "No service chosen yet"}</p>
       {step === 3 && chosenDay && <p className="text-muted-foreground">{dateLabel(chosenDay)}</p>}
@@ -696,183 +771,266 @@ export function BookingWizard({
     });
   };
 
-  const renderService = (s: ServicePackage, nested = false) => {
+  // W13: the panel count for a picked per-panel service.
+  const renderPanels = (s: ServicePackage, pick: { quantity: number }) => (
+    <div className={"mt-2 rounded-xl border border-border bg-muted p-4 md:col-span-full"}>
+      <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
+        Number of panels for {s.name}
+      </label>
+      <input
+        id={"panels-" + s.id}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        aria-describedby={"panels-help-" + s.id}
+        value={panelDrafts[s.id] ?? String(pick.quantity)}
+        disabled={locked}
+        onChange={(e) => {
+          // W13: the field may be empty while typing; a count from 1 to 20 is applied at once.
+          const draft = e.target.value.replace(/\D/g, "").slice(0, 2);
+          setPanelDrafts((d) => ({ ...d, [s.id]: draft }));
+          const n = Number(draft);
+          if (n >= 1 && n <= 20) setQuantity(s.id, n);
+        }}
+        onBlur={() => {
+          const n = Number(panelDrafts[s.id]);
+          setQuantity(s.id, n >= 1 ? Math.min(20, n) : pick.quantity);
+          setPanelDrafts((d) => {
+            const rest = { ...d };
+            delete rest[s.id];
+            return rest;
+          });
+        }}
+        className={control}
+      />
+      <p id={"panels-help-" + s.id} className="mt-1.5 text-sm text-muted-foreground">
+        1 to 20 panels.
+      </p>
+    </div>
+  );
+
+  // The menu board: a photo tile per service (tap or click to add or remove), the extras for what is picked, and the order beside it.
+  const renderKioskTile = (s: ServicePackage) => {
     const pick = picked(s.id);
     const offer = offerLabel(s, vehicleId, pick?.quantity ?? 1);
+    const photo = landingPhoto(s.slug) ?? landingPhoto(KIOSK_CATEGORY_PHOTO[s.category] ?? "");
     const Icon = getServiceDisciplineIcon(s.category);
     const detail = serviceDetail(s);
-    const extras = nested ? [] : addOnsUnder(s);
     return (
-      <li key={s.id} className={nested ? undefined : "lg:contents"}>
-        <label className={optionCard(Boolean(pick)) + " min-h-[80px]"}>
-          <div className="flex items-start gap-3.5">
-            {!nested && (
-              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted">
-                <Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-              </div>
+      <li key={s.id}>
+        <label
+          data-part="menu-tile"
+          className={
+            "relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
+            (pick ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
+          }
+        >
+          <span className="relative block aspect-[16/10] bg-muted">
+            {/* Shows until the photo has loaded and covers it. */}
+            {photo && <Skeleton className="absolute inset-0 rounded-none" />}
+            {photo ? (
+              <Image src={photo.src} alt="" fill sizes="(min-width: 1024px) 22vw, 40vw"
+                className={photo.contain ? "object-contain" : "object-cover"} style={photo.position ? { objectPosition: photo.position } : undefined} />
+            ) : (
+              <span className="grid h-full place-items-center"><Icon className="h-12 w-12 text-primary" aria-hidden="true" /></span>
             )}
-            <div>
-              <span className="block font-bold text-foreground">{s.name}</span>
-              {detail && <span className="mt-1 block text-sm text-muted-foreground">{detail}</span>}
-              <span className="mt-2 block text-sm font-semibold text-foreground">
-                {"compareAtText" in offer && offer.compareAtText && (
-                  <span className="mr-2 text-xs text-muted-foreground line-through">
-                    {offer.compareAtText}
-                  </span>
-                )}
-                <span className={"compareAtText" in offer && offer.compareAtText ? "text-emerald-400 font-bold" : ""}>
-                  {offer.text}
-                </span>
-                {"discountPercent" in offer && offer.discountPercent && (
-                  <span className="ml-2 inline-flex items-center rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
-                    {offer.discountPercent}% OFF
-                  </span>
-                )}
-                {s.unit === "PANEL" ? " · per panel count" : ""}
+          </span>
+          <span className="flex flex-1 flex-col gap-1 p-4">
+            <span className="text-lg font-bold leading-tight text-foreground">{s.name}</span>
+            {detail && <span className="line-clamp-2 text-sm text-muted-foreground">{detail}</span>}
+            <span className="mt-auto flex items-center justify-between gap-3 pt-3">
+              <span className="text-base font-semibold tabular-nums text-foreground">
+                {"compareAtText" in offer && offer.compareAtText && <s className="mr-2 text-xs font-normal text-muted-foreground">{offer.compareAtText}</s>}
+                {offer.text}
+                {s.unit === "PANEL" ? " · per panel" : ""}
               </span>
-            </div>
-          </div>
-          <input
-            type="checkbox"
-            name="service"
-            value={s.id}
-            checked={Boolean(pick)}
-            disabled={locked}
-            onChange={() => togglePick(s)}
-            className="h-5 w-5 shrink-0 accent-primary"
-          />
+              <span aria-hidden="true" data-part="menu-add" className={"grid h-11 w-11 shrink-0 place-items-center rounded-full border " + (pick ? "border-primary bg-primary text-primary-foreground" : "border-input text-foreground")}>
+                {pick ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              </span>
+            </span>
+          </span>
+          <input type="checkbox" name="service" value={s.id} checked={Boolean(pick)} disabled={locked} onChange={() => togglePick(s)} className="sr-only" />
         </label>
-        {pick && s.unit === "PANEL" && (
-          <div className="mt-2 rounded-xl border border-border bg-muted p-4 lg:col-span-3">
-            <label htmlFor={"panels-" + s.id} className="block text-sm font-semibold text-foreground">
-              Number of panels for {s.name}
-            </label>
-            <input
-              id={"panels-" + s.id}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              aria-describedby={"panels-help-" + s.id}
-              value={panelDrafts[s.id] ?? String(pick.quantity)}
-              disabled={locked}
-              onChange={(e) => {
-                // W13: the field may be empty while typing; a count from 1 to 20 is applied at once.
-                const draft = e.target.value.replace(/\D/g, "").slice(0, 2);
-                setPanelDrafts((d) => ({ ...d, [s.id]: draft }));
-                const n = Number(draft);
-                if (n >= 1 && n <= 20) setQuantity(s.id, n);
-              }}
-              onBlur={() => {
-                const n = Number(panelDrafts[s.id]);
-                setQuantity(s.id, n >= 1 ? Math.min(20, n) : pick.quantity);
-                setPanelDrafts((d) => {
-                  const rest = { ...d };
-                  delete rest[s.id];
-                  return rest;
-                });
-              }}
-              className={control}
-            />
-            <p id={"panels-help-" + s.id} className="mt-1.5 text-sm text-muted-foreground">
-              1 to 20 panels.
-            </p>
-          </div>
-        )}
-        {extras.length > 0 && (
-          <fieldset className="ml-6 mt-2 space-y-2 border-l-2 border-primary/40 pl-4 lg:col-span-3">
-            <legend className="mb-2 text-sm font-semibold text-foreground">Extras for {s.name}</legend>
-            <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{extras.map((a) => renderService(a, true))}</ul>
-          </fieldset>
-        )}
+        {pick && s.unit === "PANEL" && renderPanels(s, pick)}
       </li>
     );
   };
 
-  // W3: categories first; one open at a time, each with its count, starting price and choices.
-  const renderCategories = () => {
+  const renderKioskMenu = () => {
     const available = bases.filter(offered);
     const hidden = bases.length - available.length;
-    const groups = CATEGORY_ORDER.map((category) => ({ category, services: available.filter((s) => s.category === category) })).filter(
-      (g) => g.services.length,
-    );
-    const fromText = (services: ServicePackage[]) => {
-      const offers = services.map((s) => ({ s, o: s.offers.find((o) => o.vehicleCategoryId === vehicleId) }));
-      const fixed = offers.filter(({ o }) => o?.onlineBooking === "PRICED" && o.unitPriceCentavos !== null).map(({ o }) => o!.unitPriceCentavos!);
-      if (fixed.length) return "from " + money(Math.min(...fixed));
-      const estimates = offers.map(({ s, o }) => o?.unitPriceCentavos ?? s.referenceUnitPriceCentavos).filter((c): c is number => c !== null);
-      return estimates.length ? "from about " + money(Math.min(...estimates)) : "price from the shop";
-    };
+    const groups = CATEGORY_ORDER.map((category) => ({ category, services: available.filter((s) => s.category === category) })).filter((g) => g.services.length);
+    const active = groups.find((g) => g.category === openCategory) ?? groups[0];
+    const extras = active ? [...new Map(active.services.flatMap(addOnsUnder).map((a) => [a.id, a])).values()] : [];
     return (
-      <div className="space-y-3">
-        {groups.map(({ category, services }) => {
-          const open = openCategory === category;
-          const chosen = lines.filter((l) => serviceById(l.serviceId)?.category === category).length;
-          const regionId = "category-" + category.toLowerCase();
-          return (
-            <section key={category} className="rounded-2xl border border-input bg-card">
-              <h2>
-                <button
-                  type="button"
-                  aria-expanded={open}
-                  aria-controls={regionId}
-                  onClick={() => setOpenCategory(open ? null : category)}
-                  className="flex min-h-[64px] w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span className="min-w-0">
-                    <span className="block text-base font-bold text-foreground">{CATEGORY_NAMES[category]}</span>
-                    <span className="block text-sm text-muted-foreground">
-                      {services.length} {services.length === 1 ? "service" : "services"} · {fromText(services)}
-                      {chosen ? <span className="font-semibold text-primary">{" · " + chosen + " chosen"}</span> : null}
-                    </span>
-                  </span>
-                  <ChevronDown aria-hidden="true" className={"h-5 w-5 shrink-0 text-primary transition-transform " + (open ? "rotate-180" : "")} />
-                </button>
-              </h2>
-              <div id={regionId} role="region" aria-label={CATEGORY_NAMES[category]} hidden={!open} className="border-t border-border p-3 sm:p-4">
-                {open && <ul className="space-y-3 lg:grid lg:grid-cols-3 lg:gap-3 lg:space-y-0">{services.map((s) => renderService(s))}</ul>}
-              </div>
-            </section>
-          );
-        })}
-        {hidden > 0 && (
-          <p className="text-sm text-muted-foreground">
-            {hidden} {hidden === 1 ? "service isn't" : "services aren't"} offered for {vehicle?.name}. Call the shop at {brandConfig.displayPhone} to ask.
-          </p>
+      <div className="grid items-start gap-6 md:grid-cols-[180px_minmax(0,1fr)] lg:grid-cols-[190px_minmax(0,1fr)_300px]">
+        <nav aria-label="Service categories" className="flex gap-2 overflow-x-auto md:sticky md:top-4 md:flex-col md:overflow-visible">
+          {groups.map(({ category }) => {
+            const current = active?.category === category;
+            const chosen = lines.filter((l) => serviceById(l.serviceId)?.category === category).length;
+            return (
+              <button key={category} type="button" data-part="menu-category" aria-pressed={current} onClick={() => setOpenCategory(category)}
+                className={"flex min-h-[64px] shrink-0 items-center justify-between gap-3 rounded-xl border px-4 text-left font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
+                  (current ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:border-primary")}>
+                {CATEGORY_NAMES[category]}
+                {chosen > 0 && <span className={"grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm tabular-nums " + (current ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground")}>{chosen}</span>}
+              </button>
+            );
+          })}
+        </nav>
+        {active && (
+          <section aria-labelledby="kiosk-menu-title" className="min-w-0">
+            <h2 id="kiosk-menu-title" data-part="menu-title" className="mb-4 text-2xl font-bold text-foreground">{CATEGORY_NAMES[active.category]}</h2>
+            <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">{active.services.map(renderKioskTile)}</ul>
+            {extras.length > 0 && (
+              <>
+                <h3 data-part="menu-title" className="mb-4 mt-8 text-xl font-bold text-foreground">Extras</h3>
+                <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">{extras.map(renderKioskTile)}</ul>
+              </>
+            )}
+            {hidden > 0 && (
+              <p className="mt-6 text-sm text-muted-foreground">
+                {hidden} {hidden === 1 ? "service isn't" : "services aren't"} offered for {vehicle?.name}. Call the shop at {brandConfig.displayPhone} to ask.
+              </p>
+            )}
+          </section>
         )}
+        <aside aria-label="Your order" className="rounded-2xl border border-border bg-card p-5 md:col-span-2 lg:sticky lg:top-4 lg:col-span-1">
+          <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Your order</p>
+          {renderOrderBody()}
+          <div className="mt-4 hidden space-y-2 lg:block [&>button]:w-full">{renderPrimary()}{renderBack()}</div>
+          <div className="hidden lg:block">{renderReason()}{renderNudge()}</div>
+        </aside>
       </div>
     );
   };
 
+  // When the question opens near the bottom (a phone), bring it above the bar; the page's scroll padding clears the bar.
+  const kindRef = React.useRef<HTMLFieldSetElement | null>(null);
+  const revealKind = React.useCallback((el: HTMLFieldSetElement | null) => {
+    kindRef.current = el;
+    if (!el) return;
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+    window.requestAnimationFrame(() => el.scrollIntoView({ block: "nearest", behavior }));
+  }, []);
+  // Online /book, tablet and up (CEO 2026-11-24): the choices sit on the chosen line itself, where its kinds of vehicle
+  // ("Fullsize SUV / Pick-up / Van") were written, so nothing moves. They cannot live inside the line's <label> (one
+  // control per label), so they are placed over it: at the written kinds, and again whenever the line resizes.
+  React.useEffect(() => {
+    const kind = kindRef.current;
+    const row = kind?.previousElementSibling;
+    const kinds = row?.querySelector<HTMLElement>('[data-part="vehicle-kinds"]');
+    const head = kinds?.parentElement?.firstElementChild;
+    if (kioskOnExit || !kind || !row || !kinds || !head) return;
+    const wide = window.matchMedia("(min-width: 768px)");
+    const place = () => {
+      kind.toggleAttribute("data-inline", wide.matches);
+      const parent = (kind.offsetParent ?? document.body) as HTMLElement;
+      const box = kinds.getBoundingClientRect();
+      const name = head.getBoundingClientRect(); // centred on the size's name, not the smaller text beside it
+      const frame = parent.getBoundingClientRect();
+      kind.style.setProperty("--kind-x", box.left - frame.left - parent.clientLeft + "px");
+      kind.style.setProperty("--kind-y", name.top + name.height / 2 - frame.top - parent.clientTop + "px");
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(row);
+    wide.addEventListener("change", place);
+    return () => {
+      observer.disconnect();
+      wide.removeEventListener("change", place);
+    };
+  }, [kioskOnExit, vehicleId, step, catalog]);
+
+  // Large and X-Large cover more than one kind of vehicle, so the chosen one asks which. Online /book shows it on the
+  // chosen size's line (CEO 2026-11-24); the kiosk shows it under the sizes.
+  const bodyLabel = (type: keyof typeof BODY_TYPE_LABEL) => (vehicle?.code === "XL" && type === "SUV" ? "Full-size SUV" : BODY_TYPE_LABEL[type]);
+  const renderBodyChoices = (className = "") =>
+    bodyChoices.length > 0 && (
+      <fieldset ref={revealKind} data-part="vehicle-kind" className={className}>
+        <legend className="text-base font-bold text-foreground">What kind of vehicle?</legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {bodyChoices.map((type) => (
+            <label
+              key={type}
+              className={
+                "inline-flex min-h-[44px] cursor-pointer items-center rounded-full border px-5 text-sm font-semibold transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring " +
+                (bodyType === type ? "border-primary bg-primary/10 text-foreground" : "border-input bg-card text-muted-foreground hover:border-primary")
+              }
+            >
+              <input
+                type="radio"
+                name="vehicle-body-type"
+                value={type}
+                checked={bodyType === type}
+                onChange={() => {
+                  setBodyType(type);
+                  setMessage("");
+                }}
+                className="sr-only"
+              />
+              {bodyLabel(type)}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    );
+
+  const renderOrderBody = () => (
+    <>
+          <div className="mt-2 flex items-center justify-between gap-3 border-b border-border pb-3">
+            <p className="font-bold text-foreground">{vehicle?.name}</p>
+            <button type="button" onClick={() => goTo(1)} disabled={locked} className={changeLink}>Change size</button>
+          </div>
+          {lines.length ? (
+            <ul className="divide-y divide-border/60">
+              {lines.map((l) => {
+                const s = serviceById(l.serviceId);
+                const priced = quoteLines.find((q) => q.serviceId === l.serviceId);
+                return (
+                  <li key={l.serviceId} className="flex items-center gap-2 py-3 text-sm">
+                    <span className="min-w-0 flex-1 break-words font-semibold text-foreground">{s?.name}{l.quantity > 1 ? ` × ${l.quantity}` : ""}</span>
+                    {priced ? <span className="tabular-nums text-muted-foreground">{lineAmount(priced)}</span> : <Skeleton className="h-4 w-16" />}
+                    {s && (
+                      <button type="button" onClick={() => togglePick(s)} disabled={locked} aria-label={"Remove " + s.name}
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <X aria-hidden="true" className="h-4 w-4" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="py-4 text-sm text-muted-foreground">{kioskOnExit ? "Tap a service to add it." : "Choose a service to add it."}</p>
+          )}
+          <div className="border-t border-border pt-3">
+            <p className="text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</p>
+            {total || !lines.length ? (
+              <p data-count="" className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground">{total ? total.amount : "—"}</p>
+            ) : (
+              <div role="status" className="py-1.5"><span className="sr-only">Pricing…</span><Skeleton className="h-8 w-40" /></div>
+            )}
+            {total?.note && <p className="mt-1 text-sm text-muted-foreground">{total.note}</p>}
+          </div>
+    </>
+  );
+
   const intro = [
     "Prices depend on the size of your vehicle.",
-    "Open a category to see its services. You can choose more than one.",
+    kioskOnExit ? "Tap a service to add it to your order. You can choose more than one." : "Choose a service to add it to your order. You can choose more than one.",
     arrivalWords(),
     "The shop uses these details to confirm your booking.",
     "",
   ][step - 1];
+  // Online: the shop photo faded in behind the menu. The last service added, else the open category, else the shop still.
+  // A kit shot (contain) is not a scene, so it falls back to its category's photo.
+  const scene = (slug: string) => { const p = landingPhoto(slug); return p && !p.contain ? p.src : undefined; };
+  const lastPick = step > 1 && picks.length ? serviceById(picks[picks.length - 1].serviceId) : undefined;
+  const featureSrc = (lastPick && (scene(lastPick.slug) ?? scene(KIOSK_CATEGORY_PHOTO[lastPick.category] ?? "")))
+    ?? (step > 1 && openCategory ? scene(KIOSK_CATEGORY_PHOTO[openCategory] ?? "") : undefined)
+    ?? HERO_POSTER_FILES.desktop;
   const statusWords = booking ? bookingStatusWords(booking.view.status) : "";
-  const stepLabel = STEP_LABELS[Math.min(step, 4) - 1];
-
-  // P1-52: the running total in the side panel, as big as the Manage booking reference.
-  const renderPanelTotal = () =>
-    step === 1 ? (
-      vehicle ? (
-        <>
-          <p className="text-sm text-muted-foreground">Vehicle size</p>
-          <p className="mt-0.5 text-lg font-bold leading-snug text-foreground">{vehicle.name}</p>
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground">Choose a size</p>
-      )
-    ) : lines.length ? (
-      <>
-        <p className="text-sm text-muted-foreground">{total?.label ?? "Estimated total"}</p>
-        <p className="mt-1 text-[clamp(28px,3.4vh,32px)] font-extrabold leading-none tracking-tight tabular-nums text-foreground">{total ? total.amount : "Pricing…"}</p>
-        {total?.note && <p className="mt-2 text-sm text-muted-foreground">{total.note}</p>}
-      </>
-    ) : (
-      <p className="text-sm text-muted-foreground">Nothing chosen yet</p>
-    );
 
   const ticket = booking
     ? {
@@ -932,6 +1090,8 @@ export function BookingWizard({
           <p className="font-semibold">{message}</p>
           {Object.entries(fieldErrors)
             .filter(([, errors]) => errors.join(" ") !== message)
+            // In the order the fields appear, so the summary reads like the form; unknown fields go last.
+            .sort(([a], [b]) => (FIELD_ORDER.indexOf(a) >>> 0) - (FIELD_ORDER.indexOf(b) >>> 0))
             .map(([field, errors]) => (
               <p key={field} className="mt-1">
                 <a className="inline-flex min-h-[44px] items-center underline" href={step === 4 ? "#" + field : "#booking-days"}>
@@ -942,9 +1102,30 @@ export function BookingWizard({
         </div>
       )}
 
-      {!catalog && !catalogError && (
-        <div role="status" className={panel}>
-          Loading the shop service menu…
+      {!catalog && !catalogError && !kioskOnExit && (
+        // Online: the size lines as skeletons (name and examples, price and ring) on the same hairlines.
+        <div role="status" aria-busy="true" data-part="skeleton-lines">
+          <span className="sr-only">Loading the shop service menu…</span>
+          {[62, 40, 52, 44, 58].map((width, i) => (
+            <div key={i} data-part="skeleton-line">
+              <span><Skeleton style={{ width: width + "%" }} /><Skeleton /></span>
+              <Skeleton />
+              <Skeleton />
+            </div>
+          ))}
+        </div>
+      )}
+      {!catalog && !catalogError && kioskOnExit && (
+        // The vehicle cards as skeletons while the service menu loads.
+        <div role="status" aria-busy="true" className="grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+          <span className="sr-only">Loading the shop service menu…</span>
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} data-part="skeleton-card" className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3">
+              <Skeleton className="h-[clamp(124px,21vh,208px)] rounded-xl" />
+              <Skeleton className="mx-1.5 h-5 w-2/3" />
+              <Skeleton className="mx-1.5 mb-1.5 h-4 w-1/2" />
+            </div>
+          ))}
         </div>
       )}
       {catalogError && (
@@ -967,79 +1148,86 @@ export function BookingWizard({
     ) : null;
 
   return (
-    <div className="wizard-root min-h-screen bg-background text-foreground">
+    <div className="wizard-root min-h-screen bg-background text-foreground" data-layout={kioskOnExit ? "kiosk" : "online"} data-nudge={nudging ? (nudge.n % 2 ? "a" : "b") : undefined}>
       <style>{printCss}</style>
+      {kioskOnExit && confirmEnd && !pending && step < 5 && <KioskEndDialog onKeep={() => setConfirmEnd(false)} onEnd={() => { setConfirmEnd(false); kioskOnExit(); }} />}
+      {kioskOnExit && kioskWarning !== null && !pending && step < 5 && (
+        <KioskIdleDialog deadline={kioskWarning} total={KIOSK_WARNING_MS} onKeep={() => kioskKeepBooking.current?.()} onEnd={kioskOnExit} />
+      )}
 
+      {!kioskOnExit && step < 5 && (
+        <div data-part="feature-photo" aria-hidden="true">
+          <Image key={featureSrc} src={featureSrc} alt="" fill sizes="(min-width: 768px) 62vw, 100vw" />
+        </div>
+      )}
       {step < 5 && (
-        <div className="lg:grid lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)]">
-          {/* P1-52 (LE 2026-11-06, mock C): the side panel. Desktop: logo, step, title, the build sheet, the big total and the
-              actions, kept in view. Phone: the same panel is the header (logo, segmented progress, step, title); the total
-              and the action sit in the bar at the bottom. */}
-          <div
-            data-part="panel"
-            className="no-print flex flex-col px-4 pb-4 pt-3 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-r lg:border-border lg:bg-muted lg:bg-[radial-gradient(120%_70%_at_0%_0%,rgb(var(--primary)/0.2),transparent_60%)] lg:px-9 lg:pb-[clamp(14px,3vh,32px)] lg:pt-[clamp(14px,2.6vh,28px)]"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Logo />
-              </Link>
-              {!locked && (
-                <Link href="/" aria-label="Cancel and return to home" className={pillLink + " h-11 w-11"}>
+        <div data-part="shell">
+          {/* The booking header (the kiosk ordering screen, LE): logo, the four steps on a gold rail, and End session on the
+              kiosk or Close online. The step heading sits under it. */}
+          <div data-part="panel" className="no-print">
+            <div className="grid grid-cols-2 items-center gap-3 border-b border-border bg-muted px-4 py-3 sm:px-8 lg:grid-cols-[1fr_auto_1fr]">
+              {kioskOnExit ? <Logo className="col-start-1 row-start-1" /> : (
+                <Link href="/" aria-label="Return to home" onClick={confirmLeave} className="col-start-1 row-start-1 inline-flex min-h-[44px] items-center justify-self-start rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Logo />
+                </Link>
+              )}
+              <ol aria-label="Booking steps" className="col-span-2 col-start-1 row-start-2 grid grid-cols-4 gap-2 sm:gap-3 lg:col-span-1 lg:col-start-2 lg:row-start-1">
+                {STEP_LABELS.map((label, index) => (
+                  <li key={label} aria-current={index + 1 === step ? "step" : undefined}
+                    className={"flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 text-center text-xs font-semibold sm:px-3 sm:text-sm " +
+                      (index + 1 === step ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+                    {/* Online, a finished step is a button back to it (Jakob's law: people click a step bar to go back). */}
+                    {index + 1 < step && !kioskOnExit && !locked ? (
+                      <button type="button" data-part="step-link" onClick={() => goTo(index + 1)}
+                        className="flex h-full w-full items-center justify-center gap-[inherit] rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span data-part="step-label">{label}</span>
+                      </button>
+                    ) : (
+                      <>
+                        {index + 1 < step ? <Check className="size-4 shrink-0 text-primary" aria-hidden="true" /> : <span data-part="step-number">{index + 1}</span>}
+                        <span data-part="step-label">{label}</span>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ol>
+              {kioskOnExit && !pending && (
+                <button type="button" data-part="end-session" onClick={() => setConfirmEnd(true)} className={pillLink + " col-start-2 row-start-1 justify-self-end px-4 lg:col-start-3"}>
+                  End session
+                </button>
+              )}
+              {!kioskOnExit && !locked && (
+                <Link
+                  href="/"
+                  aria-label="Cancel and return to home"
+                  onClick={confirmLeave}
+                  className={pillLink + " col-start-2 row-start-1 h-11 w-11 justify-self-end lg:col-start-3"}
+                >
                   <X aria-hidden="true" className="h-5 w-5" />
                 </Link>
               )}
             </div>
-            <div
-              role="progressbar"
-              aria-label="Booking progress"
-              aria-valuemin={1}
-              aria-valuemax={4}
-              aria-valuenow={step}
-              aria-valuetext={`Step ${step} of 4: ${stepLabel}`}
-              className="mt-3 grid grid-cols-4 gap-1 lg:hidden"
-            >
-              {STEP_LABELS.map((label, index) => (
-                <span
-                  key={label}
-                  aria-hidden="true"
-                  className={
-                    "h-1.5 rounded-full motion-safe:transition-colors motion-safe:duration-500 " +
-                    (index + 1 < step ? "bg-primary" : index + 1 === step ? "bg-gradient-to-r from-primary from-50% to-border to-50%" : "bg-border")
-                  }
-                />
-              ))}
-            </div>
-            <p className="mt-4 text-sm text-muted-foreground lg:mt-[clamp(10px,4.5vh,56px)]">
-              <strong className="font-bold text-primary">Step {step} of 4</strong> · {stepLabel}
-            </p>
-            <h1
-              id="wizard-step-title"
-              tabIndex={-1}
-              className="mt-1 scroll-mt-28 text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none lg:text-[clamp(28px,3.6vh,32px)] lg:leading-[1.1]"
-            >
-              {HEADINGS[step - 1]}
-            </h1>
-            {intro && <p className="mt-2 text-base text-muted-foreground lg:max-w-none lg:text-[clamp(14px,1.9vh,16px)]">{intro}</p>}
-            <div className="hidden lg:block">{renderSheet()}</div>
-            <div className="hidden flex-1 lg:block" />
-            <div className="hidden lg:block lg:pt-[clamp(8px,2vh,32px)]">
-              <div className="border-t-2 border-primary pt-4">{renderPanelTotal()}</div>
-              {showPrimary && (
-                <div className="mt-4 flex items-center gap-2">
-                  {renderBack()}
-                  <div className="min-w-0 flex-1 [&>button]:w-full">{renderPrimary()}</div>
-                </div>
-              )}
-              {renderReason()}
-            </div>
           </div>
 
-          <main
-            className={
-              "min-w-0 px-4 pb-40 pt-4 sm:px-6 lg:px-[clamp(24px,3.5vw,56px)] lg:pb-[clamp(16px,4vh,64px)] lg:pt-[clamp(16px,5vh,56px)]" +
-              (step === 1 ? " lg:flex lg:min-h-[100dvh] lg:flex-col lg:justify-center" : "")
-            }
-          >
+          {/* The step scrolls under the header: on a laptop, Your details scrolls in this pane, the header stays above it. */}
+          <div data-part="pane">
+            <div data-part="step-head" className="no-print mx-auto max-w-6xl px-4 pb-1 pt-7 sm:px-8 sm:pt-10 lg:pt-[clamp(16px,3vh,40px)]">
+              <h1
+                key={step}
+                id="wizard-step-title"
+                tabIndex={-1}
+                className="text-balance text-3xl font-extrabold leading-tight tracking-tight focus-visible:outline-none sm:text-5xl"
+              >
+                {/* Each word rises out of its own mask (React Bits SplitText, in CSS); the spaces stay real text. */}
+                {HEADINGS[step - 1].split(" ").map((word, i) => (
+                  <React.Fragment key={i}>{i > 0 && " "}<span data-part="title-word" style={{ "--w": i } as React.CSSProperties}><span>{word}</span></span></React.Fragment>
+                ))}
+              </h1>
+              {intro && <p className="mt-2 text-base text-muted-foreground">{intro}</p>}
+            </div>
+
+          <main className="mx-auto w-full px-4 pb-48 pt-6 sm:px-8 sm:pt-8 lg:pb-28 lg:pt-[clamp(12px,2.5vh,32px)]">
             <div className="mx-auto w-full max-w-[760px] lg:max-w-[1080px]">
               {notices}
 
@@ -1062,44 +1250,51 @@ export function BookingWizard({
                       </button>
                     </div>
                   )}
-                  <VehicleDrawingDefs />
+                  {/* Online /book shows the sizes as words only (CEO 2026-11-24); the kiosk keeps its drawings. */}
+                  {kioskOnExit && <VehicleDrawingDefs />}
                   <fieldset>
                     <legend className="sr-only">Vehicle size</legend>
-                    {/* P1-54 (LE 2026-11-06, mock M1): a card grid that uses the width: three tiles, then two wider ones. Phones: two columns. */}
-                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-6 lg:gap-[clamp(10px,1.8vh,16px)]">
-                      {catalog.vehicleCategories.map((v, index, all) => {
+                    {/* The cards share the row on a tablet or laptop (five sizes fit across); phones show two columns. */}
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+                      {catalog.vehicleCategories.map((v) => {
                         const name = splitSizeName(v.name);
                         const picked = vehicleId === v.id;
-                        const lastOdd = all.length % 2 === 1 && index === all.length - 1;
-                        const wide = all.length === 5 ? index >= 3 : all.length % 3 !== 0;
+                        const from = fromPrice(v.id);
                         return (
+                          <React.Fragment key={v.id}>
                           <label
-                            key={v.id}
+                            data-part="vehicle-card"
                             className={
-                              "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors [--ic:64px] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background sm:[--ic:88px] lg:[--ic:clamp(64px,13vh,120px)] " +
-                              (lastOdd ? "col-span-2 " : "") +
-                              (wide ? "lg:col-span-3 " : "lg:col-span-2 ") +
+                              "relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background " +
+                              // The drawing follows the screen height, so step 1 fits a 650 px laptop screen and still fills a tablet.
+                              "[--ic:clamp(64px,12vh,160px)] " +
                               (picked ? "border-primary bg-primary/10 shadow-[inset_0_0_0_1px_rgb(var(--primary))]" : "border-input bg-card hover:border-primary")
                             }
                           >
-                            <span
-                              data-part="vehicle-mark"
-                              className={
-                                "grid h-[calc(var(--ic)*1.3)] place-items-center rounded-xl " +
-                                (picked ? "bg-[radial-gradient(circle_at_50%_30%,#2b2210,#0d0d0e)]" : "bg-[radial-gradient(circle_at_50%_30%,#1d1a14,#0d0d0e)]")
-                              }
-                            >
-                              <VehicleDrawing code={v.code} className="h-[var(--ic)] w-[var(--ic)]" />
-                            </span>
+                            {kioskOnExit && (
+                              <span
+                                data-part="vehicle-mark"
+                                className={
+                                  "grid h-[calc(var(--ic)*1.3)] place-items-center rounded-xl " +
+                                  (picked ? "bg-[radial-gradient(circle_at_50%_30%,#2b2210,#0d0d0e)]" : "bg-[radial-gradient(circle_at_50%_30%,#1d1a14,#0d0d0e)]")
+                                }
+                              >
+                                <VehicleDrawing code={v.code} className="h-[var(--ic)] w-[var(--ic)]" />
+                              </span>
+                            )}
                             <span className="block px-1.5 pb-1.5">
                               <span className="block text-base font-extrabold leading-tight text-foreground lg:text-lg">{name.head}</span>
                               {name.tail && (
                                 <>
                                   <span className="sr-only"> · </span>
-                                  <span className="block text-sm leading-snug text-muted-foreground">{name.tail}</span>
+                                  <span data-part="vehicle-kinds" className="block text-sm leading-snug text-muted-foreground">{name.tail}</span>
                                 </>
                               )}
-                              {v.description && <span className="block text-sm text-muted-foreground">{v.description}</span>}
+                              {v.description && <span data-part="vehicle-description" className="block text-sm text-muted-foreground lg:line-clamp-2">{v.description}</span>}
+                              {from && <span data-part="vehicle-from" className="mt-2 block text-sm font-semibold tabular-nums text-primary">from {from}</span>}
+                              {!kioskOnExit && SIZE_EXAMPLES[v.code] && (
+                                <span data-part="vehicle-examples" className="block text-sm text-muted-foreground">{SIZE_EXAMPLES[v.code]}</span>
+                              )}
                             </span>
                             <input
                               type="radio"
@@ -1114,50 +1309,24 @@ export function BookingWizard({
                               className="absolute right-[22px] top-[22px] h-5 w-5 accent-primary"
                             />
                           </label>
+                          {!kioskOnExit && picked && renderBodyChoices()}
+                          </React.Fragment>
                         );
                       })}
                     </div>
                   </fieldset>
-                  {bodyChoices.length > 0 && (
-                    <fieldset className="mt-5">
-                      <legend className="text-base font-bold text-foreground">What kind of vehicle?</legend>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {bodyChoices.map((type) => (
-                          <label
-                            key={type}
-                            className={
-                              "inline-flex min-h-[44px] cursor-pointer items-center rounded-full border px-5 text-sm font-semibold transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring " +
-                              (bodyType === type ? "border-primary bg-primary/10 text-foreground" : "border-input bg-card text-muted-foreground hover:border-primary")
-                            }
-                          >
-                            <input
-                              type="radio"
-                              name="vehicle-body-type"
-                              value={type}
-                              checked={bodyType === type}
-                              onChange={() => {
-                                setBodyType(type);
-                                setMessage("");
-                              }}
-                              className="sr-only"
-                            />
-                            {vehicle?.code === "XL" && type === "SUV" ? "Full-size SUV" : BODY_TYPE_LABEL[type]}
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
-                  )}
+                  {kioskOnExit && renderBodyChoices("mt-5")}
                 </div>
               )}
 
               {/* Steps 2-4 */}
               {catalog && step >= 2 && step <= 4 && (
                 <div className="min-w-0">
-                  {step < 4 && renderMobileSummaryTray()}
+                  {step === 3 && renderMobileSummaryTray()}
 
                   {step === 2 && (
                     <div className="space-y-6">
-                      {renderCategories()}
+                      {renderKioskMenu()}
                       {quoteState?.key === selectionKey && quoteState.error && (
                         <div role="alert" className="text-sm text-destructive">
                           <p>{quoteState.error}</p>
@@ -1192,6 +1361,7 @@ export function BookingWizard({
                   {step === 4 && (
                     <form
                       id="booking-details"
+                      autoComplete={kioskOnExit ? "off" : undefined}
                       noValidate
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -1223,7 +1393,7 @@ export function BookingWizard({
                                   id="customerFirstName"
                                   name="customerFirstName"
                                   type="text"
-                                  autoComplete="given-name"
+                                  autoComplete={kioskOnExit ? "off" : "given-name"}
                                   enterKeyHint="next"
                                   maxLength={50}
                                   value={form.customerFirstName}
@@ -1250,7 +1420,7 @@ export function BookingWizard({
                                   id="customerLastName"
                                   name="customerLastName"
                                   type="text"
-                                  autoComplete="family-name"
+                                  autoComplete={kioskOnExit ? "off" : "family-name"}
                                   enterKeyHint="next"
                                   maxLength={50}
                                   value={form.customerLastName}
@@ -1280,7 +1450,7 @@ export function BookingWizard({
                                 name="customerPhone"
                                 type="tel"
                                 inputMode="tel"
-                                autoComplete="tel"
+                                autoComplete={kioskOnExit ? "off" : "tel"}
                                 enterKeyHint="next"
                                 maxLength={32}
                                 value={form.customerPhone}
@@ -1309,7 +1479,7 @@ export function BookingWizard({
                                 name="customerEmail"
                                 type="email"
                                 inputMode="email"
-                                autoComplete="email"
+                                autoComplete={kioskOnExit ? "off" : "email"}
                                 enterKeyHint="next"
                                 maxLength={254}
                                 value={form.customerEmail}
@@ -1469,7 +1639,9 @@ export function BookingWizard({
                         </div>
 
                         {/* One Submit on this step (LE 2026-11-06, safe default): the review sits under the fields, the security check
-                            under the review, and the Submit button is the panel's action (the bar on phones). */}
+                            under the review, and the Submit button is the panel's action (the bar on phones). Online laptops pin
+                            this pair beside a one-column form (CEO 2026-11-27, checkout layout); kiosk keeps them side by side. */}
+                        <div data-part="details-aside" className="space-y-8 lg:col-span-2 lg:grid lg:grid-cols-2 lg:gap-x-[clamp(24px,3vw,48px)] lg:space-y-0">
                         <section data-part="review" aria-labelledby="review-title" className="rounded-2xl border border-border bg-card p-4 sm:p-6">
                           <h2 id="review-title" className="text-base font-bold text-foreground">
                             Check your booking
@@ -1495,32 +1667,35 @@ export function BookingWizard({
                               </p>
                             )}
                           </div>
+                          {challengeReason && <p className="mt-1.5 text-sm text-muted-foreground" role="status">{challengeReason}</p>}
                           {errorFor("turnstileToken") && errorFor("turnstileToken") !== message && (
                             <p className="mt-1.5 text-sm text-destructive">{errorFor("turnstileToken")}</p>
                           )}
+                          {/* Under the security check, so it is read right before Submit. */}
+                          <p className="mt-6 text-sm text-muted-foreground">
+                            Sending adds your car to that day&apos;s list as a request. The shop reviews it and contacts you to confirm.
+                          </p>
+                        </div>
                         </div>
                         </div>
                       </fieldset>
-
-                      <p className="mt-6 text-sm text-muted-foreground">
-                        Sending adds your car to that day&apos;s list as a request. The shop reviews it and contacts you to confirm.
-                      </p>
                     </form>
                   )}
                 </div>
               )}
             </div>
           </main>
+          </div>
         </div>
       )}
 
       {/* Step 5: booking received (L10), as a ticket like Manage booking: status and next step, then how to manage it, then help */}
       {step === 5 && ticket && booking && (
-        <div className="mx-auto max-w-3xl px-4 pb-14 pt-3 sm:px-6">
+        <div data-part="confirmation" className="mx-auto max-w-3xl px-4 pb-14 pt-3 sm:px-6">
           <header className="no-print flex items-center justify-between gap-3">
-            <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {kioskOnExit ? <Logo /> : <Link href="/" aria-label="Return to home" className="inline-flex min-h-[44px] items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <Logo />
-            </Link>
+            </Link>}
           </header>
           <div className="mt-6 flex items-center gap-4">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
@@ -1534,13 +1709,13 @@ export function BookingWizard({
             <BookingTicket
               booking={ticket}
               copied={copied}
-              onCopy={copyReference}
-              onPrint={() => {
+              onCopy={kioskOnExit ? undefined : copyReference}
+              onPrint={kioskOnExit ? undefined : () => {
                 if (typeof window !== "undefined") window.print();
               }}
             />
 
-            <ManagementCode referenceCode={booking.view.referenceCode} bookingDate={booking.view.bookingDate} access={booking.access} />
+            {!kioskOnExit && <ManagementCode referenceCode={booking.view.referenceCode} bookingDate={booking.view.bookingDate} access={booking.access} />}
 
             <details className={`${panel} no-print`}>
               <summary className="flex min-h-[44px] cursor-pointer items-center text-base font-bold text-foreground">
@@ -1551,7 +1726,7 @@ export function BookingWizard({
               </div>
             </details>
 
-            <div className={`${panel} no-print`}>
+            {!kioskOnExit && <div className={`${panel} no-print`}>
               <h2 className="text-base font-bold text-foreground">Questions about this booking?</h2>
               <p className="mt-1 text-sm text-muted-foreground">{brandConfig.address}</p>
               <div className="mt-3 flex flex-wrap gap-3">
@@ -1572,28 +1747,49 @@ export function BookingWizard({
                   Message us on Messenger
                 </a>
               </div>
-            </div>
+            </div>}
 
-            <Link href="/" className={outlineButton + " min-h-[44px] no-print"}>
+            {kioskOnExit ? (
+              <button type="button" onClick={kioskOnExit} className={outlineButton + " " + actionHeight}>
+                Next customer
+              </button>
+            ) : <Link href="/" className={outlineButton + " min-h-[44px] no-print"}>
               Return to home
-            </Link>
+            </Link>}
           </div>
         </div>
       )}
 
-      {/* L1: on phones the running total and the main action stay under the thumb. */}
+      {/* L1: the running order and the main action stay under the thumb. */}
       {step < 5 && (
         <div
           id="wizard-action-bar"
-          className="wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur lg:hidden"
+          className={"wizard-footer no-print fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-primary/40 bg-muted/95 px-4 py-3 backdrop-blur " + "sm:px-8" + (step === 2 ? " lg:hidden" : "")}
+          onKeyDown={(event) => { if (event.key === "Escape" && orderOpen) setOrderOpenAt(0); }}
         >
+          {/* Online: the order (each service with its price and a way to remove it) slides up from the bar when asked for. */}
+          {!kioskOnExit && orderOpen && lines.length > 0 && (
+            <div id="order-sheet" data-part="order-sheet" role="region" aria-label="Your order" className="mx-auto mb-3 max-h-[50vh] max-w-5xl overflow-y-auto border-b border-border pb-3">
+              {renderOrderBody()}
+            </div>
+          )}
           {/* One row: Back, total, action. On phones (below 480 px): total and Back, then the action full width, so the
               total is never squeezed out. */}
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2">
             <div className="order-2 min-[480px]:order-1">{renderBack()}</div>
-            <div className="order-1 min-w-0 flex-1 text-left min-[480px]:order-2 min-[480px]:text-right">{renderTotal()}</div>
+            <div className="order-1 min-w-0 flex-1 text-left min-[480px]:order-2 min-[480px]:text-right">
+              {kioskOnExit || !lines.length ? renderKioskOrder() : (
+                <button type="button" data-part="order-toggle" aria-expanded={orderOpen} aria-controls="order-sheet" onClick={() => setOrderOpenAt(orderOpen ? 0 : step)}
+                  className="flex w-full min-w-0 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-[480px]:justify-end min-[480px]:text-right">
+                  <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-input">
+                    <ChevronUp className={"h-4 w-4 transition-transform " + (orderOpen ? "rotate-180" : "")} />
+                  </span>
+                  <span className="block min-w-0">{renderKioskOrder()}</span>
+                </button>
+              )}
+            </div>
             {showPrimary && (
-              <div className="order-3 basis-full min-[480px]:basis-auto [&>button]:w-full min-[480px]:[&>button]:w-auto">{renderPrimary()}</div>
+              <div className="order-3 basis-full min-[480px]:basis-auto [&>button]:w-full min-[480px]:[&>button]:w-auto">{renderPrimary()}{renderNudge()}</div>
             )}
           </div>
           {renderReason()}

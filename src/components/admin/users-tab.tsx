@@ -14,6 +14,7 @@ import {
   UserX,
   X,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import type { AdminUser, AdminUserCreateResult, AdminUserResetPasswordResult } from "@/types/admin-contracts";
 import type { UserRole } from "@/types/contracts";
@@ -59,6 +60,13 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
   // Reset password state
   const [resetSaving, setResetSaving] = React.useState(false);
   const [resetError, setResetError] = React.useState<string | null>(null);
+
+  // Delete state
+  const [deleteTarget, setDeleteTarget] = React.useState<AdminUser | null>(null);
+  const [deleteSaving, setDeleteSaving] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = React.useState("");
+  const deleteMatches = !!deleteTarget && deleteConfirm.trim().toLowerCase() === deleteTarget.email.toLowerCase();
 
   // Copy state for temp password
   const [copied, setCopied] = React.useState(false);
@@ -170,6 +178,29 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
       }
     } finally {
       setResetSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !deleteMatches) return;
+    setDeleteSaving(true);
+    setDeleteError(null);
+
+    try {
+      await adminRequest(`/api/admin/users/${deleteTarget.id}/delete`, {
+        method: "POST",
+        body: { expectedRevision: deleteTarget.revision, confirmEmail: deleteConfirm },
+      });
+      setDeleteTarget(null);
+      resource.reload();
+    } catch (err) {
+      if (err instanceof AdminRequestError) {
+        setDeleteError(err.fieldErrors.confirmEmail?.[0] ?? err.message);
+      } else {
+        setDeleteError("Failed to delete account. Please retry.");
+      }
+    } finally {
+      setDeleteSaving(false);
     }
   };
 
@@ -313,6 +344,19 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
                     >
                       <KeyRound className="h-3.5 w-3.5" /> Reset Password
                     </button>
+                    {!isCurrent && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteTarget(u);
+                          setDeleteConfirm("");
+                          setDeleteError(null);
+                        }}
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-border bg-panel px-3 py-1.5 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:border-rose-500/30"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Delete
+                      </button>
+                    )}
                   </div>
                 </li>
               );
@@ -626,6 +670,81 @@ export function UsersTab({ role, currentUserId }: UsersTabProps) {
               >
                 {resetSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Reset & Generate Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Confirmation Modal */}
+      {deleteTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-account-title"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4 sm:p-6 grid place-items-center"
+        >
+          <div className="relative my-auto w-full max-w-md max-h-[calc(100vh-3rem)] rounded-xl border border-border bg-card p-6 shadow-2xl overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-border">
+              <h3 id="delete-account-title" className="text-base font-bold text-foreground">
+                Delete Account
+              </h3>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded p-1 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {deleteError && (
+                <div className="flex items-start gap-2 rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-xs text-rose-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
+
+              <p className="text-xs text-foreground">
+                Are you sure you want to delete the account for{" "}
+                <span className="font-bold text-primary">{deleteTarget.name}</span> ({deleteTarget.email})?
+              </p>
+              <p className="text-xs text-muted-foreground">
+                They will be signed out immediately and can no longer sign in. Their name, email, phone and password are erased; past records will show &quot;Deleted user&quot;. This cannot be undone.
+              </p>
+              <div>
+                <label htmlFor="delete-confirm-email" className="block text-xs font-semibold text-muted-foreground">
+                  Type <span className="font-bold text-foreground">{deleteTarget.email}</span> to confirm
+                </label>
+                <input
+                  id="delete-confirm-email"
+                  type="email"
+                  autoComplete="off"
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  className="mt-1 w-full rounded border border-border bg-panel px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteSaving}
+                className="rounded px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleteSaving || !deleteMatches}
+                className="inline-flex items-center gap-2 rounded bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-50"
+              >
+                {deleteSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Delete Account
               </button>
             </div>
           </div>

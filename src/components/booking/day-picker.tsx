@@ -2,6 +2,7 @@
 
 import { AlertCircle, CalendarDays, Check, ChevronLeft, MessageSquare, Phone } from "lucide-react";
 import { brandConfig } from "@/config/brand";
+import { Skeleton } from "@/components/ui/skeleton";
 import { dayStateLabel } from "@/components/booking/day-booking";
 import type { PublicDay } from "@/types/contracts";
 
@@ -103,7 +104,7 @@ export function DayPicker({ data, error, onRetry, selected, onSelect, fromDate, 
         <div role="status" className="mt-6 grid grid-cols-7 gap-1.5 sm:gap-2">
           <span className="sr-only">Loading days</span>
           {Array.from({ length: 14 }, (_, i) => (
-            <div key={i} className="h-16 rounded-xl bg-muted motion-safe:animate-pulse" />
+            <Skeleton key={i} className="h-16 rounded-xl" />
           ))}
         </div>
       )}

@@ -12,8 +12,11 @@ import {
 
 gsap.registerPlugin(useGSAP);
 type PrepaintWindow = Window & { __zeusHomeIntroRelease?: () => void };
+export type IntroMotion = (root: HTMLElement, finish: () => void) => () => void;
+const loadHomeMotion = async (): Promise<IntroMotion> => (await import("./home-intro-motion")).playHomeIntro;
 
-export function HomeIntro({ children }: { children: ReactNode }) {
+// loadMotion lets another page (the landing preview) play its own timeline on the same curtain, session and fallbacks.
+export function HomeIntro({ children, loadMotion = loadHomeMotion }: { children: ReactNode; loadMotion?: () => Promise<IntroMotion> }) {
   const root = useRef<HTMLDivElement>(null);
   useGSAP((context) => {
     const element = root.current!;
@@ -50,7 +53,7 @@ export function HomeIntro({ children }: { children: ReactNode }) {
         // Play only when the pre-paint script showed the curtain for this tab and nothing has released it since:
         // Escape or a click before this script loaded, or the CSS fallback about to time out.
         if (!pending() || media.matches || sessionStorage.getItem(HOME_INTRO_SESSION_KEY) || performance.now() > HOME_INTRO_LATEST_START_MS) return finish();
-        const { playHomeIntro } = await import("./home-intro-motion");
+        const playIntro = await loadMotion();
         if (disposed) return;
         if (cancelled || media.matches || !pending() || performance.now() > HOME_INTRO_LATEST_START_MS) return finish();
         sessionStorage.setItem(HOME_INTRO_SESSION_KEY, "seen");
@@ -66,7 +69,7 @@ export function HomeIntro({ children }: { children: ReactNode }) {
           element.dataset.homeIntro = "running";
           // Keep keyboard focus in context while the content is inert; finish() hands it back.
           if (returnFocus) curtain.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-          cleanupMotion = playHomeIntro(element, finish);
+          cleanupMotion = playIntro(element, finish);
         });
       } catch { finish(); }
     }, 0);

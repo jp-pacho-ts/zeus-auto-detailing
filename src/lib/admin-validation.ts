@@ -273,6 +273,12 @@ export const CommissionListSchema = z
   .refine((v) => v.to >= v.from, { message: "The end day can't be before the start day.", path: ["to"] })
   .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 <= 365, { message: "Choose a range of one year or less.", path: ["to"] });
 // A signed whole-centavo correction to one person's commission (never zero, at most 10 billion pesos), with a reason.
+export const BookingDeductionCorrectionSchema = z.object({
+  lineId: AdminIdSchema,
+  deductionCentavos: z.number().int().min(0).max(100_000_000),
+  expected: z.string().regex(/^[a-f0-9]{32}$/).optional(),
+}).strict();
+
 export const CommissionAdjustSchema = z
   .object({
     id: Id, // made by the browser once per form, so a retry after a lost response cannot record the adjustment twice
@@ -355,11 +361,13 @@ export const ExpenseRestoreSchema = z.object({ expectedRevision: Revision }).str
 export const ExpenseMonthSchema = z
   .object({
     month: z.string().regex(/^20[0-9]{2}-(0[1-9]|1[0-2])$/, "Use a month like 2026-11."),
+    from: LocalDateSchema.optional(),
+    to: LocalDateSchema.optional(),
     categoryId: Id.optional(),
     includeRemoved: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
     cursor: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{1,18}$/).refine((c) => LocalDateSchema.safeParse(c.split("_")[0]).success).optional(),
   })
-  .strict();
+  .strict().refine((v) => (!v.from && !v.to) || Boolean(v.from && v.to && v.from <= v.to && Date.parse(v.to) - Date.parse(v.from) <= 365 * 86400000), "Choose a complete date range of one year or less.");
 export const ExpenseTotalsSchema = z.object({ from: LocalDateSchema, to: LocalDateSchema }).strict().refine((v) => v.from <= v.to, "The first day must not be after the last day.");
 const ExpenseCategoryName = z.string().trim().min(1, "Enter a name.").max(40, "Use 40 characters or fewer.").refine((v) => !isReservedCategoryName(v), "That name is used by the automatic lines. Choose another.");
 export const ExpenseCategoryCreateSchema = z.object({ id: Id, name: ExpenseCategoryName }).strict();
@@ -400,6 +408,10 @@ export const EmailSwitchSchema = z
   .object({ expectedRevision: Revision, kind: z.enum(["confirmation", "reminder", "car_ready", "shop_alerts"]), enabled: z.boolean() })
   .strict();
 
+// P1-78: the notification preview takes only the kind; the test email takes an empty object, so no input can name a recipient.
+export const EmailPreviewQuerySchema = z.object({ kind: z.enum(["confirmation", "reminder", "car_ready", "turn_notice"]) }).strict();
+export const TestEmailSchema = z.object({}).strict();
+
 // P1-41: User management and password change
 export const UserRoleSchema = z.enum(["SUPERADMIN", "ADMIN"]);
 
@@ -424,6 +436,11 @@ export const UserUpdateSchema = z
   .strict();
 
 export const UserResetPasswordSchema = z.object({}).strict().optional().default({});
+
+// confirmEmail: the admin types the account's email to confirm; the database compares it to the stored one.
+export const UserDeleteSchema = z
+  .object({ expectedRevision: Revision, confirmEmail: z.string().trim().min(1, "Type the account's email to confirm.").max(120) })
+  .strict();
 
 export const UserChangePasswordSchema = z
   .object({
@@ -470,7 +487,10 @@ const SizeCommissionSchema = z.object({
   rateBp: z.number().int().min(0).max(10_000).nullable().optional(),
   fixedCentavos: z.number().int().min(0).max(100_000_000).nullable().optional(),
 }).strict();
+const DeductionAmount = z.number().int().min(0).max(100_000_000).optional();
 const SizeCommissionFields = {
+  sizeDeductions: z.object({ MOTOR: DeductionAmount, S: DeductionAmount, M: DeductionAmount, L: DeductionAmount, XL: DeductionAmount }).strict().optional(),
+  expenseDeductionCentavos: z.number().int().min(0).max(100_000_000).optional(),
   commissionMode: z.enum(["SIZE_PERCENT", "SIZE_FIXED"]).nullable().optional(),
   sizeCommissions: z.array(SizeCommissionSchema).max(5).optional(),
 };
