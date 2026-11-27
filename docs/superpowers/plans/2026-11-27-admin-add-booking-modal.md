@@ -27,8 +27,8 @@ reuses the catalog, availability and day-picker pieces the wizard already uses.
 ## Review focus
 
 1. **Legacy ledger rows with a NULL `clientHash` must still count** toward the public budgets
-   once admin rows are excluded. Filter in JS (`!r.clientHash?.startsWith("admin:")`), never
-   with SQL `NOT LIKE`, which drops NULLs. Pinned in Task 2, test 2.
+   once admin rows are excluded. Filter in JS (`r.clientHash !== ADMIN_CLIENT_HASH`), never
+   with SQL `<>`/`NOT LIKE`, which drops NULLs. Pinned in Task 2, test 2.
 2. **Admin edits after a refusal (for example a full day) and saves again.** The same
    idempotency key with a different body gives IDEMPOTENCY_CONFLICT. The modal makes a new key
    after any definite refusal, and reuses it only for RETRYABLE or network failures. Pinned in
@@ -48,7 +48,7 @@ reuses the catalog, availability and day-picker pieces the wizard already uses.
 - Modify: `src/lib/validation.ts:96-108`
 - Modify: `src/components/booking/day-booking.ts` (`createDayRequest`)
 - Modify: `src/types/contracts.ts:215`
-- Test: `src/components/booking/booking-wizard.test.ts` (holds the `createDayRequest` tests). Add the cases there.
+- Test: `src/components/booking/day-booking.test.ts` (holds the `createDayRequest` tests)
 
 **Interfaces:**
 - Produces: `CreateAdminDayBookingSchema` (zod, strict, has no `turnstileToken`),
@@ -56,7 +56,7 @@ reuses the catalog, availability and day-picker pieces the wizard already uses.
   `createAdminDayRequest({ form, quote, bookingDate, idempotencyKey }) -> { ok: true; data: CreateAdminDayBookingRequest } | { ok: false; fieldErrors }`.
 
 - [ ] Test: `createAdminDayRequest` with a valid form gives `ok`, with no `turnstileToken` key. `CreateAdminDayBookingSchema` refuses the same body plus `turnstileToken`. `CreateDayBookingSchema` still refuses a body with no `turnstileToken`. An empty first name gives `fieldErrors.customerFirstName`.
-- [ ] Run `node --require ./src/server/__tests__/register.cjs --test src/components/booking/booking-wizard.test.ts`. Expect FAIL: the export is missing.
+- [ ] Run `node --require ./src/server/__tests__/register.cjs --test src/components/booking/day-booking.test.ts`. Expect FAIL: the export is missing.
 - [ ] Implement it. Move the body of `CreateDayBookingSchema` (without `turnstileToken`) into a `dayBookingFields` object, and its refinement into `refineDayBooking`. Build both schemas as `.extend(...)`, `.strict()`, `.superRefine(refineDayBooking)` and `.transform(withComposedName)`. In `day-booking.ts`, extract the shared field mapping and error mapping. `createAdminDayRequest` adds no payment tag.
 - [ ] Run again. Expect PASS. Run typecheck.
 - [ ] Commit `feat(booking): admin day-booking request schema without a challenge token`.
@@ -69,16 +69,17 @@ reuses the catalog, availability and day-picker pieces the wizard already uses.
   pattern from `bookings-create.integration.test.ts:73-110`.
 
 **Interfaces:**
-- Produces: `createAdminDayBooking(staffId: string, input: unknown, options?: Omit<CreateDayBookingOptions, "headers" | "turnstileEndpoint">): Promise<BookingCommit>`
-  and `ADMIN_CLIENT_PREFIX = "admin:"`.
+- Produces: `createAdminDayBooking(input: unknown, options?: Omit<CreateDayBookingOptions, "headers" | "turnstileEndpoint">): Promise<BookingCommit>`
+  and `ADMIN_CLIENT_HASH = sha256("zeus-admin-walk-in")`. This is a fixed 64-hex marker,
+  because the `operation_shape` CHECK refuses any other `clientHash` shape.
 
 Admin mode, in one shared function that `createDayBooking` and `createAdminDayBooking` both call:
 - **Skips:** `checkBookingOrigin`, `trustedClientKey` and `enterBooking`, with
-  `clientHash = "admin:" + sha256(staffId)`. Also the preflight budget and pause, `verifyTurnstile`,
+  `clientHash = ADMIN_CLIENT_HASH`. Also the preflight budget and pause, `verifyTurnstile`,
   the in-transaction pause and the per-client budget, the Turnstile reuse check, `rejectionBudget`,
   the shop `dailyBudget`, and every `bookingTurnstileUse` insert.
 - **Phone rule wording:** "This phone number already has 2 active bookings."
-- **`counts()`:** drops rows whose `clientHash` starts with `ADMIN_CLIENT_PREFIX`, filtered in JS.
+- **`counts()`:** drops rows whose `clientHash` equals `ADMIN_CLIENT_HASH`, filtered in JS.
 
 - [ ] Write the tests. Each uses its own fixture suffix.
   1. `admin books while paused (env and database) with no token: PENDING, queue position, one email, no turnstile row`.

@@ -71,7 +71,8 @@ booking engine and skips only those stranger checks.
 2. **One engine, two entry points.** Split `createDayBooking`
    (`src/server/bookings-create.ts`) so the commit transaction is shared. The public
    `createDayBooking(input, options)` must behave exactly as today, and every existing
-   test must pass unchanged. Add `createAdminDayBooking(actor, input, options)`.
+   test must pass unchanged. Add `createAdminDayBooking(input, options)`. Only the admin
+   service calls it, after it has authorized the session.
 3. **Admin input schema.** Use `CreateDayBookingSchema` without `turnstileToken`, and
    keep everything else, including the quote-match refinement and the name rules. The
    current schema applies `.superRefine`/`.transform` after `.extend`, so build both
@@ -92,9 +93,14 @@ booking engine and skips only those stranger checks.
    - The phone-rule message on the admin path reads "This phone number already has 2
      active bookings." The public "call the shop" wording makes no sense to the shop.
 6. **Ledger row.** The admin `BookingOperation` gets a `clientHash` that marks it as
-   admin-made. Proposed: `"admin:" + sha256(staffId)`. No database constraint exists on
-   `client_hash`, and other readers only compare it for equality (checked 2026-11-27). `counts()` excludes these rows, so admin bookings
-   never use up the online per-client or shop daily budget. *(Builder's call, flagged to the CEO.)*
+   admin-made: one fixed marker, `ADMIN_CLIENT_HASH = sha256("zeus-admin-walk-in")`.
+   *Corrected during the build:* the `operation_shape` CHECK allows only a 64-hex sha256 or
+   NULL in `"clientHash"`, so an `"admin:"` prefix would be refused. The earlier note that no
+   constraint existed was wrong, because the grep used the wrong column spelling. No
+   trusted client key (a normalized IP, `local` or `untrusted`) hashes to the marker.
+   `counts()` excludes these rows, filtering in JS so that NULL legacy rows still count. Admin
+   bookings never use up the online per-client or shop daily budget. *(Builder's call,
+   flagged to the CEO.)* Which admin made the booking goes to the `admin.booking.created` log only.
 7. **Credentials.** Mint them as today, because replay depends on them. The admin
    response returns the booking view only: no `managementAccess` and no session cookie.
 8. **Route.** Add `POST` to `src/app/api/admin/bookings/route.ts` through
