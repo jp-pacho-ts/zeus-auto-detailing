@@ -92,8 +92,8 @@ booking engine and skips only those stranger checks.
    - The phone-rule message on the admin path reads "This phone number already has 2
      active bookings." The public "call the shop" wording makes no sense to the shop.
 6. **Ledger row.** The admin `BookingOperation` gets a `clientHash` that marks it as
-   admin-made. Proposed: `"admin:" + sha256(staffId)`. Check first whether any constraint
-   or reader assumes the hash format. `counts()` excludes these rows, so admin bookings
+   admin-made. Proposed: `"admin:" + sha256(staffId)`. No database constraint exists on
+   `client_hash`, and other readers only compare it for equality (checked 2026-11-27). `counts()` excludes these rows, so admin bookings
    never use up the online per-client or shop daily budget. *(Builder's call, flagged to the CEO.)*
 7. **Credentials.** Mint them as today, because replay depends on them. The admin
    response returns the booking view only: no `managementAccess` and no session cookie.
