@@ -1,8 +1,8 @@
 // Pure rules for the queue-model booking wizard (ADR-005, P1-03 create v4). Prices shown here
 // are the catalog's own; the server-signed quote stays the authority for every total.
 import { brandConfig } from "@/config/brand";
-import { CreateDayBookingSchema } from "@/lib/validation";
-import type { CreateDayBookingRequest, PublicDayState } from "@/types/contracts";
+import { CreateAdminDayBookingSchema, CreateDayBookingSchema } from "@/lib/validation";
+import type { CreateAdminDayBookingRequest, CreateDayBookingRequest, PublicDayState } from "@/types/contracts";
 import type {
   BookingCatalog,
   BookingQuote,
@@ -210,7 +210,7 @@ export function createDayRequest(input: {
   turnstileToken: string;
   idempotencyKey: string;
 }): { ok: true; data: CreateDayBookingRequest } | { ok: false; fieldErrors: Record<string, string[]> } {
-  const { form, quote } = input;
+  const { form } = input;
   const rawRequests = form.specialRequests ? form.specialRequests.trim() : "";
   const paymentTag = form.paymentPreference === "ONLINE_QR"
     ? "[Payment Mode: ONLINE_QR]"
@@ -218,23 +218,43 @@ export function createDayRequest(input: {
       ? "[Payment Mode: WALK_IN]"
       : "";
   const combinedRequests = [paymentTag, rawRequests].filter(Boolean).join("\n\n");
+  return parsedRequest(CreateDayBookingSchema.safeParse({
+    ...requestFields(input, combinedRequests),
+    turnstileToken: input.turnstileToken,
+  }));
+}
 
-  const parsed = CreateDayBookingSchema.safeParse({
+// Admin walk-in and phone bookings: the same body without the security check or a payment tag.
+export function createAdminDayRequest(input: {
+  form: DetailsForm;
+  quote: BookingQuote;
+  bookingDate: string;
+  idempotencyKey: string;
+}): { ok: true; data: CreateAdminDayBookingRequest } | { ok: false; fieldErrors: Record<string, string[]> } {
+  return parsedRequest(CreateAdminDayBookingSchema.safeParse(requestFields(input, input.form.specialRequests.trim())));
+}
+
+function requestFields(input: { form: DetailsForm; quote: BookingQuote; bookingDate: string; idempotencyKey: string }, requests: string) {
+  const { form, quote } = input;
+  return {
     contractVersion: 4,
     idempotencyKey: input.idempotencyKey,
     vehicleCategoryId: quote.vehicleCategoryId,
     lines: quote.lines.map((l) => ({ serviceId: l.serviceId, quantity: l.quantity })),
     bookingDate: input.bookingDate,
     acceptedQuote: quote,
-    turnstileToken: input.turnstileToken,
     customerFirstName: form.customerFirstName,
     customerLastName: form.customerLastName,
     customerPhone: normalizePhone(form.customerPhone),
     customerEmail: blankToUndefined(form.customerEmail),
     vehicleModel: form.vehicleModel,
     vehiclePlate: blankToUndefined(form.vehiclePlate),
-    specialRequests: blankToUndefined(combinedRequests),
-  });
+    specialRequests: blankToUndefined(requests),
+  };
+}
+
+function parsedRequest<T>(parsed: { success: true; data: T } | { success: false; error: { issues: { path: PropertyKey[] }[] } }):
+  { ok: true; data: T } | { ok: false; fieldErrors: Record<string, string[]> } {
   if (parsed.success) return { ok: true, data: parsed.data };
   const fieldErrors: Record<string, string[]> = {};
   for (const issue of parsed.error.issues) {

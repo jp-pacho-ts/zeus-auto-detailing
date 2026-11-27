@@ -213,6 +213,7 @@ export type BookingCatalogResponse = Result<BookingCatalog>;
 
 // P1-03 day create v4; release-1 DTOs above are legacy compatibility only.
 export type CreateDayBookingRequest = import("zod").z.infer<typeof import("@/lib/validation").CreateDayBookingSchema>;
+export type CreateAdminDayBookingRequest = import("zod").z.infer<typeof import("@/lib/validation").CreateAdminDayBookingSchema>;
 export type DayAvailabilityRequest = import("zod").z.infer<typeof import("@/lib/validation").DayAvailabilitySchema>;
 export type PublicDayState = "AVAILABLE" | "FULLY_BOOKED" | "CLOSED";
 export interface PublicDay { date: LocalDate; state: PublicDayState }

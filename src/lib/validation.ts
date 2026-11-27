@@ -94,18 +94,22 @@ export const CustomerNameSchema = z.object(customerNameFields).extend({}).strict
 
 // P1-03 queue contracts. The archived slot schemas above remain for historical replay only.
 export const TurnstileTokenSchema = z.string().min(1).max(2048).regex(/^[\x21-\x7E]+$/);
-export const CreateDayBookingSchema = CreateBookingSchema.omit({ serviceId: true, startTime: true, vehicleCategoryId: true }).extend({
+const DayBookingBaseSchema = CreateBookingSchema.omit({ serviceId: true, startTime: true, vehicleCategoryId: true }).extend({
  ...customerNameFields,
  contractVersion: z.literal(4),
  idempotencyKey: z.string().uuid().refine(s => s[14] === "4").transform(s => s.toLowerCase()),
  vehicleCategoryId: CatalogSelectionSchema.shape.vehicleCategoryId,
  lines: CatalogSelectionSchema.shape.lines,
  acceptedQuote: BookingQuoteSchema,
- turnstileToken: TurnstileTokenSchema,
-}).strict().superRefine((r, ctx) => {
+});
+type DayBookingBase = z.infer<typeof DayBookingBaseSchema>;
+function refineDayBooking(r: DayBookingBase, ctx: z.RefinementCtx): void {
  if (r.vehicleCategoryId !== r.acceptedQuote.vehicleCategoryId || r.lines.length !== r.acceptedQuote.lines.length || r.lines.some((l, i) => l.serviceId !== r.acceptedQuote.lines[i].serviceId || l.quantity !== r.acceptedQuote.lines[i].quantity)) ctx.addIssue({ code: "custom", path: ["acceptedQuote"], message: "Selection must match the accepted quote" });
  refineCustomerName(r, ctx);
-}).transform(withComposedName);
+}
+export const CreateDayBookingSchema = DayBookingBaseSchema.extend({ turnstileToken: TurnstileTokenSchema }).strict().superRefine(refineDayBooking).transform(withComposedName);
+// Admin walk-in bookings (2026-11-27): the same body without the challenge; staff login replaces it.
+export const CreateAdminDayBookingSchema = DayBookingBaseSchema.strict().superRefine(refineDayBooking).transform(withComposedName);
 export const DayAvailabilitySchema = CatalogSelectionSchema.extend({ fromDate: LocalDateSchema, days: z.number().int().min(1).max(31).default(14) }).strict();
 
 // P1-04: private authority is never a reference or phone number.

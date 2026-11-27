@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { BookingCatalog, BookingQuote, ServicePackage } from "@/types/catalog-contracts";
 import type { LifecycleError } from "@/types/catalog-contracts";
+import { CreateAdminDayBookingSchema, CreateDayBookingSchema } from "@/lib/validation";
 import {
   availableAddOns,
+  createAdminDayRequest,
   createDayRequest,
   dayStateLabel,
   isMultiDay,
@@ -135,6 +137,26 @@ test("the car make/model is required; the plate is optional", () => {
   const noChallenge = createDayRequest({ form, quote: fullQuote, bookingDate: "2026-10-21", turnstileToken: "", idempotencyKey: "0f8fad5b-d9cb-469f-a165-70867728950e" });
   assert.equal(noChallenge.ok, false);
   if (!noChallenge.ok) assert.ok(noChallenge.fieldErrors.turnstileToken?.length);
+});
+
+test("admin create body: no challenge token, and each strict schema refuses the other's body", () => {
+  const key = "0f8fad5b-d9cb-469f-a165-70867728950e";
+  const r = createAdminDayRequest({ form, quote: fullQuote, bookingDate: "2026-10-21", idempotencyKey: key });
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal("turnstileToken" in r.data, false);
+  assert.equal(r.data.customerPhone, "+639171234567");
+  assert.equal(r.data.customerName, "Juan dela Cruz");
+  assert.equal(r.data.specialRequests, undefined, "no payment tag on an admin booking");
+  const raw = { contractVersion: 4, idempotencyKey: key, vehicleCategoryId: S, lines: [{ serviceId: wash.id, quantity: 1 }], bookingDate: "2026-10-21",
+    acceptedQuote: fullQuote, customerFirstName: "Juan", customerLastName: "dela Cruz", customerPhone: "+639171234567", vehicleModel: "Toyota Vios" };
+  assert.equal(CreateAdminDayBookingSchema.safeParse(raw).success, true);
+  assert.equal(CreateAdminDayBookingSchema.safeParse({ ...raw, turnstileToken: "token" }).success, false);
+  assert.equal(CreateDayBookingSchema.safeParse(raw).success, false);
+  assert.equal(CreateDayBookingSchema.safeParse({ ...raw, turnstileToken: "token" }).success, true);
+  const blank = createAdminDayRequest({ form: { ...form, customerFirstName: " " }, quote: fullQuote, bookingDate: "2026-10-21", idempotencyKey: key });
+  assert.equal(blank.ok, false);
+  if (!blank.ok) assert.ok(blank.fieldErrors.customerFirstName?.length);
 });
 
 const err = (code: string, o: Partial<LifecycleError> = {}) => ({ code, message: "Server message for " + code, fieldErrors: {}, retryable: false, commitState: "NOT_COMMITTED", currentQuote: null, currentBooking: null, retryAfterSeconds: null, ...o }) as LifecycleError;
