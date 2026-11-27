@@ -114,6 +114,14 @@ booking engine and skips only those stranger checks.
   from `GET /api/availability`, the same calls the wizard makes. Reuse the wizard's
   helpers (`day-booking.ts`, `public-slot.ts`) instead of re-deriving logic. Closed and
   full days cannot be chosen.
+- **Day picker (CEO 2026-11-27):** a calendar, using the existing `DayPicker`
+  (`src/components/booking/day-picker.tsx`), the same Monday-first two-week grid with
+  Earlier and Later days as `/book`. The modal leaves out `onlineBookingStatus`, so the
+  "Online booking isn't open yet" panel never shows to the admin. It passes an
+  admin-worded `notice`.
+- **Layout:** a wide two-column dialog, about 1040 px, with the form on the left and the
+  calendar on the right. On narrow screens it stacks to one column. Mockup (synthetic
+  data, not committed): `scratchpad/mockup/new-booking-modal-calendar.png`.
 - **Submit:** POST to `/api/admin/bookings` with a fresh v4 `idempotencyKey`, reused on retry.
 - **On success:** close the modal, show the booking reference, switch the board to that
   day and refresh it.
