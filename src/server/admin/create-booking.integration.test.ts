@@ -140,3 +140,22 @@ test("the public path still needs its challenge token", { skip }, async () => {
   assert.equal(code(r), "VALIDATION_ERROR");
   assert.equal(await f.db.booking.count(), 0);
 });
+
+test("the admin service: STAFF is refused with nothing written, ADMIN books without a management code, a full day names the day field", { skip }, async () => {
+  const f = await fixture("service");
+  const { createBooking } = await import("@/server/admin");
+  const { AdminServiceError } = await import("@/server/admin/errors");
+  const actor = (role: "ADMIN" | "STAFF") => ({ staffId: f.actor, role, sessionId: randomUUID() });
+  await assert.rejects(createBooking(actor("STAFF"), await f.request(), { db: f.app }), (e: unknown) => e instanceof AdminServiceError && e.adminCode === "FORBIDDEN");
+  assert.equal(await f.db.booking.count(), 0);
+  const made = await createBooking(actor("ADMIN"), await f.request(day(2)), { db: f.app, bookingConfig: config });
+  assert.equal(made.booking.status, "PENDING");
+  assert.equal(made.replayed, false);
+  assert.equal("managementAccess" in made, false);
+  await f.db.$executeRaw`UPDATE booking_queues SET "dailyCap"=NULL,revision=revision+1,"updatedAt"=now() WHERE code<>'WASH'`;
+  await f.db.queueCapOverride.create({ data: { queueCode: "WASH", date: new Date(day(2)), dailyCap: 1, updatedAt: new Date(), updatedByStaffId: f.actor } });
+  await assert.rejects(createBooking(actor("ADMIN"), await f.request(day(2), phone(5)), { db: f.app, bookingConfig: config }),
+    (e: unknown) => e instanceof AdminServiceError && e.adminCode === "SCHEDULE_CONFLICT" && Boolean(e.fieldErrors.bookingDate?.length));
+  await assert.rejects(createBooking(actor("ADMIN"), { contractVersion: 4 }, { db: f.app, bookingConfig: config }),
+    (e: unknown) => e instanceof AdminServiceError && e.adminCode === "VALIDATION_ERROR");
+});

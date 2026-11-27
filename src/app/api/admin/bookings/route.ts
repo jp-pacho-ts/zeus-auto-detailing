@@ -8,3 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   return adminRoute(request, (actor) => admin.listBookings(actor, queryObject(request)));
 }
+
+export async function POST(request: NextRequest) {
+  return adminRoute(request, (actor, body) => admin.createBooking(actor, body));
+}

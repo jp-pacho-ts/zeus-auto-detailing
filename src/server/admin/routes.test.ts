@@ -21,6 +21,7 @@ const routes: [string, string, () => Promise<Record<string, unknown>>, Record<st
   ["GET", "/api/admin/queues?date=2027-03-01", () => import("@/app/api/admin/queues/route"), {}],
   ["POST", "/api/admin/queues/WASH/days/2027-03-01/order", () => import("@/app/api/admin/queues/[code]/days/[date]/order/route"), { code: "WASH", date: "2027-03-01" }],
   ["GET", "/api/admin/bookings", () => import("@/app/api/admin/bookings/route"), {}],
+  ["POST", "/api/admin/bookings", () => import("@/app/api/admin/bookings/route"), {}],
   ["POST", "/api/admin/bookings/search", () => import("@/app/api/admin/bookings/search/route"), {}],
   ["GET", `/api/admin/bookings/${ID}`, () => import("@/app/api/admin/bookings/[id]/route"), { id: ID }],
   ["PATCH", `/api/admin/bookings/${ID}`, () => import("@/app/api/admin/bookings/[id]/route"), { id: ID }],

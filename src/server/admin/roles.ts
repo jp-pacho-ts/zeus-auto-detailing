@@ -40,6 +40,7 @@ export const ADMIN_OPS = [
   "SETTINGS_WRITE", // P1-42: a switch that can take the site down; ADMIN only, the database function repeats the check
   "USER_READ", // P1-41: User management; ADMIN only
   "USER_WRITE", // P1-41: User management; ADMIN only
+  "BOOKING_CREATE", // 2026-11-27: walk-in and phone bookings skip the online checks; ADMIN only
 ] as const;
 export type AdminOp = (typeof ADMIN_OPS)[number];
 
