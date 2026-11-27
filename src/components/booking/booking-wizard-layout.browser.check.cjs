@@ -124,6 +124,9 @@ test('the booking wizard: side panel, one submit, calendar, rounded corners and 
       await shot(page, `p152-3-day-${width}`);
       await cont().click();
       await page.getByRole('heading', { name: 'Your details' }).waitFor();
+      // Regression: the step opened with its heading scrolled under the sticky header on phones.
+      const under = await page.evaluate(() => ({ title: document.getElementById('wizard-step-title').getBoundingClientRect().top, head: document.querySelector('[data-part=panel] > div').getBoundingClientRect().bottom }));
+      assert.ok(under.title >= under.head, `${width}px the step heading opens below the header (${under.title} < ${under.head})`);
 
       // One form, one submit: the review sits under the fields, the security check under the review.
       assert.equal(await page.locator('form').count(), 1, `${width}px one form`);

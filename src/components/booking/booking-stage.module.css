@@ -472,6 +472,9 @@
 
 .booking :global([data-layout="online"] #wizard-step-title) {
   font-size: clamp(32px, min(4.4vw, 7.4vh), 60px);
+  /* A new step opens at the top of the page (reveal scrolls the heading to the start). The header is sticky, so the
+     margin covers its height (125 px on a phone, two rows) plus the gap above the heading: the page lands at 0. */
+  scroll-margin-top: 200px;
 }
 
 /* Rows share one look: no box, a hairline under each, the name in the display face. */
@@ -1528,7 +1531,7 @@
     grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
     column-gap: clamp(40px, 5vw, 80px);
     align-content: start;
-    padding: var(--pane-top) max(32px, calc((100% - 1080px) / 2)) 32px;
+    padding: var(--pane-top) max(32px, calc((100% - 1080px) / 2)) 0;
   }
 
   .booking :global([data-layout="online"] [data-part="pane"]:has(#booking-details) :is(main, main > div, main > div > div:has(> #booking-details), #booking-details, #booking-details > fieldset, #booking-details > fieldset > div)) {
@@ -1545,8 +1548,11 @@
     padding: 0;
   }
 
+  /* The space under the form is a margin inside the grid, not pane padding, so the booking column's sticky range
+     reaches the pane's bottom and it never shifts at the end of the scroll. */
   .booking :global([data-layout="online"] #booking-details > fieldset > div > div:nth-child(2)) {
     margin-top: 40px;
+    margin-bottom: 32px;
   }
 
   /* Sticky at the very place it starts, so it never moves while the left column scrolls. */
