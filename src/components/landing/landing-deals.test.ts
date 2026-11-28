@@ -112,9 +112,9 @@ test("service cards open their coming-soon pages; only known pages resolve, neve
   assert.equal(categoryPage("wash")?.title, "Wash");
   assert.equal(categoryPage("constructor"), undefined);
   assert.equal(categoryPage("__proto__"), undefined);
-  assert.equal(menuPage("products")?.title, "Products we use");
+  assert.equal(menuPage("partnership")?.title, "Partnership");
   assert.equal(menuPage("faq"), undefined);
-  assert.equal(menuPage("partnership"), undefined);
+  assert.equal(menuPage("products"), undefined);
   assert.equal(menuPage("landing"), undefined);
   assert.equal(menuPage("constructor"), undefined);
   assert.equal(servicePage("a b/c"), "/preview/services/a%20b%2Fc");
