@@ -110,7 +110,7 @@ test("service choices use familiar names and the header menu opens a page for ea
   // LE 2026-11-19: Koenigsegg-style header; the section links live in the full-screen menu at every width.
   const nav = html.slice(html.indexOf('class="landing-menu-links"'), html.indexOf('</nav>'));
   assert.equal(nav.match(/<a /g)?.length, 4);
-  for (const target of ["/preview/about", "/preview/services", "/preview/work", "/preview/partnership"]) assert.ok(nav.includes(`href="${target}"`), target);
+  for (const target of ["/preview/about", "/preview/services", "/preview/work", "/preview/products"]) assert.ok(nav.includes(`href="${target}"`), target);
 });
 
 test("workshop has natural proportions without buttons and feedback follows the real shop work", () => {

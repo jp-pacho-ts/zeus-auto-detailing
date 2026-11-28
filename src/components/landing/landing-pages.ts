@@ -24,6 +24,6 @@ export const MENU_PAGES = {
   services: { title: "Services", photo: "signature-wash" },
   work: { title: "Our work", photo: "exterior-detailing" },
   // The product brands the shop uses in its detailing.
-  partnership: { title: "Partnership", photo: "kenzo-graphene" },
+  products: { title: "Products we use", photo: "kenzo-graphene" },
 } as const;
 export const menuPage = (slug: string) => Object.hasOwn(MENU_PAGES, slug) ? MENU_PAGES[slug as keyof typeof MENU_PAGES] : undefined;
