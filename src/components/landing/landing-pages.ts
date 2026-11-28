@@ -23,6 +23,8 @@ export const MENU_PAGES = {
   about: { title: "About", photo: "full-detailing" },
   services: { title: "Services", photo: "signature-wash" },
   work: { title: "Our work", photo: "exterior-detailing" },
+  // The product brands the shop uses in its detailing.
+  partnership: { title: "Partnership", photo: "kenzo-graphene" },
   faq: { title: "FAQ", photo: "basic-wash" },
   visit: { title: "Visit", photo: "eclipse-graphene" },
 } as const;

@@ -109,8 +109,8 @@ test("service choices use familiar names and the header menu opens a page for ea
   assert.doesNotMatch(care, /<h3>Refresh|<h3>Restore|more considered reset/);
   // LE 2026-11-19: Koenigsegg-style header; the section links live in the full-screen menu at every width.
   const nav = html.slice(html.indexOf('class="landing-menu-links"'), html.indexOf('</nav>'));
-  assert.equal(nav.match(/<a /g)?.length, 5);
-  for (const target of ["/preview/about", "/preview/services", "/preview/work", "/preview/faq", "/preview/visit"]) assert.ok(nav.includes(`href="${target}"`), target);
+  assert.equal(nav.match(/<a /g)?.length, 6);
+  for (const target of ["/preview/about", "/preview/services", "/preview/work", "/preview/partnership", "/preview/faq", "/preview/visit"]) assert.ok(nav.includes(`href="${target}"`), target);
 });
 
 test("workshop has natural proportions without buttons and feedback follows the real shop work", () => {
