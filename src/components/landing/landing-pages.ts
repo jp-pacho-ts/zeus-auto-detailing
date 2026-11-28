@@ -17,3 +17,13 @@ export const servicePage = (slug: string) => `/preview/services/${encodeURICompo
 
 // Own keys only, so a slug such as "constructor" never resolves to an Object prototype member.
 export const categoryPage = (slug: string) => Object.hasOwn(CATEGORY_PAGES, slug) ? CATEGORY_PAGES[slug as CategoryPage] : undefined;
+
+// LE 2026-11-28: each header menu link opens its own coming-soon page (/preview/<key>) until that page is built.
+export const MENU_PAGES = {
+  about: { title: "About", photo: "full-detailing" },
+  services: { title: "Services", photo: "signature-wash" },
+  work: { title: "Our work", photo: "exterior-detailing" },
+  faq: { title: "FAQ", photo: "basic-wash" },
+  visit: { title: "Visit", photo: "eclipse-graphene" },
+} as const;
+export const menuPage = (slug: string) => Object.hasOwn(MENU_PAGES, slug) ? MENU_PAGES[slug as keyof typeof MENU_PAGES] : undefined;

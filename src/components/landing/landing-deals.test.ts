@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { BookingCatalog, ServicePackage, VehicleCategory } from "@/types/catalog-contracts";
 import { bestDealPercent, bestSavingCentavos, featuredDeals, featuredServices, serviceDeal } from "./landing-deals";
 import { PriceTag } from "./landing-price-tag";
-import { categoryPage, servicePage } from "./landing-pages";
+import { categoryPage, menuPage, servicePage } from "./landing-pages";
 require.extensions[".css"] = () => {};
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { LandingPage } = require("./landing-page") as typeof import("./landing-page");
@@ -112,5 +112,8 @@ test("service cards open their coming-soon pages; only known pages resolve, neve
   assert.equal(categoryPage("wash")?.title, "Wash");
   assert.equal(categoryPage("constructor"), undefined);
   assert.equal(categoryPage("__proto__"), undefined);
+  assert.equal(menuPage("faq")?.title, "FAQ");
+  assert.equal(menuPage("landing"), undefined);
+  assert.equal(menuPage("constructor"), undefined);
   assert.equal(servicePage("a b/c"), "/preview/services/a%20b%2Fc");
 });

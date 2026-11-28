@@ -114,7 +114,7 @@ test("Visit: a 3D map orbits the verified pin (Google embed as fallback) with Go
   assert.match(visit, /href="https:\/\/m\.me\/zeusautodetailingtacloban"/);
   assert.match(section(html, "reviews"), /Customer feedback will appear here\./);
   assert.match(html, /href="#reviews"[^>]*>Reviews</);
-  assert.match(html, /<nav class="landing-menu-links"[^>]*>.*href="#faq"[^>]*>FAQ</);
+  assert.match(html, /<nav class="landing-menu-links"[^>]*>.*href="\/preview\/faq"[^>]*>FAQ</);
 });
 
 test("Footer groups customer links and keeps staff sign-in out of public navigation", () => {

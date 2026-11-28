@@ -102,7 +102,7 @@ test("opening leads directly into the shop introduction without a repeated facts
   assert.match(html, /Professional care for your vehicle/);
 });
 
-test("service choices use familiar names and the header menu has clear section destinations", () => {
+test("service choices use familiar names and the header menu opens a page for each destination", () => {
   const html = render();
   const care = html.slice(html.indexOf('id="care"'), html.indexOf('id="work"'));
   for (const name of ["Wash", "Detailing", "Graphene coating"]) assert.ok(care.includes(`<h3>${name}</h3>`), name);
@@ -110,7 +110,7 @@ test("service choices use familiar names and the header menu has clear section d
   // LE 2026-11-19: Koenigsegg-style header; the section links live in the full-screen menu at every width.
   const nav = html.slice(html.indexOf('class="landing-menu-links"'), html.indexOf('</nav>'));
   assert.equal(nav.match(/<a /g)?.length, 5);
-  for (const target of ["#about", "#services", "#work", "#faq", "#visit"]) assert.ok(nav.includes(`href="${target}"`), target);
+  for (const target of ["/preview/about", "/preview/services", "/preview/work", "/preview/faq", "/preview/visit"]) assert.ok(nav.includes(`href="${target}"`), target);
 });
 
 test("workshop has natural proportions without buttons and feedback follows the real shop work", () => {
