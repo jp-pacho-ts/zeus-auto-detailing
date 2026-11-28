@@ -6,7 +6,7 @@ import { brandConfig } from "@/config/brand";
 import { LANDING_PHOTOS } from "./landing-photos";
 // LE 2026-11-21: each menu link carries a shop photo; hovering or focusing it crossfades the backdrop to that photo.
 // LE 2026-11-28: the links open their coming-soon pages (MENU_PAGES) instead of jumping to a section.
-const MENU_LINKS = [["/preview/about", "About", "full-detailing"], ["/preview/services", "Services", "signature-wash"], ["/preview/work", "Our work", "exterior-detailing"], ["/preview/partnership", "Partnership", "kenzo-graphene"], ["/preview/faq", "FAQ", "basic-wash"], ["/preview/visit", "Visit", "eclipse-graphene"]] as const;
+const MENU_LINKS = [["/preview/about", "About", "full-detailing"], ["/preview/services", "Services", "signature-wash"], ["/preview/work", "Our work", "exterior-detailing"], ["/preview/partnership", "Partnership", "kenzo-graphene"]] as const;
 export function LandingHeader({ logo, label, href }: { logo: string; label: string; href: string }) {
   const [open, setOpen] = useState(false);
   // Closing keeps the menu painted for its exit animation; reduced motion closes at once.
